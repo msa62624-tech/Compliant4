@@ -203,10 +203,10 @@ const auth = {
     }
 
     const data = await response.json();
-    if (data.access_token) {
-      localStorage.setItem('insuretrack_token', data.access_token);
-      if (data.refresh_token) {
-        localStorage.setItem('insuretrack_refresh_token', data.refresh_token);
+    if (data.accessToken) {
+      localStorage.setItem('insuretrack_token', data.accessToken);
+      if (data.refreshToken) {
+        localStorage.setItem('insuretrack_refresh_token', data.refreshToken);
       }
       // Notify listeners (e.g., App) when auth state changes
       try { window.dispatchEvent(new Event('auth-changed')); } catch (e) {}
