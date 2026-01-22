@@ -1,6 +1,7 @@
 // Simple auth helper: stores bearer token in localStorage and provides login/logout helpers.
 const STORAGE_KEY = 'insuretrack_token';
 const REFRESH_KEY = 'insuretrack_refresh_token';
+const LEGACY_SESSION_KEY = 'token'; // Legacy sessionStorage key for backward compatibility
 const apiBase = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL)
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')
   : null;
@@ -22,12 +23,9 @@ export function getToken() {
   }
   
   try {
-    const token = localStorage.getItem(STORAGE_KEY);
-    // Only warn if this looks like an unexpected missing token scenario
-    // (Don't warn during normal logged-out state)
-    return token;
+    return localStorage.getItem(STORAGE_KEY);
   } catch (e) {
-    console.error('❌ Failed to retrieve authentication token from storage:', e);
+    console.error('Failed to retrieve authentication token from storage:', e);
     // Fall back to memory storage
     useMemoryStorage = true;
     return memoryStorage.token;
@@ -44,26 +42,20 @@ export function setToken(token, refreshToken = null) {
     try {
       if (token) {
         localStorage.setItem(STORAGE_KEY, token);
-        console.log('✅ Token stored in localStorage');
       } else {
         localStorage.removeItem(STORAGE_KEY);
-        console.log('🗑️ Token removed from localStorage');
       }
       if (refreshToken) {
         localStorage.setItem(REFRESH_KEY, refreshToken);
-        console.log('✅ Refresh token stored in localStorage');
       } else {
         localStorage.removeItem(REFRESH_KEY);
       }
     } catch (e) {
       // Log storage errors and switch to memory-only mode
-      console.error('❌ Failed to store token in localStorage:', e);
-      console.warn('⚠️ Switching to in-memory storage mode (tokens will not persist across page reloads)');
-      console.warn('   This may be due to browser privacy mode, storage quota exceeded, or permissions');
+      console.error('Failed to store token in localStorage:', e);
+      console.warn('Switching to in-memory storage mode (tokens will not persist across page reloads)');
       useMemoryStorage = true;
     }
-  } else {
-    console.log('✅ Token stored in memory (localStorage unavailable)');
   }
   
   // Notify listeners (e.g., App) when auth state changes so UI can react
@@ -71,7 +63,15 @@ export function setToken(token, refreshToken = null) {
 }
 
 export function clearToken() {
-  setToken(null);
+  // Clear all storage: memory, localStorage, and legacy sessionStorage
+  setToken(null, null);
+  
+  // Also clear legacy sessionStorage token for backward compatibility
+  try {
+    sessionStorage.removeItem(LEGACY_SESSION_KEY);
+  } catch (e) {
+    // Ignore if sessionStorage is not available
+  }
 }
 
 export async function login({ username, password }) {
