@@ -1647,10 +1647,10 @@ app.post('/auth/change-password', authLimiter, authenticateToken, async (req, re
     const hasUppercase = /[A-Z]/.test(newPassword);
     const hasLowercase = /[a-z]/.test(newPassword);
     const hasNumber = /[0-9]/.test(newPassword);
-    const hasSpecial = /[!@#$%^&*]/.test(newPassword);
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
     
     if (newPassword.length < minLength || !hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
-      return sendError(res, 400, 'Password must be at least 12 characters and contain uppercase, lowercase, number, and special character (!@#$%^&*)');
+      return sendError(res, 400, 'Password must be at least 12 characters and contain uppercase, lowercase, number, and special character');
     }
     
     // Hash and update password
@@ -1847,10 +1847,10 @@ app.post('/auth/reset-password',
       const hasUppercase = /[A-Z]/.test(newPassword);
       const hasLowercase = /[a-z]/.test(newPassword);
       const hasNumber = /[0-9]/.test(newPassword);
-      const hasSpecial = /[!@#$%^&*]/.test(newPassword);
+      const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
       
       if (newPassword.length < minLength || !hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
-        return sendError(res, 400, 'Password must be at least 12 characters and contain uppercase, lowercase, number, and special character (!@#$%^&*)');
+        return sendError(res, 400, 'Password must be at least 12 characters and contain uppercase, lowercase, number, and special character');
       }
       
       // Hash the new password
@@ -3689,11 +3689,11 @@ app.post('/admin/set-broker-password', authLimiter, authenticateToken, async (re
     const hasUppercase = /[A-Z]/.test(password);
     const hasLowercase = /[a-z]/.test(password);
     const hasNumber = /[0-9]/.test(password);
-    const hasSpecial = /[!@#$%^&*]/.test(password);
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
     
     if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
       return res.status(400).json({ 
-        error: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (!@#$%^&*)' 
+        error: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character' 
       });
     }
 
@@ -3744,11 +3744,11 @@ app.post('/admin/set-gc-password', authLimiter, authenticateToken, async (req, r
     const hasUppercase = /[A-Z]/.test(password);
     const hasLowercase = /[a-z]/.test(password);
     const hasNumber = /[0-9]/.test(password);
-    const hasSpecial = /[!@#$%^&*]/.test(password);
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
     
     if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
       return res.status(400).json({ 
-        error: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (!@#$%^&*)' 
+        error: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character' 
       });
     }
 
