@@ -56,7 +56,6 @@ export default function Contractors() {
   const [editingContractor, setEditingContractor] = useState(null);
   const [formData, setFormData] = useState({
     company_name: '',
-    entity_name: '',
     contact_person: '',
     email: '',
     phone: '',
@@ -159,7 +158,6 @@ export default function Contractors() {
       setFormData({
         company_name: contractor.company_name || '',
         contact_person: contractor.contact_person || '',
-        entity_name: contractor.entity_name || '',
         email: contractor.email || '',
         phone: contractor.phone || '',
         address: contractor.address || '',
@@ -175,7 +173,6 @@ export default function Contractors() {
       setEditingContractor(null);
       setFormData({
         company_name: '',
-        entity_name: '',
         contact_person: '',
         email: '',
         phone: '',
@@ -198,7 +195,6 @@ export default function Contractors() {
     // Reset form data to initial state
     setFormData({
       company_name: '',
-      entity_name: '',
       contact_person: '',
       email: '',
       phone: '',
@@ -291,7 +287,7 @@ export default function Contractors() {
           const createdPortal = await compliant.entities.Portal.create({
             user_type: 'gc',
             user_id: newGC.id,
-            user_name: data.company_name || data.entity_name,
+            user_name: data.company_name,
             user_email: data.email,
             access_token: portalToken,
             dashboard_url: dashboardLink,
@@ -308,7 +304,7 @@ export default function Contractors() {
               ...newGC,
               email: data.email,
               contact_person: data.contact_person,
-              company_name: data.company_name || data.entity_name,
+              company_name: data.company_name,
               license_number: data.license_number,
               phone: data.phone,
               gcLogin
@@ -358,7 +354,7 @@ export default function Contractors() {
                 name: contact.name,
                 role: 'gc_user',
                 gc_id: newGC.id,
-                gc_name: data.company_name || data.entity_name,
+                gc_name: data.company_name,
                 is_active: true,
                 created_date: new Date().toISOString()
               });
@@ -382,10 +378,10 @@ export default function Contractors() {
               try {
                 const contactEmailSent = await sendEmail({
                   to: contact.email,
-                  subject: `Welcome to InsureTrack - ${data.company_name || data.entity_name}`,
+                  subject: `Welcome to InsureTrack - ${data.company_name}`,
                   body: `Dear ${contact.name},
 
-You have been added as a contact for ${data.company_name || data.entity_name} on InsureTrack.
+You have been added as a contact for ${data.company_name} on InsureTrack.
 
 🔐 Your Login Credentials:
 Username: ${username}
@@ -398,7 +394,7 @@ ${dashboardLink}
 ${projectsLink}
 
 What you can do:
-✓ View all projects for ${data.company_name || data.entity_name}
+✓ View all projects for ${data.company_name}
 ✓ Upload insurance documents
 ✓ Track compliance status
 ✓ Receive notifications about your projects
@@ -457,7 +453,7 @@ InsureTrack Team`
         // Include dashboard link when portal is created (especially important when email fails)
         const dashboardLinkNote = portalCreated ? `\n\n🔗 GC Dashboard Link:\n${dashboardLink}` : '';
         
-        alert(`✅ General Contractor "${data.company_name || data.entity_name}" has been added!${loginNote}${portalNote}${emailNote}${additionalContactsNote}${dashboardLinkNote}`);
+        alert(`✅ General Contractor "${data.company_name}" has been added!${loginNote}${portalNote}${emailNote}${additionalContactsNote}${dashboardLinkNote}`);
       }
     } catch (error) {
       console.error('❌ Submit error:', error);
@@ -549,7 +545,7 @@ InsureTrack Team`
         portal = await compliant.entities.Portal.create({
           user_type: 'gc',
           user_id: contractor.id,
-          user_name: contractor.entity_name || contractor.company_name,
+          user_name: contractor.company_name,
           user_email: contractor.email,
           access_token: portalToken,
           dashboard_url: dashboardLink,
@@ -568,7 +564,7 @@ InsureTrack Team`
         subject: `Welcome to InsureTrack - Access Your Portal`,
         body: `Dear ${contractor.contact_person},
 
-Welcome to InsureTrack! Your General Contractor portal has been created for ${contractor.entity_name || contractor.company_name}.
+Welcome to InsureTrack! Your General Contractor portal has been created for ${contractor.company_name}.
 
 🔗 Access Your Portal Here:
 ${dashboardLink}
@@ -722,7 +718,7 @@ InsureTrack Team`
                               No General Contractors Yet
                             </h3>
                             <p className="text-sm text-slate-500">
-                              Use the "Add Contractor" button above to get started
+                              Use the Add Contractor button above to get started
                             </p>
                           </div>
                         </div>
@@ -877,8 +873,8 @@ InsureTrack Team`
       {/* Add/Edit GC Dialog - Rendered as Portal */}
       {isDialogOpen && ReactDOM.createPortal(
         <div className="fixed inset-0 z-[99999] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between mb-6 px-6 pt-6">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between mb-6 px-6 pt-6 flex-shrink-0">
               <h2 className="text-xl font-bold text-slate-900">
                 {editingContractor ? 'Edit General Contractor' : 'Add New General Contractor'}
               </h2>
@@ -889,39 +885,26 @@ InsureTrack Team`
                 ×
               </button>
             </div>
-            <p className="text-sm text-slate-600 mb-6 px-6">
+            <p className="text-sm text-slate-600 mb-6 px-6 flex-shrink-0">
               {editingContractor ? 'Update the contractor information below' : 'Fill out the form to add a new general contractor to the system'}
             </p>
-            <form onSubmit={handleSubmit} className="flex flex-col flex-1">
-              <div className="space-y-4 py-4 px-6 overflow-y-auto flex-1">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="space-y-4 py-4 px-6 overflow-y-auto flex-1 min-h-0">
                 <div className="space-y-2">
-                  <Label htmlFor="entity_name">
-                    Entity Name <span className="text-red-500">*</span>
+                  <Label htmlFor="company_name">
+                    Company Name <span className="text-red-500">*</span>
                   </Label>
                   <Input
-                    id="entity_name"
-                    value={formData.entity_name}
-                    onChange={(e) => setFormData({ ...formData, entity_name: e.target.value })}
+                    id="company_name"
+                    value={formData.company_name}
+                    onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
                     placeholder="ABC Construction LLC"
                     required
                   />
-                  <p className="text-xs text-slate-500">Legal entity name for the company</p>
+                  <p className="text-xs text-slate-500">Company or legal entity name</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="company_name">
-                    Company Name / DBA <span className="text-red-500">*</span>
-                  </Label>
-                <Input
-                  id="company_name"
-                  value={formData.company_name}
-                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                  placeholder="ABC Construction"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="contact_person">
                   Primary Contact Person <span className="text-red-500">*</span>
                 </Label>
@@ -1120,7 +1103,7 @@ InsureTrack Team`
               </div>
             </div>
 
-              <div className="flex gap-2 px-6 py-6 border-t bg-slate-50 rounded-b-lg">
+              <div className="flex gap-2 px-6 py-6 border-t bg-slate-50 rounded-b-lg flex-shrink-0">
                 <Button type="button" variant="outline" onClick={closeDialog}>
                   Cancel
                 </Button>

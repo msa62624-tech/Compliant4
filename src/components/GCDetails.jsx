@@ -569,8 +569,8 @@ export default function GCDetails() {
 
       {/* Edit Info Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-0">
             <DialogTitle className="text-xl font-bold">
               Edit General Contractor Information
             </DialogTitle>
@@ -578,8 +578,8 @@ export default function GCDetails() {
               Update the GC contact and company details for this project.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleUpdateInfo}>
-            <div className="space-y-4 py-4">
+          <form onSubmit={handleUpdateInfo} className="flex flex-col flex-1 min-h-0">
+            <div className="space-y-4 py-4 px-6 overflow-y-auto flex-1 min-h-0">
               <div className="space-y-2">
                 <Label htmlFor="company_name">Company Name</Label>
                 <Input
@@ -786,7 +786,7 @@ export default function GCDetails() {
               </div>
             </div>
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className="gap-2 px-6 pb-6 pt-4 border-t flex-shrink-0">
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Cancel
               </Button>
