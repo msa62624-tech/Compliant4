@@ -22,12 +22,9 @@ export function getToken() {
   }
   
   try {
-    const token = localStorage.getItem(STORAGE_KEY);
-    // Only warn if this looks like an unexpected missing token scenario
-    // (Don't warn during normal logged-out state)
-    return token;
+    return localStorage.getItem(STORAGE_KEY);
   } catch (e) {
-    console.error('❌ Failed to retrieve authentication token from storage:', e);
+    console.error('Failed to retrieve authentication token from storage:', e);
     // Fall back to memory storage
     useMemoryStorage = true;
     return memoryStorage.token;
@@ -44,26 +41,20 @@ export function setToken(token, refreshToken = null) {
     try {
       if (token) {
         localStorage.setItem(STORAGE_KEY, token);
-        console.log('✅ Token stored in localStorage');
       } else {
         localStorage.removeItem(STORAGE_KEY);
-        console.log('🗑️ Token removed from localStorage');
       }
       if (refreshToken) {
         localStorage.setItem(REFRESH_KEY, refreshToken);
-        console.log('✅ Refresh token stored in localStorage');
       } else {
         localStorage.removeItem(REFRESH_KEY);
       }
     } catch (e) {
       // Log storage errors and switch to memory-only mode
-      console.error('❌ Failed to store token in localStorage:', e);
-      console.warn('⚠️ Switching to in-memory storage mode (tokens will not persist across page reloads)');
-      console.warn('   This may be due to browser privacy mode, storage quota exceeded, or permissions');
+      console.error('Failed to store token in localStorage:', e);
+      console.warn('Switching to in-memory storage mode (tokens will not persist across page reloads)');
       useMemoryStorage = true;
     }
-  } else {
-    console.log('✅ Token stored in memory (localStorage unavailable)');
   }
   
   // Notify listeners (e.g., App) when auth state changes so UI can react
@@ -71,7 +62,22 @@ export function setToken(token, refreshToken = null) {
 }
 
 export function clearToken() {
-  setToken(null);
+  // Clear memory storage
+  memoryStorage.token = null;
+  memoryStorage.refreshToken = null;
+  
+  // Clear localStorage if available
+  if (!useMemoryStorage) {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(REFRESH_KEY);
+    } catch (e) {
+      // Ignore if localStorage is not available
+    }
+  }
+  
+  // Notify listeners (e.g., App) when auth state changes so UI can react
+  try { window.dispatchEvent(new Event('auth-changed')); } catch (e) {}
 }
 
 export async function login({ username, password }) {

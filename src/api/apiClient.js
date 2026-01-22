@@ -3,11 +3,10 @@
  * Uses the Express backend endpoints directly
  */
 
-export const getAuthHeader = () => {
-  // Check both storages for backward compatibility
-  const token = localStorage.getItem('insuretrack_token') || sessionStorage.getItem('token');
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
-};
+import * as auth from '../auth.js';
+
+// Use centralized auth module for consistent token management
+export const getAuthHeader = auth.getAuthHeader;
 
 export const getApiBase = () => {
   const envBase = import.meta.env.VITE_API_BASE_URL;
@@ -187,38 +186,20 @@ const _analyzePolicy = async ({ coi_id, policy_documents }) => {
   });
 };
 
-// Authentication module
-const auth = {
+// Authentication module - delegates to centralized auth.js
+const authModule = {
   login: async (username, password) => {
-    const response = await fetch(`${getApiBase()}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Login failed (${response.status}): ${error}`);
-    }
-
-    const data = await response.json();
-    if (data.accessToken) {
-      localStorage.setItem('insuretrack_token', data.accessToken);
-      if (data.refreshToken) {
-        localStorage.setItem('insuretrack_refresh_token', data.refreshToken);
-      }
-      // Notify listeners (e.g., App) when auth state changes
-      try { window.dispatchEvent(new Event('auth-changed')); } catch (e) {}
-    }
-    return data;
+    return auth.login({ username, password });
   },
 
   logout: () => {
-    localStorage.removeItem('insuretrack_token');
-    localStorage.removeItem('insuretrack_refresh_token');
-    sessionStorage.removeItem('token');
-    try { window.dispatchEvent(new Event('auth-changed')); } catch (e) {}
+    auth.clearToken();
+    // Clear legacy sessionStorage token for backward compatibility
+    try {
+      sessionStorage.removeItem('token');
+    } catch (e) {
+      // Ignore if sessionStorage is not available
+    }
   },
 
   me: async () => {
@@ -226,13 +207,13 @@ const auth = {
   },
 
   isAuthenticated: () => {
-    return !!(localStorage.getItem('insuretrack_token') || sessionStorage.getItem('token'));
+    return !!auth.getToken();
   }
 };
 
 // API Client object structure (mimics compliant client)
 export const apiClient = {
-  auth,
+  auth: authModule,
   api: {
     get: (endpoint) => apiFetch(endpoint, { method: 'GET' }),
     post: (endpoint, data) => apiFetch(endpoint, { method: 'POST', body: JSON.stringify(data) })
