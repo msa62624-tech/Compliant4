@@ -15,19 +15,6 @@ let memoryStorage = {
 
 let useMemoryStorage = false;
 
-// Test if localStorage is available and working
-function testLocalStorage() {
-  try {
-    const testKey = '__storage_test__';
-    localStorage.setItem(testKey, 'test');
-    localStorage.removeItem(testKey);
-    return true;
-  } catch (e) {
-    console.warn('⚠️ localStorage not available, using in-memory storage (tokens will not persist across page reloads)');
-    return false;
-  }
-}
-
 export function getToken() {
   // Use memory storage if localStorage failed
   if (useMemoryStorage) {
@@ -36,9 +23,8 @@ export function getToken() {
   
   try {
     const token = localStorage.getItem(STORAGE_KEY);
-    if (!token) {
-      console.warn('⚠️ No authentication token found in storage');
-    }
+    // Only warn if this looks like an unexpected missing token scenario
+    // (Don't warn during normal logged-out state)
     return token;
   } catch (e) {
     console.error('❌ Failed to retrieve authentication token from storage:', e);
