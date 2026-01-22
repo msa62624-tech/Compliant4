@@ -13,6 +13,7 @@ import { MessageSquare, Send, CheckCircle2, Archive, Filter } from "lucide-react
 import { format } from "date-fns";
 import { sendEmail } from "@/emailHelper";
 import { notificationLinks } from "@/notificationLinkBuilder";
+import { toast } from "sonner";
 
 export default function MessagingCenter() {
   const queryClient = useQueryClient();
@@ -94,7 +95,8 @@ export default function MessagingCenter() {
         // Build response link based on recipient type
         let responseLink = "";
         if (selectedRecipientType === "broker") {
-          responseLink = notificationLinks.getBrokerMessagesLink(recipientEmail);
+          // Broker links use name field
+          responseLink = notificationLinks.getBrokerMessagesLink(recipient.name || recipientEmail);
         } else if (selectedRecipientType === "subcontractor") {
           responseLink = notificationLinks.getSubMessagesLink(recipient.id);
         }
@@ -477,7 +479,7 @@ export default function MessagingCenter() {
                 <Button
                   onClick={() => {
                     if (!messageSubject || !messageBody || selectedRecipients.length === 0) {
-                      alert("Please fill in all required fields and select at least one recipient");
+                      toast.error("Please fill in all required fields and select at least one recipient");
                       return;
                     }
                     
@@ -487,7 +489,6 @@ export default function MessagingCenter() {
                       sender_name: currentUser?.name || "Admin",
                       sender_email: currentUser?.email,
                       recipient_type: selectedRecipientType,
-                      recipient_ids: selectedRecipients.map(r => r.id),
                       recipient_email: selectedRecipients.map(r => r.email).join(", "),
                       project_id: selectedProject || null,
                       subject: messageSubject,
