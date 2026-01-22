@@ -177,6 +177,12 @@ INSURED: MPI Plumbing Corp
       const filename = `coi-${coiData.coiId || Date.now()}-${Date.now()}.pdf`;
       const filepath = path.join(uploadDir, filename);
       
+      // ACORD 25 layout constants
+      const COVERAGE_ROW_HEIGHT = 25;
+      const PAGE_HEIGHT = 792; // Letter size height in points
+      const FOOTER_HEIGHT = 30;
+      const MAX_CONTENT_Y = PAGE_HEIGHT - FOOTER_HEIGHT - 30; // Leave space for footer
+      
       // Create PDF document with ACORD 25 standard size
       const doc = new PDFDocument({ size: 'LETTER', margin: 30 });
       const stream = fs.createWriteStream(filepath);
@@ -256,7 +262,7 @@ INSURED: MPI Plumbing Corp
             .text(coverage.effectiveDate || 'N/A', 280, yPos, { width: 50 })
             .text(coverage.expirationDate || 'N/A', 340, yPos, { width: 70 })
             .text(coverage.limits || 'N/A', 420, yPos, { width: 150 });
-          yPos += 25;
+          yPos += COVERAGE_ROW_HEIGHT;
           doc.moveTo(30, yPos).lineTo(580, yPos).stroke();
         });
       } else {
@@ -272,7 +278,7 @@ INSURED: MPI Plumbing Corp
           doc.fontSize(8).font('Helvetica')
             .text(coverage.type, 30, yPos, { width: 140 })
             .text(coverage.limits, 420, yPos, { width: 150 });
-          yPos += 25;
+          yPos += COVERAGE_ROW_HEIGHT;
           doc.moveTo(30, yPos).lineTo(580, yPos).stroke();
         });
       }
@@ -324,13 +330,15 @@ INSURED: MPI Plumbing Corp
       }
       if (coiData.certificateHolderAddress) {
         doc.text(coiData.certificateHolderAddress, 30, yPos);
+        yPos += 12;
       }
       
-      // Footer - Standard ACORD 25 disclaimer
-      yPos = 720;
-      doc.fontSize(6).font('Helvetica').text('ACORD 25 (2016/03)', 30, yPos);
-      doc.fontSize(6).text('© 1988-2015 ACORD CORPORATION. All rights reserved.', 200, yPos, { align: 'center', width: 200 });
-      doc.fontSize(6).text('The ACORD name and logo are registered marks of ACORD', 30, yPos + 10, { width: 540, align: 'center' });
+      // Footer - Standard ACORD 25 disclaimer (positioned dynamically or at bottom of page)
+      // Use the greater of current yPos + buffer or fixed position near bottom
+      const footerY = Math.max(yPos + 20, PAGE_HEIGHT - FOOTER_HEIGHT);
+      doc.fontSize(6).font('Helvetica').text('ACORD 25 (2016/03)', 30, footerY);
+      doc.fontSize(6).text('© 1988-2015 ACORD CORPORATION. All rights reserved.', 200, footerY, { align: 'center', width: 200 });
+      doc.fontSize(6).text('The ACORD name and logo are registered marks of ACORD', 30, footerY + 10, { width: 540, align: 'center' });
       
       doc.end();
       
