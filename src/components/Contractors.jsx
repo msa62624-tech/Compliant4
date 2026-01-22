@@ -719,7 +719,7 @@ InsureTrack Team`
                               No General Contractors Yet
                             </h3>
                             <p className="text-sm text-slate-500">
-                              Use the "Add Contractor" button above to get started
+                              Use the &ldquo;Add Contractor&rdquo; button above to get started
                             </p>
                           </div>
                         </div>
