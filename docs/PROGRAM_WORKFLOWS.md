@@ -989,34 +989,95 @@ Insurance Programs are templates that define standard insurance requirements for
 **Where:** Admin Dashboard → Insurance Programs
 
 **Process:**
-1. Click "Create New Program"
+
+#### Step 1: Create New Program
+1. Click **"New Program"** button
 2. Fill in program details:
    - Name (e.g., "NYC High-Rise Standard")
    - Description
    - Active status
-3. **Upload Hold Harmless Template (REQUIRED):**
-   - Upload template document (PDF or DOC)
+
+#### Step 2: Upload Program Documents
+1. **Upload Program Requirements (Optional):**
+   - Upload requirements document (PDF or DOC)
+   - This document contains detailed insurance requirements for the program
+   
+2. **Upload Hold Harmless Agreement (REQUIRED):**
+   - Upload hold harmless template document (PDF or DOC)
    - This template will be used for all projects using this program
    - Template should include placeholders for auto-fill data
-4. Define Requirements by Tier:
-   - **Tier 1** (General trades):
-     - GL limits
-     - WC limits
-     - Auto limits
-     - Endorsements
-   - **Tier 2** (Specialty trades):
-     - Increased limits
-     - Additional requirements
-   - **Tier 3** (High-risk trades):
-     - Maximum limits
-     - Strictest requirements
-5. Assign applicable trades to each tier
-6. Save program
 
-**Important:** The hold harmless template uploaded here will be automatically:
-- Retrieved when COI is approved for any project using this program
-- Populated with project address, GC entity, owner entity, and additional insureds
-- Sent for digital signatures (no download/upload needed)
+#### Step 3: Set Base Requirements
+**Always include these minimum requirements:**
+- **Workers Compensation:** $1,000,000 minimum
+- **Auto Liability:** $1,000,000 minimum
+
+These base requirements apply to all trades in the program.
+
+#### Step 4: Create Tier Program
+**For Each Tier (Tier 1, Tier 2, Tier 3, etc.):**
+
+1. Click **"Add Tier"** button
+
+2. **Enter Tier Information:**
+   - Tier name/description (e.g., "Tier 1 - General Trades")
+   
+3. **Select Trades for This Tier:**
+   - **Option 1:** Select specific trades from the list
+   - **Option 2:** Choose "All Trades" to include all available trades
+   - **Option 3 (Tier 2+):** Choose "All trades not chosen in earlier tiers"
+   
+4. **Set Insurance Limits:**
+   - **GL Each Occurrence Limit** (e.g., $1,000,000)
+   - **GL Aggregate Limit** (e.g., $2,000,000)
+   - **Umbrella Limit Required** (e.g., $0 for Tier 1, $2,000,000 for Tier 2+)
+
+5. Click **"Save Tier"**
+
+6. Repeat for additional tiers as needed
+
+#### Step 5: Review and Save
+1. Review all tiers and requirements
+2. Verify hold harmless template is uploaded
+3. Click **"Save Program"**
+
+---
+
+### Tier Configuration Examples
+
+**Tier 1 - General Construction Trades:**
+- Trades: Carpentry, Electrical, Plumbing, HVAC (or "All Trades")
+- GL Each Occurrence: $1,000,000
+- GL Aggregate: $2,000,000
+- Umbrella: Not required ($0)
+- WC: $1,000,000 (base requirement)
+- Auto: $1,000,000 (base requirement)
+
+**Tier 2 - Specialty Trades:**
+- Trades: Roofing, Excavation (or "All trades not chosen in earlier tiers")
+- GL Each Occurrence: $2,000,000
+- GL Aggregate: $5,000,000
+- Umbrella Required: $2,000,000
+- WC: $1,000,000 (base requirement)
+- Auto: $1,000,000 (base requirement)
+
+**Tier 3 - High-Risk Trades:**
+- Trades: Crane Operators, Scaffolding (or "All trades not chosen in earlier tiers")
+- GL Each Occurrence: $3,000,000
+- GL Aggregate: $6,000,000
+- Umbrella Required: $3,000,000
+- WC: $1,000,000 (base requirement)
+- Auto: $1,000,000 (base requirement)
+
+---
+
+**Important Notes:**
+- The hold harmless template uploaded here will be automatically:
+  - Retrieved when COI is approved for any project using this program
+  - Populated with project address, GC entity, owner entity, and additional insureds
+  - Sent for digital signatures (no download/upload needed)
+- Base requirements (WC $1M, Auto $1M) always apply
+- "All trades not chosen in earlier tiers" option helps ensure complete coverage without duplication
 
 ### Applying Program to Projects
 
