@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageSquare, Send, CheckCircle2, Archive, Filter } from "lucide-react";
+import { MessageSquare, Send, CheckCircle2, Archive, Filter, Search } from "lucide-react";
 import { format } from "date-fns";
 import { sendEmail } from "@/emailHelper";
 import { notificationLinks } from "@/notificationLinkBuilder";
@@ -26,6 +26,9 @@ export default function MessagingCenter() {
   const [messageBody, setMessageBody] = useState("");
   const [filterProject, setFilterProject] = useState("all");
   const [filterRecipientType, setFilterRecipientType] = useState("all");
+  const [filterCarrier, setFilterCarrier] = useState("all");
+  const [filterSubcontractor, setFilterSubcontractor] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch messages
   const { data: messages = [], isLoading: messagesLoading } = useQuery({
@@ -192,6 +195,43 @@ export default function MessagingCenter() {
       filtered = filtered.filter(m => m.recipient_type === filterRecipientType);
     }
 
+    // Filter by carrier/broker
+    if (filterCarrier !== "all") {
+      filtered = filtered.filter(m => {
+        // Match by broker name or email in recipient_email field
+        const broker = brokers.find(b => b.id === filterCarrier);
+        if (broker) {
+          return m.recipient_email?.includes(broker.email) || 
+                 m.recipient_email?.includes(broker.name);
+        }
+        return false;
+      });
+    }
+
+    // Filter by subcontractor
+    if (filterSubcontractor !== "all") {
+      filtered = filtered.filter(m => {
+        // Match by subcontractor email or company name in recipient_email field
+        const sub = allSubs.find(s => s.id === filterSubcontractor);
+        if (sub) {
+          return m.recipient_email?.includes(sub.email) || 
+                 m.recipient_email?.includes(sub.company_name);
+        }
+        return false;
+      });
+    }
+
+    // Filter by search query
+    if (searchQuery.trim() !== "") {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(m => 
+        m.subject?.toLowerCase().includes(query) ||
+        m.message?.toLowerCase().includes(query) ||
+        m.recipient_email?.toLowerCase().includes(query) ||
+        m.sender_email?.toLowerCase().includes(query)
+      );
+    }
+
     return filtered;
   };
 
@@ -253,8 +293,21 @@ export default function MessagingCenter() {
       {/* Messages List */}
       <Card>
         <CardHeader className="border-b">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-3">
             <CardTitle>Messages</CardTitle>
+            {/* Search Bar */}
+            <div className="relative w-80">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Search messages..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-slate-500">Filters</div>
             <div className="flex items-center gap-3">
               <Filter className="w-4 h-4 text-slate-500" />
               <Select value={filterProject} onValueChange={setFilterProject}>
@@ -276,6 +329,28 @@ export default function MessagingCenter() {
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="broker">Brokers</SelectItem>
                   <SelectItem value="subcontractor">Subcontractors</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterCarrier} onValueChange={setFilterCarrier}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filter by carrier" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Carriers</SelectItem>
+                  {brokers.map(b => (
+                    <SelectItem key={b.id} value={b.id}>{b.name || b.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterSubcontractor} onValueChange={setFilterSubcontractor}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filter by sub" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Subs</SelectItem>
+                  {allSubs.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.company_name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
