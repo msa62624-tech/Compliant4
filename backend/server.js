@@ -3682,7 +3682,7 @@ app.post('/admin/generate-coi', authenticateToken, async (req, res) => {
     };
     
     // Generate actual PDF
-    const filename = await adobePDF.generateCOIPDF(coiData, UPLOAD_DIR);
+    const filename = await adobePDF.generateCOIPDF(coiData, UPLOADS_DIR);
     const generatedUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
     
     entities.GeneratedCOI[coiIdx] = {
@@ -3727,7 +3727,7 @@ app.post('/admin/generate-policy-pdf', authenticateToken, async (req, res) => {
     };
     
     // Generate actual PDF
-    const filename = await adobePDF.generatePolicyPDF(policyData, UPLOAD_DIR);
+    const filename = await adobePDF.generatePolicyPDF(policyData, UPLOADS_DIR);
     const generatedUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
     
     // Update document with generated PDF URL
