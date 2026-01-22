@@ -156,8 +156,7 @@ export default function Contractors() {
     if (contractor) {
       setEditingContractor(contractor);
       setFormData({
-        // Use company_name if available, otherwise fallback to entity_name for older records
-        company_name: contractor.company_name || contractor.entity_name || '',
+        company_name: contractor.company_name || '',
         contact_person: contractor.contact_person || '',
         email: contractor.email || '',
         phone: contractor.phone || '',
@@ -257,8 +256,6 @@ export default function Contractors() {
     
     const data = {
       ...formData,
-      // Set entity_name to company_name for backward compatibility with existing database records and API expectations
-      entity_name: formData.company_name,
       contractor_type: 'general_contractor',
       ...(!editingContractor && { admin_id: user?.id, admin_name: user?.name })
     };
@@ -290,7 +287,7 @@ export default function Contractors() {
           const createdPortal = await compliant.entities.Portal.create({
             user_type: 'gc',
             user_id: newGC.id,
-            user_name: data.company_name || data.entity_name,
+            user_name: data.company_name,
             user_email: data.email,
             access_token: portalToken,
             dashboard_url: dashboardLink,
@@ -307,7 +304,7 @@ export default function Contractors() {
               ...newGC,
               email: data.email,
               contact_person: data.contact_person,
-              company_name: data.company_name || data.entity_name,
+              company_name: data.company_name,
               license_number: data.license_number,
               phone: data.phone,
               gcLogin
@@ -357,7 +354,7 @@ export default function Contractors() {
                 name: contact.name,
                 role: 'gc_user',
                 gc_id: newGC.id,
-                gc_name: data.company_name || data.entity_name,
+                gc_name: data.company_name,
                 is_active: true,
                 created_date: new Date().toISOString()
               });
@@ -381,10 +378,10 @@ export default function Contractors() {
               try {
                 const contactEmailSent = await sendEmail({
                   to: contact.email,
-                  subject: `Welcome to InsureTrack - ${data.company_name || data.entity_name}`,
+                  subject: `Welcome to InsureTrack - ${data.company_name}`,
                   body: `Dear ${contact.name},
 
-You have been added as a contact for ${data.company_name || data.entity_name} on InsureTrack.
+You have been added as a contact for ${data.company_name} on InsureTrack.
 
 🔐 Your Login Credentials:
 Username: ${username}
@@ -397,7 +394,7 @@ ${dashboardLink}
 ${projectsLink}
 
 What you can do:
-✓ View all projects for ${data.company_name || data.entity_name}
+✓ View all projects for ${data.company_name}
 ✓ Upload insurance documents
 ✓ Track compliance status
 ✓ Receive notifications about your projects
@@ -456,7 +453,7 @@ InsureTrack Team`
         // Include dashboard link when portal is created (especially important when email fails)
         const dashboardLinkNote = portalCreated ? `\n\n🔗 GC Dashboard Link:\n${dashboardLink}` : '';
         
-        alert(`✅ General Contractor "${data.company_name || data.entity_name}" has been added!${loginNote}${portalNote}${emailNote}${additionalContactsNote}${dashboardLinkNote}`);
+        alert(`✅ General Contractor "${data.company_name}" has been added!${loginNote}${portalNote}${emailNote}${additionalContactsNote}${dashboardLinkNote}`);
       }
     } catch (error) {
       console.error('❌ Submit error:', error);
@@ -548,7 +545,7 @@ InsureTrack Team`
         portal = await compliant.entities.Portal.create({
           user_type: 'gc',
           user_id: contractor.id,
-          user_name: contractor.entity_name || contractor.company_name,
+          user_name: contractor.company_name,
           user_email: contractor.email,
           access_token: portalToken,
           dashboard_url: dashboardLink,
@@ -567,7 +564,7 @@ InsureTrack Team`
         subject: `Welcome to InsureTrack - Access Your Portal`,
         body: `Dear ${contractor.contact_person},
 
-Welcome to InsureTrack! Your General Contractor portal has been created for ${contractor.entity_name || contractor.company_name}.
+Welcome to InsureTrack! Your General Contractor portal has been created for ${contractor.company_name}.
 
 🔗 Access Your Portal Here:
 ${dashboardLink}
