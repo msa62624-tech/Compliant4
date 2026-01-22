@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Settings, Upload, Sparkles, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Settings, Upload, Sparkles, X, Search } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getAvailableTrades } from "@/insuranceRequirements";
 
@@ -94,10 +94,28 @@ export default function InsurancePrograms() {
   const fileInputRef = useRef(null);
   const [tiers, setTiers] = useState([{ name: 'Tier 1', id: `tier-${Date.now()}` }]);
   const [requirements, setRequirements] = useState([newGLRequirement('Tier 1')]);
+  
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); // all, active, inactive
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
     queryFn: () => apiClient.entities.InsuranceProgram.list(),
+  });
+
+  // Filter programs based on search and status
+  const filteredPrograms = programs.filter(program => {
+    const matchesSearch = searchTerm === "" || 
+      program.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      program.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      program.id?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || 
+      (statusFilter === "active" && program.is_active) ||
+      (statusFilter === "inactive" && !program.is_active);
+    
+    return matchesSearch && matchesStatus;
   });
 
   const createProgramMutation = useMutation({
@@ -378,24 +396,65 @@ export default function InsurancePrograms() {
         {/* Programs List */}
         <Card className="border-slate-200 shadow-lg">
           <CardHeader className="border-b border-slate-200">
-            <CardTitle className="text-xl font-bold">Programs ({programs.length})</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xl font-bold">Programs ({filteredPrograms.length})</CardTitle>
+              <div className="flex items-center gap-3">
+                {/* Search Input */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    placeholder="Search programs..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 w-64"
+                  />
+                </div>
+                {/* Status Filter */}
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
               <div className="p-12 text-center text-slate-500">Loading programs...</div>
-            ) : programs.length === 0 ? (
+            ) : filteredPrograms.length === 0 ? (
               <div className="p-12 text-center">
-                <Settings className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No Programs Yet</h3>
-                <p className="text-slate-600 mb-6">Create your first insurance program template</p>
-                <Button onClick={() => openDialog()} className="bg-red-600 hover:bg-red-700">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Program
-                </Button>
+                {programs.length === 0 ? (
+                  <>
+                    <Settings className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">No Programs Yet</h3>
+                    <p className="text-slate-600 mb-6">Create your first insurance program template</p>
+                    <Button onClick={() => openDialog()} className="bg-red-600 hover:bg-red-700">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Program
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">No Matching Programs</h3>
+                    <p className="text-slate-600 mb-6">Try adjusting your search or filters</p>
+                    <Button 
+                      onClick={() => { setSearchTerm(""); setStatusFilter("all"); }} 
+                      variant="outline"
+                    >
+                      Clear Filters
+                    </Button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="divide-y">
-                {programs.map((program) => (
+                {filteredPrograms.map((program) => (
                   <div
                     key={program.id}
                     className="p-6 hover:bg-slate-50 transition-colors"
