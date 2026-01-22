@@ -7,7 +7,33 @@ const apiBase = (typeof import.meta !== 'undefined' && import.meta.env && import
 
 let refreshPromise = null;
 
+// In-memory fallback storage for when localStorage fails (e.g., privacy mode)
+let memoryStorage = {
+  token: null,
+  refreshToken: null
+};
+
+let useMemoryStorage = false;
+
+// Test if localStorage is available and working
+function testLocalStorage() {
+  try {
+    const testKey = '__storage_test__';
+    localStorage.setItem(testKey, 'test');
+    localStorage.removeItem(testKey);
+    return true;
+  } catch (e) {
+    console.warn('⚠️ localStorage not available, using in-memory storage (tokens will not persist across page reloads)');
+    return false;
+  }
+}
+
 export function getToken() {
+  // Use memory storage if localStorage failed
+  if (useMemoryStorage) {
+    return memoryStorage.token;
+  }
+  
   try {
     const token = localStorage.getItem(STORAGE_KEY);
     if (!token) {
@@ -16,35 +42,46 @@ export function getToken() {
     return token;
   } catch (e) {
     console.error('❌ Failed to retrieve authentication token from storage:', e);
-    return null;
+    // Fall back to memory storage
+    useMemoryStorage = true;
+    return memoryStorage.token;
   }
 }
 
 export function setToken(token, refreshToken = null) {
-  try {
-    if (token) {
-      localStorage.setItem(STORAGE_KEY, token);
-      console.log('✅ Token stored successfully');
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-      console.log('🗑️ Token removed from storage');
+  // Update memory storage first (always works)
+  memoryStorage.token = token;
+  memoryStorage.refreshToken = refreshToken;
+  
+  // Try localStorage if not already failed
+  if (!useMemoryStorage) {
+    try {
+      if (token) {
+        localStorage.setItem(STORAGE_KEY, token);
+        console.log('✅ Token stored in localStorage');
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+        console.log('🗑️ Token removed from localStorage');
+      }
+      if (refreshToken) {
+        localStorage.setItem(REFRESH_KEY, refreshToken);
+        console.log('✅ Refresh token stored in localStorage');
+      } else {
+        localStorage.removeItem(REFRESH_KEY);
+      }
+    } catch (e) {
+      // Log storage errors and switch to memory-only mode
+      console.error('❌ Failed to store token in localStorage:', e);
+      console.warn('⚠️ Switching to in-memory storage mode (tokens will not persist across page reloads)');
+      console.warn('   This may be due to browser privacy mode, storage quota exceeded, or permissions');
+      useMemoryStorage = true;
     }
-    if (refreshToken) {
-      localStorage.setItem(REFRESH_KEY, refreshToken);
-      console.log('✅ Refresh token stored successfully');
-    } else {
-      localStorage.removeItem(REFRESH_KEY);
-    }
-    // Notify listeners (e.g., App) when auth state changes so UI can react
-    try { window.dispatchEvent(new Event('auth-changed')); } catch (e) {}
-  } catch (e) {
-    // Log storage errors but don't throw - allows app to continue even if storage fails
-    console.error('❌ Failed to store authentication token:', e);
-    console.error('   This may be due to browser privacy mode, storage quota, or permissions');
-    console.error('   Authentication will not persist across page reloads');
-    // Still dispatch auth-changed event so UI updates
-    try { window.dispatchEvent(new Event('auth-changed')); } catch (evt) {}
+  } else {
+    console.log('✅ Token stored in memory (localStorage unavailable)');
   }
+  
+  // Notify listeners (e.g., App) when auth state changes so UI can react
+  try { window.dispatchEvent(new Event('auth-changed')); } catch (e) {}
 }
 
 export function clearToken() {
@@ -84,7 +121,20 @@ export async function refreshAccessToken() {
   
   refreshPromise = (async () => {
     try {
-      const refreshToken = localStorage.getItem(REFRESH_KEY);
+      // Get refresh token from localStorage or memory
+      let refreshToken;
+      if (useMemoryStorage) {
+        refreshToken = memoryStorage.refreshToken;
+      } else {
+        try {
+          refreshToken = localStorage.getItem(REFRESH_KEY);
+        } catch (e) {
+          // Fall back to memory if localStorage fails
+          useMemoryStorage = true;
+          refreshToken = memoryStorage.refreshToken;
+        }
+      }
+      
       if (!refreshToken || !apiBase) {
         clearToken();
         return null;
