@@ -4,6 +4,10 @@
  * Requires: ADOBE_API_KEY and ADOBE_CLIENT_ID from environment
  */
 
+import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import path from 'path';
+
 // No external http client needed; using mock and Node fetch where necessary
 export default class AdobePDFService {
   constructor(config = {}) {
@@ -156,6 +160,212 @@ INSURED: MPI Plumbing Corp
       return `https://storage.example.com/merged-${Date.now()}.pdf`;
     } catch (error) {
       console.error('❌ PDF merge error:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate a COI PDF document
+   * @param {object} coiData - COI data including project, subcontractor, and insurance info
+   * @param {string} uploadDir - Directory to save the generated PDF
+   * @returns {Promise<string>} Filename of generated PDF
+   */
+  async generateCOIPDF(coiData, uploadDir) {
+    try {
+      console.log(`📄 Adobe: Generating COI PDF for ${coiData.subcontractorName || 'subcontractor'}`);
+      
+      const filename = `coi-${coiData.coiId || Date.now()}-${Date.now()}.pdf`;
+      const filepath = path.join(uploadDir, filename);
+      
+      // Create PDF document
+      const doc = new PDFDocument({ size: 'LETTER', margin: 50 });
+      const stream = fs.createWriteStream(filepath);
+      
+      doc.pipe(stream);
+      
+      // Header
+      doc.fontSize(20).text('CERTIFICATE OF INSURANCE', { align: 'center' });
+      doc.moveDown();
+      
+      // Date
+      doc.fontSize(10).text(`Date: ${new Date().toLocaleDateString()}`, { align: 'right' });
+      doc.moveDown();
+      
+      // Producer/Broker Info
+      if (coiData.broker) {
+        doc.fontSize(12).text('PRODUCER', { underline: true });
+        doc.fontSize(10)
+          .text(`${coiData.broker.name || 'Insurance Broker'}`)
+          .text(`${coiData.broker.email || ''}`)
+          .text(`${coiData.broker.phone || ''}`);
+        doc.moveDown();
+      }
+      
+      // Insured (Subcontractor)
+      doc.fontSize(12).text('INSURED', { underline: true });
+      doc.fontSize(10)
+        .text(`${coiData.subcontractorName || 'Subcontractor'}`)
+        .text(`${coiData.subcontractorAddress || ''}`);
+      doc.moveDown();
+      
+      // Project Information
+      if (coiData.projectName) {
+        doc.fontSize(12).text('PROJECT', { underline: true });
+        doc.fontSize(10).text(`${coiData.projectName}`);
+        if (coiData.projectAddress) {
+          doc.text(`${coiData.projectAddress}`);
+        }
+        doc.moveDown();
+      }
+      
+      // Insurance Coverage
+      doc.fontSize(12).text('INSURANCE COVERAGE', { underline: true });
+      doc.moveDown(0.5);
+      
+      if (coiData.coverages && coiData.coverages.length > 0) {
+        coiData.coverages.forEach(coverage => {
+          doc.fontSize(11).text(`${coverage.type || 'Insurance Type'}`, { underline: true });
+          doc.fontSize(10)
+            .text(`Insurer: ${coverage.insurer || 'N/A'}`)
+            .text(`Policy Number: ${coverage.policyNumber || 'N/A'}`)
+            .text(`Effective Date: ${coverage.effectiveDate || 'N/A'}`)
+            .text(`Expiration Date: ${coverage.expirationDate || 'N/A'}`)
+            .text(`Limits: ${coverage.limits || 'N/A'}`);
+          doc.moveDown(0.5);
+        });
+      } else {
+        doc.fontSize(10).text('General Liability: As per project requirements');
+        doc.text('Workers Compensation: Statutory Limits');
+        doc.text('Auto Liability: As per project requirements');
+        doc.moveDown();
+      }
+      
+      // Additional Insured
+      if (coiData.additionalInsured) {
+        doc.fontSize(12).text('ADDITIONAL INSURED', { underline: true });
+        doc.fontSize(10).text(coiData.additionalInsured);
+        doc.moveDown();
+      }
+      
+      // Certificate Holder
+      if (coiData.certificateHolder) {
+        doc.fontSize(12).text('CERTIFICATE HOLDER', { underline: true });
+        doc.fontSize(10).text(coiData.certificateHolder);
+        doc.moveDown();
+      }
+      
+      // Footer
+      doc.moveDown(2);
+      doc.fontSize(8).text('This certificate is issued as a matter of information only and confers no rights upon the certificate holder.', {
+        align: 'center',
+        width: 500
+      });
+      
+      doc.end();
+      
+      // Wait for PDF to be written
+      await new Promise((resolve, reject) => {
+        stream.on('finish', resolve);
+        stream.on('error', reject);
+      });
+      
+      console.log(`✅ COI PDF generated: ${filename}`);
+      return filename;
+    } catch (error) {
+      console.error('❌ COI PDF generation error:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate a Policy PDF document
+   * @param {object} policyData - Policy data including coverage details
+   * @param {string} uploadDir - Directory to save the generated PDF
+   * @returns {Promise<string>} Filename of generated PDF
+   */
+  async generatePolicyPDF(policyData, uploadDir) {
+    try {
+      console.log(`📄 Adobe: Generating Policy PDF for ${policyData.policyNumber || 'policy'}`);
+      
+      const filename = `policy-${policyData.policyId || Date.now()}-${Date.now()}.pdf`;
+      const filepath = path.join(uploadDir, filename);
+      
+      // Create PDF document
+      const doc = new PDFDocument({ size: 'LETTER', margin: 50 });
+      const stream = fs.createWriteStream(filepath);
+      
+      doc.pipe(stream);
+      
+      // Header
+      doc.fontSize(20).text('INSURANCE POLICY', { align: 'center' });
+      doc.moveDown();
+      
+      // Date
+      doc.fontSize(10).text(`Issue Date: ${new Date().toLocaleDateString()}`, { align: 'right' });
+      doc.moveDown();
+      
+      // Policy Information
+      doc.fontSize(12).text('POLICY INFORMATION', { underline: true });
+      doc.fontSize(10)
+        .text(`Policy Number: ${policyData.policyNumber || 'N/A'}`)
+        .text(`Policy Type: ${policyData.policyType || 'General Liability'}`)
+        .text(`Effective Date: ${policyData.effectiveDate || 'N/A'}`)
+        .text(`Expiration Date: ${policyData.expirationDate || 'N/A'}`);
+      doc.moveDown();
+      
+      // Insured Information
+      doc.fontSize(12).text('INSURED', { underline: true });
+      doc.fontSize(10)
+        .text(`Name: ${policyData.insuredName || 'N/A'}`)
+        .text(`Address: ${policyData.insuredAddress || 'N/A'}`);
+      doc.moveDown();
+      
+      // Insurance Carrier
+      if (policyData.carrier) {
+        doc.fontSize(12).text('INSURANCE CARRIER', { underline: true });
+        doc.fontSize(10).text(policyData.carrier);
+        doc.moveDown();
+      }
+      
+      // Coverage Details
+      doc.fontSize(12).text('COVERAGE DETAILS', { underline: true });
+      doc.moveDown(0.5);
+      
+      if (policyData.coverageDetails) {
+        Object.entries(policyData.coverageDetails).forEach(([key, value]) => {
+          doc.fontSize(10).text(`${key}: ${value}`);
+        });
+      } else {
+        doc.fontSize(10).text(`Coverage Amount: ${policyData.coverageAmount || 'As per policy terms'}`);
+      }
+      doc.moveDown();
+      
+      // Additional Information
+      if (policyData.additionalInfo) {
+        doc.fontSize(12).text('ADDITIONAL INFORMATION', { underline: true });
+        doc.fontSize(10).text(policyData.additionalInfo);
+        doc.moveDown();
+      }
+      
+      // Footer
+      doc.moveDown(2);
+      doc.fontSize(8).text('This is a summary document. Please refer to the full policy documents for complete terms and conditions.', {
+        align: 'center',
+        width: 500
+      });
+      
+      doc.end();
+      
+      // Wait for PDF to be written
+      await new Promise((resolve, reject) => {
+        stream.on('finish', resolve);
+        stream.on('error', reject);
+      });
+      
+      console.log(`✅ Policy PDF generated: ${filename}`);
+      return filename;
+    } catch (error) {
+      console.error('❌ Policy PDF generation error:', error.message);
       throw error;
     }
   }
