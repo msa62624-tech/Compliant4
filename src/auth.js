@@ -7,25 +7,67 @@ const apiBase = (typeof import.meta !== 'undefined' && import.meta.env && import
 
 let refreshPromise = null;
 
+// In-memory fallback storage for when localStorage fails (e.g., privacy mode)
+let memoryStorage = {
+  token: null,
+  refreshToken: null
+};
+
+let useMemoryStorage = false;
+
 export function getToken() {
+  // Use memory storage if localStorage failed
+  if (useMemoryStorage) {
+    return memoryStorage.token;
+  }
+  
   try {
-    return localStorage.getItem(STORAGE_KEY);
+    const token = localStorage.getItem(STORAGE_KEY);
+    // Only warn if this looks like an unexpected missing token scenario
+    // (Don't warn during normal logged-out state)
+    return token;
   } catch (e) {
-    return null;
+    console.error('❌ Failed to retrieve authentication token from storage:', e);
+    // Fall back to memory storage
+    useMemoryStorage = true;
+    return memoryStorage.token;
   }
 }
 
 export function setToken(token, refreshToken = null) {
-  try {
-    if (token) localStorage.setItem(STORAGE_KEY, token);
-    else localStorage.removeItem(STORAGE_KEY);
-    if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
-    else localStorage.removeItem(REFRESH_KEY);
-    // Notify listeners (e.g., App) when auth state changes so UI can react
-    try { window.dispatchEvent(new Event('auth-changed')); } catch (e) {}
-  } catch (e) {
-    // ignore
+  // Update memory storage first (always works)
+  memoryStorage.token = token;
+  memoryStorage.refreshToken = refreshToken;
+  
+  // Try localStorage if not already failed
+  if (!useMemoryStorage) {
+    try {
+      if (token) {
+        localStorage.setItem(STORAGE_KEY, token);
+        console.log('✅ Token stored in localStorage');
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+        console.log('🗑️ Token removed from localStorage');
+      }
+      if (refreshToken) {
+        localStorage.setItem(REFRESH_KEY, refreshToken);
+        console.log('✅ Refresh token stored in localStorage');
+      } else {
+        localStorage.removeItem(REFRESH_KEY);
+      }
+    } catch (e) {
+      // Log storage errors and switch to memory-only mode
+      console.error('❌ Failed to store token in localStorage:', e);
+      console.warn('⚠️ Switching to in-memory storage mode (tokens will not persist across page reloads)');
+      console.warn('   This may be due to browser privacy mode, storage quota exceeded, or permissions');
+      useMemoryStorage = true;
+    }
+  } else {
+    console.log('✅ Token stored in memory (localStorage unavailable)');
   }
+  
+  // Notify listeners (e.g., App) when auth state changes so UI can react
+  try { window.dispatchEvent(new Event('auth-changed')); } catch (e) {}
 }
 
 export function clearToken() {
@@ -65,7 +107,20 @@ export async function refreshAccessToken() {
   
   refreshPromise = (async () => {
     try {
-      const refreshToken = localStorage.getItem(REFRESH_KEY);
+      // Get refresh token from localStorage or memory
+      let refreshToken;
+      if (useMemoryStorage) {
+        refreshToken = memoryStorage.refreshToken;
+      } else {
+        try {
+          refreshToken = localStorage.getItem(REFRESH_KEY);
+        } catch (e) {
+          // Fall back to memory if localStorage fails
+          useMemoryStorage = true;
+          refreshToken = memoryStorage.refreshToken;
+        }
+      }
+      
       if (!refreshToken || !apiBase) {
         clearToken();
         return null;
