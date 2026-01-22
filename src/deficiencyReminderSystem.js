@@ -6,6 +6,7 @@
 
 import { compliant } from "@/api/compliantClient";
 import { sendEmail } from "@/emailHelper";
+import { getToken } from "@/auth";
 
 const REMINDER_INTERVAL_HOURS = 48; // 2 days
 const STORAGE_KEY = 'deficiency_reminders_tracker';
@@ -111,6 +112,12 @@ InsureTrack System`,
  */
 export async function checkAndSendDeficiencyReminders() {
   try {
+    // Check if user is authenticated before making API calls
+    const token = getToken();
+    if (!token) {
+      // User is not authenticated, skip check silently
+      return;
+    }
 
     // Fetch all COIs with deficiency_pending status
     const allCOIs = await compliant.entities.GeneratedCOI.list();
@@ -143,6 +150,13 @@ export async function checkAndSendDeficiencyReminders() {
     }
 
   } catch (err) {
+    // Handle authentication errors gracefully
+    if (err.status === 401 || err.status === 403 || err.message?.includes('Unauthorized') || err.message?.includes('expired token')) {
+      // Authentication error - skip check silently
+      // This is expected when token expires or user is not logged in
+      return;
+    }
+    // Log other errors
     console.error('Error in deficiency reminder check', err);
   }
 }
