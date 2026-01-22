@@ -3635,7 +3635,8 @@ app.post('/admin/set-gc-password', authLimiter, authenticateToken, async (req, r
 });
 
 // Admin: Generate a COI PDF from existing data
-app.post('/admin/generate-coi', authenticateToken, async (req, res) => {
+// Admin: Generate COI PDF
+app.post('/admin/generate-coi', apiLimiter, authenticateToken, async (req, res) => {
   try {
     const { coi_id } = req.body || {};
     if (!coi_id) return res.status(400).json({ error: 'coi_id is required' });
@@ -3702,7 +3703,7 @@ app.post('/admin/generate-coi', authenticateToken, async (req, res) => {
 });
 
 // Admin: Generate policy PDF for insurance document
-app.post('/admin/generate-policy-pdf', authenticateToken, async (req, res) => {
+app.post('/admin/generate-policy-pdf', apiLimiter, authenticateToken, async (req, res) => {
   try {
     const { document_id } = req.body || {};
     if (!document_id) return res.status(400).json({ error: 'document_id is required' });
