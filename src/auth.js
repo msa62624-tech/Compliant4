@@ -19,20 +19,28 @@ let useMemoryStorage = false;
 export function getToken() {
   // Use memory storage if localStorage failed
   if (useMemoryStorage) {
-    return memoryStorage.token;
+    const token = memoryStorage.token;
+    console.log('🔑 getToken from memory:', { hasToken: !!token });
+    return token;
   }
   
   try {
-    return localStorage.getItem(STORAGE_KEY);
+    const token = localStorage.getItem(STORAGE_KEY);
+    console.log('🔑 getToken from localStorage:', { hasToken: !!token });
+    return token;
   } catch (e) {
-    console.error('Failed to retrieve authentication token from storage:', e);
+    console.error('❌ Failed to retrieve authentication token from storage:', e);
     // Fall back to memory storage
     useMemoryStorage = true;
-    return memoryStorage.token;
+    const token = memoryStorage.token;
+    console.log('🔑 getToken fallback to memory:', { hasToken: !!token });
+    return token;
   }
 }
 
 export function setToken(token, refreshToken = null) {
+  console.log('🔑 setToken called:', { hasToken: !!token, hasRefreshToken: !!refreshToken });
+  
   // Update memory storage first (always works)
   memoryStorage.token = token;
   memoryStorage.refreshToken = refreshToken;
@@ -42,20 +50,24 @@ export function setToken(token, refreshToken = null) {
     try {
       if (token) {
         localStorage.setItem(STORAGE_KEY, token);
+        console.log('✅ Token stored in localStorage successfully');
       } else {
         localStorage.removeItem(STORAGE_KEY);
       }
       if (refreshToken) {
         localStorage.setItem(REFRESH_KEY, refreshToken);
+        console.log('✅ Refresh token stored in localStorage successfully');
       } else {
         localStorage.removeItem(REFRESH_KEY);
       }
     } catch (e) {
       // Log storage errors and switch to memory-only mode
-      console.error('Failed to store token in localStorage:', e);
-      console.warn('Switching to in-memory storage mode (tokens will not persist across page reloads)');
+      console.error('❌ Failed to store token in localStorage:', e);
+      console.warn('⚠️ Switching to in-memory storage mode (tokens will not persist across page reloads)');
       useMemoryStorage = true;
     }
+  } else {
+    console.log('💾 Token stored in memory storage (localStorage unavailable)');
   }
   
   // Notify listeners (e.g., App) when auth state changes so UI can react
