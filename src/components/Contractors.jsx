@@ -271,7 +271,7 @@ export default function Contractors() {
         try {
           await refreshAccessToken();
         } catch (refreshError) {
-          console.warn('⚠️ Token refresh warning (continuing):', refreshError);
+          console.warn('Token refresh warning (continuing):', refreshError);
           // Continue anyway - the API client will handle refresh on 403
         }
         
@@ -343,7 +343,7 @@ export default function Contractors() {
             try {
               await refreshAccessToken();
             } catch (refreshError) {
-              console.warn('⚠️ Token refresh warning for additional contact (continuing):', refreshError);
+              console.warn('Token refresh warning for additional contact (continuing):', refreshError);
             }
             
             try {
