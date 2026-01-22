@@ -235,8 +235,13 @@ export default function Pages({ onLogout }) {
         return
       }
       
-      sessionStorage.setItem('gcPublicSession', 'true')
-      if (gcId) sessionStorage.setItem('gcPortalId', gcId)
+      // Only set session storage if not already set (avoid redundant operations)
+      if (!sessionStorage.getItem('gcPublicSession')) {
+        sessionStorage.setItem('gcPublicSession', 'true')
+      }
+      if (gcId && !sessionStorage.getItem('gcPortalId')) {
+        sessionStorage.setItem('gcPortalId', gcId)
+      }
 
       // Do NOT clear existing token; keep session for API access
       setIsGCPublicSession(true)

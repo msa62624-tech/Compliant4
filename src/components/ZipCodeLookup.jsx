@@ -6,12 +6,15 @@ export default function ZipCodeLookup({ value, onChange, onCityStateFound }) {
 
   useEffect(() => {
     const lookupZipCode = async () => {
-      // Check if we have a valid 5-digit ZIP code
-      if (value && value.length === 5 && /^\d{5}$/.test(value) && !isLooking) {
+      // Extract first 5 digits for lookup (supports ZIP+4 format)
+      const zipBase = value?.replace(/\D/g, '').slice(0, 5);
+      
+      // Check if we have a valid 5-digit ZIP code base
+      if (zipBase && zipBase.length === 5 && !isLooking) {
         setIsLooking(true);
         try {
           // Use free Zippopotam API for ZIP code lookup
-          const response = await fetch(`https://api.zippopotam.us/us/${value}`);
+          const response = await fetch(`https://api.zippopotam.us/us/${zipBase}`);
           
           if (response.ok) {
             const data = await response.json();
@@ -41,13 +44,32 @@ export default function ZipCodeLookup({ value, onChange, onCityStateFound }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
+  const handleChange = (e) => {
+    // Allow digits and hyphen for ZIP+4 format (12345-6789)
+    const input = e.target.value;
+    
+    // Remove all non-digit characters except hyphen
+    let filtered = input.replace(/[^\d-]/g, '');
+    
+    // Remove all hyphens first, then add back in correct position
+    const digitsOnly = filtered.replace(/-/g, '');
+    
+    // Format: add hyphen after 5 digits if there are more digits
+    let formatted = digitsOnly;
+    if (digitsOnly.length > 5) {
+      formatted = digitsOnly.slice(0, 5) + '-' + digitsOnly.slice(5, 9);
+    }
+    
+    onChange(formatted);
+  };
+
   return (
     <div className="relative">
       <Input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="12345"
-        maxLength={5}
+        onChange={handleChange}
+        placeholder="12345 or 12345-6789"
+        maxLength={10}
       />
       {isLooking && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
