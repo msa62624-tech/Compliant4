@@ -9,22 +9,41 @@ let refreshPromise = null;
 
 export function getToken() {
   try {
-    return localStorage.getItem(STORAGE_KEY);
+    const token = localStorage.getItem(STORAGE_KEY);
+    if (!token) {
+      console.warn('⚠️ No authentication token found in storage');
+    }
+    return token;
   } catch (e) {
+    console.error('❌ Failed to retrieve authentication token from storage:', e);
     return null;
   }
 }
 
 export function setToken(token, refreshToken = null) {
   try {
-    if (token) localStorage.setItem(STORAGE_KEY, token);
-    else localStorage.removeItem(STORAGE_KEY);
-    if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
-    else localStorage.removeItem(REFRESH_KEY);
+    if (token) {
+      localStorage.setItem(STORAGE_KEY, token);
+      console.log('✅ Token stored successfully');
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+      console.log('🗑️ Token removed from storage');
+    }
+    if (refreshToken) {
+      localStorage.setItem(REFRESH_KEY, refreshToken);
+      console.log('✅ Refresh token stored successfully');
+    } else {
+      localStorage.removeItem(REFRESH_KEY);
+    }
     // Notify listeners (e.g., App) when auth state changes so UI can react
     try { window.dispatchEvent(new Event('auth-changed')); } catch (e) {}
   } catch (e) {
-    // ignore
+    // Log storage errors but don't throw - allows app to continue even if storage fails
+    console.error('❌ Failed to store authentication token:', e);
+    console.error('   This may be due to browser privacy mode, storage quota, or permissions');
+    console.error('   Authentication will not persist across page reloads');
+    // Still dispatch auth-changed event so UI updates
+    try { window.dispatchEvent(new Event('auth-changed')); } catch (evt) {}
   }
 }
 
