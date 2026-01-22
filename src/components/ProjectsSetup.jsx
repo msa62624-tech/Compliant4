@@ -1,23 +1,55 @@
+import { useState } from "react";
 import { apiClient } from "@/api/apiClient";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, CheckCircle2, ArrowRight } from "lucide-react";
+import { FileText, CheckCircle2, ArrowRight, Filter, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
 export default function ProjectsSetup() {
   const navigate = useNavigate();
+  const [programFilter, setProgramFilter] = useState("all");
+  const [gcFilter, setGcFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: projects = [], isLoading: _isLoading } = useQuery({
     queryKey: ['projects'],
     queryFn: () => apiClient.entities.Project.list('-created_date'),
   });
 
-  const projectsNeedingSetup = projects.filter(p => p.needs_admin_setup);
+  const { data: programs = [] } = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => apiClient.entities.InsuranceProgram.list(),
+  });
+
+  const { data: contractors = [] } = useQuery({
+    queryKey: ['contractors'],
+    queryFn: () => apiClient.entities.Contractor.list(),
+  });
+
+  // Get unique GCs from projects
+  const gcs = contractors.filter(c => c.contractor_type === 'general_contractor');
+
+  // Filter projects by program, GC, and search
+  const filteredProjects = projects.filter(p => {
+    const needsSetup = p.needs_admin_setup;
+    const matchesProgram = programFilter === "all" || p.program_id === programFilter;
+    const matchesGC = gcFilter === "all" || p.gc_id === gcFilter;
+    const matchesSearch = searchTerm === "" || 
+      p.project_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.gc_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.address_city?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return needsSetup && matchesProgram && matchesGC && matchesSearch;
+  });
+
+  const projectsNeedingSetup = filteredProjects;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8">
@@ -31,10 +63,48 @@ export default function ProjectsSetup() {
 
         <Card className="border-slate-200 shadow-lg">
           <CardHeader className="border-b border-slate-200">
-            <CardTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-red-600" />
-              Projects Awaiting Setup ({projectsNeedingSetup.length})
-            </CardTitle>
+            <div className="flex items-center justify-between mb-3">
+              <CardTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-red-600" />
+                Projects Awaiting Setup ({projectsNeedingSetup.length})
+              </CardTitle>
+              {/* Search Bar */}
+              <div className="relative w-80">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder="Search projects..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            {/* Filters */}
+            <div className="flex items-center gap-3">
+              <Filter className="w-4 h-4 text-slate-500" />
+              <Select value={programFilter} onValueChange={setProgramFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filter by program" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Programs</SelectItem>
+                  {programs.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={gcFilter} onValueChange={setGcFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filter by GC" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Contractors</SelectItem>
+                  {gcs.map(gc => (
+                    <SelectItem key={gc.id} value={gc.id}>{gc.company_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {projectsNeedingSetup.length === 0 ? (
