@@ -61,12 +61,21 @@ For production deployment, see [docs/DEPLOY.md](docs/DEPLOY.md) for complete ins
 
 ## 📚 Documentation
 
+### Configuration & Setup
 - [docs/COMPLETE_CONFIGURATION_GUIDE.md](docs/COMPLETE_CONFIGURATION_GUIDE.md) - **🔧 Complete guide to remove ALL mocking**
 - [docs/BACKEND_CONNECTION_SETUP.md](docs/BACKEND_CONNECTION_SETUP.md) - **🔧 Fix "Backend is Mocked" issue**
 - [docs/SECURITY_CREDENTIAL_ROTATION.md](docs/SECURITY_CREDENTIAL_ROTATION.md) - **⚠️ CRITICAL: Post-merge credential rotation required**
 - [docs/QUICKSTART.md](docs/QUICKSTART.md) - Quick start guide
 - [docs/EMAIL_SETUP.md](docs/EMAIL_SETUP.md) - Email configuration guide
 - [docs/DEPLOY.md](docs/DEPLOY.md) - Deployment instructions
+
+### Workflows & Features
+- [docs/WORKFLOWS_QUICK_REFERENCE.md](docs/WORKFLOWS_QUICK_REFERENCE.md) - **⚡ Quick reference for all workflows**
+- [docs/PROGRAM_WORKFLOWS.md](docs/PROGRAM_WORKFLOWS.md) - **📋 Complete workflow documentation (First-Time & Returning Subs)**
+- [docs/HOLD_HARMLESS_WORKFLOW.md](docs/HOLD_HARMLESS_WORKFLOW.md) - **✍️ Hold Harmless Agreement signature workflow**
+- [docs/INSURANCE_REQUIREMENTS_SYSTEM.md](docs/INSURANCE_REQUIREMENTS_SYSTEM.md) - Insurance requirements & COI approval
+
+### Technical Reference
 - [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md) - Full API reference
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md) - Database schema and entities
 - [docs/SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) - System design and architecture
