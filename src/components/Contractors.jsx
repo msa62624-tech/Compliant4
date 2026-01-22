@@ -59,11 +59,10 @@ export default function Contractors() {
     contact_person: '',
     email: '',
     phone: '',
-    address: '',
-    city: '',
-    state: '',
-    zip_code: '',
     mailing_address: '',
+    mailing_city: '',
+    mailing_state: '',
+    mailing_zip_code: '',
     additional_contacts: [],
     license_number: '',
     status: 'active',
@@ -160,11 +159,10 @@ export default function Contractors() {
         contact_person: contractor.contact_person || '',
         email: contractor.email || '',
         phone: contractor.phone || '',
-        address: contractor.address || '',
-        city: contractor.city || '',
-        state: contractor.state || '',
-        zip_code: contractor.zip_code || '',
         mailing_address: contractor.mailing_address || '',
+        mailing_city: contractor.mailing_city || '',
+        mailing_state: contractor.mailing_state || '',
+        mailing_zip_code: contractor.mailing_zip_code || '',
         additional_contacts: contractor.additional_contacts || [],
         license_number: contractor.license_number || '',
         status: contractor.status || 'active',
@@ -176,11 +174,10 @@ export default function Contractors() {
         contact_person: '',
         email: '',
         phone: '',
-        address: '',
-        city: '',
-        state: '',
-        zip_code: '',
         mailing_address: '',
+        mailing_city: '',
+        mailing_state: '',
+        mailing_zip_code: '',
         additional_contacts: [],
         license_number: '',
         status: 'active',
@@ -198,11 +195,10 @@ export default function Contractors() {
       contact_person: '',
       email: '',
       phone: '',
-      address: '',
-      city: '',
-      state: '',
-      zip_code: '',
       mailing_address: '',
+      mailing_city: '',
+      mailing_state: '',
+      mailing_zip_code: '',
       additional_contacts: [],
       license_number: '',
       status: 'active',
@@ -213,18 +209,18 @@ export default function Contractors() {
     if (!addressData) return;
     setFormData({
       ...formData,
-      address: addressData.address || '',
-      city: addressData.city || '',
-      state: addressData.state || '',
-      zip_code: addressData.zip_code || '',
+      mailing_address: addressData.address || '',
+      mailing_city: addressData.city || '',
+      mailing_state: addressData.state || '',
+      mailing_zip_code: addressData.zip_code || '',
     });
   };
 
   const handleZipCityStateFound = (city, state) => {
     setFormData((prev) => ({
       ...prev,
-      city: city || prev.city,
-      state: state || prev.state,
+      mailing_city: city || prev.mailing_city,
+      mailing_state: state || prev.mailing_state,
     }));
   };
 
@@ -948,34 +944,43 @@ InsureTrack Team`
               </div>
 
               <div className="space-y-2 border-t pt-4">
-                <Label className="text-base font-semibold">Business Address</Label>
+                <Label className="text-base font-semibold">Mailing Address</Label>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="address">Street Address</Label>
+                    <Label htmlFor="mailing_address">
+                      Street Address <span className="text-red-500">*</span>
+                    </Label>
                     <AddressAutocomplete
-                      value={formData.address}
-                      onChange={(value) => setFormData({ ...formData, address: value })}
+                      value={formData.mailing_address}
+                      onChange={(value) => setFormData({ ...formData, mailing_address: value })}
                       onAddressSelect={handleAddressSelect}
-                      placeholder="123 Business St"
+                      placeholder="123 Main St"
+                      required
                     />
                   </div>
 
                   <div className="grid md:grid-cols-4 gap-4">
                     <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="city">City</Label>
+                      <Label htmlFor="mailing_city">
+                        City <span className="text-red-500">*</span>
+                      </Label>
                       <Input
-                        id="city"
-                        value={formData.city}
-                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        id="mailing_city"
+                        value={formData.mailing_city}
+                        onChange={(e) => setFormData({ ...formData, mailing_city: e.target.value })}
                         placeholder="City"
+                        required
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="state">State</Label>
+                      <Label htmlFor="mailing_state">
+                        State <span className="text-red-500">*</span>
+                      </Label>
                       <Select
-                        value={formData.state}
-                        onValueChange={(value) => setFormData({ ...formData, state: value })}
+                        value={formData.mailing_state}
+                        onValueChange={(value) => setFormData({ ...formData, mailing_state: value })}
+                        required
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="State" />
@@ -991,29 +996,18 @@ InsureTrack Team`
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="zip_code">ZIP Code</Label>
+                      <Label htmlFor="mailing_zip_code">
+                        ZIP Code <span className="text-red-500">*</span>
+                      </Label>
                       <ZipCodeLookup
-                        value={formData.zip_code}
-                        onChange={(value) => setFormData({ ...formData, zip_code: value })}
+                        value={formData.mailing_zip_code}
+                        onChange={(value) => setFormData({ ...formData, mailing_zip_code: value })}
                         onCityStateFound={handleZipCityStateFound}
+                        required
                       />
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="mailing_address">
-                  Mailing Address <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="mailing_address"
-                  value={formData.mailing_address}
-                  onChange={(e) => setFormData({ ...formData, mailing_address: e.target.value })}
-                  placeholder="PO Box 456, City, State ZIP or same as business address"
-                  required
-                />
-                <p className="text-xs text-slate-500">Portal access link will be sent to the email associated with this address</p>
               </div>
 
               <div className="space-y-2">
