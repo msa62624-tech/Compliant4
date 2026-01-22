@@ -9,10 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageSquare, Send, CheckCircle2, Archive, Users, Filter } from "lucide-react";
+import { MessageSquare, Send, CheckCircle2, Archive, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { sendEmail } from "@/emailHelper";
-import { buildNotificationLink } from "@/notificationLinkBuilder";
+import { notificationLinks } from "@/notificationLinkBuilder";
 
 export default function MessagingCenter() {
   const queryClient = useQueryClient();
@@ -90,14 +90,13 @@ export default function MessagingCenter() {
       // Send email notification with response link
       for (const recipient of selectedRecipients) {
         const recipientEmail = recipient.email;
-        const recipientName = recipient.name || recipient.company_name;
         
         // Build response link based on recipient type
         let responseLink = "";
         if (selectedRecipientType === "broker") {
-          responseLink = buildNotificationLink("broker", recipient.id, "message");
+          responseLink = notificationLinks.getBrokerMessagesLink(recipientEmail);
         } else if (selectedRecipientType === "subcontractor") {
-          responseLink = buildNotificationLink("subcontractor", recipient.id, "message");
+          responseLink = notificationLinks.getSubMessagesLink(recipient.id);
         }
 
         // Send email
@@ -209,7 +208,7 @@ export default function MessagingCenter() {
                 Messaging Center
               </h2>
               <p className="text-red-700">
-                Send messages to brokers and subcontractors. They'll receive an email with a link to respond.
+                Send messages to brokers and subcontractors. They&apos;ll receive an email with a link to respond.
               </p>
             </div>
             <Button 
