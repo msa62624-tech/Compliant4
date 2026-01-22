@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Building2, FileText, Users, Home, LogOut, Menu, X, Zap, Clock, AlertTriangle, Archive } from 'lucide-react'
+import { Building2, FileText, Users, Home, LogOut, Menu, X, Zap, Clock, AlertTriangle, Archive, MessageSquare } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 // Import all your pages
@@ -33,6 +33,7 @@ import ArchivePage from '@/components/ArchivePage.jsx'
 import BrokerVerification from '@/components/BrokerVerification.jsx'
 import COIReview from '@/components/COIReview.jsx'
 import ResetPassword from '@/components/ResetPassword.jsx'
+import MessagingCenter from '@/components/MessagingCenter.jsx'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,6 +54,7 @@ function Sidebar({ onLogout }) {
     { path: '/', label: 'Dashboard', icon: Home },
     { path: '/contractors', label: 'Contractors', icon: Building2 },
     { path: '/documents', label: 'Documents', icon: FileText },
+    { path: '/messages', label: 'Messages', icon: MessageSquare },
     { path: '/pending-reviews', label: 'Pending Reviews', icon: Clock },
     { path: '/expiring-policies', label: 'Expiring Policies', icon: AlertTriangle },
     { path: '/insurance-programs', label: 'Programs', icon: Zap },
@@ -354,6 +356,7 @@ export default function Pages({ onLogout }) {
               <Route path="/COIReview" element={<COIReview />} />
               <Route path="/expiring-policies" element={<ExpiringPolicies />} />
               <Route path="/archives" element={<ArchivePage />} />
+              <Route path="/messages" element={<MessagingCenter />} />
               <Route path="/projects-setup" element={<ProjectsSetup />} />
               <Route path="/subcontractors-management" element={<SubcontractorsManagement />} />
               <Route path="/upload-documents" element={<UploadDocuments />} />
