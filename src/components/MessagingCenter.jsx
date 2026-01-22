@@ -30,10 +30,44 @@ export default function MessagingCenter() {
   const [filterSubcontractor, setFilterSubcontractor] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Fetch messages
+  // Fetch messages with role-based filtering
   const { data: messages = [], isLoading: messagesLoading } = useQuery({
-    queryKey: ["messages"],
-    queryFn: () => apiClient.entities.Message.list("-created_date"),
+    queryKey: ["messages", currentUser?.id],
+    queryFn: async () => {
+      try {
+        const allMessages = await apiClient.entities.Message.list("-created_date");
+        
+        // Role-based filtering
+        if (currentUser?.role === 'super_admin') {
+          // Super admin sees all messages except those between assistant admins
+          return allMessages.filter(msg => {
+            // Show messages sent/received by the super admin themselves
+            // or messages that don't involve assistant admins
+            return msg.recipient_id === currentUser.id || 
+                   msg.sender_id === currentUser.id ||
+                   msg.sender_type !== 'admin' || // Not from an admin
+                   msg.recipient_type !== 'admin'; // Not to an admin
+          });
+        } else if (currentUser?.role === 'admin') {
+          // Assistant admins only see their own messages
+          return allMessages.filter(msg => 
+            msg.recipient_id === currentUser.email || 
+            msg.sender_id === currentUser.email ||
+            msg.recipient_id === currentUser.id || 
+            msg.sender_id === currentUser.id ||
+            msg.recipient_email === currentUser.email ||
+            msg.sender_email === currentUser.email
+          );
+        }
+        
+        // Default: return all messages
+        return allMessages;
+      } catch (error) {
+        console.error('❌ Error fetching messages:', error);
+        throw error;
+      }
+    },
+    enabled: !!currentUser,
   });
 
   // Fetch projects for selection
@@ -248,9 +282,24 @@ export default function MessagingCenter() {
               <h2 className="text-2xl font-bold text-red-900 mb-2 flex items-center gap-2">
                 <MessageSquare className="w-6 h-6" />
                 Messaging Center
+                {currentUser?.role === 'admin' && (
+                  <Badge variant="outline" className="ml-2 bg-blue-50 text-blue-700 border-blue-200">
+                    Assistant Admin
+                  </Badge>
+                )}
+                {currentUser?.role === 'super_admin' && (
+                  <Badge variant="outline" className="ml-2 bg-purple-50 text-purple-700 border-purple-200">
+                    Super Admin
+                  </Badge>
+                )}
               </h2>
               <p className="text-red-700">
                 Send messages to brokers and subcontractors. They&apos;ll receive an email with a link to respond.
+                {currentUser?.role === 'admin' && (
+                  <span className="block mt-1 text-sm text-red-600">
+                    You are viewing only messages assigned to you.
+                  </span>
+                )}
               </p>
             </div>
             <Button 
