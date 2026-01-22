@@ -47,15 +47,20 @@ export default function ZipCodeLookup({ value, onChange, onCityStateFound }) {
   const handleChange = (e) => {
     // Allow digits and hyphen for ZIP+4 format (12345-6789)
     const input = e.target.value;
-    const filtered = input.replace(/[^\d-]/g, '');
     
-    // Format: allow up to 5 digits, then optional hyphen and 4 more digits
-    let formatted = filtered;
-    if (filtered.length > 5 && !filtered.includes('-')) {
-      formatted = filtered.slice(0, 5) + '-' + filtered.slice(5, 9);
+    // Remove all non-digit characters except hyphen
+    let filtered = input.replace(/[^\d-]/g, '');
+    
+    // Remove all hyphens first, then add back in correct position
+    const digitsOnly = filtered.replace(/-/g, '');
+    
+    // Format: add hyphen after 5 digits if there are more digits
+    let formatted = digitsOnly;
+    if (digitsOnly.length > 5) {
+      formatted = digitsOnly.slice(0, 5) + '-' + digitsOnly.slice(5, 9);
     }
     
-    onChange(formatted.slice(0, 10)); // Max length: 12345-6789 (10 chars)
+    onChange(formatted);
   };
 
   return (
