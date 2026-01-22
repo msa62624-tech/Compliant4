@@ -1990,6 +1990,83 @@ app.post('/entities/:entityName', apiLimiter, authenticateToken, async (req, res
     return res.status(404).json({ error: `Entity ${entityName} not found` });
   }
 
+  // Special handling for User entity creation
+  if (entityName === 'User') {
+    // Validate required fields for User
+    if (!data.email) {
+      return res.status(400).json({ error: 'Email is required for User creation' });
+    }
+    if (!data.name) {
+      return res.status(400).json({ error: 'Name is required for User creation' });
+    }
+    if (!data.password) {
+      return res.status(400).json({ error: 'Password is required for User creation' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(data.email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Check for duplicate email in users array
+    if (users.find(u => u.email === data.email)) {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+
+    // Check for duplicate email in entities.User
+    if (entities.User.find(u => u.email === data.email)) {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+
+    // Generate username from email if not provided
+    const username = data.username || data.email.split('@')[0];
+
+    // Check for duplicate username
+    if (users.find(u => u.username === username)) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    const userId = `user-${Date.now()}`;
+    const newUser = {
+      id: userId,
+      username,
+      password: hashedPassword,
+      email: data.email,
+      name: data.name,
+      role: data.role || 'admin',
+      is_active: data.is_active !== undefined ? data.is_active : true,
+      createdAt: new Date().toISOString(),
+      createdBy: req.user.id
+    };
+
+    // Add to users array for authentication
+    users.push(newUser);
+
+    // Add to entities.User for display (without password)
+    const userEntity = {
+      id: userId,
+      username,
+      email: data.email,
+      name: data.name,
+      role: data.role || 'admin',
+      is_active: data.is_active !== undefined ? data.is_active : true,
+      created_date: newUser.createdAt,
+      createdAt: newUser.createdAt,
+      createdBy: req.user.id
+    };
+    entities.User.push(userEntity);
+
+    // Persist to disk
+    debouncedSave();
+
+    // Return user entity (without password)
+    return res.status(201).json(userEntity);
+  }
+
   const newItem = {
     id: `${entityName}-${Date.now()}`,
     ...data,
@@ -2014,7 +2091,7 @@ app.post('/entities/:entityName', apiLimiter, authenticateToken, async (req, res
   res.status(201).json(responsePayload);
 });
 
-app.patch('/entities/:entityName/:id', authenticateToken, (req, res) => {
+app.patch('/entities/:entityName/:id', authenticateToken, async (req, res) => {
   const { entityName, id } = req.params;
   const updates = req.body;
   
@@ -2025,6 +2102,63 @@ app.patch('/entities/:entityName/:id', authenticateToken, (req, res) => {
   const index = entities[entityName].findIndex(item => item.id === id);
   if (index === -1) {
     return res.status(404).json({ error: 'Item not found' });
+  }
+
+  // Special handling for User entity updates
+  if (entityName === 'User') {
+    const existingUser = entities.User[index];
+    
+    // If email is being updated, validate it
+    if (updates.email && updates.email !== existingUser.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(updates.email)) {
+        return res.status(400).json({ error: 'Invalid email format' });
+      }
+
+      // Check for duplicate email
+      if (users.find(u => u.email === updates.email && u.id !== id)) {
+        return res.status(400).json({ error: 'Email already exists' });
+      }
+      if (entities.User.find(u => u.email === updates.email && u.id !== id)) {
+        return res.status(400).json({ error: 'Email already exists' });
+      }
+    }
+
+    // If password is being updated, hash it
+    let hashedPassword;
+    if (updates.password) {
+      hashedPassword = await bcrypt.hash(updates.password, 10);
+    }
+
+    // Update in users array
+    const userIndex = users.findIndex(u => u.id === id);
+    if (userIndex !== -1) {
+      users[userIndex] = {
+        ...users[userIndex],
+        ...(updates.email && { email: updates.email }),
+        ...(updates.name && { name: updates.name }),
+        ...(updates.role && { role: updates.role }),
+        ...(hashedPassword && { password: hashedPassword }),
+        ...(updates.is_active !== undefined && { is_active: updates.is_active })
+      };
+    }
+
+    // Update in entities.User (without password)
+    const updatedUser = {
+      ...entities.User[index],
+      ...(updates.email && { email: updates.email }),
+      ...(updates.name && { name: updates.name }),
+      ...(updates.role && { role: updates.role }),
+      ...(updates.is_active !== undefined && { is_active: updates.is_active }),
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.user.id
+    };
+    entities.User[index] = updatedUser;
+
+    // Persist to disk
+    debouncedSave();
+
+    return res.json(updatedUser);
   }
 
   entities[entityName][index] = {
@@ -2050,6 +2184,15 @@ app.delete('/entities/:entityName/:id', authenticateToken, (req, res) => {
   const index = entities[entityName].findIndex(item => item.id === id);
   if (index === -1) {
     return res.status(404).json({ error: 'Item not found' });
+  }
+
+  // Special handling for User entity deletion
+  if (entityName === 'User') {
+    // Also remove from users array
+    const userIndex = users.findIndex(u => u.id === id);
+    if (userIndex !== -1) {
+      users.splice(userIndex, 1);
+    }
   }
 
   const deleted = entities[entityName].splice(index, 1)[0];
