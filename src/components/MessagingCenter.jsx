@@ -442,7 +442,13 @@ export default function MessagingCenter() {
                           </div>
                           <p className="text-sm text-slate-600 mb-2">{message.message}</p>
                           <div className="flex items-center gap-4 text-xs text-slate-500">
-                            <span>To: {message.recipient_email}</span>
+                            {currentUser?.role === 'super_admin' && message.recipient_names ? (
+                              <span className="font-medium text-slate-700">
+                                To: {message.recipient_names} ({message.recipient_type})
+                              </span>
+                            ) : (
+                              <span>To: {message.recipient_email}</span>
+                            )}
                             <span>•</span>
                             <span>{format(new Date(message.created_date || Date.now()), "MMM d, yyyy h:mm a")}</span>
                             {message.project_id && (
@@ -450,6 +456,14 @@ export default function MessagingCenter() {
                                 <span>•</span>
                                 <span>
                                   Project: {projects.find(p => p.id === message.project_id)?.project_name || message.project_id}
+                                </span>
+                              </>
+                            )}
+                            {currentUser?.role === 'super_admin' && message.sender_name && message.sender_type === 'admin' && (
+                              <>
+                                <span>•</span>
+                                <span className="text-blue-600">
+                                  Sent by: {message.sender_name}
                                 </span>
                               </>
                             )}
@@ -489,9 +503,23 @@ export default function MessagingCenter() {
                         </div>
                         <p className="text-sm text-slate-600 mb-2">{message.message}</p>
                         <div className="flex items-center gap-4 text-xs text-slate-500">
-                          <span>To: {message.recipient_email}</span>
+                          {currentUser?.role === 'super_admin' && message.recipient_names ? (
+                            <span className="font-medium text-slate-700">
+                              To: {message.recipient_names} ({message.recipient_type})
+                            </span>
+                          ) : (
+                            <span>To: {message.recipient_email}</span>
+                          )}
                           <span>•</span>
                           <span>Archived: {format(new Date(message.archived_date || message.created_date), "MMM d, yyyy")}</span>
+                          {message.project_id && (
+                            <>
+                              <span>•</span>
+                              <span>
+                                Project: {projects.find(p => p.id === message.project_id)?.project_name || message.project_id}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -614,6 +642,8 @@ export default function MessagingCenter() {
                       sender_email: currentUser?.email,
                       recipient_type: selectedRecipientType,
                       recipient_email: selectedRecipients.map(r => r.email).join(", "),
+                      recipient_ids: selectedRecipients.map(r => r.id).join(", "), // Store recipient IDs for linking
+                      recipient_names: selectedRecipients.map(r => r.name || r.company_name).join(", "), // Store names for display
                       project_id: selectedProject || null,
                       subject: messageSubject,
                       message: messageBody,
