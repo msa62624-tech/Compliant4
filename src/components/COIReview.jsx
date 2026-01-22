@@ -100,6 +100,25 @@ export default function COIReview() {
     enabled: !!coi?.project_id,
   });
 
+  // Check if this is a renewal (existing COI for same subcontractor on same project)
+  const { data: existingCOIs = [] } = useQuery({
+    queryKey: ['existing-cois', coi?.subcontractor_id, coi?.project_id],
+    queryFn: async () => {
+      if (!coi?.subcontractor_id || !coi?.project_id) return [];
+      const allCois = await apiClient.entities.GeneratedCOI.list();
+      return allCois.filter(c => 
+        c.subcontractor_id === coi.subcontractor_id && 
+        c.project_id === coi.project_id &&
+        c.id !== coi.id && // Exclude current COI
+        c.status === 'active' // Only active/approved COIs
+      );
+    },
+    enabled: !!coi?.subcontractor_id && !!coi?.project_id,
+  });
+
+  // Determine if this is a renewal
+  const isRenewal = existingCOIs.length > 0;
+
   const { data: requirements = [] } = useQuery({
     queryKey: ['requirements', project?.program_id, coi?.trade_type],
     queryFn: async () => {
@@ -653,8 +672,57 @@ Analyze for deficiencies - check all 12 items above. Remember: ONLY flag coverag
   };
 
   const handleApprove = async () => {
-    if (!confirm('Approve this COI? A hold harmless agreement will be required before work can proceed.')) return;
+    // Update confirmation message based on renewal status
+    const confirmMessage = isRenewal 
+      ? 'Approve this COI renewal? (No new hold harmless agreement required for renewals)'
+      : 'Approve this COI? A hold harmless agreement will be required before work can proceed.';
+    
+    if (!confirm(confirmMessage)) return;
 
+    // Skip hold harmless workflow for renewals
+    if (isRenewal) {
+      await updateCOIMutation.mutateAsync({
+        id: coi.id,
+        data: {
+          status: 'active',
+          admin_approved: true,
+          review_date: new Date().toISOString(),
+          // Copy hold harmless status from existing COI if available
+          hold_harmless_status: existingCOIs[0]?.hold_harmless_status || 'signed',
+          hold_harmless_template_url: existingCOIs[0]?.hold_harmless_template_url || null,
+          hold_harmless_sub_signed_url: existingCOIs[0]?.hold_harmless_sub_signed_url || null,
+          hold_harmless_sub_signed_date: existingCOIs[0]?.hold_harmless_sub_signed_date || null,
+          hold_harmless_gc_signed_date: existingCOIs[0]?.hold_harmless_gc_signed_date || null,
+        }
+      });
+
+      // Send renewal approval notification (no hold harmless requirement)
+      try {
+        await sendMessageMutation.mutateAsync({
+          to: coi.contact_email || coi.broker_email,
+          subject: `COI Renewal Approved - ${project.project_name}`,
+          body: `Your renewed Certificate of Insurance for ${project.project_name} has been approved.
+
+Project: ${project.project_name}
+Subcontractor: ${coi.subcontractor_name}
+Trade: ${coi.trade_type}
+
+This is a renewal - no new Hold Harmless Agreement is required.
+
+Work may continue without interruption.
+
+Thank you!`
+        });
+      } catch (err) {
+        console.error('Failed to notify subcontractor:', err);
+      }
+
+      alert('COI renewal approved! No hold harmless signature required for renewals.');
+      navigate(createPageUrl("AdminDashboard"));
+      return;
+    }
+
+    // Original hold harmless workflow for new COIs
     // Check if hold harmless is already signed by subcontractor
     const signedStatuses = ['signed_by_sub', 'pending_gc_signature'];
     const alreadySignedHoldHarmless = signedStatuses.includes(coi.hold_harmless_status) || !!coi.hold_harmless_sub_signed_url;
@@ -1060,8 +1128,20 @@ InsureTrack Team`
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-slate-900">COI Review</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-slate-900">COI Review</h1>
+              {isRenewal && (
+                <Badge className="bg-blue-100 text-blue-700 border-blue-300">
+                  RENEWAL
+                </Badge>
+              )}
+            </div>
             <p className="text-slate-600">{coi.subcontractor_name} - {coi.project_name}</p>
+            {isRenewal && (
+              <p className="text-sm text-blue-600 mt-1">
+                This is a renewal - no new hold harmless agreement required
+              </p>
+            )}
           </div>
           <Button
             onClick={() => setIsFileUploadOpen(true)}

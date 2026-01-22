@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ArrowLeft, Users, AlertCircle, CheckCircle2, Clock, Trash2, Building2, Shield, AlertTriangle, Eye} from "lucide-react";
+import { Plus, ArrowLeft, Users, AlertCircle, CheckCircle2, Clock, Trash2, Building2, Shield, AlertTriangle, Eye, Pencil} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -80,6 +80,7 @@ export default function ProjectDetails() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isBrokerRequestOpen, setIsBrokerRequestOpen] = useState(false);
   const [selectedSubForRequest, setSelectedSubForRequest] = useState(null);
+  const [editingProjectSub, setEditingProjectSub] = useState(null);
   const [_searchSub, setSearchSub] = useState('');
   const [formData, setFormData] = useState({
     subcontractor_name: '',
@@ -204,6 +205,14 @@ export default function ProjectDetails() {
     },
   });
 
+  const updateProjectSubMutation = useMutation({
+    mutationFn: ({ id, data }) => compliant.entities.ProjectSubcontractor.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['project-subs']);
+      closeDialog();
+    },
+  });
+
   const deleteSubMutation = useMutation({
     mutationFn: (id) => compliant.entities.ProjectSubcontractor.delete(id),
     onSuccess: () => {
@@ -272,6 +281,7 @@ export default function ProjectDetails() {
 
   const closeDialog = () => {
     setIsDialogOpen(false);
+    setEditingProjectSub(null);
     setSearchSub('');
     setSelectedExistingSub(null); // Reset selected existing sub
     setFormData({
@@ -284,6 +294,19 @@ export default function ProjectDetails() {
     setNewTrade(''); // Reset newTrade
     setUseExistingTrades(false); // Reset useExistingTrades
   };
+
+  const openEditDialog = (projectSub) => {
+    setEditingProjectSub(projectSub);
+    setFormData({
+      subcontractor_name: projectSub.subcontractor_name || '',
+      contact_email: projectSub.contact_email || '',
+      contact_phone: projectSub.contact_phone || '',
+      trade_types: projectSub.trade_type ? [projectSub.trade_type] : [],
+      notes: projectSub.notes || '',
+    });
+    setIsDialogOpen(true);
+  };
+
 
   const _handleSelectExistingSub = (sub) => {
     setSelectedExistingSub(sub);
@@ -423,6 +446,22 @@ export default function ProjectDetails() {
     }
 
     try {
+      // If editing, just update the ProjectSubcontractor
+      if (editingProjectSub) {
+        await updateProjectSubMutation.mutateAsync({
+          id: editingProjectSub.id,
+          data: {
+            subcontractor_name: formData.subcontractor_name,
+            contact_email: formData.contact_email,
+            contact_phone: formData.contact_phone,
+            trade_type: formData.trade_types[0],
+            notes: formData.notes,
+          }
+        });
+        return;
+      }
+
+      // Otherwise, create new subcontractor (existing logic)
       // Check if subcontractor exists in system
       const existingSub = allSubcontractors.find(s =>
         s.company_name.toLowerCase() === formData.subcontractor_name.toLowerCase()
@@ -1798,6 +1837,7 @@ InsureTrack System`
                         compStatus={compStatus}
                         project={project}
                         idx={idx}
+                        onEdit={openEditDialog}
                       />
                     );
                   })}
@@ -1811,7 +1851,7 @@ InsureTrack System`
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">
-              Add Subcontractor to Project
+              {editingProjectSub ? 'Edit Subcontractor' : 'Add Subcontractor to Project'}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
@@ -1860,9 +1900,9 @@ InsureTrack System`
               <Button
                 type="submit"
                 className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
-                disabled={addSubMutation.isPending || formData.trade_types.length === 0 || !formData.contact_email || !formData.subcontractor_name}
+                disabled={addSubMutation.isPending || updateProjectSubMutation.isPending || formData.trade_types.length === 0 || !formData.contact_email || !formData.subcontractor_name}
               >
-                {addSubMutation.isPending ? 'Adding...' : 'Add Subcontractor'}
+                {(addSubMutation.isPending || updateProjectSubMutation.isPending) ? 'Saving...' : (editingProjectSub ? 'Update Subcontractor' : 'Add Subcontractor')}
               </Button>
             </DialogFooter>
           </form>
@@ -1975,7 +2015,7 @@ function StatCardProject({ icon: Icon, label, value, colorClass }) {
   );
 }
 
-function SubcontractorRow({ sub, compStatus, project: _project, idx }) {
+function SubcontractorRow({ sub, compStatus, project: _project, idx, onEdit }) {
   const statusStyles = {
     compliant: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30' },
     pending: { bg: 'bg-amber-500/10', border: 'border-amber-500/20', badge: 'bg-amber-500/20 text-amber-300 border-amber-400/30' },
@@ -2009,9 +2049,20 @@ function SubcontractorRow({ sub, compStatus, project: _project, idx }) {
             )}
           </div>
         </div>
-        <Button size="sm" variant="outline" className="text-teal-400 border-teal-400/30 hover:bg-teal-500/10">
-          <Eye className="w-4 h-4" />
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            size="sm" 
+            variant="outline" 
+            className="text-amber-400 border-amber-400/30 hover:bg-amber-500/10"
+            onClick={() => onEdit(sub)}
+            title="Edit Subcontractor"
+          >
+            <Pencil className="w-4 h-4" />
+          </Button>
+          <Button size="sm" variant="outline" className="text-teal-400 border-teal-400/30 hover:bg-teal-500/10">
+            <Eye className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );
