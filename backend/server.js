@@ -3637,7 +3637,8 @@ app.post('/admin/set-gc-password', authLimiter, authenticateToken, async (req, r
 });
 
 // Admin: Generate a COI PDF from existing data
-app.post('/admin/generate-coi', authenticateToken, (req, res) => {
+// Admin: Generate COI PDF
+app.post('/admin/generate-coi', apiLimiter, authenticateToken, async (req, res) => {
   try {
     const { coi_id } = req.body || {};
     if (!coi_id) return res.status(400).json({ error: 'coi_id is required' });
@@ -3645,7 +3646,59 @@ app.post('/admin/generate-coi', authenticateToken, (req, res) => {
     const coiIdx = (entities.GeneratedCOI || []).findIndex(c => c.id === String(coi_id));
     if (coiIdx === -1) return res.status(404).json({ error: 'COI not found' });
 
-    const generatedUrl = `https://storage.example.com/coi-${coi_id}-${Date.now()}.pdf`;
+    const coi = entities.GeneratedCOI[coiIdx];
+    
+    // Gather data for PDF generation
+    const projectSub = entities.ProjectSubcontractor.find(ps => ps.id === coi.project_sub_id);
+    const project = projectSub ? entities.Project.find(p => p.id === projectSub.project_id) : null;
+    const subcontractor = projectSub ? entities.Contractor.find(c => c.id === projectSub.subcontractor_id) : null;
+    
+    // Get insurance documents for this subcontractor
+    const insuranceDocs = entities.InsuranceDocument.filter(doc => 
+      doc.contractor_id === subcontractor?.id && doc.approval_status === 'approved'
+    );
+    
+    // Prepare coverage data
+    const coverages = insuranceDocs.map(doc => ({
+      type: doc.document_type || 'General Liability',
+      insurer: doc.insurance_carrier || 'N/A',
+      policyNumber: doc.policy_number || 'N/A',
+      effectiveDate: doc.effective_date || 'N/A',
+      expirationDate: doc.expiration_date || 'N/A',
+      limits: doc.coverage_amount ? `$${doc.coverage_amount.toLocaleString()}` : 'As per requirements'
+    }));
+    
+    // Prepare additional remarks for ACORD 25 schedule
+    const additionalRemarks = [];
+    if (project?.additional_insured_requirements) {
+      additionalRemarks.push(project.additional_insured_requirements);
+    }
+    if (coi.notes) {
+      additionalRemarks.push(coi.notes);
+    }
+    
+    const coiData = {
+      coiId: coi_id,
+      subcontractorName: subcontractor?.company_name || 'Subcontractor',
+      subcontractorAddress: subcontractor?.address || '',
+      projectName: project?.project_name || '',
+      projectAddress: project?.address || '',
+      broker: {
+        name: coi.broker_name || 'Insurance Broker',
+        email: coi.broker_email || '',
+        phone: coi.broker_phone || ''
+      },
+      coverages: coverages.length > 0 ? coverages : null,
+      additionalInsured: project?.owner_entity || '',
+      certificateHolder: project?.gc_name || '',
+      certificateHolderAddress: project?.gc_address || '',
+      additionalRemarks: additionalRemarks.length > 0 ? additionalRemarks : null
+    };
+    
+    // Generate actual PDF
+    const filename = await adobePDF.generateCOIPDF(coiData, UPLOADS_DIR);
+    const generatedUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+    
     entities.GeneratedCOI[coiIdx] = {
       ...entities.GeneratedCOI[coiIdx],
       first_coi_url: generatedUrl,
@@ -3659,6 +3712,49 @@ app.post('/admin/generate-coi', authenticateToken, (req, res) => {
   } catch (err) {
     console.error('admin generate-coi error:', err?.message || err);
     return res.status(500).json({ error: 'Failed to generate COI' });
+  }
+});
+
+// Admin: Generate policy PDF for insurance document
+app.post('/admin/generate-policy-pdf', apiLimiter, authenticateToken, async (req, res) => {
+  try {
+    const { document_id } = req.body || {};
+    if (!document_id) return res.status(400).json({ error: 'document_id is required' });
+
+    const docIdx = (entities.InsuranceDocument || []).findIndex(d => d.id === String(document_id));
+    if (docIdx === -1) return res.status(404).json({ error: 'Insurance document not found' });
+
+    const doc = entities.InsuranceDocument[docIdx];
+    const contractor = entities.Contractor.find(c => c.id === doc.contractor_id);
+    
+    const policyData = {
+      policyId: document_id,
+      policyNumber: doc.policy_number || 'N/A',
+      policyType: doc.document_type || 'General Liability',
+      effectiveDate: doc.effective_date || 'N/A',
+      expirationDate: doc.expiration_date || 'N/A',
+      insuredName: contractor?.company_name || 'N/A',
+      insuredAddress: contractor?.address || 'N/A',
+      carrier: doc.insurance_carrier || 'N/A',
+      coverageAmount: doc.coverage_amount ? `$${doc.coverage_amount.toLocaleString()}` : 'N/A',
+      additionalInfo: doc.notes || ''
+    };
+    
+    // Generate actual PDF
+    const filename = await adobePDF.generatePolicyPDF(policyData, UPLOADS_DIR);
+    const generatedUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+    
+    // Update document with generated PDF URL
+    entities.InsuranceDocument[docIdx] = {
+      ...entities.InsuranceDocument[docIdx],
+      file_url: generatedUrl,
+      uploaded_at: new Date().toISOString()
+    };
+    debouncedSave();
+    return res.json(entities.InsuranceDocument[docIdx]);
+  } catch (err) {
+    console.error('admin generate-policy-pdf error:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to generate policy PDF' });
   }
 });
 

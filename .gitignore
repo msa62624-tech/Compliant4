@@ -30,3 +30,6 @@ backend/data/entities.json
 
 # Backend uploads (user-uploaded files)
 backend/uploads/
+
+# Backend test files
+backend/test-pdf-generation.js
