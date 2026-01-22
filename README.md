@@ -70,6 +70,7 @@ For production deployment, see [docs/DEPLOY.md](docs/DEPLOY.md) for complete ins
 - [docs/DEPLOY.md](docs/DEPLOY.md) - Deployment instructions
 
 ### Workflows & Features
+- [docs/WORKFLOWS_QUICK_REFERENCE.md](docs/WORKFLOWS_QUICK_REFERENCE.md) - **⚡ Quick reference for all workflows**
 - [docs/PROGRAM_WORKFLOWS.md](docs/PROGRAM_WORKFLOWS.md) - **📋 Complete workflow documentation (First-Time & Returning Subs)**
 - [docs/HOLD_HARMLESS_WORKFLOW.md](docs/HOLD_HARMLESS_WORKFLOW.md) - **✍️ Hold Harmless Agreement signature workflow**
 - [docs/INSURANCE_REQUIREMENTS_SYSTEM.md](docs/INSURANCE_REQUIREMENTS_SYSTEM.md) - Insurance requirements & COI approval
