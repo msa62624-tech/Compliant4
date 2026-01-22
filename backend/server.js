@@ -27,13 +27,49 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// JWT_SECRET is required in production - fail fast if not set
-const JWT_SECRET = process.env.JWT_SECRET || (() => {
+// JWT_SECRET persistence: Load from env or generate and persist to file
+// This ensures tokens remain valid across server restarts in development
+const JWT_SECRET_FILE = path.join(__dirname, 'data', '.jwt-secret');
+const JWT_SECRET = (() => {
+  // Priority 1: Use environment variable if set
+  if (process.env.JWT_SECRET) {
+    console.log('✅ Using JWT_SECRET from environment variable');
+    return process.env.JWT_SECRET;
+  }
+  
+  // Priority 2: Require JWT_SECRET in production
   if (process.env.NODE_ENV === 'production') {
     throw new Error('JWT_SECRET environment variable is required in production');
   }
-  console.warn('⚠️  WARNING: Using default JWT_SECRET for development only. Set JWT_SECRET in production!');
-  return 'compliant-dev-secret-change-in-production';
+  
+  // Priority 3: Load or generate persistent secret for development
+  try {
+    // Ensure data directory exists
+    const dataDir = path.join(__dirname, 'data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    // Try to load existing secret
+    if (fs.existsSync(JWT_SECRET_FILE)) {
+      const secret = fs.readFileSync(JWT_SECRET_FILE, 'utf8').trim();
+      if (secret) {
+        console.log('✅ Loaded persistent JWT_SECRET from file (development mode)');
+        return secret;
+      }
+    }
+    
+    // Generate new secret and persist it
+    const newSecret = crypto.randomBytes(32).toString('hex');
+    fs.writeFileSync(JWT_SECRET_FILE, newSecret, { mode: 0o600 });
+    console.log('✅ Generated new JWT_SECRET and saved to file (development mode)');
+    console.warn('⚠️  WARNING: For production, set JWT_SECRET environment variable!');
+    return newSecret;
+  } catch (err) {
+    console.error('❌ Failed to load/generate persistent JWT_SECRET:', err.message);
+    console.warn('⚠️  Falling back to hardcoded default (tokens will be invalidated on restart)');
+    return 'compliant-dev-secret-change-in-production';
+  }
 })();
 
 // Dummy bcrypt hash for constant-time comparison when user doesn't exist
