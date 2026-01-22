@@ -721,13 +721,9 @@ InsureTrack Team`
                             <h3 className="text-lg font-semibold text-slate-900 mb-1">
                               No General Contractors Yet
                             </h3>
-                            <p className="text-sm text-slate-500 mb-4">
-                              Add your first General Contractor to get started
+                            <p className="text-sm text-slate-500">
+                              Use the "Add Contractor" button above to get started
                             </p>
-                            <Button onClick={() => openDialog()} className="bg-red-600 hover:bg-red-700">
-                              <Plus className="w-4 h-4 mr-2" />
-                              Add General Contractor
-                            </Button>
                           </div>
                         </div>
                       </TableCell>
