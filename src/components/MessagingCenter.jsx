@@ -457,13 +457,25 @@ export default function MessagingCenter() {
                                 <span>
                                   Project: {projects.find(p => p.id === message.project_id)?.project_name || message.project_id}
                                 </span>
+                                {currentUser?.role === 'super_admin' && (() => {
+                                  const project = projects.find(p => p.id === message.project_id);
+                                  return project?.assigned_admin_email ? (
+                                    <>
+                                      <span>•</span>
+                                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                        Assigned: {project.assigned_admin_email}
+                                      </Badge>
+                                    </>
+                                  ) : null;
+                                })()}
                               </>
                             )}
                             {currentUser?.role === 'super_admin' && message.sender_name && message.sender_type === 'admin' && (
                               <>
                                 <span>•</span>
-                                <span className="text-blue-600">
+                                <span className="text-blue-600 font-medium">
                                   Sent by: {message.sender_name}
+                                  {message.sender_email && ` (${message.sender_email})`}
                                 </span>
                               </>
                             )}
@@ -517,6 +529,26 @@ export default function MessagingCenter() {
                               <span>•</span>
                               <span>
                                 Project: {projects.find(p => p.id === message.project_id)?.project_name || message.project_id}
+                              </span>
+                              {currentUser?.role === 'super_admin' && (() => {
+                                const project = projects.find(p => p.id === message.project_id);
+                                return project?.assigned_admin_email ? (
+                                  <>
+                                    <span>•</span>
+                                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                      Assigned: {project.assigned_admin_email}
+                                    </Badge>
+                                  </>
+                                ) : null;
+                              })()}
+                            </>
+                          )}
+                          {currentUser?.role === 'super_admin' && message.sender_name && message.sender_type === 'admin' && (
+                            <>
+                              <span>•</span>
+                              <span className="text-blue-600 font-medium">
+                                Sent by: {message.sender_name}
+                                {message.sender_email && ` (${message.sender_email})`}
                               </span>
                             </>
                           )}
