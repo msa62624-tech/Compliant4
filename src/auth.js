@@ -62,22 +62,8 @@ export function setToken(token, refreshToken = null) {
 }
 
 export function clearToken() {
-  // Clear memory storage
-  memoryStorage.token = null;
-  memoryStorage.refreshToken = null;
-  
-  // Clear localStorage if available
-  if (!useMemoryStorage) {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(REFRESH_KEY);
-    } catch (e) {
-      // Ignore if localStorage is not available
-    }
-  }
-  
-  // Notify listeners (e.g., App) when auth state changes so UI can react
-  try { window.dispatchEvent(new Event('auth-changed')); } catch (e) {}
+  // Use setToken(null) to clear both memory and localStorage
+  setToken(null, null);
 }
 
 export async function login({ username, password }) {
