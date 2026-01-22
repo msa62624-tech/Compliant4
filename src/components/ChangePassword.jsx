@@ -187,7 +187,7 @@ export default function ChangePassword({ userId, userEmail, onPasswordChanged })
             <li>One uppercase letter</li>
             <li>One lowercase letter</li>
             <li>One number</li>
-            <li>One special character (!@#$%^&*)</li>
+            <li>One special character</li>
           </ul>
         </div>
 
