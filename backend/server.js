@@ -1180,6 +1180,12 @@ let users = [
 // Format: { email: { token, expiresAt, used } }
 const passwordResetTokens = new Map();
 
+// Email validation helper
+function validateEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
 function generateTempPassword(length = 12) {
   // Use cryptographically secure random generation without modulo bias
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789!@$%*?';
@@ -2004,8 +2010,7 @@ app.post('/entities/:entityName', apiLimiter, authenticateToken, async (req, res
     }
 
     // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.email)) {
+    if (!validateEmail(data.email)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
@@ -2055,7 +2060,6 @@ app.post('/entities/:entityName', apiLimiter, authenticateToken, async (req, res
       role: data.role || 'admin',
       is_active: data.is_active !== undefined ? data.is_active : true,
       created_date: newUser.createdAt,
-      createdAt: newUser.createdAt,
       createdBy: req.user.id
     };
     entities.User.push(userEntity);
@@ -2110,8 +2114,7 @@ app.patch('/entities/:entityName/:id', authenticateToken, async (req, res) => {
     
     // If email is being updated, validate it
     if (updates.email && updates.email !== existingUser.email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(updates.email)) {
+      if (!validateEmail(updates.email)) {
         return res.status(400).json({ error: 'Invalid email format' });
       }
 
