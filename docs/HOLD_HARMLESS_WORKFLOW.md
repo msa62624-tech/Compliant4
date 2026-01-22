@@ -60,64 +60,71 @@ The system tracks hold harmless agreements through a multi-step signature workfl
 
 ### Step 1: Agreement Generation (Admin)
 
-**When:** After a COI (Certificate of Insurance) is approved
+**When:** After a COI (Certificate of Insurance) and insurance policies are approved
 
 **Who:** Admin/System automatically
 
 **What happens:**
-1. Admin approves the COI in the COI Review dashboard
-2. System checks if an Insurance Program has a hold harmless template
-3. If program template exists → uses that template
-4. If no program template → uses default system template
-5. Template is populated with:
-   - Project name and address
-   - GC company name
-   - Project Owner name
-   - Additional Insured parties
+1. Admin approves the COI and insurance policies in the COI Review dashboard
+2. System retrieves the hold harmless template from the Insurance Program (template was uploaded during program creation)
+3. System automatically populates the template with:
+   - Project address (from project files)
+   - Additional Insured parties (from project files)
+   - GC entity information (from GC entity record)
+   - Owner entity information (from Owner entity record)
    - Subcontractor name and trade
    - Effective dates
-6. Generated agreement is stored as `hold_harmless_template_url`
-7. Status set to `pending_signature`
-8. **Subcontractor is notified via email**
+4. Generated agreement is stored in the system
+5. Status set to `pending_signature`
+6. **Subcontractor is notified via email**
 
 **Email Notification Includes:**
-- Link to download the hold harmless template
-- Instructions on signing and uploading
-- Portal link to subcontractor dashboard
+- Portal link to digitally sign the agreement
+- Instructions for completing signature within portal
+- No download required - all done within the system
 
 ---
 
-### Step 2: Subcontractor Signs Agreement
+### Step 2: Subcontractor Signs Agreement (Digital Signature)
 
 **When:** After receiving notification
 
 **Who:** Subcontractor
 
-**Portal Location:** Subcontractor Dashboard → Projects tab → View COI Details
+**Portal Location:** Subcontractor Dashboard → Projects tab → View COI Details → Sign Agreement
 
 **What to do:**
 1. Log into Subcontractor Portal
 2. Navigate to the project
 3. Click on COI details
-4. Download the Hold Harmless Agreement template
-5. **Print and physically sign** the agreement (or use digital signature tool)
-6. **Scan or photograph** the signed document
-7. **Upload** the signed copy via the portal
+4. Click "Sign Hold Harmless Agreement" button
+5. Review the pre-populated agreement on screen:
+   - Address (auto-filled)
+   - Additional insureds (auto-filled)
+   - GC information (auto-filled)
+   - Owner information (auto-filled)
+6. **Complete signature form within portal:**
+   - Enter full legal name of entity (company name)
+   - Enter signature date
+   - Add digital signature (type name or draw signature)
+7. Click "Submit Signature"
 8. System updates:
-   - `hold_harmless_sub_signed_url` → uploaded file URL
-   - `hold_harmless_sub_signed_date` → current timestamp
+   - Saves signed agreement with signature embedded
+   - `hold_harmless_sub_signed_date` → entered date
    - `hold_harmless_status` → `signed_by_sub`
-9. **GC is notified via email** to review and countersign
+9. **GC is notified via email** to digitally sign
 
 **Email to GC Includes:**
 - Subcontractor name and trade
 - Project name
-- Link to view signed agreement
+- Link to digitally sign agreement
 - Portal link to GC project view
+
+**Important:** No download/upload required - all signing done within the portal using digital signature
 
 ---
 
-### Step 3: GC Reviews and Countersigns
+### Step 3: GC Reviews and Countersigns (Digital Signature)
 
 **When:** After receiving notification that subcontractor signed
 
@@ -130,21 +137,30 @@ The system tracks hold harmless agreements through a multi-step signature workfl
 2. Navigate to the project
 3. Review the **Pending Hold Harmless Signatures** section
 4. Click to view the subcontractor-signed agreement
-5. **Verify** the agreement is properly signed
+5. **Verify** the subcontractor's signature and information
 6. Click **"Sign Hold Harmless Agreement"** button
-7. Confirm signature action
-8. System updates:
-   - `hold_harmless_gc_signed_date` → current timestamp
+7. **Complete signature form within portal:**
+   - Enter full legal name of entity (GC company name)
+   - Enter signature date
+   - Add digital signature (type name or draw signature)
+8. Click "Submit Signature"
+9. System updates:
+   - Saves fully signed agreement with both signatures
+   - `hold_harmless_gc_signed_date` → entered date
    - `hold_harmless_status` → `signed`
-9. **All parties notified:**
-   - Subcontractor → work approved, can proceed
-   - Admin → agreement fully executed
-   - Broker → agreement completed
+   - **Project marked as compliant**
+10. **All parties notified:**
+    - Subcontractor → work approved, can proceed
+    - Admin → agreement fully executed, project compliant
+    - Broker → agreement completed
 
 **Email to All Parties Includes:**
 - Confirmation of full execution
+- Project marked compliant
 - Work can now proceed
 - Links to view final signed agreement
+
+**Important:** No download/upload required - all signing done within the portal using digital signature
 
 ---
 
@@ -165,25 +181,31 @@ The system tracks hold harmless agreements through a multi-step signature workfl
 ## Role Responsibilities
 
 ### Subcontractor
-- ✅ Download hold harmless template from portal
-- ✅ Sign the agreement (physically or digitally)
-- ✅ Upload signed copy to portal
-- ✅ Verify upload was successful
+- ✅ Log into Subcontractor Portal when notified
+- ✅ Review the pre-populated agreement
+- ✅ Enter full legal entity name
+- ✅ Add digital signature within portal
+- ✅ Enter signature date
+- ✅ Submit signature (no download/upload needed)
 - ⏱️ Complete within specified timeframe (typically 3-5 business days)
 
 ### General Contractor (GC)
-- ✅ Review subcontractor-signed agreement
+- ✅ Review subcontractor-signed agreement in portal
 - ✅ Verify all information is correct
-- ✅ Countersign the agreement via portal
-- ✅ Approve work to proceed
+- ✅ Enter full legal entity name
+- ✅ Add digital signature within portal
+- ✅ Enter signature date
+- ✅ Submit signature (no download/upload needed)
 - ⏱️ Review and sign within 2-3 business days of receiving notification
 
 ### Admin
-- ✅ Generate hold harmless templates during COI approval
-- ✅ Verify templates are properly populated
-- ✅ Monitor signature progress
-- ✅ Track compliance dashboard
+- ✅ Upload hold harmless template when creating Insurance Program
+- ✅ Approve COI and insurance policies to trigger agreement generation
+- ✅ System auto-populates templates with project data
+- ✅ Monitor signature progress on dashboard
+- ✅ Track compliance status
 - ✅ Send reminders if signatures are delayed
+- ✅ Verify project marked compliant after both signatures
 
 ### Broker
 - ℹ️ Receives notification when agreement is fully executed
@@ -221,7 +243,7 @@ The system tracks hold harmless agreements through a multi-step signature workfl
 
 ### Program Template Configuration (InsuranceProgram Entity)
 
-Insurance Programs can include custom hold harmless templates:
+**Insurance Programs MUST include a hold harmless template uploaded during program creation:**
 
 ```javascript
 {
@@ -229,47 +251,88 @@ Insurance Programs can include custom hold harmless templates:
   "name": "NYC Construction Standard",
   "description": "Standard insurance program for NYC projects",
   
-  // Hold Harmless Template
+  // Hold Harmless Template (uploaded when program is created)
   "hold_harmless_template_url": "https://storage.../custom-template.pdf",
   "hold_harmless_template_name": "NYC Custom Hold Harmless Template.pdf",
   
-  // When this program is used, this template is automatically applied
+  // When this program is used and COI is approved, this template is automatically:
+  // 1. Retrieved from the program
+  // 2. Populated with project address, GC entity, owner entity, additional insureds
+  // 3. Sent for digital signature
   "is_active": true
 }
 ```
 
-### File Upload Process
+**Template Upload Process:**
+1. Admin creates new Insurance Program
+2. Admin uploads hold harmless template document (PDF or DOC)
+3. Template is stored with the program
+4. When any project uses this program and COI is approved:
+   - System retrieves this template
+   - Auto-fills with project-specific data
+   - Generates agreement ready for digital signature
 
-**Subcontractor Upload:**
+### Digital Signature Process
+
+**Subcontractor Digital Signature:**
 ```javascript
 // From SubcontractorPortal.jsx
-const handleFileUpload = async (file, type) => {
-  if (type === 'hold_harmless') {
-    const uploadResult = await uploadFile(file, 'hold-harmless');
-    
-    await updateCOI({
-      hold_harmless_sub_signed_url: uploadResult.file_url,
-      hold_harmless_sub_signed_date: new Date().toISOString(),
-      hold_harmless_status: 'signed_by_sub'
-    });
-    
-    // Notify GC
-    await sendNotificationToGC(coi, 'hold_harmless_signed');
-  }
+const handleDigitalSignature = async (signatureData) => {
+  // signatureData includes:
+  // - entityName: Full legal name of subcontractor company
+  // - signatureDate: Date of signature
+  // - signature: Digital signature (drawn or typed)
+  
+  // Save signature to agreement document
+  const signedAgreement = await embedSignatureInDocument(
+    coi.hold_harmless_template_url,
+    signatureData,
+    'subcontractor'
+  );
+  
+  await updateCOI({
+    hold_harmless_signed_document_url: signedAgreement.url,
+    hold_harmless_sub_signed_date: signatureData.signatureDate,
+    hold_harmless_sub_entity_name: signatureData.entityName,
+    hold_harmless_status: 'signed_by_sub'
+  });
+  
+  // Notify GC
+  await sendNotificationToGC(coi, 'hold_harmless_signed_by_sub');
 };
 ```
 
-**GC Countersign:**
+**GC Digital Countersignature:**
 ```javascript
 // From GCProjectView.jsx
-const handleSignHoldHarmless = async (coiId) => {
+const handleGCDigitalSignature = async (coiId, signatureData) => {
+  // signatureData includes:
+  // - entityName: Full legal name of GC company
+  // - signatureDate: Date of signature
+  // - signature: Digital signature (drawn or typed)
+  
+  // Add GC signature to already-signed agreement
+  const fullySignedAgreement = await embedSignatureInDocument(
+    coi.hold_harmless_signed_document_url,
+    signatureData,
+    'gc'
+  );
+  
   await updateCOI({
-    hold_harmless_status: 'signed',
-    hold_harmless_gc_signed_date: new Date().toISOString()
+    hold_harmless_final_document_url: fullySignedAgreement.url,
+    hold_harmless_gc_signed_date: signatureData.signatureDate,
+    hold_harmless_gc_entity_name: signatureData.entityName,
+    hold_harmless_status: 'signed'
+  });
+  
+  // Mark project as compliant
+  await updateProject(coi.project_id, {
+    compliance_status: 'compliant',
+    hold_harmless_completed: true
   });
   
   // Notify all parties
-  await sendNotificationToAllParties(coi, 'hold_harmless_complete');
+  await sendNotificationToAllParties(coi, 'hold_harmless_complete_project_compliant');
 };
 ```
 
@@ -312,23 +375,24 @@ const handleSignHoldHarmless = async (coiId) => {
 
 ## Troubleshooting
 
-### Issue: Subcontractor can't find the agreement template
+### Issue: Subcontractor can't find the agreement to sign
 
 **Solution:**
 1. Log into Subcontractor Portal
 2. Go to Projects tab
 3. Find the specific project
 4. Click "View COI Details"
-5. Look for "Hold Harmless Agreement" section
-6. Click download button
+5. Look for "Sign Hold Harmless Agreement" button
+6. Click button to open digital signature form
 
-### Issue: Upload button not appearing
+### Issue: Sign button not appearing
 
 **Check:**
-- COI status must be `pending_signature` or `signed_by_sub`
-- Template URL must exist in the COI record
+- COI and insurance policies must be approved by admin
+- Agreement must be generated (status = `pending_signature`)
 - User must be logged in as the correct subcontractor
 - Browser console for errors
+- Check that Insurance Program has a template uploaded
 
 ### Issue: GC doesn't see pending signature
 
@@ -338,38 +402,43 @@ const handleSignHoldHarmless = async (coiId) => {
 - GC must be logged into correct GC account
 - Check GC Project View → Pending Hold Harmless Signatures section
 
-### Issue: Template not generating automatically
+### Issue: Agreement not generating automatically
 
 **Check:**
-1. COI must be approved first
-2. Check if Insurance Program has custom template
-3. Verify admin has permission to generate
-4. Check browser console and backend logs
-5. Verify `hold_harmless_template_url` is populated
+1. COI **and insurance policies** must be approved by admin
+2. Insurance Program MUST have a hold harmless template uploaded
+3. Verify template exists at `program.hold_harmless_template_url`
+4. Check that project data includes: address, GC entity, owner entity, additional insureds
+5. Check browser console and backend logs
+6. Verify agreement generation triggered after admin approval
 
 ---
 
 ## Best Practices
 
 ### For Admins
-- ✅ Always verify template is generated after COI approval
+- ✅ Upload hold harmless template when creating each Insurance Program
+- ✅ Verify template is generated after COI and policy approval
+- ✅ Ensure all project data is complete (address, GC entity, owner entity, additional insureds)
 - ✅ Monitor signature progress on compliance dashboard
 - ✅ Send reminders if signatures delayed beyond 5 business days
-- ✅ Keep custom templates updated for each Insurance Program
-- ✅ Review template content quarterly for legal compliance
+- ✅ Keep program templates updated for legal compliance
+- ✅ Verify project marked compliant after both signatures
 
 ### For Subcontractors
-- ✅ Sign agreements promptly (within 3 business days)
-- ✅ Ensure signature is clear and legible
-- ✅ Upload high-quality scans (not blurry photos)
-- ✅ Verify upload was successful before logging out
-- ✅ Keep a copy for your records
+- ✅ Sign agreements digitally within portal (within 3 business days)
+- ✅ Enter full legal entity name accurately
+- ✅ Ensure digital signature is clear and legible
+- ✅ Enter correct signature date
+- ✅ Verify submission successful before logging out
+- ✅ Download final signed copy for your records (optional)
 
 ### For GCs
-- ✅ Review and countersign within 2 business days
-- ✅ Verify all project details are correct before signing
-- ✅ Confirm subcontractor signature is valid
-- ✅ Keep signed agreements on file for project duration
+- ✅ Review and digitally sign within 2 business days
+- ✅ Verify all auto-populated details are correct
+- ✅ Enter full legal entity name accurately
+- ✅ Confirm subcontractor signature before signing
+- ✅ Verify project marked compliant after signing
 - ✅ Don't allow work to proceed without signed agreement
 
 ---

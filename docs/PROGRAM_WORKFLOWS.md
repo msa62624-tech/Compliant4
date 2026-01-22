@@ -356,27 +356,28 @@ const coi = await generateCOI({
 See [Hold Harmless Workflow](./HOLD_HARMLESS_WORKFLOW.md) for complete details.
 
 **Summary:**
-- System generates customized Hold Harmless template
-- Includes project details, parties, and indemnification language
-- Stored as `hold_harmless_template_url`
+- System retrieves hold harmless template from Insurance Program
+- Auto-fills with project address, GC entity, owner entity, and additional insureds
+- Stored as populated agreement ready for digital signature
 - Status set to `pending_signature`
-- Subcontractor notified to download, sign, and upload
+- Subcontractor notified to digitally sign within portal (no download/upload)
 
 ---
 
-### Step 10-12: Signature and Final Approval
+### Step 10-12: Digital Signature and Final Approval
 
 See [Hold Harmless Workflow](./HOLD_HARMLESS_WORKFLOW.md) for complete signature process.
 
 **Summary:**
-- Step 10: Subcontractor downloads, signs, uploads agreement
-- Step 11: GC reviews and countersigns
-- Step 12: All parties notified - work approved
+- Step 10: Subcontractor digitally signs within portal (enters entity name, date, signature)
+- Step 11: GC digitally signs within portal (enters entity name, date, signature)
+- Step 12: Agreement saved with both signatures, **project marked compliant**, all parties notified
 
 **Final Status:**
 - Insurance: ✅ Approved
 - COI: ✅ Active
-- Hold Harmless: ✅ Signed
+- Hold Harmless: ✅ Digitally Signed by Both Parties
+- Project Compliance: ✅ Marked Compliant
 - Work Authorization: ✅ Granted
 
 ---
@@ -594,9 +595,8 @@ When COI Needs Attention:
 1. Click notification → Opens COI details
 2. Review status and next action required
 3. Take appropriate action:
-   - Upload documents (if broker hasn't)
+   - Digitally sign hold harmless (if pending signature)
    - Contact broker (if stuck)
-   - Sign hold harmless
    - Respond to compliance issue
 4. Verify action completed
 5. Check for confirmation email
@@ -638,11 +638,13 @@ Daily Monitoring:
 
 When Hold Harmless Needs Signature:
 1. Click notification
-2. Review subcontractor-signed agreement
-3. Verify project details
-4. Click "Sign Hold Harmless"
-5. Confirm signature
-6. Receive confirmation email
+2. Review auto-populated agreement on screen
+3. Enter full legal entity name
+4. Add digital signature (draw or type)
+5. Enter signature date
+6. Click "Submit Signature"
+7. Verify submission successful
+8. Receive confirmation email
 
 Reporting:
 • Weekly: Review project compliance status
@@ -726,8 +728,10 @@ Approving COI:
 4. Review any flagged issues
 5. Make final determination
 6. Click "Approve COI"
-7. System generates hold harmless template
-8. Monitor signature process
+7. System retrieves hold harmless template from Insurance Program
+8. System auto-populates template with project data (address, GC, owner, additional insureds)
+9. Agreement ready for digital signatures
+10. Monitor signature process and project compliance status
 
 Monitoring & Reporting:
 • Dashboard shows real-time compliance stats
@@ -877,9 +881,9 @@ Monitoring & Reporting:
 | COI pending signature | Broker | "Certificate Ready for Signature" | COI details | Broker → Certificates |
 | COI signed by broker | Admin | "COI Ready for Final Review" | Sub name, project | Admin → COI Review |
 | COI approved | All parties | "COI Approved" | Work authorization pending | Respective portals |
-| Hold Harmless generated | Subcontractor | "Sign Hold Harmless Agreement Required" | Download, sign, upload | Sub → Projects → COI |
-| Hold Harmless signed by sub | GC | "Hold Harmless Ready for Review" | Sub name, view agreement | GC → Project → Signatures |
-| Hold Harmless signed by GC | All parties | "Work Approved - Fully Compliant" | Work can proceed | Respective portals |
+| Hold Harmless generated | Subcontractor | "Sign Hold Harmless Agreement Required" | Digital sign in portal | Sub → Projects → Sign |
+| Hold Harmless signed by sub | GC | "Hold Harmless Ready for Review" | Sub signed, view and sign | GC → Project → Signatures |
+| Hold Harmless signed by GC | All parties | "Work Approved - Project Compliant" | Project compliant, work approved | Respective portals |
 | Insurance expiring (30 days) | Sub, Broker | "Insurance Expiring Soon" | Renewal required | Sub/Broker portals |
 | Insurance expired | Sub, Broker, GC, Admin | "URGENT: Insurance Expired" | Work stoppage | All portals |
 | Compliance issue found | Sub, Broker | "Insurance Deficiency - Action Required" | Specific issues, deadline | Sub/Broker portals |
@@ -908,8 +912,9 @@ NEXT STEPS:
 2. Broker uploads documents
 3. Admin reviews
 4. You receive approval
-5. Sign Hold Harmless
-6. Work begins!
+5. Digitally sign Hold Harmless (in portal - no download needed)
+6. GC digitally signs
+7. Project marked compliant - work begins!
 
 Timeline: 5-10 business days
 
@@ -930,8 +935,9 @@ You're back! Insurance on file = faster approval.
 NEXT STEPS:
 1. Broker reviews certificate
 2. Admin approves
-3. You sign Hold Harmless
-4. Work begins!
+3. You digitally sign Hold Harmless (in portal - no download needed)
+4. GC digitally signs
+5. Project marked compliant - work begins!
 
 Portal: [Link]
 ```
@@ -988,7 +994,11 @@ Insurance Programs are templates that define standard insurance requirements for
    - Name (e.g., "NYC High-Rise Standard")
    - Description
    - Active status
-3. Define Requirements by Tier:
+3. **Upload Hold Harmless Template (REQUIRED):**
+   - Upload template document (PDF or DOC)
+   - This template will be used for all projects using this program
+   - Template should include placeholders for auto-fill data
+4. Define Requirements by Tier:
    - **Tier 1** (General trades):
      - GL limits
      - WC limits
@@ -1000,11 +1010,13 @@ Insurance Programs are templates that define standard insurance requirements for
    - **Tier 3** (High-risk trades):
      - Maximum limits
      - Strictest requirements
-4. Upload Hold Harmless Template (optional):
-   - Custom agreement document
-   - Will be used for all projects using this program
 5. Assign applicable trades to each tier
 6. Save program
+
+**Important:** The hold harmless template uploaded here will be automatically:
+- Retrieved when COI is approved for any project using this program
+- Populated with project address, GC entity, owner entity, and additional insureds
+- Sent for digital signatures (no download/upload needed)
 
 ### Applying Program to Projects
 
@@ -1102,24 +1114,32 @@ Insurance Programs are templates that define standard insurance requirements for
 ## Best Practices
 
 ### For Admins
+✅ Upload hold harmless template when creating Insurance Programs  
+✅ Ensure template includes placeholders for auto-fill data  
 ✅ Review documents within 24 hours of submission  
+✅ Verify auto-populated agreements have correct data  
 ✅ Provide specific, actionable deficiency notices  
 ✅ Prioritize by project start date  
 ✅ Set up automated reminders  
 ✅ Maintain insurance program templates  
 ✅ Monitor average approval times  
+✅ Verify projects marked compliant after both signatures  
 
 ### For GCs
 ✅ Add subcontractors early in project planning  
-✅ Sign Hold Harmless agreements within 2 days  
+✅ Digitally sign Hold Harmless agreements within portal within 2 days (no download/upload)  
+✅ Enter accurate entity name and signature date  
+✅ Verify auto-populated project data is correct before signing  
 ✅ Keep project requirements up-to-date  
 ✅ Monitor compliance dashboard weekly  
 ✅ Communicate deadlines clearly to subs  
+✅ Verify project marked compliant after signing  
 
 ### For Subcontractors
 ✅ Contact broker immediately when added to project  
 ✅ Keep insurance policies current  
-✅ Sign agreements within 3 days  
+✅ Digitally sign agreements within portal within 3 days (no download/upload)  
+✅ Enter accurate entity name and signature date  
 ✅ Update contact information  
 ✅ Monitor expiration dates  
 
