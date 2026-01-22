@@ -550,6 +550,8 @@ const entities = {
       name: 'Standard Commercial Program',
       description: 'Standard insurance requirements for commercial projects',
       is_active: true,
+      hold_harmless_template_url: '',
+      hold_harmless_template_name: '',
       created_date: '2023-01-01T10:00:00Z'
     }
   ],
