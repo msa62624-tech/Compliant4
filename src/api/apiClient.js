@@ -188,9 +188,17 @@ const _analyzePolicy = async ({ coi_id, policy_documents }) => {
 
 // Authentication module - delegates to centralized auth.js
 const authModule = {
-  // Accept object parameter for consistency with auth.login()
-  login: async ({ username, password }) => {
-    return auth.login({ username, password });
+  // Support both calling patterns for backward compatibility:
+  // - login(username, password) - legacy pattern
+  // - login({ username, password }) - consistent with auth.login()
+  login: async (usernameOrObj, password) => {
+    if (typeof usernameOrObj === 'object') {
+      // Object pattern: { username, password }
+      return auth.login(usernameOrObj);
+    } else {
+      // Legacy pattern: (username, password)
+      return auth.login({ username: usernameOrObj, password });
+    }
   },
 
   logout: () => {
