@@ -19,6 +19,7 @@ import ZipCodeLookup from "@/components/ZipCodeLookup.jsx";
 import { sendGCWelcomeEmail } from "@/gcNotifications";
 import { notificationLinks } from "@/notificationLinkBuilder";
 import { toast } from "sonner";
+import { refreshAccessToken } from "@/auth";
 import {
   Select,
   SelectContent,
@@ -266,6 +267,14 @@ export default function Contractors() {
         const newGC = await createContractorMutation.mutateAsync(data);
         const gcLogin = newGC.gcLogin;
         
+        // Refresh token before creating portal to ensure fresh token for subsequent API calls
+        try {
+          await refreshAccessToken();
+        } catch (refreshError) {
+          console.warn('Token refresh warning (continuing):', refreshError);
+          // Continue anyway - the API client will handle refresh on 403
+        }
+        
         // Create Portal for GC (await it to ensure it's created)
         // Use gc-dashboard (public access) not gc-details (admin only)
         // Generate secure portal token using crypto
@@ -329,6 +338,13 @@ export default function Contractors() {
         if (data.additional_contacts && data.additional_contacts.length > 0) {
           for (const contact of data.additional_contacts) {
             if (!contact.email || !contact.name) continue;
+            
+            // Refresh token before each additional contact to prevent expiration
+            try {
+              await refreshAccessToken();
+            } catch (refreshError) {
+              console.warn('Token refresh warning for additional contact (continuing):', refreshError);
+            }
             
             try {
               // Generate portal token for additional contact
