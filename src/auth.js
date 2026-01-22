@@ -64,6 +64,13 @@ export function setToken(token, refreshToken = null) {
 export function clearToken() {
   // Use setToken(null) to clear both memory and localStorage
   setToken(null, null);
+  
+  // Also clear legacy sessionStorage token for backward compatibility
+  try {
+    sessionStorage.removeItem('token');
+  } catch (e) {
+    // Ignore if sessionStorage is not available
+  }
 }
 
 export async function login({ username, password }) {

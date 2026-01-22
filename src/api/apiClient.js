@@ -6,7 +6,7 @@
 import * as auth from '../auth.js';
 
 // Use centralized auth module for consistent token management
-export const getAuthHeader = auth.getAuthHeader;
+export const getAuthHeader = () => auth.getAuthHeader();
 
 export const getApiBase = () => {
   const envBase = import.meta.env.VITE_API_BASE_URL;
@@ -194,12 +194,6 @@ const authModule = {
 
   logout: () => {
     auth.clearToken();
-    // Clear legacy sessionStorage token for backward compatibility
-    try {
-      sessionStorage.removeItem('token');
-    } catch (e) {
-      // Ignore if sessionStorage is not available
-    }
   },
 
   me: async () => {
