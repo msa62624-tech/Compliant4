@@ -85,13 +85,7 @@ export default function GCProjectView() {
         throw new Error("Enter a valid contact email");
       }
 
-      // Ensure session still valid
-      try {
-        await compliant.auth.me();
-      } catch (err) {
-        throw new Error("Your session expired. Refresh the link and try again.");
-      }
-
+      // No auth check needed - GC portal uses public access mode
       const allSubs = await compliant.entities.Contractor.list();
       const existing = allSubs.find(
         (s) => s.company_name?.toLowerCase() === form.subcontractor_name.toLowerCase()

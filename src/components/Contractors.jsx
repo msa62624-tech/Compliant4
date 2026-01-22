@@ -257,14 +257,7 @@ export default function Contractors() {
     };
 
     try {
-      // Verify authentication before proceeding
-      try {
-        await compliant.auth.me();
-      } catch (authError) {
-        console.error('❌ Authentication validation failed:', authError);
-        throw new Error('Authentication expired. Please refresh the page and log in again.');
-      }
-
+      // User is already authenticated (verified via React Query at component level)
       if (editingContractor) {
         await updateContractorMutation.mutateAsync({ id: editingContractor.id, data });
         closeDialog();
