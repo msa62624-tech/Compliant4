@@ -1,6 +1,7 @@
 // Simple auth helper: stores bearer token in localStorage and provides login/logout helpers.
 const STORAGE_KEY = 'insuretrack_token';
 const REFRESH_KEY = 'insuretrack_refresh_token';
+const LEGACY_SESSION_KEY = 'token'; // Legacy sessionStorage key for backward compatibility
 const apiBase = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL)
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')
   : null;
@@ -67,7 +68,7 @@ export function clearToken() {
   
   // Also clear legacy sessionStorage token for backward compatibility
   try {
-    sessionStorage.removeItem('token');
+    sessionStorage.removeItem(LEGACY_SESSION_KEY);
   } catch (e) {
     // Ignore if sessionStorage is not available
   }
