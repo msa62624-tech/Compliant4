@@ -156,6 +156,7 @@ export default function Contractors() {
     if (contractor) {
       setEditingContractor(contractor);
       setFormData({
+        // Use company_name if available, otherwise fallback to entity_name for older records
         company_name: contractor.company_name || contractor.entity_name || '',
         contact_person: contractor.contact_person || '',
         email: contractor.email || '',
@@ -256,7 +257,8 @@ export default function Contractors() {
     
     const data = {
       ...formData,
-      entity_name: formData.company_name, // Set entity_name to company_name for backward compatibility
+      // Set entity_name to company_name for backward compatibility with existing database records and API expectations
+      entity_name: formData.company_name,
       contractor_type: 'general_contractor',
       ...(!editingContractor && { admin_id: user?.id, admin_name: user?.name })
     };
@@ -719,7 +721,7 @@ InsureTrack Team`
                               No General Contractors Yet
                             </h3>
                             <p className="text-sm text-slate-500">
-                              Use the &ldquo;Add Contractor&rdquo; button above to get started
+                              Use the Add Contractor button above to get started
                             </p>
                           </div>
                         </div>
@@ -902,7 +904,7 @@ InsureTrack Team`
                     placeholder="ABC Construction LLC"
                     required
                   />
-                  <p className="text-xs text-slate-500">Legal entity name for the company</p>
+                  <p className="text-xs text-slate-500">Company or legal entity name</p>
                 </div>
 
                 <div className="space-y-2">
@@ -1104,7 +1106,7 @@ InsureTrack Team`
               </div>
             </div>
 
-              <div className="flex gap-2 px-6 py-6 border-t bg-slate-50 rounded-b-lg">
+              <div className="flex gap-2 px-6 py-6 border-t bg-slate-50 rounded-b-lg flex-shrink-0">
                 <Button type="button" variant="outline" onClick={closeDialog}>
                   Cancel
                 </Button>
