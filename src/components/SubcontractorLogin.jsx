@@ -5,12 +5,14 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Building2 } from 'lucide-react';
+import ForgotPassword from '@/components/ForgotPassword';
 
 export default function SubcontractorLogin({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -54,6 +56,14 @@ export default function SubcontractorLogin({ onLogin }) {
       setLoading(false);
     }
   };
+
+  if (showForgotPassword) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-600 via-rose-600 to-orange-700 p-4">
+        <ForgotPassword onBackToLogin={() => setShowForgotPassword(false)} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-600 via-rose-600 to-orange-700 p-4">
@@ -102,6 +112,16 @@ export default function SubcontractorLogin({ onLogin }) {
                   disabled={loading}
                   placeholder="Enter your password"
                 />
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-sm text-red-600 hover:text-red-700 font-medium"
+                >
+                  Forgot password?
+                </button>
               </div>
 
               <Button
