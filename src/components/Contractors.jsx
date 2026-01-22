@@ -675,38 +675,6 @@ InsureTrack Team`
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Button
-            onClick={() => openDialog()}
-            className="h-20 bg-gradient-to-br from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 text-white font-semibold flex flex-col items-center justify-center gap-2 shadow-sm"
-          >
-            <Plus className="w-6 h-6" />
-            <span>Add New GC</span>
-          </Button>
-          <Button
-            variant="outline"
-            className="h-20 border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-50 font-semibold flex flex-col items-center justify-center gap-2"
-            onClick={() => navigate('/contractors')}
-          >
-            <Building2 className="w-6 h-6 text-slate-600" />
-            <span>View All</span>
-          </Button>
-          <Button
-            variant="outline"
-            className="h-20 border-2 border-emerald-300 hover:border-emerald-400 hover:bg-emerald-50 font-semibold flex flex-col items-center justify-center gap-2"
-          >
-            <span className="text-2xl font-bold text-emerald-600">{stats.active}</span>
-            <span className="text-emerald-700">Active</span>
-          </Button>
-          <Button
-            variant="outline"
-            className="h-20 border-2 border-amber-300 hover:border-amber-400 hover:bg-amber-50 font-semibold flex flex-col items-center justify-center gap-2"
-          >
-            <span className="text-2xl font-bold text-amber-600">{stats.pending}</span>
-            <span className="text-amber-700">Pending</span>
-          </Button>
-        </div>
-
         <Card className="border border-slate-200 shadow-sm bg-white overflow-hidden">
           <CardHeader className="border-b border-slate-200 bg-white px-6 py-5">
             <CardTitle className="text-lg font-semibold text-slate-900">
