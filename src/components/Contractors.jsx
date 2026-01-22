@@ -56,7 +56,6 @@ export default function Contractors() {
   const [editingContractor, setEditingContractor] = useState(null);
   const [formData, setFormData] = useState({
     company_name: '',
-    entity_name: '',
     contact_person: '',
     email: '',
     phone: '',
@@ -157,9 +156,8 @@ export default function Contractors() {
     if (contractor) {
       setEditingContractor(contractor);
       setFormData({
-        company_name: contractor.company_name || '',
+        company_name: contractor.company_name || contractor.entity_name || '',
         contact_person: contractor.contact_person || '',
-        entity_name: contractor.entity_name || '',
         email: contractor.email || '',
         phone: contractor.phone || '',
         address: contractor.address || '',
@@ -175,7 +173,6 @@ export default function Contractors() {
       setEditingContractor(null);
       setFormData({
         company_name: '',
-        entity_name: '',
         contact_person: '',
         email: '',
         phone: '',
@@ -198,7 +195,6 @@ export default function Contractors() {
     // Reset form data to initial state
     setFormData({
       company_name: '',
-      entity_name: '',
       contact_person: '',
       email: '',
       phone: '',
@@ -260,6 +256,7 @@ export default function Contractors() {
     
     const data = {
       ...formData,
+      entity_name: formData.company_name, // Set entity_name to company_name for backward compatibility
       contractor_type: 'general_contractor',
       ...(!editingContractor && { admin_id: user?.id, admin_name: user?.name })
     };
@@ -877,8 +874,8 @@ InsureTrack Team`
       {/* Add/Edit GC Dialog - Rendered as Portal */}
       {isDialogOpen && ReactDOM.createPortal(
         <div className="fixed inset-0 z-[99999] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between mb-6 px-6 pt-6">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between mb-6 px-6 pt-6 flex-shrink-0">
               <h2 className="text-xl font-bold text-slate-900">
                 {editingContractor ? 'Edit General Contractor' : 'Add New General Contractor'}
               </h2>
@@ -889,19 +886,19 @@ InsureTrack Team`
                 ×
               </button>
             </div>
-            <p className="text-sm text-slate-600 mb-6 px-6">
+            <p className="text-sm text-slate-600 mb-6 px-6 flex-shrink-0">
               {editingContractor ? 'Update the contractor information below' : 'Fill out the form to add a new general contractor to the system'}
             </p>
-            <form onSubmit={handleSubmit} className="flex flex-col flex-1">
-              <div className="space-y-4 py-4 px-6 overflow-y-auto flex-1">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="space-y-4 py-4 px-6 overflow-y-auto flex-1 min-h-0">
                 <div className="space-y-2">
-                  <Label htmlFor="entity_name">
-                    Entity Name <span className="text-red-500">*</span>
+                  <Label htmlFor="company_name">
+                    Company Name <span className="text-red-500">*</span>
                   </Label>
                   <Input
-                    id="entity_name"
-                    value={formData.entity_name}
-                    onChange={(e) => setFormData({ ...formData, entity_name: e.target.value })}
+                    id="company_name"
+                    value={formData.company_name}
+                    onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
                     placeholder="ABC Construction LLC"
                     required
                   />
@@ -909,19 +906,6 @@ InsureTrack Team`
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="company_name">
-                    Company Name / DBA <span className="text-red-500">*</span>
-                  </Label>
-                <Input
-                  id="company_name"
-                  value={formData.company_name}
-                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                  placeholder="ABC Construction"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="contact_person">
                   Primary Contact Person <span className="text-red-500">*</span>
                 </Label>
