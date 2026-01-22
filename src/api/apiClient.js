@@ -188,7 +188,8 @@ const _analyzePolicy = async ({ coi_id, policy_documents }) => {
 
 // Authentication module - delegates to centralized auth.js
 const authModule = {
-  login: async (username, password) => {
+  // Accept object parameter for consistency with auth.login()
+  login: async ({ username, password }) => {
     return auth.login({ username, password });
   },
 

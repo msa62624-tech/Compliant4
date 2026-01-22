@@ -63,7 +63,7 @@ export function setToken(token, refreshToken = null) {
 }
 
 export function clearToken() {
-  // Use setToken(null) to clear both memory and localStorage
+  // Clear all storage: memory, localStorage, and legacy sessionStorage
   setToken(null, null);
   
   // Also clear legacy sessionStorage token for backward compatibility
