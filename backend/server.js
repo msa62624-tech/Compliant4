@@ -3666,6 +3666,15 @@ app.post('/admin/generate-coi', apiLimiter, authenticateToken, async (req, res) 
       limits: doc.coverage_amount ? `$${doc.coverage_amount.toLocaleString()}` : 'As per requirements'
     }));
     
+    // Prepare additional remarks for ACORD 25 schedule
+    const additionalRemarks = [];
+    if (project?.additional_insured_requirements) {
+      additionalRemarks.push(project.additional_insured_requirements);
+    }
+    if (coi.notes) {
+      additionalRemarks.push(coi.notes);
+    }
+    
     const coiData = {
       coiId: coi_id,
       subcontractorName: subcontractor?.company_name || 'Subcontractor',
@@ -3679,7 +3688,9 @@ app.post('/admin/generate-coi', apiLimiter, authenticateToken, async (req, res) 
       },
       coverages: coverages.length > 0 ? coverages : null,
       additionalInsured: project?.owner_entity || '',
-      certificateHolder: project?.gc_name || ''
+      certificateHolder: project?.gc_name || '',
+      certificateHolderAddress: project?.gc_address || '',
+      additionalRemarks: additionalRemarks.length > 0 ? additionalRemarks : null
     };
     
     // Generate actual PDF

@@ -165,101 +165,172 @@ INSURED: MPI Plumbing Corp
   }
 
   /**
-   * Generate a COI PDF document
+   * Generate a COI PDF document in ACORD 25 format
    * @param {object} coiData - COI data including project, subcontractor, and insurance info
    * @param {string} uploadDir - Directory to save the generated PDF
    * @returns {Promise<string>} Filename of generated PDF
    */
   async generateCOIPDF(coiData, uploadDir) {
     try {
-      console.log(`📄 Adobe: Generating COI PDF for ${coiData.subcontractorName || 'subcontractor'}`);
+      console.log(`📄 Adobe: Generating ACORD 25 COI PDF for ${coiData.subcontractorName || 'subcontractor'}`);
       
       const filename = `coi-${coiData.coiId || Date.now()}-${Date.now()}.pdf`;
       const filepath = path.join(uploadDir, filename);
       
-      // Create PDF document
-      const doc = new PDFDocument({ size: 'LETTER', margin: 50 });
+      // Create PDF document with ACORD 25 standard size
+      const doc = new PDFDocument({ size: 'LETTER', margin: 30 });
       const stream = fs.createWriteStream(filepath);
       
       doc.pipe(stream);
       
-      // Header
-      doc.fontSize(20).text('CERTIFICATE OF INSURANCE', { align: 'center' });
-      doc.moveDown();
+      // ACORD 25 Header
+      doc.fontSize(7).text('ACORD', 30, 30);
+      doc.fontSize(16).font('Helvetica-Bold').text('CERTIFICATE OF LIABILITY INSURANCE', 150, 30, { align: 'center', width: 300 });
+      doc.fontSize(7).font('Helvetica').text(`DATE (MM/DD/YYYY)`, 480, 30);
+      doc.fontSize(9).text(new Date().toLocaleDateString('en-US'), 480, 42);
       
-      // Date
-      doc.fontSize(10).text(`Date: ${new Date().toLocaleDateString()}`, { align: 'right' });
-      doc.moveDown();
+      // Form identifier
+      doc.fontSize(6).text('ACORD 25 (2016/03)', 30, 50);
       
-      // Producer/Broker Info
-      if (coiData.broker) {
-        doc.fontSize(12).text('PRODUCER', { underline: true });
-        doc.fontSize(10)
-          .text(`${coiData.broker.name || 'Insurance Broker'}`)
-          .text(`${coiData.broker.email || ''}`)
-          .text(`${coiData.broker.phone || ''}`);
-        doc.moveDown();
+      doc.moveTo(30, 65).lineTo(580, 65).stroke();
+      
+      // Producer Section
+      let yPos = 70;
+      doc.fontSize(7).font('Helvetica-Bold').text('PRODUCER', 30, yPos);
+      yPos += 12;
+      doc.fontSize(9).font('Helvetica').text(coiData.broker?.name || 'Insurance Broker', 30, yPos);
+      if (coiData.broker?.email) {
+        yPos += 12;
+        doc.text(coiData.broker.email, 30, yPos);
+      }
+      if (coiData.broker?.phone) {
+        yPos += 12;
+        doc.text(coiData.broker.phone, 30, yPos);
       }
       
-      // Insured (Subcontractor)
-      doc.fontSize(12).text('INSURED', { underline: true });
-      doc.fontSize(10)
-        .text(`${coiData.subcontractorName || 'Subcontractor'}`)
-        .text(`${coiData.subcontractorAddress || ''}`);
-      doc.moveDown();
-      
-      // Project Information
-      if (coiData.projectName) {
-        doc.fontSize(12).text('PROJECT', { underline: true });
-        doc.fontSize(10).text(`${coiData.projectName}`);
-        if (coiData.projectAddress) {
-          doc.text(`${coiData.projectAddress}`);
-        }
-        doc.moveDown();
+      // Insured Section
+      yPos = 70;
+      doc.fontSize(7).font('Helvetica-Bold').text('INSURED', 320, yPos);
+      yPos += 12;
+      doc.fontSize(9).font('Helvetica').text(coiData.subcontractorName || 'Subcontractor', 320, yPos);
+      if (coiData.subcontractorAddress) {
+        yPos += 12;
+        doc.text(coiData.subcontractorAddress, 320, yPos);
       }
       
-      // Insurance Coverage
-      doc.fontSize(12).text('INSURANCE COVERAGE', { underline: true });
-      doc.moveDown(0.5);
+      yPos = 140;
+      doc.moveTo(30, yPos).lineTo(580, yPos).stroke();
       
+      // Coverages Section Header
+      yPos += 5;
+      doc.fontSize(7).font('Helvetica-Bold').text('THIS IS TO CERTIFY THAT THE POLICIES OF INSURANCE LISTED BELOW HAVE BEEN ISSUED TO THE INSURED NAMED ABOVE FOR THE POLICY PERIOD', 30, yPos, { width: 540 });
+      yPos += 20;
+      doc.text('INDICATED. NOTWITHSTANDING ANY REQUIREMENT, TERM OR CONDITION OF ANY CONTRACT OR OTHER DOCUMENT WITH RESPECT TO WHICH THIS', 30, yPos, { width: 540 });
+      yPos += 10;
+      doc.text('CERTIFICATE MAY BE ISSUED OR MAY PERTAIN, THE INSURANCE AFFORDED BY THE POLICIES DESCRIBED HEREIN IS SUBJECT TO ALL THE TERMS,', 30, yPos, { width: 540 });
+      yPos += 10;
+      doc.text('EXCLUSIONS AND CONDITIONS OF SUCH POLICIES. LIMITS SHOWN MAY HAVE BEEN REDUCED BY PAID CLAIMS.', 30, yPos, { width: 540 });
+      
+      yPos += 15;
+      doc.moveTo(30, yPos).lineTo(580, yPos).stroke();
+      
+      // Insurance Table Headers
+      yPos += 5;
+      doc.fontSize(6).font('Helvetica-Bold')
+        .text('TYPE OF INSURANCE', 30, yPos)
+        .text('POLICY NUMBER', 180, yPos)
+        .text('POLICY EFF', 280, yPos)
+        .text('POLICY EXP', 340, yPos)
+        .text('LIMITS', 420, yPos);
+      
+      yPos += 12;
+      doc.moveTo(30, yPos).lineTo(580, yPos).stroke();
+      
+      // Insurance Coverage Rows
       if (coiData.coverages && coiData.coverages.length > 0) {
         coiData.coverages.forEach(coverage => {
-          doc.fontSize(11).text(`${coverage.type || 'Insurance Type'}`, { underline: true });
-          doc.fontSize(10)
-            .text(`Insurer: ${coverage.insurer || 'N/A'}`)
-            .text(`Policy Number: ${coverage.policyNumber || 'N/A'}`)
-            .text(`Effective Date: ${coverage.effectiveDate || 'N/A'}`)
-            .text(`Expiration Date: ${coverage.expirationDate || 'N/A'}`)
-            .text(`Limits: ${coverage.limits || 'N/A'}`);
-          doc.moveDown(0.5);
+          yPos += 5;
+          doc.fontSize(8).font('Helvetica')
+            .text(coverage.type || 'N/A', 30, yPos, { width: 140 })
+            .text(coverage.policyNumber || 'N/A', 180, yPos, { width: 90 })
+            .text(coverage.effectiveDate || 'N/A', 280, yPos, { width: 50 })
+            .text(coverage.expirationDate || 'N/A', 340, yPos, { width: 70 })
+            .text(coverage.limits || 'N/A', 420, yPos, { width: 150 });
+          yPos += 25;
+          doc.moveTo(30, yPos).lineTo(580, yPos).stroke();
         });
       } else {
-        doc.fontSize(10).text('General Liability: As per project requirements');
-        doc.text('Workers Compensation: Statutory Limits');
-        doc.text('Auto Liability: As per project requirements');
-        doc.moveDown();
+        // Default coverage lines
+        const defaultCoverages = [
+          { type: 'GENERAL LIABILITY', limits: 'Per Project Requirements' },
+          { type: 'WORKERS COMPENSATION', limits: 'Statutory Limits' },
+          { type: 'AUTOMOBILE LIABILITY', limits: 'Per Project Requirements' }
+        ];
+        
+        defaultCoverages.forEach(coverage => {
+          yPos += 5;
+          doc.fontSize(8).font('Helvetica')
+            .text(coverage.type, 30, yPos, { width: 140 })
+            .text(coverage.limits, 420, yPos, { width: 150 });
+          yPos += 25;
+          doc.moveTo(30, yPos).lineTo(580, yPos).stroke();
+        });
       }
       
-      // Additional Insured
+      // Description of Operations / Locations / Vehicles section
+      yPos += 5;
+      doc.fontSize(7).font('Helvetica-Bold').text('DESCRIPTION OF OPERATIONS / LOCATIONS / VEHICLES', 30, yPos);
+      yPos += 12;
+      doc.fontSize(8).font('Helvetica');
+      
+      if (coiData.projectName) {
+        doc.text(`RE: ${coiData.projectName}`, 30, yPos);
+        yPos += 12;
+      }
+      
+      if (coiData.projectAddress) {
+        doc.text(`Project Location: ${coiData.projectAddress}`, 30, yPos);
+        yPos += 12;
+      }
+      
       if (coiData.additionalInsured) {
-        doc.fontSize(12).text('ADDITIONAL INSURED', { underline: true });
-        doc.fontSize(10).text(coiData.additionalInsured);
-        doc.moveDown();
+        doc.text(`${coiData.additionalInsured} is included as Additional Insured as required by written contract.`, 30, yPos, { width: 540 });
+        yPos += 24;
       }
       
-      // Certificate Holder
+      // Additional Remarks Schedule (if needed)
+      if (coiData.additionalRemarks && coiData.additionalRemarks.length > 0) {
+        yPos += 5;
+        doc.fontSize(7).font('Helvetica-Bold').text('ADDITIONAL REMARKS SCHEDULE', 30, yPos);
+        yPos += 12;
+        doc.fontSize(8).font('Helvetica');
+        coiData.additionalRemarks.forEach(remark => {
+          doc.text(`• ${remark}`, 30, yPos, { width: 540 });
+          yPos += 12;
+        });
+      }
+      
+      yPos += 10;
+      doc.moveTo(30, yPos).lineTo(580, yPos).stroke();
+      
+      // Certificate Holder Section
+      yPos += 5;
+      doc.fontSize(7).font('Helvetica-Bold').text('CERTIFICATE HOLDER', 30, yPos);
+      yPos += 12;
+      doc.fontSize(9).font('Helvetica');
       if (coiData.certificateHolder) {
-        doc.fontSize(12).text('CERTIFICATE HOLDER', { underline: true });
-        doc.fontSize(10).text(coiData.certificateHolder);
-        doc.moveDown();
+        doc.text(coiData.certificateHolder, 30, yPos);
+        yPos += 12;
+      }
+      if (coiData.certificateHolderAddress) {
+        doc.text(coiData.certificateHolderAddress, 30, yPos);
       }
       
-      // Footer
-      doc.moveDown(2);
-      doc.fontSize(8).text('This certificate is issued as a matter of information only and confers no rights upon the certificate holder.', {
-        align: 'center',
-        width: 500
-      });
+      // Footer - Standard ACORD 25 disclaimer
+      yPos = 720;
+      doc.fontSize(6).font('Helvetica').text('ACORD 25 (2016/03)', 30, yPos);
+      doc.fontSize(6).text('© 1988-2015 ACORD CORPORATION. All rights reserved.', 200, yPos, { align: 'center', width: 200 });
+      doc.fontSize(6).text('The ACORD name and logo are registered marks of ACORD', 30, yPos + 10, { width: 540, align: 'center' });
       
       doc.end();
       
