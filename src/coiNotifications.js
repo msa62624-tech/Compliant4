@@ -446,3 +446,89 @@ export async function notifyAllStakeholdersCOIApproved(coi, subcontractor, proje
     console.error('Error logging approval:', error);
   }
 }
+/**
+ * Notify admin when a subcontractor changes their brokers
+ * Generate new COI and policy requests for the changed brokers
+ */
+export async function notifyAdminBrokerChanged(subcontractor, newBrokers, oldBrokers, projects) {
+  if (!subcontractor || !newBrokers || !Array.isArray(projects)) return;
+
+  const baseUrl = getFrontendBaseUrl();
+  
+  try {
+    // Fetch admin emails from backend
+    let adminEmails = ['admin@insuretrack.com']; // Default fallback
+    try {
+      const response = await fetch(`${baseUrl.replace(':5175', ':3001').replace(':5176', ':3001')}/public/admin-emails`);
+      if (response.ok) {
+        const data = await response.json();
+        adminEmails = data.emails || adminEmails;
+      }
+    } catch (fetchError) {
+      console.warn('Could not fetch admin emails, using default:', fetchError.message);
+    }
+
+    // Build notification details
+    const oldBrokersList = (oldBrokers || []).map(b => `${b.name} (${b.email})`).join(', ') || 'None';
+    const newBrokersList = newBrokers.map(b => `${b.name} (${b.email}) - ${Object.entries(b.policies).filter(([_, v]) => v).map(([k]) => k.toUpperCase()).join(', ')}`).join(', ');
+
+    // Send notification to admins
+    for (const adminEmail of adminEmails) {
+      await sendEmail({
+        to: adminEmail,
+        subject: `🔔 Broker Change Notification - ${subcontractor.company_name}`,
+        body: `Subcontractor has changed their broker assignments.
+
+SUBCONTRACTOR DETAILS:
+• Company: ${subcontractor.company_name}
+• Contact: ${subcontractor.contact_person || 'N/A'}
+• Email: ${subcontractor.email}
+
+PREVIOUS BROKERS:
+${oldBrokersList}
+
+NEW BROKERS:
+${newBrokersList}
+
+AFFECTED PROJECTS:
+${projects.map(p => `• ${p.project_name}`).join('\n')}
+
+ACTION REQUIRED:
+New COI upload and policy request requirements have been generated for the updated brokers. Please review pending items.`
+      });
+    }
+
+    // Generate new COI and policy requests for affected projects
+    for (const project of projects) {
+      for (const broker of newBrokers) {
+        try {
+          // Create new COI request for each policy type this broker handles
+          const policyTypes = Object.entries(broker.policies)
+            .filter(([_, selected]) => selected)
+            .map(([policy]) => policy.toUpperCase());
+
+          for (const policyType of policyTypes) {
+            await apiClient.post('/projects/generate-coi-request', {
+              project_id: project.id,
+              contractor_id: subcontractor.id,
+              broker_email: broker.email,
+              policy_type: policyType,
+            });
+          }
+
+          // Create new policy request
+          await apiClient.post('/projects/generate-policy-request', {
+            project_id: project.id,
+            contractor_id: subcontractor.id,
+            broker_email: broker.email,
+          });
+        } catch (reqErr) {
+          console.error(`Failed to generate requests for broker ${broker.email}:`, reqErr);
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('Error notifying admin of broker change:', error);
+  }
+}

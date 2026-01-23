@@ -2,18 +2,20 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
-import { generateSecurePassword, formatLoginCredentialsForEmail, createUserCredentials } from "@/passwordUtils";
+import { createUserCredentials } from "@/passwordUtils";
 import { getFrontendBaseUrl } from "@/urlConfig";
+import { notifyAdminBrokerChanged } from "@/coiNotifications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Trash2, Plus } from "lucide-react";
+import { AlertTriangle, Trash2, Plus, Edit2 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function BrokerInfoForm({ subcontractor, subId }) {
+export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }) {
   const queryClient = useQueryClient();
   const [brokers, setBrokers] = useState([]);
+  const [editingIndex, setEditingIndex] = useState(null);
   const [newBroker, setNewBroker] = useState({
     name: "",
     email: "",
@@ -76,11 +78,31 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
       return;
     }
 
-    // Add broker to list
-    const updatedBrokers = [...brokers, { ...newBroker }];
-    setBrokers(updatedBrokers);
+    // If editing, update in place
+    if (editingIndex !== null) {
+      const updatedBrokers = [...brokers];
+      updatedBrokers[editingIndex] = { ...newBroker };
+      setBrokers(updatedBrokers);
+      setEditingIndex(null);
+      setNewBroker({ name: "", email: "", phone: "", company: "", policies: { gl: false, auto: false, wc: false, umbrella: false } });
+      toast.success("Broker updated");
+    } else {
+      // Add new broker to list
+      const updatedBrokers = [...brokers, { ...newBroker }];
+      setBrokers(updatedBrokers);
+      setNewBroker({ name: "", email: "", phone: "", company: "", policies: { gl: false, auto: false, wc: false, umbrella: false } });
+      toast.success("Broker added to list");
+    }
+  };
+
+  const handleEditBroker = (index) => {
+    setEditingIndex(index);
+    setNewBroker({ ...brokers[index] });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
     setNewBroker({ name: "", email: "", phone: "", company: "", policies: { gl: false, auto: false, wc: false, umbrella: false } });
-    toast.success("Broker added to list");
   };
 
   const handleRemoveBroker = (index) => {
@@ -94,19 +116,38 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
       return;
     }
 
+    // Detect if brokers changed by comparing with existing
+    const existingBrokers = Array.isArray(subcontractor.brokers) ? subcontractor.brokers : [];
+    const brokersChanged = JSON.stringify(existingBrokers) !== JSON.stringify(brokers);
+
     // Save brokers list to subcontractor
     await updateSubcontractorMutation.mutateAsync({
       id: subcontractor.id,
       data: { brokers },
     });
 
-    // Notify each broker with credentials and assigned policies
+    // If brokers were changed, notify admin and generate new COI/policy requests
+    if (brokersChanged) {
+      try {
+        // Fetch projects for this subcontractor
+        const projectsResponse = await apiClient.get(`/public/projects-for-sub/${subcontractor.id}`);
+        const projects = projectsResponse.data || [];
+        
+        // Notify admin of broker change
+        await notifyAdminBrokerChanged(subcontractor, brokers, existingBrokers, projects);
+        toast.success("Admin notified of broker change");
+      } catch (err) {
+        console.error("Failed to notify admin of broker change:", err);
+        toast.warning("Brokers saved but admin notification may have failed");
+      }
+    }
+
+    // Notify each broker with login link and assigned policies
     try {
       const baseUrl = getFrontendBaseUrl();
-      const brokerDashboardLink = `${baseUrl}/broker-dashboard`;
+      const brokerLoginLink = `${baseUrl}/broker-verification`;
 
       for (const broker of brokers) {
-        const password = generateSecurePassword();
         const assignedPolicies = Object.entries(broker.policies)
           .filter(([_, selected]) => selected)
           .map(([policy]) => {
@@ -115,31 +156,24 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
           })
           .join(", ");
 
-        const loginInfo = formatLoginCredentialsForEmail(
-          broker.email,
-          password,
-          brokerDashboardLink,
-          brokerDashboardLink
-        );
-
         try {
           await sendEmail({
             to: broker.email,
             subject: `Insurance Broker Account Setup - ${subcontractor.company_name}`,
-            body: `Hello ${broker.name || ""},\n\nYou have been designated as the insurance broker for ${subcontractor.company_name}.\n\nAssigned Policies: ${assignedPolicies}\n\n${loginInfo}\n\nYou can manage all COI requests through your dashboard.\n\nThank you.`
+            body: `Hello ${broker.name || ""},\n\nYou have been designated as the insurance broker for ${subcontractor.company_name}.\n\nAssigned Policies: ${assignedPolicies}\n\nLogin to your broker dashboard:\n${brokerLoginLink}\n\nYou can create your own password on first login and manage all COI requests through your dashboard.\n\nThank you.`
           });
         } catch (emailErr) {
           console.error(`Failed to email ${broker.email}:`, emailErr);
         }
 
         try {
+          // Create broker user if doesn't exist (password will be set on first login)
           const userCredentials = createUserCredentials(
             broker.email,
             broker.name || broker.email,
             'broker',
             {}
           );
-          userCredentials.password = password;
           await apiClient.entities.User.create(userCredentials);
         } catch (_userError) {
           // User may already exist - that's fine
@@ -239,8 +273,17 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
               className="w-full bg-blue-600 hover:bg-blue-700 text-white"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Add Broker to List
+              {editingIndex !== null ? "Update Broker" : "Add Broker to List"}
             </Button>
+            {editingIndex !== null && (
+              <Button
+                onClick={handleCancelEdit}
+                variant="outline"
+                className="w-full"
+              >
+                Cancel Edit
+              </Button>
+            )}
           </div>
         </div>
 
@@ -249,7 +292,7 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
           <div className="border-t pt-4 mt-4 space-y-3">
             <h4 className="font-semibold text-slate-900">Assigned Brokers ({brokers.length})</h4>
             {brokers.map((broker, idx) => (
-              <div key={idx} className="flex items-start justify-between p-3 bg-white rounded-lg border border-slate-200 shadow-sm">
+              <div key={idx} className={`flex items-start justify-between p-3 rounded-lg border shadow-sm ${editingIndex === idx ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200'}`}>
                 <div className="flex-1">
                   <p className="font-medium text-slate-900">{broker.name || "Unnamed"}</p>
                   <p className="text-sm text-slate-600">{broker.email}</p>
@@ -261,15 +304,26 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
                     {broker.policies.umbrella && <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded font-medium">Umbrella</span>}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemoveBroker(idx)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  title="Remove this broker"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="flex gap-2 ml-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEditBroker(idx)}
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    title="Edit this broker"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveBroker(idx)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    title="Remove this broker"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
