@@ -1,9 +1,35 @@
-import { useEffect, useRef, useState } from 'react';
 import { Input } from "@/components/ui/input";
+
+// Simplified version - Google Maps autocomplete was blocking input
+// Using plain text input for now until Google Maps integration can be fixed properly
+export default function AddressAutocomplete({ value, onChange, placeholder = "Start typing address...", required }) {
+  return (
+    <div className="space-y-2">
+      <Input
+        value={value || ''}
+        onChange={(e) => {
+          if (onChange) {
+            onChange(e.target.value);
+          }
+        }}
+        placeholder={placeholder}
+        autoComplete="off"
+        required={required}
+        type="text"
+      />
+      <p className="text-xs text-slate-500">
+        Enter full address (street, city, state, ZIP)
+      </p>
+    </div>
+  );
+}
+
+/* DISABLED - Google Maps was blocking input
+import { useEffect, useRef, useState } from 'react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
-export default function AddressAutocomplete({ value, onChange, onAddressSelect, placeholder = "Start typing address...", required }) {
+export default function AddressAutocompleteWithGoogle({ value, onChange, onAddressSelect, placeholder = "Start typing address...", required }) {
   const inputRef = useRef(null);
   const autocompleteRef = useRef(null);
   const [error, setError] = useState(null);
@@ -279,3 +305,4 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
     </div>
   );
 }
+*/

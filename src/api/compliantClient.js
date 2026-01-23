@@ -82,8 +82,9 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
           clearTimeout(id);
           if (res.status === 401) {
             // unauthorized - clear token and surface a clear error
+            console.error('❌ 401 Unauthorized - Token invalid or expired');
             try { clearToken(); } catch(e){}
-            const e = new Error('Unauthorized');
+            const e = new Error('Your session has expired. Please log in again.');
             e.status = 401;
             throw e;
           }
@@ -99,16 +100,18 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
                 throw err;
               }
               try {
+                console.log('🔄 Attempting to refresh expired token...');
                 await refreshAccessToken();
                 tokenRefreshAttempted = true;
                 // Update headers with new token and retry
                 const newHeaders = { ...(opts.headers || {}), ...getAuthHeader() };
                 finalOpts.headers = newHeaders;
+                console.log('✅ Token refreshed successfully, retrying request');
                 continue; // Retry with new token without counting toward attempt limit
               } catch (err) {
-                console.error('Token refresh failed:', err);
+                console.error('❌ Token refresh failed:', err);
                 try { clearToken(); } catch(e){}
-                const e = new Error('Unauthorized');
+                const e = new Error('Your session has expired. Please log in again.');
                 e.status = 401;
                 throw e;
               }

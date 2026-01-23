@@ -1585,7 +1585,7 @@ app.post('/auth/login',
       const accessToken = jwt.sign(
         { id: user.id, username: user.username, email: user.email, role: user.role },
         JWT_SECRET,
-        { expiresIn: '1h' }
+        { expiresIn: '24h' }
       );
       
       const refreshToken = jwt.sign(
@@ -1629,7 +1629,7 @@ app.post('/auth/refresh',
     const accessToken = jwt.sign(
       { id: decoded.id, username: decoded.username, email: decoded.email, role: decoded.role },
       JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: '24h' }
     );
 
     res.json({ 
