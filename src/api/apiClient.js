@@ -119,11 +119,11 @@ const coreIntegrations = {
     });
   },
 
-  // Parse program PDF
-  ParseProgramPDF: async ({ file_url }) => {
-    return apiFetch('/integrations/parse-program', {
+  // Parse program PDF from base64 (matches backend /integrations/parse-program-pdf)
+  ParseProgramPDF: async ({ pdf_base64, pdf_name, pdf_type }) => {
+    return apiFetch('/integrations/parse-program-pdf', {
       method: 'POST',
-      body: JSON.stringify({ file_url })
+      body: JSON.stringify({ pdf_base64, pdf_name, pdf_type })
     });
   }
 };
