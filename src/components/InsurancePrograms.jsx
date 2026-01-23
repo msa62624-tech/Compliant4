@@ -177,7 +177,7 @@ export default function InsurancePrograms() {
     setRequirements([newGLRequirement('Tier 1')]);
   };
 
-  const openDialog = (program = null) => {
+  const openDialog = async (program = null) => {
     if (program) {
       setEditingProgram(program);
       setFormData({
@@ -190,7 +190,32 @@ export default function InsurancePrograms() {
         hold_harmless_template_url: program.hold_harmless_template_url || '',
         hold_harmless_template_name: program.hold_harmless_template_name || '',
       });
-      // load requirements for editing if needed in future
+      
+      // Load requirements for this program
+      try {
+        const programReqs = await apiClient.entities.SubInsuranceRequirement.filter({ program_id: program.id });
+        const reqs = Array.isArray(programReqs) ? programReqs : (programReqs?.data || []);
+        console.log('Loaded requirements for program:', reqs.length);
+        setRequirements(reqs);
+        
+        // Extract unique tiers from loaded requirements
+        const tierSet = new Set(reqs.map(r => r.tier).filter(Boolean));
+        const extractedTiers = Array.from(tierSet).sort().map((tierName, idx) => ({
+          name: tierName,
+          id: `tier-${tierName}-${idx}`
+        }));
+        
+        if (extractedTiers.length > 0) {
+          setTiers(extractedTiers);
+        } else {
+          setTiers([{ name: 'Tier 1', id: `tier-${Date.now()}` }]);
+        }
+      } catch (err) {
+        console.error('Error loading requirements:', err);
+        // Fallback to empty requirements
+        setRequirements([]);
+        setTiers([{ name: 'Tier 1', id: `tier-${Date.now()}` }]);
+      }
     } else {
       setEditingProgram(null);
       resetForm();
@@ -206,23 +231,52 @@ export default function InsurancePrograms() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const data = {
-      ...formData,
-      name: formData.name,
-      description: formData.description,
-      is_active: formData.is_active,
-      hold_harmless_template_url: formData.hold_harmless_template_url || '',
-      hold_harmless_template_name: formData.hold_harmless_template_name || '',
-    };
+    try {
+      const data = {
+        ...formData,
+        name: formData.name,
+        description: formData.description,
+        is_active: formData.is_active,
+        hold_harmless_template_url: formData.hold_harmless_template_url || '',
+        hold_harmless_template_name: formData.hold_harmless_template_name || '',
+      };
 
-    if (editingProgram) {
-      await updateProgramMutation.mutateAsync({ id: editingProgram.id, data });
-      const existing = await apiClient.entities.SubInsuranceRequirement.filter({ program_id: editingProgram.id });
-      await Promise.all(existing.map((r) => apiClient.entities.SubInsuranceRequirement.delete(r.id)));
-      await Promise.all(requirements.map((req) => apiClient.entities.SubInsuranceRequirement.create({ ...req, program_id: editingProgram.id })));
-    } else {
-      const created = await createProgramMutation.mutateAsync(data);
-      await Promise.all(requirements.map((req) => apiClient.entities.SubInsuranceRequirement.create({ ...req, program_id: created.id })));
+      if (editingProgram) {
+        await updateProgramMutation.mutateAsync({ id: editingProgram.id, data });
+        const existing = await apiClient.entities.SubInsuranceRequirement.filter({ program_id: editingProgram.id });
+        const existingReqs = Array.isArray(existing) ? existing : (existing?.data || []);
+        await Promise.all(existingReqs.map((r) => apiClient.entities.SubInsuranceRequirement.delete(r.id)));
+        await Promise.all(requirements.map((req) => apiClient.entities.SubInsuranceRequirement.create({ 
+          ...req, 
+          program_id: editingProgram.id,
+          insurance_type: req.insurance_type || 'general_liability',
+          is_required: req.is_required !== undefined ? req.is_required : true
+        })));
+        console.log('✅ Program updated with', requirements.length, 'requirements');
+      } else {
+        const created = await createProgramMutation.mutateAsync(data);
+        await Promise.all(requirements.map((req) => apiClient.entities.SubInsuranceRequirement.create({ 
+          ...req, 
+          program_id: created.id,
+          insurance_type: req.insurance_type || 'general_liability',
+          is_required: req.is_required !== undefined ? req.is_required : true
+        })));
+        console.log('✅ Program created with ID', created.id, 'and', requirements.length, 'requirements');
+      }
+      
+      // Refresh the data
+      await queryClient.invalidateQueries({ queryKey: ['programs'] });
+      await queryClient.invalidateQueries({ queryKey: ['SubInsuranceRequirement'] });
+      
+      // Clear form
+      setIsDialogOpen(false);
+      setEditingProgram(null);
+      setFormData({ name: '', description: '', is_active: true, hold_harmless_template_url: '', hold_harmless_template_name: '', pdf_name: '', pdf_data: '', pdf_type: '' });
+      setRequirements([]);
+      setTiers([]);
+    } catch (err) {
+      console.error('Error saving program:', err);
+      alert('Failed to save program. Check console for details.');
     }
   };
 
@@ -271,30 +325,48 @@ export default function InsurancePrograms() {
   const handleConfirmImport = async () => {
     if (!parsePreview) return;
     try {
+      console.log('Starting import with', parsePreview.requirements?.length || 0, 'requirements');
       const existingPrograms = await apiClient.entities.InsuranceProgram.list();
       const match = existingPrograms.find(p => p.name === parsePreview.program.name);
       let programId;
       if (match) {
+        console.log('Updating existing program:', match.id);
         await apiClient.entities.InsuranceProgram.update(match.id, parsePreview.program);
         programId = match.id;
         const existingReqs = await apiClient.entities.SubInsuranceRequirement.filter({ program_id: programId });
-        await Promise.all(existingReqs.map(r => apiClient.entities.SubInsuranceRequirement.delete(r.id)));
+        const reqs = Array.isArray(existingReqs) ? existingReqs : (existingReqs?.data || []);
+        console.log('Deleting', reqs.length, 'existing requirements');
+        await Promise.all(reqs.map(r => apiClient.entities.SubInsuranceRequirement.delete(r.id)));
       } else {
+        console.log('Creating new program:', parsePreview.program.name);
         const createdProgram = await apiClient.entities.InsuranceProgram.create(parsePreview.program);
         programId = createdProgram.id;
+        console.log('New program created with ID:', programId);
       }
 
+      const requirementsToCreate = (parsePreview.requirements || []).map((req) => ({
+        ...req, 
+        program_id: programId,
+        insurance_type: req.insurance_type || 'general_liability',
+        is_required: req.is_required !== undefined ? req.is_required : true
+      }));
+      
+      console.log('Creating', requirementsToCreate.length, 'requirements');
       await Promise.all(
-        (parsePreview.requirements || []).map((req) =>
-          apiClient.entities.SubInsuranceRequirement.create({ ...req, program_id: programId })
+        requirementsToCreate.map((req) =>
+          apiClient.entities.SubInsuranceRequirement.create(req)
         )
       );
-      queryClient.invalidateQueries(['programs']);
+      
+      console.log('✅ Import completed successfully');
+      await queryClient.invalidateQueries({ queryKey: ['programs'] });
+      await queryClient.invalidateQueries({ queryKey: ['SubInsuranceRequirement'] });
       setParsePreview(null);
       setParseError('');
+      alert('Program imported successfully with ' + requirementsToCreate.length + ' requirements!');
     } catch (err) {
-      console.error(err);
-      setParseError('Failed to save imported program.');
+      console.error('Import error:', err);
+      setParseError('Failed to save imported program: ' + err.message);
     }
   };
 
@@ -763,71 +835,288 @@ export default function InsurancePrograms() {
 
                   {/* Tier Management Section */}
                   <div className="space-y-4 border-t pt-4">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-base font-semibold">Program Tiers</Label>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => {
-                          const newTierNum = tiers.length + 1;
-                          setTiers([...tiers, { name: `Tier ${newTierNum}`, id: `tier-${Date.now()}` }]);
-                        }}
-                      >
-                        <Plus className="w-4 h-4 mr-1" /> Add Tier
-                      </Button>
-                    </div>
+                    <Label className="text-lg font-bold">Insurance Requirements by Tier</Label>
                     
-                    <div className="text-sm text-slate-600 bg-red-50 p-3 rounded">
-                      Define your insurance requirement tiers. Each tier can specify which trades it applies to and their insurance limits.
+                    <div className="text-sm text-slate-600 bg-blue-50 p-3 rounded border border-blue-200">
+                      Each tier below can have different GL and Umbrella limits. Workers Comp and Auto are applied to ALL tiers.
                     </div>
 
-                    <div className="space-y-4">
-                      {tiers.map((tier, tierIndex) => (
-                        <Card key={tier.id} className="border-2">
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3 flex-1">
-                                <Label className="text-sm font-semibold">Tier Name:</Label>
-                                <Input 
-                                  value={tier.name} 
-                                  onChange={(e) => {
-                                    const oldTierName = tiers[tierIndex].name;
-                                    const newTiers = [...tiers];
-                                    newTiers[tierIndex].name = e.target.value;
-                                    setTiers(newTiers);
-                                    // Update requirements with new tier name
-                                    setRequirements(prev => prev.map(r => 
-                                      r.tier === oldTierName ? { ...r, tier: e.target.value } : r
-                                    ));
-                                  }}
-                                  className="w-48"
-                                  placeholder="e.g., Tier 1, High Risk, etc."
-                                />
+                    {/* Add Tier Button */}
+                    <Button 
+                      type="button" 
+                      variant="outline"
+                      onClick={() => {
+                        const newTierNum = tiers.length + 1;
+                        const newTierName = `Tier ${newTierNum}`;
+                        setTiers([...tiers, { name: newTierName, id: `tier-${Date.now()}` }]);
+                        // Add default GL requirement for new tier
+                        setRequirements([...requirements, newGLRequirement(newTierName)]);
+                      }}
+                    >
+                      <Plus className="w-4 h-4 mr-2" /> Add New Tier
+                    </Button>
+
+                    {/* Display Tiers */}
+                    <div className="space-y-3">
+                      {tiers.map((tier, tierIndex) => {
+                        const tierReqs = requirements.filter(r => r.tier === tier.name);
+                        return (
+                          <Card key={tier.id} className="border-2 border-slate-200">
+                            <CardHeader className="pb-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3 flex-1">
+                                  <h3 className="text-base font-bold text-slate-900">{tier.name}</h3>
+                                  <span className="text-sm text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                    {tierReqs.filter(r => r.insurance_type === 'general_liability').length} GL
+                                    {tierReqs.filter(r => r.insurance_type === 'umbrella_policy').length > 0 ? ` + Umbrella` : ''}
+                                  </span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      const newName = prompt('Enter new tier name:', tier.name);
+                                      if (newName && newName !== tier.name) {
+                                        const newTiers = [...tiers];
+                                        newTiers[tierIndex].name = newName;
+                                        setTiers(newTiers);
+                                        setRequirements(prev => prev.map(r => 
+                                          r.tier === tier.name ? { ...r, tier: newName } : r
+                                        ));
+                                      }
+                                    }}
+                                  >
+                                    <Pencil className="w-3 h-3 mr-1" /> Edit
+                                  </Button>
+                                  {tiers.length > 1 && (
+                                    <Button 
+                                      type="button" 
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setTiers(tiers.filter((_, i) => i !== tierIndex));
+                                        setRequirements(prev => prev.filter(r => r.tier !== tier.name));
+                                      }}
+                                      className="text-red-600 hover:text-red-700"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
-                              {tiers.length > 1 && (
-                                <Button 
-                                  type="button" 
-                                  variant="ghost" 
-                                  size="icon"
-                                  onClick={() => {
-                                    const tierName = tier.name;
-                                    setTiers(tiers.filter((_, i) => i !== tierIndex));
-                                    // Remove requirements for this tier
-                                    setRequirements(prev => prev.filter(r => r.tier !== tierName));
-                                  }}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <X className="w-4 h-4" />
-                                </Button>
-                              )}
+                            </CardHeader>
+                            <CardContent className="space-y-3 pt-2">
+                              {/* Requirements for this tier */}
+                              <div className="space-y-2">
+                                {tierReqs.length === 0 ? (
+                                  <p className="text-sm text-slate-500 italic">No requirements yet</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {tierReqs.map((req) => (
+                                      <div key={req.id} className="p-3 border rounded bg-white">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <span className="font-semibold text-sm">
+                                            {req.insurance_type === 'general_liability' ? '💰 General Liability' : 
+                                             req.insurance_type === 'umbrella_policy' ? '☂️ Excess/Umbrella' : req.insurance_type}
+                                          </span>
+                                          <Button 
+                                            type="button" 
+                                            size="icon" 
+                                            variant="ghost"
+                                            onClick={() => setRequirements(prev => prev.filter(r => r.id !== req.id))}
+                                            className="text-red-600 hover:text-red-700 h-6 w-6"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </Button>
+                                        </div>
+                                        
+                                        {req.insurance_type === 'general_liability' && (
+                                          <div className="grid grid-cols-3 gap-2 text-sm">
+                                            <div>
+                                              <p className="text-xs text-slate-600">Each Occurrence</p>
+                                              <p className="font-semibold">${(req.gl_each_occurrence || 0).toLocaleString()}</p>
+                                            </div>
+                                            <div>
+                                              <p className="text-xs text-slate-600">General Aggregate</p>
+                                              <p className="font-semibold">${(req.gl_general_aggregate || 0).toLocaleString()}</p>
+                                            </div>
+                                            <div>
+                                              <p className="text-xs text-slate-600">Products/Ops</p>
+                                              <p className="font-semibold">${(req.gl_products_completed_ops || 0).toLocaleString()}</p>
+                                            </div>
+                                          </div>
+                                        )}
+                                        
+                                        {req.insurance_type === 'umbrella_policy' && (
+                                          <div className="grid grid-cols-2 gap-2 text-sm">
+                                            <div>
+                                              <p className="text-xs text-slate-600">Each Occurrence</p>
+                                              <p className="font-semibold">${(req.umbrella_each_occurrence || 0).toLocaleString()}</p>
+                                            </div>
+                                            <div>
+                                              <p className="text-xs text-slate-600">Aggregate</p>
+                                              <p className="font-semibold">${(req.umbrella_aggregate || 0).toLocaleString()}</p>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Add requirement buttons for this tier */}
+                              <div className="flex gap-2 pt-2 border-t">
+                                {tierReqs.filter(r => r.insurance_type === 'general_liability').length === 0 && (
+                                  <Button 
+                                    type="button" 
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setRequirements([...requirements, newGLRequirement(tier.name)])}
+                                  >
+                                    <Plus className="w-3 h-3 mr-1" /> Add GL
+                                  </Button>
+                                )}
+                                {tierReqs.filter(r => r.insurance_type === 'umbrella_policy').length === 0 && (
+                                  <Button 
+                                    type="button" 
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setRequirements([...requirements, newUmbrellaRequirement(tier.name)])}
+                                  >
+                                    <Plus className="w-3 h-3 mr-1" /> Add Umbrella
+                                  </Button>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+
+                    {/* Global Requirements (WC & Auto) */}
+                    <div className="space-y-3 border-t pt-4 mt-4">
+                      <Label className="text-base font-bold">Global Requirements (All Tiers)</Label>
+                      <p className="text-sm text-slate-600 bg-purple-50 p-3 rounded border border-purple-200">
+                        Workers Comp and Auto insurance apply to ALL tiers in this program.
+                      </p>
+
+                      <div className="space-y-3">
+                        {/* Workers Comp */}
+                        <Card className="border-slate-200">
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-semibold text-slate-900">👷 Workers Compensation</h4>
+                              <div className="flex gap-2">
+                                {requirements.filter(r => r.insurance_type === 'workers_compensation').length === 0 ? (
+                                  <Button 
+                                    type="button" 
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setRequirements([...requirements, newWCRequirement('Global')])}
+                                  >
+                                    <Plus className="w-3 h-3 mr-1" /> Add WC
+                                  </Button>
+                                ) : (
+                                  <Button 
+                                    type="button" 
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setRequirements(prev => prev.filter(r => r.insurance_type !== 'workers_compensation'))}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 className="w-3 h-3 mr-1" /> Remove
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           </CardHeader>
-                          <CardContent className="space-y-4">
-                            {/* Trade Selection for this tier */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-sm font-medium">Applicable Trades</Label>
+                          {requirements.filter(r => r.insurance_type === 'workers_compensation').length > 0 && (
+                            <CardContent className="pt-2">
+                              {requirements.filter(r => r.insurance_type === 'workers_compensation').map((req) => (
+                                <div key={req.id} className="grid grid-cols-3 gap-2 text-sm">
+                                  <div>
+                                    <p className="text-xs text-slate-600">Each Accident</p>
+                                    <p className="font-semibold">${(req.wc_each_accident || 0).toLocaleString()}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-slate-600">Disease Policy Limit</p>
+                                    <p className="font-semibold">${(req.wc_disease_policy_limit || 0).toLocaleString()}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-slate-600">Disease/Employee</p>
+                                    <p className="font-semibold">${(req.wc_disease_each_employee || 0).toLocaleString()}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </CardContent>
+                          )}
+                        </Card>
+
+                        {/* Auto Liability */}
+                        <Card className="border-slate-200">
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-semibold text-slate-900">🚗 Auto Liability</h4>
+                              <div className="flex gap-2">
+                                {requirements.filter(r => r.insurance_type === 'auto_liability').length === 0 ? (
+                                  <Button 
+                                    type="button" 
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setRequirements([...requirements, newAutoRequirement('Global')])}
+                                  >
+                                    <Plus className="w-3 h-3 mr-1" /> Add Auto
+                                  </Button>
+                                ) : (
+                                  <Button 
+                                    type="button" 
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setRequirements(prev => prev.filter(r => r.insurance_type !== 'auto_liability'))}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 className="w-3 h-3 mr-1" /> Remove
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </CardHeader>
+                          {requirements.filter(r => r.insurance_type === 'auto_liability').length > 0 && (
+                            <CardContent className="pt-2">
+                              {requirements.filter(r => r.insurance_type === 'auto_liability').map((req) => (
+                                <div key={req.id} className="space-y-2">
+                                  <div>
+                                    <p className="text-xs text-slate-600">Combined Single Limit</p>
+                                    <p className="font-semibold text-sm">${(req.auto_combined_single_limit || 0).toLocaleString()}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox id={`hnoa-${req.id}`} checked={!!req.auto_hired_non_owned_required} onCheckedChange={(checked) => setRequirements(prev => prev.map(r => r.id === req.id ? { ...r, auto_hired_non_owned_required: !!checked } : r))} />
+                                    <Label htmlFor={`hnoa-${req.id}`} className="text-xs cursor-pointer">Hired & Non-owned Required</Label>
+                                  </div>
+                                </div>
+                              ))}
+                            </CardContent>
+                          )}
+                        </Card>
+                      </div>
+                    </div>
+                  </div>
+
+                <div className="flex gap-2 px-6 py-4 border-t bg-slate-50 flex-shrink-0">
+                  <Button type="button" variant="outline" onClick={closeDialog}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="bg-red-600 hover:bg-red-700"
+                    disabled={createProgramMutation.isPending || updateProgramMutation.isPending || isUploading}
+                  >
+                    {editingProgram ? 'Update' : 'Create'} Program
+                  </Button>
+                </div>
                                 <div className="flex items-center gap-2">
                                   <Checkbox 
                                     id={`all-other-${tier.id}`}

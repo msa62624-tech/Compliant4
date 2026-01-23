@@ -114,150 +114,6 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 } // 20MB
 });
 
-// Create entity
-app.post('/entities/:entityName', authenticateToken, async (req, res) => {
-  const { entityName } = req.params;
-  const data = req.body;
-  if (!entities[entityName]) {
-    return res.status(404).json({ error: `Entity ${entityName} not found` });
-  }
-
-  if (entityName === 'User') {
-    if (!data.email) return res.status(400).json({ error: 'Email is required for User creation' });
-    if (!data.name) return res.status(400).json({ error: 'Name is required for User creation' });
-    if (!data.password) return res.status(400).json({ error: 'Password is required for User creation' });
-    if (!validateEmail(data.email)) return res.status(400).json({ error: 'Invalid email format' });
-    if (users.find(u => u.email === data.email)) return res.status(400).json({ error: 'Email already exists' });
-    if (entities.User.find(u => u.email === data.email)) return res.status(400).json({ error: 'Email already exists' });
-
-    const username = data.username || data.email.split('@')[0];
-    if (users.find(u => u.username === username)) return res.status(400).json({ error: 'Username already exists' });
-
-    const hashedPassword = await bcrypt.hash(data.password, 10);
-    const userId = `user-${Date.now()}`;
-    const newUser = {
-      id: userId,
-      username,
-      password: hashedPassword,
-      email: data.email,
-      name: data.name,
-      role: data.role || 'admin',
-      is_active: data.is_active !== undefined ? data.is_active : true,
-      createdAt: new Date().toISOString(),
-      createdBy: req.user.id
-    };
-    users.push(newUser);
-    const userEntity = {
-      id: userId,
-      username,
-      email: data.email,
-      name: data.name,
-      role: data.role || 'admin',
-      is_active: data.is_active !== undefined ? data.is_active : true,
-      created_date: newUser.createdAt,
-      createdBy: req.user.id
-    };
-    entities.User.push(userEntity);
-    debouncedSave();
-    return res.status(201).json(userEntity);
-  }
-
-  const newItem = {
-    id: `${entityName}-${Date.now()}`,
-    ...data,
-    createdAt: new Date().toISOString(),
-    createdBy: req.user.id
-  };
-
-  let gcLogin = null;
-  if (entityName === 'Contractor' && data.contractor_type === 'general_contractor') {
-    gcLogin = await ensureGcLogin(newItem, { forceCreate: true });
-    if (gcLogin) newItem.gc_login_created = true;
-  }
-
-  entities[entityName].push(newItem);
-  debouncedSave();
-  const responsePayload = gcLogin ? { ...newItem, gcLogin } : newItem;
-  res.status(201).json(responsePayload);
-});
-
-// Update entity
-app.patch('/entities/:entityName/:id', authenticateToken, (req, res) => {
-  const { entityName, id } = req.params;
-  const updates = req.body || {};
-  if (!entities[entityName]) {
-    return res.status(404).json({ error: `Entity ${entityName} not found` });
-  }
-  const index = entities[entityName].findIndex(item => item.id === id);
-  if (index === -1) {
-    return res.status(404).json({ error: 'Item not found' });
-  }
-
-  if (entityName === 'User') {
-    const current = entities.User[index];
-    const updatedUser = {
-      ...current,
-      ...updates,
-      ...(updates.is_active !== undefined && { is_active: updates.is_active }),
-      updatedAt: new Date().toISOString(),
-      updatedBy: req.user.id
-    };
-    entities.User[index] = updatedUser;
-    debouncedSave();
-    return res.json(updatedUser);
-  }
-
-  entities[entityName][index] = {
-    ...entities[entityName][index],
-    ...updates,
-    updatedAt: new Date().toISOString(),
-    updatedBy: req.user.id
-  };
-  debouncedSave();
-  res.json(entities[entityName][index]);
-});
-
-// Query (filter) entities via POST body
-app.post('/entities/:entityName/query', authenticateToken, (req, res) => {
-  const { entityName } = req.params;
-  if (!entities[entityName]) {
-    return res.status(404).json({ error: `Entity ${entityName} not found` });
-  }
-  let data = entities[entityName];
-  const body = req.body || {};
-  const { sort, includeArchived, ...rawFilters } = body;
-
-  // Apply simple equality filters
-  const filters = rawFilters || {};
-  if (Object.keys(filters).length > 0) {
-    data = data.filter(item => {
-      return Object.entries(filters).every(([key, value]) => {
-        return item[key] === value || item[key] === String(value);
-      });
-    });
-  }
-
-  if (includeArchived !== true && includeArchived !== 'true') {
-    data = data.filter(item => !item.isArchived && item.status !== 'archived');
-  }
-
-  if (sort) {
-    const isDescending = typeof sort === 'string' && sort.startsWith('-');
-    const sortField = isDescending ? sort.substring(1) : sort;
-    const allowedSortFields = ['id', 'email', 'created_date', 'name', 'company_name', 'status', 'createdAt', 'uploaded_for_review_date', 'uploaded_date'];
-    if (!allowedSortFields.includes(sortField)) {
-      return sendError(res, 400, `Invalid sort field. Allowed fields: ${allowedSortFields.join(', ')}`);
-    }
-    data = [...data].sort((a, b) => {
-      const aVal = a[sortField] || '';
-      const bVal = b[sortField] || '';
-      const cmp = aVal > bVal ? 1 : (aVal < bVal ? -1 : 0);
-      return isDescending ? -cmp : cmp;
-    });
-  }
-
-  res.json(data);
-});
 // ========== Entities ==========
 const entities = {
   InsuranceDocument: [],
@@ -1319,8 +1175,12 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
 
 // Ensure seeded GCs get logins (idempotent) - using async/await
 (async () => {
-  for (const c of entities.Contractor.filter(c => c.contractor_type === 'general_contractor')) {
-    await ensureGcLogin(c);
+  try {
+    for (const c of entities.Contractor.filter(c => c.contractor_type === 'general_contractor')) {
+      await ensureGcLogin(c);
+    }
+  } catch (err) {
+    console.error('Error ensuring GC logins:', err);
   }
 })();
 
@@ -1329,34 +1189,78 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
 // =======================
 
 // =======================
-// SECURITY MIDDLEWARE
+// SECURITY MIDDLEWARE (Helmet first)
 // =======================
 
 // Helmet configuration for security headers
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'", 'https:'],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"]
-    }
-  },
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  hsts: {
-    maxAge: 31536000, // 1 year
-    includeSubDomains: true,
-    preload: true
-  },
-  noSniff: true,
-  xssFilter: true,
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+// TEMPORARILY DISABLED TO DEBUG CORS ISSUES
+// app.use(helmet({
+//   contentSecurityPolicy: {
+//     directives: {
+//       defaultSrc: ["'self'"],
+//       scriptSrc: ["'self'", "'unsafe-inline'"],
+//       styleSrc: ["'self'", "'unsafe-inline'"],
+//       imgSrc: ["'self'", 'data:', 'https:'],
+//       connectSrc: ["'self'", 'https:'],
+//       fontSrc: ["'self'"],
+//       objectSrc: ["'none'"],
+//       mediaSrc: ["'self'"],
+//       frameSrc: ["'none'"]
+//     }
+//   },
+//   crossOriginResourcePolicy: { policy: "cross-origin" },
+//   hsts: {
+//     maxAge: 31536000, // 1 year
+//     includeSubDomains: true,
+//     preload: true
+//   },
+//   noSniff: true,
+//   xssFilter: true,
+//   referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+// }));
+
+// =======================
+// CORS MIDDLEWARE (must come before body parser and routing)
+// =======================
+
+// Simple, manual CORS middleware that runs on ALL requests/responses
+// This ensures CORS headers are set BEFORE any route handler or error handler
+app.use((req, res, next) => {
+  // Set CORS headers on every response
+  const origin = req.headers.origin;
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  // Handle preflight requests immediately
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send();
+  }
+  
+  // Continue to next middleware
+  next();
+});
+
+// Also use the cors package as backup (with simpler options)
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Explicit OPTIONS handler for preflight
+app.options('*', (req, res) => {
+  res.status(204).send();
+});
+
+// Parse JSON AFTER CORS middleware
+app.use(express.json({ limit: '10mb' }));
+
+// =======================
+// RATE LIMITING MIDDLEWARE
+// =======================
 
 // Rate limiting with different strategies
 const apiLimiter = rateLimit({
@@ -1409,21 +1313,6 @@ const publicApiLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 app.use('/entities/', apiLimiter);
 app.use('/auth/login', authLimiter);
-
-// CORS configuration with environment-aware origin validation
-// CORS: reflect requesting origin to allow Codespaces and credentials
-const corsOptions = {
-  origin: true, // reflect origin
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 86400
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-
-app.use(express.json({ limit: '10mb' }));
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -4379,6 +4268,18 @@ if (!process.env.VERCEL) {
     console.error(`Unable to bind to any port in range ${configuredPort}-${configuredPort + MAX_PORT_TRIES}. Please free a port or set PORT to an available port.`);
   })();
 }
+
+// Global error handlers to prevent crashes
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit - attempt to continue running
+});
+
 
 // Export for Vercel serverless
 export default app;
