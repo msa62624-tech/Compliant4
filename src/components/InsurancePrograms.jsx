@@ -16,7 +16,7 @@ export default function InsurancePrograms() {
   const queryClient = useQueryClient();
 
   // Get all available trades from the system
-  const allTrades = getAvailableTrades();
+  const [tradeOptions, setTradeOptions] = useState(getAvailableTrades());
 
   const newGLRequirement = (tierName = 'Tier 1') => ({
     id: `req-local-${Date.now()}-${Math.random()}`,
@@ -97,7 +97,98 @@ export default function InsurancePrograms() {
   });
 
   // Helper to check if insurance type is umbrella/excess
-  const isUmbrellaType = (type) => type === 'umbrella_policy' || type === 'excess_liability';
+  const isUmbrellaType = (type) => {
+    if (!type) return false;
+    const t = String(type).toLowerCase();
+    return [
+      'umbrella_policy',
+      'excess_liability',
+      'umbrella',
+      'umbrella_liability',
+      'excess',
+      'umbrella/excess',
+      'excess/umbrella',
+      'umbrella liability',
+      'excess liability',
+    ].includes(t);
+  };
+
+  // Infer insurance type when parser output is missing/ambiguous
+  const inferInsuranceType = (req = {}) => {
+    if (isUmbrellaType(req.insurance_type)) return req.insurance_type;
+    const hasUmbrella = req.umbrella_each_occurrence || req.umbrella_aggregate;
+    const hasGL = req.gl_each_occurrence || req.gl_general_aggregate || req.gl_products_completed_ops;
+    const hasWC = req.wc_each_accident || req.wc_disease_policy_limit || req.wc_disease_each_employee;
+    const hasAuto = req.auto_combined_single_limit || req.auto_hired_non_owned_required;
+
+    if (hasUmbrella) return 'umbrella_policy';
+    if (!req.insurance_type) {
+      if (hasWC && !hasGL && !hasAuto) return 'workers_compensation';
+      if (hasAuto && !hasGL && !hasWC) return 'auto_liability';
+    }
+
+    return req.insurance_type || 'general_liability';
+  };
+
+  // Normalize requirement shape for UI and saving
+  const normalizeRequirement = (req = {}, fallbackTier = 'Tier 1', idx = 0) => {
+    const inferredType = inferInsuranceType(req);
+    const baseTrades = Array.isArray(req.applicable_trades)
+      ? req.applicable_trades
+      : (req.trade_name ? [req.trade_name] : []);
+    const scopeValue = req.scope || req.trade_scope;
+    const trades = (baseTrades && baseTrades.length > 0)
+      ? baseTrades
+      : (scopeValue ? [scopeValue] : []);
+    return {
+      ...req,
+      tier: req.tier || fallbackTier,
+      insurance_type: inferredType,
+      is_required: req.is_required !== undefined ? req.is_required : true,
+      applicable_trades: trades,
+      is_all_other_trades: req.is_all_other_trades || false,
+      scope: req.scope || req.trade_scope || '',
+      id: req.id || `req-normalized-${Date.now()}-${idx}`,
+    };
+  };
+
+  const expandAndNormalizeRequirement = (req = {}, fallbackTier = 'Tier 1', idx = 0) => {
+    const hasUmbrella = req.umbrella_each_occurrence || req.umbrella_aggregate;
+    const hasGL = req.gl_each_occurrence || req.gl_general_aggregate || req.gl_products_completed_ops;
+    const type = req.insurance_type;
+
+    if (hasGL && hasUmbrella && (!type || type === 'general_liability')) {
+      const glReq = normalizeRequirement({
+        ...req,
+        insurance_type: 'general_liability',
+        umbrella_each_occurrence: null,
+        umbrella_aggregate: null,
+      }, fallbackTier, idx);
+
+      const umbReq = normalizeRequirement({
+        ...req,
+        insurance_type: 'umbrella_policy',
+        gl_each_occurrence: null,
+        gl_general_aggregate: null,
+        gl_products_completed_ops: null,
+      }, fallbackTier, idx + 1);
+
+      return [glReq, umbReq];
+    }
+
+    return [normalizeRequirement(req, fallbackTier, idx)];
+  };
+
+  const mergeTrades = (trades = []) => {
+    const existing = new Set(tradeOptions.map(t => t.value));
+    const additions = trades
+      .filter(Boolean)
+      .filter(t => !existing.has(t))
+      .map(t => ({ value: t, label: t, tier: undefined }));
+    if (additions.length > 0) {
+      setTradeOptions(prev => [...prev, ...additions]);
+    }
+  };
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState(null);
@@ -178,6 +269,8 @@ export default function InsurancePrograms() {
     });
     setTiers([{ name: 'Tier 1', id: `tier-${Date.now()}` }]);
     setRequirements([newGLRequirement('Tier 1')]);
+    setParsePreview(null);
+    setParseError('');
   };
 
   const openDialog = async (program = null) => {
@@ -197,26 +290,30 @@ export default function InsurancePrograms() {
       // Load requirements for this program
       try {
         const programReqs = await apiClient.entities.SubInsuranceRequirement.filter({ program_id: program.id });
-        const reqs = Array.isArray(programReqs) ? programReqs : (programReqs?.data || []);
-        console.log('Loaded requirements for program:', reqs.length);
-        console.log('First few requirements:', reqs.slice(0, 3));
-        console.log('Insurance types found:', reqs.map(r => r.insurance_type));
-        console.log('Umbrella requirements:', reqs.filter(r => isUmbrellaType(r.insurance_type)));
-        setRequirements(reqs);
-        
-        // Extract unique tiers from loaded requirements
-        const tierSet = new Set(reqs.map(r => r.tier).filter(Boolean));
+        const rawReqs = Array.isArray(programReqs) ? programReqs : (programReqs?.data || []);
+
+        // Extract tiers first to choose a sensible fallback
+        const tierSet = new Set(rawReqs.map(r => r.tier).filter(Boolean));
         const extractedTiers = Array.from(tierSet).sort().map((tierName, idx) => ({
           name: tierName,
           id: `tier-${tierName}-${idx}`
         }));
-        console.log('Extracted tiers:', extractedTiers);
-        
-        if (extractedTiers.length > 0) {
-          setTiers(extractedTiers);
+        const fallbackTier = extractedTiers[0]?.name || 'Tier 1';
+
+        const normalizedReqs = rawReqs.flatMap((req, idx) => expandAndNormalizeRequirement(req, fallbackTier, idx * 2));
+        mergeTrades(normalizedReqs.flatMap(r => r.applicable_trades || []));
+        setRequirements(normalizedReqs);
+
+        const tierSetNormalized = new Set(normalizedReqs.map(r => r.tier).filter(Boolean));
+        const finalTiers = Array.from(tierSetNormalized).sort().map((tierName, idx) => ({
+          name: tierName,
+          id: `tier-${tierName}-${idx}`
+        }));
+
+        if (finalTiers.length > 0) {
+          setTiers(finalTiers);
         } else {
-          console.warn('No tiers found in requirements, creating default Tier 1');
-          setTiers([{ name: 'Tier 1', id: `tier-${Date.now()}` }]);
+          setTiers([{ name: fallbackTier, id: `tier-${Date.now()}` }]);
         }
       } catch (err) {
         console.error('Error loading requirements:', err);
@@ -308,8 +405,10 @@ export default function InsurancePrograms() {
             pdf_name: file.name,
             pdf_type: file.type || 'application/pdf'
           });
-          // Show preview for user review
+          // Auto-populate form immediately so tiers/trades show right away, but keep preview visible
           setParsePreview(parsed);
+          await autoImportAndPopulate(parsed, { clearPreview: false });
+          setIsDialogOpen(true);
         } catch (err) {
           console.error(err);
           setParseError('Failed to parse PDF. Please verify the file is readable.');
@@ -333,58 +432,25 @@ export default function InsurancePrograms() {
   const handleConfirmImport = async () => {
     if (!parsePreview) return;
     try {
-      console.log('Starting import with', parsePreview.requirements?.length || 0, 'requirements');
-      const existingPrograms = await apiClient.entities.InsuranceProgram.list();
-      const match = existingPrograms.find(p => p.name === parsePreview.program.name);
-      let programId;
-      if (match) {
-        console.log('Updating existing program:', match.id);
-        await apiClient.entities.InsuranceProgram.update(match.id, parsePreview.program);
-        programId = match.id;
-        const existingReqs = await apiClient.entities.SubInsuranceRequirement.filter({ program_id: programId });
-        const reqs = Array.isArray(existingReqs) ? existingReqs : (existingReqs?.data || []);
-        console.log('Deleting', reqs.length, 'existing requirements');
-        await Promise.all(reqs.map(r => apiClient.entities.SubInsuranceRequirement.delete(r.id)));
-      } else {
-        console.log('Creating new program:', parsePreview.program.name);
-        const createdProgram = await apiClient.entities.InsuranceProgram.create(parsePreview.program);
-        programId = createdProgram.id;
-        console.log('New program created with ID:', programId);
-      }
-
-      const requirementsToCreate = (parsePreview.requirements || []).map((req) => ({
-        ...req, 
-        program_id: programId,
-        insurance_type: req.insurance_type || 'general_liability',
-        is_required: req.is_required !== undefined ? req.is_required : true
-      }));
-      
-      console.log('Creating', requirementsToCreate.length, 'requirements');
-      await Promise.all(
-        requirementsToCreate.map((req) =>
-          apiClient.entities.SubInsuranceRequirement.create(req)
-        )
-      );
-      
-      console.log('✅ Import completed successfully');
-      await queryClient.invalidateQueries({ queryKey: ['programs'] });
-      await queryClient.invalidateQueries({ queryKey: ['SubInsuranceRequirement'] });
+      await autoImportAndPopulate(parsePreview);
+      if (!isDialogOpen) setIsDialogOpen(true);
       setParsePreview(null);
       setParseError('');
-      alert('Program imported successfully with ' + requirementsToCreate.length + ' requirements!');
+      alert('Review the imported data below and click Create Program to save.');
     } catch (err) {
-      console.error('Import error:', err);
-      setParseError('Failed to save imported program: ' + err.message);
+      console.error('Import load error:', err);
+      setParseError('Failed to load imported program into the form.');
     }
   };
 
-  const autoImportAndPopulate = async (parsed) => {
+  const autoImportAndPopulate = async (parsed, options = {}) => {
+    const { clearPreview = true } = options;
     try {
       // Auto-populate form with parsed data
       setFormData(prev => ({
         ...prev,
-        name: parsed.program?.name || prev.name,
-        description: parsed.program?.description || prev.description,
+        name: prev.name || parsed.program?.name || '',
+        description: prev.description || parsed.program?.description || '',
         pdf_name: parsed.program?.pdf_name || prev.pdf_name,
         pdf_data: parsed.program?.pdf_data || prev.pdf_data,
         pdf_type: parsed.program?.pdf_type || prev.pdf_type,
@@ -397,13 +463,25 @@ export default function InsurancePrograms() {
         id: `tier-${Date.now()}-${idx}`
       }));
 
+      const fallbackTierName = extractedTiers[0]?.name || tiers[0]?.name || 'Tier 1';
+
       if (extractedTiers.length > 0) {
         setTiers(extractedTiers);
+      } else if (tiers.length === 0) {
+        setTiers([{ name: fallbackTierName, id: `tier-${Date.now()}` }]);
       }
 
-      // Set requirements directly from parsed data
-      setRequirements(parsed.requirements || []);
-      setParsePreview(null);
+      // Normalize requirements and ensure each has a tier and required flags
+      const normalizedRequirements = (parsed.requirements || []).flatMap((req, idx) =>
+        expandAndNormalizeRequirement(req, fallbackTierName, idx * 2)
+      );
+
+      mergeTrades(normalizedRequirements.flatMap(r => r.applicable_trades || []));
+
+      setRequirements(normalizedRequirements);
+      if (clearPreview) {
+        setParsePreview(null);
+      }
       setParseError('');
     } catch (err) {
       console.error('Auto-import failed:', err);
@@ -712,15 +790,33 @@ export default function InsurancePrograms() {
                                           {tierName}
                                         </td>
                                       )}
-                                      <td className="p-2 font-medium">{req.trade_name || '—'}</td>
+                                      <td className="p-2 font-medium">
+                                        {(() => {
+                                          const trades = Array.isArray(req.applicable_trades) && req.applicable_trades.length > 0
+                                            ? req.applicable_trades
+                                            : (req.trade_name ? [req.trade_name] : []);
+                                          if (trades.length === 0) return '—';
+                                          return trades.map((t, i) => (
+                                            <Badge key={`${req.id}-trade-${i}`} variant="secondary" className="text-xs mr-1">
+                                              {tradeOptions.find(tr => tr.value === t)?.label || t}
+                                            </Badge>
+                                          ));
+                                        })()}
+                                      </td>
                                       <td className="p-2 text-slate-700">{req.scope}</td>
                                       <td className="p-2">
-                                        {`$${req.gl_each_occurrence?.toLocaleString() || '—'} / $${req.gl_general_aggregate?.toLocaleString() || '—'} / $${req.gl_products_completed_ops?.toLocaleString() || '—'}`}
+                                        {['workers_compensation', 'auto_liability'].includes(req.insurance_type)
+                                          ? '—'
+                                          : `$${req.gl_each_occurrence?.toLocaleString() || '—'} / $${req.gl_general_aggregate?.toLocaleString() || '—'} / $${req.gl_products_completed_ops?.toLocaleString() || '—'}`}
                                       </td>
                                       <td className="p-2">
-                                        {req.umbrella_each_occurrence || req.umbrella_aggregate
+                                        {isUmbrellaType(req.insurance_type)
                                           ? `${req.umbrella_each_occurrence ? `$${req.umbrella_each_occurrence.toLocaleString()}` : '—'} / ${req.umbrella_aggregate ? `$${req.umbrella_aggregate.toLocaleString()}` : '—'}`
-                                          : '—'}
+                                          : ['workers_compensation', 'auto_liability'].includes(req.insurance_type)
+                                            ? '—'
+                                            : (req.umbrella_each_occurrence || req.umbrella_aggregate
+                                                ? `${req.umbrella_each_occurrence ? `$${req.umbrella_each_occurrence.toLocaleString()}` : '—'} / ${req.umbrella_aggregate ? `$${req.umbrella_aggregate.toLocaleString()}` : '—'}`
+                                                : '—')}
                                       </td>
                                     </tr>
                                   ))
@@ -741,7 +837,7 @@ export default function InsurancePrograms() {
                             Edit Manually
                           </Button>
                           <Button type="button" className="bg-red-600 hover:bg-red-700" onClick={handleConfirmImport}>
-                            Save Directly
+                            Load Into Form
                           </Button>
                         </div>
                       </CardContent>
@@ -942,19 +1038,29 @@ export default function InsurancePrograms() {
                                           </Button>
                                         </div>
                                         
-                                        {/* Show applicable trades */}
-                                        {req.applicable_trades && req.applicable_trades.length > 0 && (
-                                          <div className="mb-2 pb-2 border-b">
-                                            <p className="text-xs text-slate-600 mb-1">Trades:</p>
-                                            <div className="flex flex-wrap gap-1">
-                                              {req.applicable_trades.map((trade) => (
-                                                <Badge key={trade} variant="secondary" className="text-xs">
-                                                  {allTrades.find(t => t.value === trade)?.label || trade}
-                                                </Badge>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
+                                        {/* Edit scope/trades */}
+                                        <div className="mb-3 pb-2 border-b">
+                                          <label className="text-xs text-slate-600 mb-1 block">Scope / Trade:</label>
+                                          <input
+                                            type="text"
+                                            value={req.scope || (req.applicable_trades && req.applicable_trades[0]) || ''}
+                                            onChange={(e) => {
+                                              const scopeValue = e.target.value.trim();
+                                              const trades = scopeValue ? [scopeValue] : [];
+                                              setRequirements(prev => 
+                                                prev.map(r => r.id === req.id 
+                                                  ? { ...r, applicable_trades: trades, scope: scopeValue }
+                                                  : r
+                                                )
+                                              );
+                                              if (scopeValue) {
+                                                mergeTrades([scopeValue]);
+                                              }
+                                            }}
+                                            placeholder="e.g., Electrical, Plumbing, HVAC, Roofing"
+                                            className="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:border-red-500 focus:ring-1 focus:ring-red-200"
+                                          />
+                                        </div>
                                         
                                         {req.insurance_type === 'general_liability' && (
                                           <div className="grid grid-cols-3 gap-2 text-sm">
@@ -1153,19 +1259,6 @@ export default function InsurancePrograms() {
                       </div>
                     </div>
                   </div>
-                </div>
-
-                <div className="flex gap-2 px-6 py-4 border-t bg-slate-50 flex-shrink-0">
-                  <Button type="button" variant="outline" onClick={closeDialog}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="bg-red-600 hover:bg-red-700"
-                    disabled={createProgramMutation.isPending || updateProgramMutation.isPending || isUploading}
-                  >
-                    {editingProgram ? 'Update' : 'Create'} Program
-                  </Button>
                 </div>
 
                 <div className="flex gap-2 px-6 py-4 border-t bg-slate-50 flex-shrink-0">

@@ -93,8 +93,18 @@ export default function GCDetails() {
   const { data: contractor, isLoading } = useQuery({
     queryKey: ['contractor', gcId],
     queryFn: async () => {
-      const contractors = await compliant.entities.Contractor.list();
-      return contractors.find(c => c.id === gcId);
+      if (!gcId) return null;
+      try {
+        const contractors = await compliant.entities.Contractor.list();
+        const found = contractors.find(c => c.id === gcId);
+        if (!found) {
+          console.warn('Contractor not found with ID:', gcId);
+        }
+        return found;
+      } catch (err) {
+        console.error('Error loading contractor:', err);
+        return null;
+      }
     },
     enabled: !!gcId,
   });

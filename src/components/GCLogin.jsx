@@ -52,6 +52,7 @@ export default function GCLogin({ onLogin }) {
       // Store GC session
       sessionStorage.setItem('gcPublicSession', 'true');
       sessionStorage.setItem('gcPortalId', gcData.id);
+      sessionStorage.setItem('gcAuthenticated', 'true');
 
       onLogin && onLogin(gcData);
     } catch (err) {

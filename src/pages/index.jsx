@@ -216,6 +216,8 @@ export default function Pages({ onLogout }) {
 
   const isGCRoute = (() => {
     if (typeof window === 'undefined') return false
+    // Only treat /gc-dashboard, /gc-project, /gc-login as GC public routes
+    // /gc-details is admin-only
     return window.location.pathname.startsWith('/gc-dashboard') || 
            window.location.pathname.startsWith('/gc-project') ||
            window.location.pathname.startsWith('/gc-login')
@@ -234,17 +236,21 @@ export default function Pages({ onLogout }) {
         window.location.href = '/gc-login'
         return
       }
-      
-      // Only set session storage if not already set (avoid redundant operations)
-      if (!sessionStorage.getItem('gcPublicSession')) {
-        sessionStorage.setItem('gcPublicSession', 'true')
-      }
-      if (gcId && !sessionStorage.getItem('gcPortalId')) {
-        sessionStorage.setItem('gcPortalId', gcId)
-      }
 
-      // Do NOT clear existing token; keep session for API access
-      setIsGCPublicSession(true)
+      if (isAuthenticated) {
+        // Only set session storage if not already set (avoid redundant operations)
+        if (!sessionStorage.getItem('gcPublicSession')) {
+          sessionStorage.setItem('gcPublicSession', 'true')
+        }
+        if (gcId && !sessionStorage.getItem('gcPortalId')) {
+          sessionStorage.setItem('gcPortalId', gcId)
+        }
+
+        // Do NOT clear existing token; keep session for API access
+        setIsGCPublicSession(true)
+      } else {
+        setIsGCPublicSession(false)
+      }
     }
   }, [isGCRoute])
 
@@ -254,7 +260,7 @@ export default function Pages({ onLogout }) {
     if (!isGCPublicSession) return
     const params = new URLSearchParams(window.location.search)
     let gcId = params.get('id') || sessionStorage.getItem('gcPortalId')
-    const allowedPaths = ['/gc-dashboard', '/gc-project']
+    const allowedPaths = ['/gc-dashboard', '/gc-project', '/gc-login', '/gc-details']
     if (!allowedPaths.includes(window.location.pathname)) {
       // If an admin link was used (e.g., /project-details?id=...), map to GC project view
       if (window.location.pathname === '/project-details') {

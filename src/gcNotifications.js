@@ -13,6 +13,7 @@ export async function sendGCWelcomeEmail(gc) {
   }
 
   const baseUrl = getFrontendBaseUrl();
+  const gcLoginLink = `${baseUrl}/gc-login`;
   const gcDashboardLink = `${baseUrl}/gc-dashboard?id=${gc.id}`;
   
   // Always generate credentials if not provided
@@ -21,8 +22,8 @@ export async function sendGCWelcomeEmail(gc) {
   const loginInfo = formatLoginCredentialsForEmail(
     username,
     tempPassword,
-    baseUrl,
-    '/login'
+    gcLoginLink,
+    gcLoginLink
   );
   
   try {
@@ -44,7 +45,7 @@ Welcome to InsureTrack! Your General Contractor portal account has been created.
 ${loginInfo}
 
 🔗 ACCESS YOUR PORTAL (Click to Open):
-${gcDashboardLink}
+${gcLoginLink}
 
 📊 What You Can Do in Your Portal:
 • Create and manage construction projects
@@ -56,11 +57,13 @@ ${gcDashboardLink}
 • Manage project requirements
 
 🚀 Getting Started:
-1. Click the portal link above (no login needed!)
-2. Complete your company profile
-3. Create your first project
-4. Add subcontractors to your project
-5. Track their insurance compliance automatically
+1. Visit the portal link above using your credentials
+2. Log in with your email and temporary password
+3. Change your password on first login (recommended)
+4. Complete your company profile
+5. Create your first project
+6. Add subcontractors to your project
+7. Track their insurance compliance automatically
 
 📌 Key Features:
 ✅ Real-time COI tracking and approvals

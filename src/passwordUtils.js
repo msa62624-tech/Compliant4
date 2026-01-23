@@ -76,10 +76,10 @@ export function createUserCredentials(email, name, role, additionalFields = {}) 
 /**
  * Format login credentials for email
  */
-export function formatLoginCredentialsForEmail(email, password, portalUrl) {
+export function formatLoginCredentialsForEmail(email, password, portalUrl, dashboardUrl = portalUrl) {
   return `🔐 YOUR LOGIN CREDENTIALS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-Portal URL: ${portalUrl}
+Portal URL: ${dashboardUrl}
 Username: ${email}
 Temporary Password: ${password}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━

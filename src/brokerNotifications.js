@@ -19,7 +19,8 @@ export async function notifyBrokerAssignment(subcontractor, oldBrokerEmail = nul
       const loginInfo = formatLoginCredentialsForEmail(
         subcontractor.broker_email, 
         password, 
-        frontendBase
+        dashboardLink,
+        dashboardLink
       );
       
       await sendEmail({
@@ -45,7 +46,7 @@ ${assignedPolicies && assignedPolicies.length > 0 ? `PER-POLICY ASSIGNMENT:
 You have been assigned to manage the following insurance policies for this subcontractor:
 ${assignedPolicies.map(p => `• ${p}`).join('\n')}
 
-Please log in to your dashboard to view pending COI requests.
+Please log in using your email and temporary password to your dashboard to view pending COI requests.
 You are only responsible for the policies listed above. Other policies may be managed by different brokers.` : isFirstTime ? `FIRST TIME SETUP:
 Please log in to your dashboard to view pending Certificate of Insurance (COI) requests.
 You will be able to upload the required insurance documents:
@@ -124,7 +125,8 @@ InsureTrack System`
     const loginInfo = formatLoginCredentialsForEmail(
       subcontractor.email,
       password,
-      baseUrl
+      subDashboardLink,
+      subDashboardLink
     );
     
     try {
@@ -237,12 +239,12 @@ export async function notifySubAddedToProject(subcontractor, project) {
       const subDashboardLink = createSubcontractorDashboardLink(subcontractor.id);
       
       // Generate login credentials using centralized utility
-      const baseUrl = getFrontendBaseUrl();
       const password = generateSecurePassword();
       const loginInfo = formatLoginCredentialsForEmail(
         subEmail, 
         password, 
-        baseUrl
+        subDashboardLink,
+        subDashboardLink
       );
       
       const bodyWithLinks = `Dear ${subcontractor.contact_person || subcontractor.company_name},
