@@ -859,11 +859,15 @@ export default function InsurancePrograms() {
 
                                 const toggleTrade = (tradeValue) => {
                                   const isSelected = selectedHere.has(tradeValue);
-                                  if (requirements.filter(r => r.tier === tier.name).length === 0) {
-                                    // ensure at least one requirement exists to carry the selection
-                                    setRequirements(prev => [...prev, { ...newGLRequirement(tier.name), applicable_trades: isSelected ? [] : [tradeValue] }]);
+                                  const tierReqs = requirements.filter(r => r.tier === tier.name);
+                                  
+                                  if (tierReqs.length === 0) {
+                                    // Create first requirement with this trade
+                                    setRequirements(prev => [...prev, { ...newGLRequirement(tier.name), applicable_trades: [tradeValue] }]);
                                     return;
                                   }
+                                  
+                                  // Update ALL requirements for this tier to have consistent trade lists
                                   setRequirements(prev => prev.map(r => {
                                     if (r.tier !== tier.name) return r;
                                     const current = new Set(r.applicable_trades || []);
@@ -878,11 +882,18 @@ export default function InsurancePrograms() {
 
                                 const selectAllVisible = () => {
                                   const allValues = visibleTrades.map(t => t.value);
-                                  if (requirements.filter(r => r.tier === tier.name).length === 0) {
+                                  const tierReqs = requirements.filter(r => r.tier === tier.name);
+                                  
+                                  if (tierReqs.length === 0) {
                                     setRequirements(prev => [...prev, { ...newGLRequirement(tier.name), applicable_trades: allValues }]);
                                     return;
                                   }
-                                  setRequirements(prev => prev.map(r => r.tier === tier.name ? { ...r, applicable_trades: Array.from(new Set([...(r.applicable_trades || []), ...allValues])) } : r));
+                                  
+                                  // Update ALL requirements for this tier to have all visible trades
+                                  setRequirements(prev => prev.map(r => {
+                                    if (r.tier !== tier.name) return r;
+                                    return { ...r, applicable_trades: Array.from(new Set([...(r.applicable_trades || []), ...allValues])) };
+                                  }));
                                 };
 
                                 return (
