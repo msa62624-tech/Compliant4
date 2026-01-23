@@ -3516,14 +3516,29 @@ app.post('/public/broker-login', publicApiLimiter, async (req, res) => {
     }
 
     // Get broker from centralized Broker table (read-only, does NOT create)
-    const broker = getBroker(email);
+    let broker = getBroker(email);
     
+    // If broker exists but has no password yet, treat this as first-time setup: set the provided password now
+    if (broker && !broker.password) {
+      try {
+        const hashed = await bcrypt.hash(password, 10);
+        const idx = (entities.Broker || []).findIndex(b => b.email?.toLowerCase() === email.toLowerCase());
+        if (idx !== -1) {
+          entities.Broker[idx] = { ...entities.Broker[idx], password: hashed };
+          debouncedSave();
+          broker = entities.Broker[idx];
+        }
+      } catch (hashErr) {
+        console.error('broker-login hash error:', hashErr?.message || hashErr);
+      }
+    }
+
     // Always perform bcrypt comparison to prevent timing attacks
     const passwordToCheck = (broker && broker.password) ? broker.password : DUMMY_PASSWORD_HASH;
     const isPasswordValid = await bcrypt.compare(password, passwordToCheck);
     
     // Generic error message to prevent account enumeration
-    if (!broker || !broker.password || !isPasswordValid) {
+    if (!broker || !isPasswordValid) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 

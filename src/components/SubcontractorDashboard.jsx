@@ -15,8 +15,7 @@ import { format, differenceInDays } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import UserProfile from "@/components/UserProfile.jsx";
-import ProjectRequirementsViewer from "@/components/ProjectRequirementsViewer";
-import { normalizeSubcontractorTrades } from "@/utils";
+// Project requirements viewer intentionally omitted for subs (GC/admin only)
 
 export default function SubcontractorDashboard() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -307,23 +306,6 @@ export default function SubcontractorDashboard() {
             )}
           </CardContent>
         </Card>
-
-        {/* Insurance Requirements for Projects */}
-        {assignedProjects.length > 0 && (
-          <div className="space-y-4">
-            {assignedProjects.map((project) => {
-              const subTrades = normalizeSubcontractorTrades(subcontractor);
-              return (
-                <div key={project.id}>
-                  <ProjectRequirementsViewer 
-                    projectId={project.id} 
-                    selectedTrades={subTrades}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
 
         {/* COI Summary */}
         <div className="grid md:grid-cols-3 gap-4">

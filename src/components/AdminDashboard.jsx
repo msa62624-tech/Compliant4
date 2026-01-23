@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { apiClient } from "@/api/apiClient";
+import { compliant } from "@/api/compliantClient";
 import { useQuery } from "@tanstack/react-query";
 import { Shield, Users, FileText, AlertTriangle, CheckCircle2, Clock, Building2, MessageSquare, Search } from "lucide-react";
 import StatsCard from "@/components/insurance/StatsCard";
@@ -110,7 +111,17 @@ export default function AdminDashboard() {
         return allProjects;
       } catch (error) {
         console.error('❌ Error fetching projects:', error);
-        throw error;
+        // Fallback to in-memory compliant client so admin can still view projects
+        try {
+          const allProjects = await compliant.entities.Project.list();
+          if (currentUser?.role === 'admin' && currentUser?.email) {
+            return allProjects.filter(p => !p.assigned_admin_email || p.assigned_admin_email === currentUser.email);
+          }
+          return allProjects;
+        } catch (fallbackErr) {
+          console.error('❌ Fallback projects fetch failed:', fallbackErr);
+          throw error; // Preserve original error for react-query
+        }
       }
     },
     enabled: !!currentUser,
@@ -128,7 +139,17 @@ export default function AdminDashboard() {
         return subs;
       } catch (error) {
         console.error('❌ Error fetching subcontractors:', error);
-        throw error;
+        // Fallback to compliant client so tables still render
+        try {
+          const subs = await compliant.entities.Contractor.filter({ contractor_type: "subcontractor" });
+          if (currentUser?.role === 'admin' && currentUser?.email) {
+            return subs.filter(s => !s.assigned_admin_email || s.assigned_admin_email === currentUser.email);
+          }
+          return subs;
+        } catch (fallbackErr) {
+          console.error('❌ Fallback subcontractors fetch failed:', fallbackErr);
+          throw error;
+        }
       }
     },
     enabled: !!currentUser,

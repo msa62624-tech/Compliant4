@@ -146,7 +146,14 @@ export default function Pages({ onLogout }) {
 
   const [isSubPublicSession, setIsSubPublicSession] = useState(() => {
     if (typeof window === 'undefined') return false
-    return window.location.pathname.startsWith('/subcontractor-dashboard') || sessionStorage.getItem('subPublicSession') === 'true'
+    const path = window.location.pathname
+    return (
+      path.startsWith('/subcontractor-dashboard') ||
+      path.startsWith('/sub-enter-broker-info') ||
+      path.startsWith('/broker-verification') ||
+      path.startsWith('/subcontractor-login') ||
+      sessionStorage.getItem('subPublicSession') === 'true'
+    )
   })
 
   // Check broker routes FIRST (before sub routes)
@@ -179,10 +186,11 @@ export default function Pages({ onLogout }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const isSubRoute = window.location.pathname.startsWith('/subcontractor-dashboard') || window.location.pathname.startsWith('/sub-enter-broker-info')
+    const path = window.location.pathname
+    const isSubRoute = path.startsWith('/subcontractor-dashboard') || path.startsWith('/sub-enter-broker-info') || path.startsWith('/broker-verification') || path.startsWith('/subcontractor-login')
     if (isSubRoute) {
-      // sub-enter-broker-info uses token auth, doesn't need login
-      const requiresAuth = !window.location.pathname.startsWith('/sub-enter-broker-info')
+      // sub-enter-broker-info and broker-verification use token auth; login page is public
+      const requiresAuth = !(path.startsWith('/sub-enter-broker-info') || path.startsWith('/broker-verification') || path.startsWith('/subcontractor-login'))
       const isAuthenticated = sessionStorage.getItem('subAuthenticated') === 'true'
       
       if (requiresAuth && !isAuthenticated && window.location.pathname !== '/subcontractor-login') {

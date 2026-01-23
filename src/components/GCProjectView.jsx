@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/api/apiClient";
+import { apiClient, getApiBase } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { notifySubAddedToProject } from "@/brokerNotifications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -375,6 +375,31 @@ InsureTrack System`
     }
   });
 
+  // Archive subcontractor from GC portal
+  const archiveSubMutation = useMutation({
+    mutationFn: async ({ id, reason }) => {
+      const res = await fetch(`${getApiBase()}/entities/ProjectSubcontractor/${id}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason })
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || 'Failed to archive subcontractor');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(["gc-project-subs", projectId]);
+      toast.success('Subcontractor archived');
+    },
+    onError: (err) => {
+      console.error('Archive subcontractor failed', err);
+      toast.error(err?.message || 'Failed to archive subcontractor');
+    }
+  });
+
   // Prefer COI status when available (e.g., awaiting_admin_review) over base subcontractor status
   const renderStatusForSub = (sub) => {
     const relatedCois = projectCois.filter((c) => c.subcontractor_id === sub.subcontractor_id || c.project_sub_id === sub.id);
@@ -495,6 +520,7 @@ InsureTrack System`
                     <TableHead>Trade</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -504,6 +530,19 @@ InsureTrack System`
                       <TableCell>{sub.trade_type || ""}</TableCell>
                       <TableCell className="text-slate-600">{sub.contact_email || ""}</TableCell>
                       <TableCell>{renderStatusForSub(sub)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const reason = prompt(`Archive ${sub.subcontractor_name}? Optional reason:`) || '';
+                            if (reason !== null) archiveSubMutation.mutate({ id: sub.id, reason });
+                          }}
+                          disabled={archiveSubMutation.isPending}
+                        >
+                          {archiveSubMutation.isPending ? 'Archiving...' : 'Archive'}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
