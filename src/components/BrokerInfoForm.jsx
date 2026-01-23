@@ -78,6 +78,20 @@ export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }
       return;
     }
 
+    // Check if any selected policy is already assigned to another broker
+    const currentAssigned = getAssignedPolicies();
+    const conflictingPolicies = Object.entries(newBroker.policies)
+      .filter(([policy, isSelected]) => isSelected && currentAssigned[policy])
+      .map(([policy]) => {
+        const labels = { gl: "GL", auto: "Auto", wc: "WC", umbrella: "Umbrella" };
+        return labels[policy];
+      });
+
+    if (conflictingPolicies.length > 0) {
+      toast.error(`${conflictingPolicies.join(", ")} already assigned to another broker`);
+      return;
+    }
+
     // If editing, update in place
     if (editingIndex !== null) {
       const updatedBrokers = [...brokers];
@@ -104,6 +118,24 @@ export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }
     setEditingIndex(null);
     setNewBroker({ name: "", email: "", phone: "", company: "", policies: { gl: false, auto: false, wc: false, umbrella: false } });
   };
+
+  // Get policies already assigned to other brokers (for disabling checkboxes)
+  const getAssignedPolicies = () => {
+    const assigned = { gl: false, auto: false, wc: false, umbrella: false };
+    brokers.forEach((broker, idx) => {
+      // Skip current broker if editing
+      if (editingIndex !== null && idx === editingIndex) return;
+      
+      Object.entries(broker.policies).forEach(([policy, isAssigned]) => {
+        if (isAssigned) {
+          assigned[policy] = true;
+        }
+      });
+    });
+    return assigned;
+  };
+
+  const assignedPolicies = getAssignedPolicies();
 
   const handleRemoveBroker = (index) => {
     setBrokers(brokers.filter((_, i) => i !== index));
@@ -234,37 +266,45 @@ export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }
             <div>
               <Label className="text-sm font-semibold mb-2 block">Select Policies This Broker Handles *</Label>
               <div className="grid grid-cols-2 gap-3">
-                <label className="flex items-center gap-2 cursor-pointer p-2 border rounded hover:bg-amber-100">
+                <label className={`flex items-center gap-2 cursor-pointer p-2 border rounded hover:bg-amber-100 ${assignedPolicies.gl && !newBroker.policies.gl ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}>
                   <input
                     type="checkbox"
+                    disabled={assignedPolicies.gl && !newBroker.policies.gl}
                     checked={newBroker.policies.gl}
                     onChange={(e) => setNewBroker({ ...newBroker, policies: { ...newBroker.policies, gl: e.target.checked } })}
                   />
                   <span className="text-sm">General Liability (GL)</span>
+                  {assignedPolicies.gl && !newBroker.policies.gl && <span className="text-xs text-gray-500 ml-auto">Assigned</span>}
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer p-2 border rounded hover:bg-amber-100">
+                <label className={`flex items-center gap-2 cursor-pointer p-2 border rounded hover:bg-amber-100 ${assignedPolicies.auto && !newBroker.policies.auto ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}>
                   <input
                     type="checkbox"
+                    disabled={assignedPolicies.auto && !newBroker.policies.auto}
                     checked={newBroker.policies.auto}
                     onChange={(e) => setNewBroker({ ...newBroker, policies: { ...newBroker.policies, auto: e.target.checked } })}
                   />
                   <span className="text-sm">Auto Liability</span>
+                  {assignedPolicies.auto && !newBroker.policies.auto && <span className="text-xs text-gray-500 ml-auto">Assigned</span>}
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer p-2 border rounded hover:bg-amber-100">
+                <label className={`flex items-center gap-2 cursor-pointer p-2 border rounded hover:bg-amber-100 ${assignedPolicies.wc && !newBroker.policies.wc ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}>
                   <input
                     type="checkbox"
+                    disabled={assignedPolicies.wc && !newBroker.policies.wc}
                     checked={newBroker.policies.wc}
                     onChange={(e) => setNewBroker({ ...newBroker, policies: { ...newBroker.policies, wc: e.target.checked } })}
                   />
                   <span className="text-sm">Workers Compensation (WC)</span>
+                  {assignedPolicies.wc && !newBroker.policies.wc && <span className="text-xs text-gray-500 ml-auto">Assigned</span>}
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer p-2 border rounded hover:bg-amber-100">
+                <label className={`flex items-center gap-2 cursor-pointer p-2 border rounded hover:bg-amber-100 ${assignedPolicies.umbrella && !newBroker.policies.umbrella ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}>
                   <input
                     type="checkbox"
+                    disabled={assignedPolicies.umbrella && !newBroker.policies.umbrella}
                     checked={newBroker.policies.umbrella}
                     onChange={(e) => setNewBroker({ ...newBroker, policies: { ...newBroker.policies, umbrella: e.target.checked } })}
                   />
                   <span className="text-sm">Umbrella</span>
+                  {assignedPolicies.umbrella && !newBroker.policies.umbrella && <span className="text-xs text-gray-500 ml-auto">Assigned</span>}
                 </label>
               </div>
             </div>
