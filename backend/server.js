@@ -1118,12 +1118,12 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
   if (!contractor || contractor.contractor_type !== 'general_contractor') return null;
   if (!forceCreate && !contractor.email) return null;
 
-  const existing = users.find(u =>
-    u.gc_id === contractor.id ||
-    (contractor.email && (u.email === contractor.email || u.username === contractor.email))
-  );
+  // Check if this specific contractor already has a login
+  const existingForThisContractor = users.find(u => u.gc_id === contractor.id);
+  if (existingForThisContractor) return null;
 
-  if (existing) return null;
+  // Don't block if email exists in other contractors - allow multiple GCs with same contact email
+  // This is valid in multi-contractor scenarios
 
   // Use email directly as username if available, otherwise generate from company name
   let username;
@@ -1140,8 +1140,9 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
     username = base.startsWith('gc') ? base : `gc-${base}`;
   }
   
-  // Handle username conflicts
+  // Handle username conflicts - always add suffix if username exists to ensure uniqueness
   let suffix = 1;
+  const baseUsername = username;
   while (users.some(u => u.username === username)) {
     if (contractor.email) {
       // For emails, insert suffix before @ to maintain valid email format
