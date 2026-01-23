@@ -15,6 +15,59 @@ Basic smoke test that:
 ### 2. `full-e2e.spec.js` - Admin Interface Test
 Comprehensive end-to-end test covering the complete admin workflow:
 
+### 3. `portals.spec.js` - Public Portals Test Suite
+Comprehensive tests for all three public portals (GC, Broker, Subcontractor)
+
+### 4. `integrated-workflow.spec.js` ⭐ **NEW - Complete Integrated Workflow**
+Full multi-user workflow test that exercises the entire system:
+
+#### Integrated Workflow Coverage:
+1. **Phase 1: Admin Setup**
+   - Admin login
+   - Create General Contractor
+   - Create/access Insurance Programs
+
+2. **Phase 2: GC Portal**
+   - Navigate to GC login
+   - Verify GC portal accessibility
+   - Test authentication flows
+
+3. **Phase 3: Broker Portal**
+   - Navigate to Broker login
+   - Verify Broker portal accessibility
+   - Test upload functionality access
+
+4. **Phase 4: Subcontractor Portal**
+   - Access subcontractor dashboard
+   - Verify portal functionality
+
+5. **Phase 5: Admin Review**
+   - Navigate to documents
+   - Access pending reviews
+   - Verify review workflow
+
+#### Video Recording 🎥
+**All tests are recorded with video!** Playwright automatically captures video of every test execution:
+- Videos are saved in `e2e/videos/` directory
+- Main integrated workflow video: `integrated-workflow-complete.webm`
+- Videos help debug failures and document test execution
+- Configured in `playwright.config.js` with `video: 'on'`
+
+#### Integrated Test Screenshots
+The integrated workflow captures 12 screenshots:
+- `integrated-01-admin-login.png` - Admin login page
+- `integrated-02-contractors-page.png` - Contractors listing
+- `integrated-03-gc-form-filled.png` - GC creation form filled
+- `integrated-04-gc-created.png` - GC successfully created
+- `integrated-05-programs-page.png` - Insurance programs page
+- `integrated-06-gc-login-page.png` - GC portal login
+- `integrated-08-broker-login-page.png` - Broker portal login
+- `integrated-10-sub-dashboard.png` - Subcontractor dashboard
+- `integrated-11-admin-documents.png` - Admin documents page
+- `integrated-12-admin-reviews.png` - Admin reviews page
+
+### Admin Interface Test (`full-e2e.spec.js`)
+
 #### Test Coverage:
 1. **Login Flow**
    - Authenticates with admin credentials

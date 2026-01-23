@@ -35,9 +35,9 @@ backend/uploads/
 # Backend test files
 backend/test-pdf-generation.js
 
-# E2E test artifacts
-e2e/screenshots/
+# E2E test artifacts (exclude temp files, keep committed screenshots and videos)
 e2e/screenshot-root.png
 playwright-report/
 test-results/
 playwright-junit.xml
+# Note: e2e/screenshots/ and e2e/videos/ are committed to show test results
