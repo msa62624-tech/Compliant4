@@ -1058,20 +1058,35 @@ export default function InsurancePrograms() {
                             </div>
                           </CardHeader>
                           {requirements.filter(r => r.insurance_type === 'workers_compensation').length > 0 && (
-                            <CardContent className="pt-2">
+                            <CardContent className="pt-2 space-y-3">
                               {requirements.filter(r => r.insurance_type === 'workers_compensation').map((req) => (
-                                <div key={req.id} className="grid grid-cols-3 gap-2 text-sm">
-                                  <div>
-                                    <p className="text-xs text-slate-600">Each Accident</p>
-                                    <p className="font-semibold">${(req.wc_each_accident || 0).toLocaleString()}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs text-slate-600">Disease Policy Limit</p>
-                                    <p className="font-semibold">${(req.wc_disease_policy_limit || 0).toLocaleString()}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs text-slate-600">Disease/Employee</p>
-                                    <p className="font-semibold">${(req.wc_disease_each_employee || 0).toLocaleString()}</p>
+                                <div key={req.id} className="border rounded p-2 bg-slate-50">
+                                  {/* Show applicable trades */}
+                                  {req.applicable_trades && req.applicable_trades.length > 0 && (
+                                    <div className="mb-2 pb-2 border-b">
+                                      <p className="text-xs text-slate-600 mb-1">Trades:</p>
+                                      <div className="flex flex-wrap gap-1">
+                                        {req.applicable_trades.map((trade) => (
+                                          <Badge key={trade} variant="secondary" className="text-xs">
+                                            {allTrades.find(t => t.value === trade)?.label || trade}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="grid grid-cols-3 gap-2 text-sm">
+                                    <div>
+                                      <p className="text-xs text-slate-600">Each Accident</p>
+                                      <p className="font-semibold">${(req.wc_each_accident || 0).toLocaleString()}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-slate-600">Disease Policy Limit</p>
+                                      <p className="font-semibold">${(req.wc_disease_policy_limit || 0).toLocaleString()}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-slate-600">Disease/Employee</p>
+                                      <p className="font-semibold">${(req.wc_disease_each_employee || 0).toLocaleString()}</p>
+                                    </div>
                                   </div>
                                 </div>
                               ))}
@@ -1109,9 +1124,22 @@ export default function InsurancePrograms() {
                             </div>
                           </CardHeader>
                           {requirements.filter(r => r.insurance_type === 'auto_liability').length > 0 && (
-                            <CardContent className="pt-2">
+                            <CardContent className="pt-2 space-y-3">
                               {requirements.filter(r => r.insurance_type === 'auto_liability').map((req) => (
-                                <div key={req.id} className="space-y-2">
+                                <div key={req.id} className="border rounded p-2 bg-slate-50 space-y-2">
+                                  {/* Show applicable trades */}
+                                  {req.applicable_trades && req.applicable_trades.length > 0 && (
+                                    <div className="pb-2 border-b">
+                                      <p className="text-xs text-slate-600 mb-1">Trades:</p>
+                                      <div className="flex flex-wrap gap-1">
+                                        {req.applicable_trades.map((trade) => (
+                                          <Badge key={trade} variant="secondary" className="text-xs">
+                                            {allTrades.find(t => t.value === trade)?.label || trade}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
                                   <div>
                                     <p className="text-xs text-slate-600">Combined Single Limit</p>
                                     <p className="font-semibold text-sm">${(req.auto_combined_single_limit || 0).toLocaleString()}</p>
