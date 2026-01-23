@@ -346,103 +346,6 @@ export default function InsurancePrograms() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-3 items-center">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/pdf"
-            className="hidden"
-            onChange={handleFileSelected}
-          />
-          <Button variant="outline" onClick={handleImportClick} disabled={isParsing}>
-            <Upload className="w-4 h-4 mr-2" />
-            Import from PDF (AI)
-          </Button>
-          {isParsing && <span className="text-sm text-slate-600">Parsing PDF...</span>}
-          {parseError && <span className="text-sm text-red-600">{parseError}</span>}
-        </div>
-
-        {parsePreview && (
-          <Card className="border-green-200 bg-green-50">
-            <CardHeader className="border-b border-green-200">
-              <CardTitle className="flex items-center gap-2 text-green-900">
-                <Sparkles className="w-4 h-4" /> Parsed Program Preview (review & save)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div>
-                <p className="font-semibold text-slate-900">Program: {parsePreview.program?.name || 'Untitled'}</p>
-                <p className="text-sm text-slate-600">{parsePreview.program?.description}</p>
-              </div>
-
-              <div className="overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-left bg-white">
-                    <tr className="border-b">
-                      <th className="p-2">Tier</th>
-                      <th className="p-2">Trade</th>
-                      <th className="p-2">Scope</th>
-                      <th className="p-2">GL Occ / Agg / Prod</th>
-                      <th className="p-2">Umbrella Occ / Agg</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      // Group requirements by tier
-                      const groupedByTier = (parsePreview.requirements || []).reduce((acc, req) => {
-                        const tier = req.tier || 'Unnamed Tier';
-                        if (!acc[tier]) {
-                          acc[tier] = [];
-                        }
-                        acc[tier].push(req);
-                        return acc;
-                      }, {});
-
-                      // Render grouped requirements
-                      return Object.entries(groupedByTier).map(([tierName, reqs]) => (
-                        reqs.map((req, idx) => (
-                          <tr key={req.id} className="border-b last:border-0">
-                            {idx === 0 && (
-                              <td className="p-2 font-bold align-top bg-slate-50" rowSpan={reqs.length}>
-                                {tierName}
-                              </td>
-                            )}
-                            <td className="p-2 font-medium">{req.trade_name || '—'}</td>
-                            <td className="p-2 text-slate-700">{req.scope}</td>
-                            <td className="p-2">
-                              {`$${req.gl_each_occurrence?.toLocaleString() || '—'} / $${req.gl_general_aggregate?.toLocaleString() || '—'} / $${req.gl_products_completed_ops?.toLocaleString() || '—'}`}
-                            </td>
-                            <td className="p-2">
-                              {req.umbrella_each_occurrence || req.umbrella_aggregate
-                                ? `${req.umbrella_each_occurrence ? `$${req.umbrella_each_occurrence.toLocaleString()}` : '—'} / ${req.umbrella_aggregate ? `$${req.umbrella_aggregate.toLocaleString()}` : '—'}`
-                                : '—'}
-                            </td>
-                          </tr>
-                        ))
-                      ));
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setParsePreview(null)}>
-                  Dismiss
-                </Button>
-                <Button variant="outline" onClick={async () => {
-                  await autoImportAndPopulate(parsePreview);
-                  if (!isDialogOpen) setIsDialogOpen(true);
-                }}>
-                  Edit Manually
-                </Button>
-                <Button className="bg-red-600 hover:bg-red-700" onClick={handleConfirmImport}>
-                  Save Directly
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Info Card */}
         <Card className="bg-red-50 border-red-200">
           <CardContent className="p-6">
@@ -663,6 +566,107 @@ export default function InsurancePrograms() {
                       Explain what this program is for and any special requirements
                     </p>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label>Import from PDF (AI)</Label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={handleFileSelected}
+                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button type="button" variant="outline" onClick={handleImportClick} disabled={isParsing}>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Import from PDF (AI)
+                      </Button>
+                      {isParsing && <span className="text-sm text-slate-600">Parsing PDF...</span>}
+                      {parseError && <span className="text-sm text-red-600">{parseError}</span>}
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Upload a program PDF to auto-build tiers, trades, and limits. You can edit before saving.
+                    </p>
+                  </div>
+
+                  {parsePreview && (
+                    <Card className="border-green-200 bg-green-50">
+                      <CardHeader className="border-b border-green-200">
+                        <CardTitle className="flex items-center gap-2 text-green-900">
+                          <Sparkles className="w-4 h-4" /> Parsed Program Preview (review & save)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-6 space-y-4">
+                        <div>
+                          <p className="font-semibold text-slate-900">Program: {parsePreview.program?.name || 'Untitled'}</p>
+                          <p className="text-sm text-slate-600">{parsePreview.program?.description}</p>
+                        </div>
+
+                        <div className="overflow-auto">
+                          <table className="w-full text-sm">
+                            <thead className="text-left bg-white">
+                              <tr className="border-b">
+                                <th className="p-2">Tier</th>
+                                <th className="p-2">Trade</th>
+                                <th className="p-2">Scope</th>
+                                <th className="p-2">GL Occ / Agg / Prod</th>
+                                <th className="p-2">Umbrella Occ / Agg</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                const groupedByTier = (parsePreview.requirements || []).reduce((acc, req) => {
+                                  const tier = req.tier || 'Unnamed Tier';
+                                  if (!acc[tier]) {
+                                    acc[tier] = [];
+                                  }
+                                  acc[tier].push(req);
+                                  return acc;
+                                }, {});
+
+                                return Object.entries(groupedByTier).map(([tierName, reqs]) => (
+                                  reqs.map((req, idx) => (
+                                    <tr key={req.id} className="border-b last:border-0">
+                                      {idx === 0 && (
+                                        <td className="p-2 font-bold align-top bg-slate-50" rowSpan={reqs.length}>
+                                          {tierName}
+                                        </td>
+                                      )}
+                                      <td className="p-2 font-medium">{req.trade_name || '—'}</td>
+                                      <td className="p-2 text-slate-700">{req.scope}</td>
+                                      <td className="p-2">
+                                        {`$${req.gl_each_occurrence?.toLocaleString() || '—'} / $${req.gl_general_aggregate?.toLocaleString() || '—'} / $${req.gl_products_completed_ops?.toLocaleString() || '—'}`}
+                                      </td>
+                                      <td className="p-2">
+                                        {req.umbrella_each_occurrence || req.umbrella_aggregate
+                                          ? `${req.umbrella_each_occurrence ? `$${req.umbrella_each_occurrence.toLocaleString()}` : '—'} / ${req.umbrella_aggregate ? `$${req.umbrella_aggregate.toLocaleString()}` : '—'}`
+                                          : '—'}
+                                      </td>
+                                    </tr>
+                                  ))
+                                ));
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="flex gap-3">
+                          <Button variant="outline" type="button" onClick={() => setParsePreview(null)}>
+                            Dismiss
+                          </Button>
+                          <Button variant="outline" type="button" onClick={async () => {
+                            await autoImportAndPopulate(parsePreview);
+                            if (!isDialogOpen) setIsDialogOpen(true);
+                          }}>
+                            Edit Manually
+                          </Button>
+                          <Button type="button" className="bg-red-600 hover:bg-red-700" onClick={handleConfirmImport}>
+                            Save Directly
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="pdf_upload">Attach Program PDF (optional)</Label>
