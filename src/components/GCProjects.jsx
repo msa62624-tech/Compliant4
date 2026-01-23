@@ -90,7 +90,6 @@ export default function GCProjects() {
     additional_insured_entities: '',
     start_date: '',
     estimated_completion: '',
-    budget: '',
     program_id: '',
     notes: '',
   });
@@ -211,7 +210,6 @@ export default function GCProjects() {
       additional_insured_entities: '',
       start_date: '',
       estimated_completion: '',
-      budget: '',
       program_id: '',
       notes: '',
     });
@@ -330,7 +328,6 @@ Return actual data only. If not found, return null.`,
           : (project.additional_insured_entities || ''),
         start_date: project.start_date || '',
         estimated_completion: project.estimated_completion || '',
-        budget: project.budget || '',
         program_id: project.program_id || '',
         notes: project.notes || '',
       });
@@ -475,7 +472,7 @@ Return actual data only. If not found, return null.`,
                       <TableCell className="font-medium">{project.project_name}</TableCell>
                       <TableCell>{project.project_type}</TableCell>
                       <TableCell>
-                        {project.city}, {project.state}
+                        {project.address ? `${project.address}, ` : ''}{project.city}{project.city && project.state ? ', ' : ''}{project.state}{project.zip_code ? ` ${project.zip_code}` : ''}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="bg-purple-50 text-purple-700">
@@ -768,17 +765,6 @@ Return actual data only. If not found, return null.`,
                         onChange={(e) => setFormData({ ...formData, estimated_completion: e.target.value })}
                       />
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="budget">Budget</Label>
-                    <Input
-                      id="budget"
-                      type="number"
-                      value={formData.budget}
-                      onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
-                      placeholder="50000000"
-                    />
                   </div>
 
                   <div className="space-y-2 border-t pt-4">

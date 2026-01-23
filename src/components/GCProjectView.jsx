@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, ArrowLeft, FileCheck, Eye } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 
 export default function GCProjectView() {
   const params = new URLSearchParams(window.location.search);
@@ -168,6 +169,7 @@ export default function GCProjectView() {
 
         // Ensure a certificate request exists so the broker sees it
         const existingCOIs = await compliant.entities.GeneratedCOI.filter({ project_id: projectData.id, subcontractor_id: subcontractor.id });
+        let coiTokenForEmail = existingCOIs && existingCOIs[0] ? existingCOIs[0].coi_token : null;
         if (!existingCOIs || existingCOIs.length === 0) {
           // Generate secure COI token using crypto
           const tokenBytes = new Uint8Array(12);
@@ -211,17 +213,18 @@ export default function GCProjectView() {
             additional_insureds: additionalInsuredList,
             project_location: projectData.project_address,
           });
+
+          coiTokenForEmail = coiToken;
         }
 
-        // Notify subcontractor only if broker is not already on file
-        if (contactEmail && !subcontractor.broker_email) {
-          const brokerGlobalLink = `${window.location.origin}/broker-upload?type=global&subId=${subcontractor.id}`;
-          const brokerPerPolicyLink = `${window.location.origin}/broker-upload?type=per-policy&subId=${subcontractor.id}`;
+        // Notify subcontractor to provide broker info (simple form, not broker portal)
+        if (contactEmail && !subcontractor.broker_email && coiTokenForEmail) {
+          const enterBrokerLink = `${window.location.origin}/sub-enter-broker-info?token=${coiTokenForEmail}`;
 
           await sendEmail({
             to: contactEmail,
-            subject: `Added to Project - ${projectData.project_name}`,
-            body: `You have been added to ${projectData.project_name}.\n\nAdd your insurance broker to proceed:\n- One Broker for All Policies: ${brokerGlobalLink}\n- Different Brokers per Policy: ${brokerPerPolicyLink}\n\nAfter submitting, you'll be redirected to your dashboard.`
+            subject: `Broker Information Needed - ${projectData.project_name}`,
+            body: `You have been added to ${projectData.project_name}.\n\nPlease provide your broker's name and contact so we can request the COI:\n${enterBrokerLink}\n\nAfter submitting, we'll notify your broker to upload the COI.`
           }).catch(err => console.error("Direct sub email failed", err));
         }
 

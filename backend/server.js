@@ -132,7 +132,6 @@ const entities = {
       project_type: 'Commercial',
       start_date: '2024-03-01',
       estimated_completion: '2025-09-30',
-      budget: 25000000,
       status: 'active',
       program_id: 'program-001',
       owner_entity: 'Downtown Properties LLC',
@@ -1115,15 +1114,32 @@ function generateTempPassword(length = 12) {
 }
 
 async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
-  if (!contractor || contractor.contractor_type !== 'general_contractor') return null;
-  if (!forceCreate && !contractor.email) return null;
+  if (!contractor || contractor.contractor_type !== 'general_contractor') {
+    console.log('🔴 ensureGcLogin early return 1: no contractor or wrong type');
+    return null;
+  }
+  if (!forceCreate && !contractor.email) {
+    console.log('🔴 ensureGcLogin early return 2: no forceCreate and no email');
+    return null;
+  }
 
   // Check if this specific contractor already has a login
   const existingForThisContractor = users.find(u => u.gc_id === contractor.id);
-  if (existingForThisContractor) return null;
+  if (existingForThisContractor) {
+    console.log('🔴 ensureGcLogin early return 3: contractor already has login', {
+      contractorId: contractor.id,
+      existingUserId: existingForThisContractor.id
+    });
+    return null;
+  }
 
   // Don't block if email exists in other contractors - allow multiple GCs with same contact email
   // This is valid in multi-contractor scenarios
+  console.log('✅ ensureGcLogin proceeding to create:', {
+    contractorId: contractor.id,
+    email: contractor.email,
+    forceCreate
+  });
 
   // Use email directly as username if available, otherwise generate from company name
   let username;
@@ -1189,7 +1205,14 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
 
   // Return temporary password so frontend can send it in welcome email
   // The frontend is responsible for not storing it in localStorage
-  return { username, role: 'gc', userId, passwordSet: true, password: tempPassword };
+  const returnValue = { username, role: 'gc', userId, passwordSet: true, password: tempPassword };
+  console.log('📦 ensureGcLogin returning:', {
+    username: returnValue.username,
+    hasPassword: !!returnValue.password,
+    passwordLength: returnValue.password?.length || 0,
+    allKeys: Object.keys(returnValue)
+  });
+  return returnValue;
 }
 
 // Ensure seeded GCs get logins (idempotent) - using async/await
@@ -1913,7 +1936,18 @@ app.post('/entities/:entityName', authenticateToken, async (req, res) => {
   const newItem = { id: `${entityName}-${Date.now()}`, ...data, createdAt: new Date().toISOString(), createdBy: req.user.id };
   let gcLogin = null;
   if (entityName === 'Contractor' && data.contractor_type === 'general_contractor') {
+    console.log('🔧 Creating GC - calling ensureGcLogin for contractor:', {
+      contractorId: newItem.id,
+      contractorType: data.contractor_type,
+      email: data.email
+    });
     gcLogin = await ensureGcLogin(newItem, { forceCreate: true });
+    console.log('🔧 ensureGcLogin returned:', {
+      gcLoginExists: !!gcLogin,
+      gcLoginKeys: gcLogin ? Object.keys(gcLogin) : null,
+      hasPassword: gcLogin?.password ? 'YES' : 'NO',
+      passwordLength: gcLogin?.password?.length || 0
+    });
     if (gcLogin) {
       newItem.gc_login_created = true;
       console.log('✅ GC Login created:', {
@@ -1921,11 +1955,17 @@ app.post('/entities/:entityName', authenticateToken, async (req, res) => {
         hasPassword: !!gcLogin.password,
         passwordLength: gcLogin.password?.length || 0
       });
+    } else {
+      console.log('❌ ensureGcLogin returned null/falsy');
     }
   }
   entities[entityName].push(newItem);
   debouncedSave();
   const responsePayload = gcLogin ? { ...newItem, gcLogin } : newItem;
+  console.log('📤 Contractor creation response payload:', {
+    hasGcLogin: !!responsePayload.gcLogin,
+    responseKeys: Object.keys(responsePayload).slice(0, 10)
+  });
   res.status(201).json(responsePayload);
 });
 

@@ -228,8 +228,6 @@ InsureTrack System`
  * Send notification when subcontractor is added to a project
  */
 export async function notifySubAddedToProject(subcontractor, project) {
-  const brokerGlobalLink = createBrokerUploadLink(subcontractor.id, 'global');
-  const brokerPerPolicyLink = createBrokerUploadLink(subcontractor.id, 'per-policy');
   const subEmail = subcontractor.email || subcontractor.contact_email;
 
   // Notify subcontractor
@@ -237,6 +235,22 @@ export async function notifySubAddedToProject(subcontractor, project) {
     try {
       const hasBroker = !!subcontractor.broker_email;
       const subDashboardLink = createSubcontractorDashboardLink(subcontractor.id);
+
+      // Find an existing COI token for this sub+project so we can direct them to the broker info form
+      let coiTokenForEmail = null;
+      try {
+        const coisForSub = await compliant.entities.GeneratedCOI.filter({ project_id: project.id, subcontractor_id: subcontractor.id });
+        if (Array.isArray(coisForSub) && coisForSub.length > 0) {
+          coiTokenForEmail = coisForSub[0].coi_token || null;
+        }
+      } catch (err) {
+        console.warn('Could not load COI for sub email token', err);
+      }
+
+      const baseUrl = getFrontendBaseUrl();
+      const enterBrokerLink = coiTokenForEmail
+        ? `${baseUrl}/sub-enter-broker-info?token=${coiTokenForEmail}`
+        : subDashboardLink;
       
       // Generate login credentials using centralized utility
       const password = generateSecurePassword();
@@ -249,27 +263,24 @@ export async function notifySubAddedToProject(subcontractor, project) {
       
       const bodyWithLinks = `Dear ${subcontractor.contact_person || subcontractor.company_name},
 
-You have been added to a new construction project!
+    You have been added to a new construction project!
 
-📋 Project Details:
-• Project: ${project.project_name}
-• General Contractor: ${project.gc_name}
-• Location: ${project.project_address}
-• Project ID: ${project.id}
+    📋 Project Details:
+    • Project: ${project.project_name}
+    • General Contractor: ${project.gc_name}
+    • Location: ${project.project_address}
+    • Project ID: ${project.id}
 
-${loginInfo}
+    ${loginInfo}
 
-Dashboard: ${subDashboardLink}
+    📌 Next Step (Required):
+    Log in and enter your broker's name and contact info so we can request the COI:
+    ${enterBrokerLink}
 
-📌 Next Step (Required):
-Add your insurance broker so we can generate your certificates:
-• One Broker for All Policies: ${brokerGlobalLink}
-• Different Brokers per Policy: ${brokerPerPolicyLink}
+    After submitting, you can see all your projects and track status in your dashboard.
 
-After submitting, you'll be redirected to your dashboard.
-
-Best regards,
-InsureTrack System`;
+    Best regards,
+    InsureTrack System`;
 
       const bodyWithExistingBroker = `Dear ${subcontractor.contact_person || subcontractor.company_name},
 

@@ -34,6 +34,7 @@ import BrokerVerification from '@/components/BrokerVerification.jsx'
 import COIReview from '@/components/COIReview.jsx'
 import ResetPassword from '@/components/ResetPassword.jsx'
 import MessagingCenter from '@/components/MessagingCenter.jsx'
+import SubEnterBrokerInfo from '@/components/SubEnterBrokerInfo.jsx'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -178,8 +179,17 @@ export default function Pages({ onLogout }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const isSubRoute = window.location.pathname.startsWith('/subcontractor-dashboard')
+    const isSubRoute = window.location.pathname.startsWith('/subcontractor-dashboard') || window.location.pathname.startsWith('/sub-enter-broker-info')
     if (isSubRoute) {
+      // Check if authenticated (not required for login page)
+      const isAuthenticated = sessionStorage.getItem('subAuthenticated') === 'true'
+      
+      if (!isAuthenticated && window.location.pathname !== '/subcontractor-login') {
+        // Redirect to login
+        window.location.href = '/subcontractor-login'
+        return
+      }
+      
       const params = new URLSearchParams(window.location.search)
       const subId = params.get('id') || params.get('subId')
       sessionStorage.setItem('subPublicSession', 'true')
@@ -199,7 +209,7 @@ export default function Pages({ onLogout }) {
     if (!isSubPublicSession) return
     const params = new URLSearchParams(window.location.search)
     let subId = params.get('id') || sessionStorage.getItem('subPortalId')
-    const allowedPaths = ['/subcontractor-dashboard', '/broker-verification']
+    const allowedPaths = ['/subcontractor-dashboard', '/broker-verification', '/sub-enter-broker-info', '/subcontractor-login']
     if (!allowedPaths.includes(window.location.pathname)) {
       const target = subId ? `/subcontractor-dashboard?id=${subId}` : '/subcontractor-dashboard'
       window.location.replace(target)
@@ -338,6 +348,7 @@ export default function Pages({ onLogout }) {
             <Routes>
               <Route path="/subcontractor-dashboard" element={<SubcontractorDashboard />} />
               <Route path="/broker-verification" element={<BrokerVerification />} />
+              <Route path="/sub-enter-broker-info" element={<SubEnterBrokerInfo />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/subcontractor-login" element={<SubcontractorLogin onLogin={(subId) => {
                 // Redirect to dashboard after login

@@ -48,6 +48,7 @@ export default function SubcontractorLogin({ onLogin }) {
       sessionStorage.setItem('subPublicSession', 'true');
       sessionStorage.setItem('subPortalId', subcontractor.id);
       sessionStorage.setItem('subPublicSessionInitialized', 'true');
+      sessionStorage.setItem('subAuthenticated', 'true');
 
       onLogin && onLogin(subcontractor.id);
     } catch (err) {

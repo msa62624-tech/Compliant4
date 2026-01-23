@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import BrokerInfoForm from "@/components/BrokerInfoForm";
 import { 
   AlertTriangle, 
   Upload,
@@ -213,37 +214,7 @@ export default function SubcontractorDashboard() {
 
         {/* Broker Setup Alert - Prominent CTA */}
         {needsBrokerInfo && (
-          <Card className="border-amber-200 bg-amber-50 shadow-md">
-            <CardHeader>
-              <CardTitle className="text-amber-900 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" />
-                Action Required: Add Your Insurance Broker
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-amber-900">
-                To proceed with your projects, you need to provide your insurance broker&apos;s information. Each policy term (GL, WC, etc.) needs a broker. Choose how you&apos;d like to set it up:
-              </p>
-              <div className="grid md:grid-cols-2 gap-4">
-                <Button 
-                  className="h-auto flex-col p-4 bg-amber-600 hover:bg-amber-700 text-white"
-                  onClick={() => navigate(`/broker-upload?type=global&subId=${subId}`)}
-                >
-                  <Upload className="w-5 h-5 mb-2" />
-                  <span className="text-base font-semibold">One Broker for All Policies</span>
-                  <span className="text-sm font-normal mt-1">Use the same broker for all policy terms (GL, WC, etc.)</span>
-                </Button>
-                <Button 
-                  className="h-auto flex-col p-4 bg-amber-600 hover:bg-amber-700 text-white"
-                  onClick={() => navigate(`/broker-upload?type=per-policy&subId=${subId}`)}
-                >
-                  <Upload className="w-5 h-5 mb-2" />
-                  <span className="text-base font-semibold">Different Brokers per Policy</span>
-                  <span className="text-sm font-normal mt-1">Set different brokers for each policy term (GL, WC, etc.)</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <BrokerInfoForm subcontractor={subcontractor} subId={subId} />
         )}
 
         {/* Projects Table */}
