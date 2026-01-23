@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Building2 } from 'lucide-react';
 import ForgotPassword from '@/components/ForgotPassword';
 
-export default function Login({ onLogin }) {
+export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +19,7 @@ export default function Login({ onLogin }) {
     setError(null);
     try {
       await auth.login({ username, password });
-      onLogin && onLogin();
+      // No need to call onLogin - auth.login triggers 'auth-changed' event
     } catch (err) {
       setError(err.message || 'Login failed');
     } finally {

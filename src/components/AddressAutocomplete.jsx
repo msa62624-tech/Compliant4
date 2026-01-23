@@ -171,7 +171,7 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
             border: 2px solid #e2e8f0;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
             margin-top: 4px;
-            z-index: 9999;
+            z-index: 999999 !important;
             font-family: inherit;
           }
           .pac-item {

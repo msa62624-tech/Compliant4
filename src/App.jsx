@@ -43,7 +43,6 @@ function App() {
     };
   }, []);
 
-  const handleLogin = () => setLoggedIn(true);
   const handleLogout = () => {
     auth.clearToken();
     setLoggedIn(false);
@@ -64,7 +63,7 @@ function App() {
   if (!loggedIn && !isPublicPortal) {
     return (
     <>
-      <Login onLogin={handleLogin} />
+      <Login />
       <Toaster />
     </>
   );
