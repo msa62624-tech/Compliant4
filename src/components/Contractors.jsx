@@ -47,6 +47,12 @@ const US_STATES = [
   { code: 'WI', name: 'Wisconsin' }, { code: 'WY', name: 'Wyoming' }
 ];
 
+// Helper function to check if error is network-related
+const isNetworkError = (err) => {
+  const networkPatterns = ['Network', 'Failed to fetch', 'Load failed'];
+  return networkPatterns.some(pattern => err.message?.includes(pattern)) || err.name === 'TypeError';
+};
+
 export default function Contractors() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -530,12 +536,6 @@ InsureTrack Team`
       }
     } catch (error) {
       console.error('❌ Submit error:', error);
-      
-      // Helper function to check if error is network-related
-      const isNetworkError = (err) => {
-        const networkPatterns = ['Network', 'Failed to fetch', 'Load failed'];
-        return networkPatterns.some(pattern => err.message?.includes(pattern)) || err.name === 'TypeError';
-      };
       
       // Provide specific guidance based on error type
       let errorMessage = error.message;

@@ -24,8 +24,8 @@ export const getApiBase = () => {
   // Pattern 2: something.github.dev (without port - default Codespaces format)
   // Only match if it's .github.dev but NOT .app.github.dev (already handled above)
   if (host.endsWith('.github.dev') && !host.endsWith('.app.github.dev')) {
-    // Replace .github.dev with -3001.app.github.dev
-    return `${protocol}//${host.replace('.github.dev', '-3001.app.github.dev')}`;
+    // Replace .github.dev with -3001.app.github.dev (only at the end)
+    return `${protocol}//${host.replace(/\.github\.dev$/, '-3001.app.github.dev')}`;
   }
   
   // Fallback for localhost with port
