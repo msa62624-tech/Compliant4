@@ -531,6 +531,12 @@ InsureTrack Team`
     } catch (error) {
       console.error('❌ Submit error:', error);
       
+      // Helper function to check if error is network-related
+      const isNetworkError = (err) => {
+        const networkPatterns = ['Network', 'Failed to fetch', 'Load failed'];
+        return networkPatterns.some(pattern => err.message?.includes(pattern)) || err.name === 'TypeError';
+      };
+      
       // Provide specific guidance based on error type
       let errorMessage = error.message;
       if (error.message.includes('Backend not configured')) {
@@ -544,7 +550,7 @@ InsureTrack Team`
           `Technical details: ${error.message}`;
       } else if (error.message.includes('Unauthorized')) {
         errorMessage = `❌ Authentication Error: Please log in again.\n\n${error.message}`;
-      } else if (error.message.includes('Network') || error.message.includes('Failed to fetch') || error.message.includes('Load failed') || error.name === 'TypeError') {
+      } else if (isNetworkError(error)) {
         errorMessage = `❌ Network Error: Cannot connect to backend.\n\n` +
           `Please ensure:\n` +
           `1. Backend server is running\n` +
