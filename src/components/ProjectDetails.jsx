@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { compliant } from "@/api/compliantClient";
+import * as auth from "@/auth";
 import { sendEmail } from "@/emailHelper";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notifySubAddedToProject } from "@/brokerNotifications";
@@ -223,8 +224,32 @@ export default function ProjectDetails() {
   // Archive mutation for ProjectSubcontractors
   const archiveSubMutation = useMutation({
     mutationFn: async ({ id, reason }) => {
-      const response = await compliant.api.post(`/entities/ProjectSubcontractor/${id}/archive`, { reason });
-      return response.data;
+      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
+        (() => {
+          const { protocol, host, origin } = window.location;
+          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
+          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
+          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
+          return 'http://localhost:3001';
+        })();
+      
+      const response = await fetch(`${baseUrl}/entities/ProjectSubcontractor/${id}/archive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...auth.getAuthHeader()
+        },
+        body: JSON.stringify({ reason }),
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Archive failed: ${error}`);
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
       toast.success('Subcontractor archived successfully');

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { compliant } from "@/api/compliantClient";
+import * as auth from "@/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -152,8 +153,32 @@ export default function GCProjects() {
   // Archive mutation
   const archiveProjectMutation = useMutation({
     mutationFn: async ({ id, reason }) => {
-      const response = await compliant.api.post(`/entities/Project/${id}/archive`, { reason });
-      return response.data;
+      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
+        (() => {
+          const { protocol, host, origin } = window.location;
+          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
+          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
+          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
+          return 'http://localhost:3001';
+        })();
+      
+      const response = await fetch(`${baseUrl}/entities/Project/${id}/archive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...auth.getAuthHeader()
+        },
+        body: JSON.stringify({ reason }),
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Archive failed: ${error}`);
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
       toast.success('Project archived successfully');
@@ -558,7 +583,7 @@ Return actual data only. If not found, return null.`,
                         <SelectTrigger>
                           <SelectValue placeholder="Select type" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[100000]">
                           <SelectItem value="commercial">Commercial</SelectItem>
                           <SelectItem value="residential">Residential</SelectItem>
                           <SelectItem value="mixed_use">Mixed Use</SelectItem>
@@ -605,7 +630,7 @@ Return actual data only. If not found, return null.`,
                         <SelectTrigger>
                           <SelectValue placeholder="Select structure type" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[100000]">
                           <SelectItem value="concrete">Concrete</SelectItem>
                           <SelectItem value="steel">Steel</SelectItem>
                           <SelectItem value="wood">Wood</SelectItem>
@@ -625,7 +650,7 @@ Return actual data only. If not found, return null.`,
                         <SelectTrigger>
                           <SelectValue placeholder="Select occupancy" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[100000]">
                           <SelectItem value="condos">Condos</SelectItem>
                           <SelectItem value="rentals">Rentals</SelectItem>
                           <SelectItem value="mixed">Mixed</SelectItem>
@@ -680,7 +705,7 @@ Return actual data only. If not found, return null.`,
                         <SelectTrigger>
                           <SelectValue placeholder="State" />
                         </SelectTrigger>
-                        <SelectContent className="max-h-60">
+                        <SelectContent className="max-h-60 z-[100000]">
                           {US_STATES.map((state) => (
                             <SelectItem key={state.code} value={state.code}>
                               {state.name}
@@ -767,7 +792,7 @@ Return actual data only. If not found, return null.`,
                       <SelectTrigger>
                         <SelectValue placeholder="Select insurance program" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[100000]">
                         {programs.map((program) => (
                           <SelectItem key={program.id} value={program.id}>
                             {program.name}

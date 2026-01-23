@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { compliant } from "@/api/compliantClient";
+import * as auth from "@/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,8 +38,26 @@ export default function ArchivePage() {
   const { data: archivedContractors = [], isLoading: loadingContractors } = useQuery({
     queryKey: ['archived-contractors'],
     queryFn: async () => {
-      const response = await compliant.api.get('/entities/Contractor/archived');
-      return response.data || [];
+      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
+        (() => {
+          const { protocol, host, origin } = window.location;
+          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
+          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
+          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
+          return 'http://localhost:3001';
+        })();
+      
+      const response = await fetch(`${baseUrl}/entities/Contractor/archived`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...auth.getAuthHeader()
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch archived contractors');
+      return response.json();
     },
     enabled: user?.role === 'super_admin' || user?.role === 'admin',
   });
@@ -47,8 +66,26 @@ export default function ArchivePage() {
   const { data: archivedProjects = [], isLoading: loadingProjects } = useQuery({
     queryKey: ['archived-projects'],
     queryFn: async () => {
-      const response = await compliant.api.get('/entities/Project/archived');
-      return response.data || [];
+      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
+        (() => {
+          const { protocol, host, origin } = window.location;
+          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
+          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
+          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
+          return 'http://localhost:3001';
+        })();
+      
+      const response = await fetch(`${baseUrl}/entities/Project/archived`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...auth.getAuthHeader()
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch archived projects');
+      return response.json();
     },
     enabled: user?.role === 'super_admin' || user?.role === 'admin',
   });
@@ -57,8 +94,26 @@ export default function ArchivePage() {
   const { data: archivedProjectSubs = [], isLoading: loadingProjectSubs } = useQuery({
     queryKey: ['archived-project-subs'],
     queryFn: async () => {
-      const response = await compliant.api.get('/entities/ProjectSubcontractor/archived');
-      return response.data || [];
+      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
+        (() => {
+          const { protocol, host, origin } = window.location;
+          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
+          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
+          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
+          return 'http://localhost:3001';
+        })();
+      
+      const response = await fetch(`${baseUrl}/entities/ProjectSubcontractor/archived`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...auth.getAuthHeader()
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch archived project subs');
+      return response.json();
     },
     enabled: user?.role === 'super_admin' || user?.role === 'admin',
   });
@@ -66,8 +121,27 @@ export default function ArchivePage() {
   // Unarchive mutation
   const unarchiveMutation = useMutation({
     mutationFn: async ({ entityName, id }) => {
-      const response = await compliant.api.post(`/entities/${entityName}/${id}/unarchive`);
-      return response.data;
+      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
+        (() => {
+          const { protocol, host, origin } = window.location;
+          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
+          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
+          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
+          return 'http://localhost:3001';
+        })();
+      
+      const response = await fetch(`${baseUrl}/entities/${entityName}/${id}/unarchive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...auth.getAuthHeader()
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) throw new Error('Failed to unarchive');
+      return response.json();
     },
     onSuccess: (data, variables) => {
       toast.success(`Successfully unarchived ${variables.entityName}`);
