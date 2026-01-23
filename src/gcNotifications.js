@@ -19,6 +19,15 @@ export async function sendGCWelcomeEmail(gc) {
   // Always generate credentials if not provided
   const username = gc?.gcLogin?.username || gc?.email || gc?.loginUsername || gc.email;
   const tempPassword = gc?.gcLogin?.password || gc?.tempPassword || generateSecurePassword();
+  
+  console.log('🔐 GC Welcome Email - Using credentials:', {
+    username,
+    passwordLength: tempPassword?.length || 0,
+    hasGcLogin: !!gc?.gcLogin,
+    gcLoginKeys: gc?.gcLogin ? Object.keys(gc.gcLogin) : [],
+    passwordSource: gc?.gcLogin?.password ? 'from gcLogin' : (gc?.tempPassword ? 'from tempPassword' : 'generated new')
+  });
+  
   const loginInfo = formatLoginCredentialsForEmail(
     username,
     tempPassword,

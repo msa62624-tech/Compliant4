@@ -1913,7 +1913,14 @@ app.post('/entities/:entityName', authenticateToken, async (req, res) => {
   let gcLogin = null;
   if (entityName === 'Contractor' && data.contractor_type === 'general_contractor') {
     gcLogin = await ensureGcLogin(newItem, { forceCreate: true });
-    if (gcLogin) newItem.gc_login_created = true;
+    if (gcLogin) {
+      newItem.gc_login_created = true;
+      console.log('✅ GC Login created:', {
+        username: gcLogin.username,
+        hasPassword: !!gcLogin.password,
+        passwordLength: gcLogin.password?.length || 0
+      });
+    }
   }
   entities[entityName].push(newItem);
   debouncedSave();
@@ -3469,9 +3476,21 @@ app.post('/public/gc-login', publicApiLimiter, async (req, res) => {
       c.email.toLowerCase() === email.toLowerCase()
     );
 
+    console.log('🔐 GC Login attempt:', {
+      emailSearched: email,
+      gcFound: !!gc,
+      gcHasPassword: !!gc?.password,
+      passwordFieldExists: 'password' in (gc || {})
+    });
+
     // Always perform bcrypt comparison to prevent timing attacks
     const passwordToCheck = (gc && gc.password) ? gc.password : DUMMY_PASSWORD_HASH;
     const isPasswordValid = await bcrypt.compare(password, passwordToCheck);
+    
+    console.log('🔑 Password comparison:', {
+      matchResult: isPasswordValid,
+      usingDummy: !gc?.password
+    });
     
     // Generic error message to prevent account enumeration
     if (!gc || !gc.password || !isPasswordValid) {
