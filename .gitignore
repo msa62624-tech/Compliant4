@@ -34,3 +34,10 @@ backend/uploads/
 
 # Backend test files
 backend/test-pdf-generation.js
+
+# E2E test artifacts
+e2e/screenshots/
+e2e/screenshot-root.png
+playwright-report/
+test-results/
+playwright-junit.xml
