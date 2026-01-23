@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
-import { createUserCredentials } from "@/passwordUtils";
+import { createUserCredentials, generateSecurePassword } from "@/passwordUtils";
 import { getFrontendBaseUrl } from "@/urlConfig";
 import { notifyAdminBrokerChanged } from "@/coiNotifications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -174,12 +174,13 @@ export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }
       }
     }
 
-    // Notify each broker with login link and assigned policies
+    // Notify each broker with login credentials and assigned policies
     try {
       const baseUrl = getFrontendBaseUrl();
       const brokerLoginLink = `${baseUrl}/broker-login`;
 
       for (const broker of brokers) {
+        const password = generateSecurePassword();
         const assignedPolicies = Object.entries(broker.policies)
           .filter(([_, selected]) => selected)
           .map(([policy]) => {
@@ -192,20 +193,21 @@ export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }
           await sendEmail({
             to: broker.email,
             subject: `Insurance Broker Account Setup - ${subcontractor.company_name}`,
-            body: `Hello ${broker.name || ""},\n\nYou have been designated as the insurance broker for ${subcontractor.company_name}.\n\nAssigned Policies: ${assignedPolicies}\n\nLogin to your broker dashboard:\n${brokerLoginLink}\n\nYou can create your own password on first login and manage all COI requests through your dashboard.\n\nThank you.`
+            body: `Hello ${broker.name || ""},\n\nYou have been designated as the insurance broker for ${subcontractor.company_name}.\n\nAssigned Policies: ${assignedPolicies}\n\nLOGIN CREDENTIALS:\nEmail: ${broker.email}\nPassword: ${password}\nLogin URL: ${brokerLoginLink}\n\nYou can manage all COI requests through your dashboard. Change your password in account settings after logging in.\n\nThank you.`
           });
         } catch (emailErr) {
           console.error(`Failed to email ${broker.email}:`, emailErr);
         }
 
         try {
-          // Create broker user if doesn't exist (password will be set on first login)
+          // Create broker user with generated password
           const userCredentials = createUserCredentials(
             broker.email,
             broker.name || broker.email,
             'broker',
             {}
           );
+          userCredentials.password = password;
           await apiClient.entities.User.create(userCredentials);
         } catch (_userError) {
           // User may already exist - that's fine
