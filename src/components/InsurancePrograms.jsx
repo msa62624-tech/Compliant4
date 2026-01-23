@@ -1061,19 +1061,6 @@ export default function InsurancePrograms() {
                             <CardContent className="pt-2 space-y-3">
                               {requirements.filter(r => r.insurance_type === 'workers_compensation').map((req) => (
                                 <div key={req.id} className="border rounded p-2 bg-slate-50">
-                                  {/* Show applicable trades */}
-                                  {req.applicable_trades && req.applicable_trades.length > 0 && (
-                                    <div className="mb-2 pb-2 border-b">
-                                      <p className="text-xs text-slate-600 mb-1">Trades:</p>
-                                      <div className="flex flex-wrap gap-1">
-                                        {req.applicable_trades.map((trade) => (
-                                          <Badge key={trade} variant="secondary" className="text-xs">
-                                            {allTrades.find(t => t.value === trade)?.label || trade}
-                                          </Badge>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
                                   <div className="grid grid-cols-3 gap-2 text-sm">
                                     <div>
                                       <p className="text-xs text-slate-600">Each Accident</p>
@@ -1126,27 +1113,37 @@ export default function InsurancePrograms() {
                           {requirements.filter(r => r.insurance_type === 'auto_liability').length > 0 && (
                             <CardContent className="pt-2 space-y-3">
                               {requirements.filter(r => r.insurance_type === 'auto_liability').map((req) => (
-                                <div key={req.id} className="border rounded p-2 bg-slate-50 space-y-2">
-                                  {/* Show applicable trades */}
-                                  {req.applicable_trades && req.applicable_trades.length > 0 && (
-                                    <div className="pb-2 border-b">
-                                      <p className="text-xs text-slate-600 mb-1">Trades:</p>
-                                      <div className="flex flex-wrap gap-1">
-                                        {req.applicable_trades.map((trade) => (
-                                          <Badge key={trade} variant="secondary" className="text-xs">
-                                            {allTrades.find(t => t.value === trade)?.label || trade}
-                                          </Badge>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
+                                <div key={req.id} className="border rounded p-2 bg-slate-50 space-y-3">
                                   <div>
                                     <p className="text-xs text-slate-600">Combined Single Limit</p>
                                     <p className="font-semibold text-sm">${(req.auto_combined_single_limit || 0).toLocaleString()}</p>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <Checkbox id={`hnoa-${req.id}`} checked={!!req.auto_hired_non_owned_required} onCheckedChange={(checked) => setRequirements(prev => prev.map(r => r.id === req.id ? { ...r, auto_hired_non_owned_required: !!checked } : r))} />
-                                    <Label htmlFor={`hnoa-${req.id}`} className="text-xs cursor-pointer">Hired & Non-owned Required</Label>
+                                  <div className="space-y-2 border-t pt-2">
+                                    <p className="text-xs font-semibold text-slate-700">Coverage Type:</p>
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex items-center gap-2">
+                                        <input 
+                                          type="radio" 
+                                          id={`owned-${req.id}`} 
+                                          name={`auto-type-${req.id}`}
+                                          checked={req.auto_hired_non_owned_required === false}
+                                          onChange={() => setRequirements(prev => prev.map(r => r.id === req.id ? { ...r, auto_hired_non_owned_required: false } : r))}
+                                          className="w-4 h-4"
+                                        />
+                                        <Label htmlFor={`owned-${req.id}`} className="text-xs cursor-pointer">Owned Auto</Label>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <input 
+                                          type="radio" 
+                                          id={`hired-${req.id}`} 
+                                          name={`auto-type-${req.id}`}
+                                          checked={req.auto_hired_non_owned_required === true}
+                                          onChange={() => setRequirements(prev => prev.map(r => r.id === req.id ? { ...r, auto_hired_non_owned_required: true } : r))}
+                                          className="w-4 h-4"
+                                        />
+                                        <Label htmlFor={`hired-${req.id}`} className="text-xs cursor-pointer">Hired & Non-owned Auto</Label>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                               ))}
