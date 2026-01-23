@@ -61,7 +61,19 @@ const JWT_SECRET = (() => {
     
     // Generate new secret and persist it
     const newSecret = crypto.randomBytes(32).toString('hex');
-    fs.writeFileSync(JWT_SECRET_FILE, newSecret, { mode: 0o600 });
+    fs.writeFileSync(JWT_SECRET_FILE, newSecret);
+    
+    // Set restrictive file permissions on Unix-like systems
+    // Windows handles file permissions differently (ACLs), so we skip chmod there
+    try {
+      if (process.platform !== 'win32') {
+        fs.chmodSync(JWT_SECRET_FILE, 0o600);
+      }
+    } catch (chmodErr) {
+      // Non-critical: log warning but continue
+      console.warn('⚠️  Warning: Could not set file permissions:', chmodErr.message);
+    }
+    
     console.log('✅ Generated new JWT_SECRET and saved to file (development mode)');
     console.warn('⚠️  WARNING: For production, set JWT_SECRET environment variable!');
     return newSecret;
