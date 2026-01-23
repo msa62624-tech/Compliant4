@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { compliant } from "@/api/compliantClient";
+import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { notifySubAddedToProject } from "@/brokerNotifications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +33,7 @@ export default function GCProjectView() {
   const { data: project, isLoading: projectLoading, error: projectError } = useQuery({
     queryKey: ["gc-project", projectId],
     queryFn: async () => {
-      const allProjects = await compliant.entities.Project.list();
+      const allProjects = await apiClient.entities.Project.list();
       const found = allProjects.find((p) => p.id === projectId);
       if (!found) throw new Error("Project not found");
       if (gcId && found.gc_id !== gcId) throw new Error("This project is not assigned to your account");
@@ -46,7 +46,7 @@ export default function GCProjectView() {
   const { data: subs = [], isLoading: subsLoading } = useQuery({
     queryKey: ["gc-project-subs", projectId],
     queryFn: async () => {
-      const allSubs = await compliant.entities.ProjectSubcontractor.list();
+      const allSubs = await apiClient.entities.ProjectSubcontractor.list();
       return allSubs.filter((ps) => ps.project_id === projectId && ps.status !== 'archived');
     },
     enabled: !!projectId,
@@ -57,7 +57,7 @@ export default function GCProjectView() {
   const { data: projectCois = [] } = useQuery({
     queryKey: ["gc-project-cois", projectId],
     queryFn: async () => {
-      const allCois = await compliant.entities.GeneratedCOI.list();
+      const allCois = await apiClient.entities.GeneratedCOI.list();
       return allCois.filter((c) => c.project_id === projectId);
     },
     enabled: !!projectId,
@@ -68,7 +68,7 @@ export default function GCProjectView() {
   const { data: allSubcontractors = [] } = useQuery({
     queryKey: ["all-subs-for-typeahead"],
     queryFn: async () => {
-      const all = await compliant.entities.Contractor.list();
+      const all = await apiClient.entities.Contractor.list();
       return all.filter((c) => c.contractor_type === "subcontractor");
     },
     retry: 1,
@@ -87,14 +87,14 @@ export default function GCProjectView() {
       }
 
       // No auth check needed - GC portal uses public access mode
-      const allSubs = await compliant.entities.Contractor.list();
+      const allSubs = await apiClient.entities.Contractor.list();
       const existing = allSubs.find(
         (s) => s.company_name?.toLowerCase() === form.subcontractor_name.toLowerCase()
       );
       let subcontractorId = existing?.id;
 
       if (!existing) {
-        const created = await compliant.entities.Contractor.create({
+        const created = await apiClient.entities.Contractor.create({
           company_name: form.subcontractor_name,
           contact_person: form.subcontractor_name,
           email: contactEmail,
@@ -105,14 +105,14 @@ export default function GCProjectView() {
         subcontractorId = created.id;
       } else {
         const trades = new Set([...(existing.trade_types || []), form.trade]);
-        await compliant.entities.Contractor.update(existing.id, {
+        await apiClient.entities.Contractor.update(existing.id, {
           email: contactEmail,
           trade_types: Array.from(trades),
         });
         subcontractorId = existing.id;
       }
 
-      return compliant.entities.ProjectSubcontractor.create({
+      return apiClient.entities.ProjectSubcontractor.create({
         project_id: project.id,
         project_name: project.project_name,
         gc_id: project.gc_id,
@@ -127,7 +127,7 @@ export default function GCProjectView() {
       queryClient.invalidateQueries(["gc-project-subs", projectId]);
       try {
         // Fetch the FULL subcontractor record with all fields including broker_email
-        const allContractors = await compliant.entities.Contractor.list();
+        const allContractors = await apiClient.entities.Contractor.list();
         const subcontractor = allContractors.find(c => c.id === created.subcontractor_id) || {
           id: created.subcontractor_id,
           company_name: created.subcontractor_name || form.subcontractor_name,
@@ -135,7 +135,7 @@ export default function GCProjectView() {
           trade_types: [created.trade_type || form.trade],
         };
         
-        const projectList = await compliant.entities.Project.filter({ id: created.project_id });
+        const projectList = await apiClient.entities.Project.filter({ id: created.project_id });
         const projectData = Array.isArray(projectList) && projectList.length > 0 ? projectList[0] : {
           id: created.project_id,
           project_name: project?.project_name,
@@ -146,12 +146,12 @@ export default function GCProjectView() {
 
         // Ensure subcontractor portal exists so the email link works
         const subDashboardLink = `${window.location.origin}/subcontractor-dashboard?id=${subcontractor.id}`;
-        const existingSubPortals = await compliant.entities.Portal.filter({
+        const existingSubPortals = await apiClient.entities.Portal.filter({
           user_id: subcontractor.id,
           user_type: "subcontractor",
         });
         if (existingSubPortals.length === 0) {
-          await compliant.entities.Portal.create({
+          await apiClient.entities.Portal.create({
             user_type: "subcontractor",
             user_id: subcontractor.id,
             user_email: contactEmail || subcontractor.email,
@@ -168,7 +168,7 @@ export default function GCProjectView() {
         }
 
         // Ensure a certificate request exists so the broker sees it
-        const existingCOIs = await compliant.entities.GeneratedCOI.filter({ project_id: projectData.id, subcontractor_id: subcontractor.id });
+        const existingCOIs = await apiClient.entities.GeneratedCOI.filter({ project_id: projectData.id, subcontractor_id: subcontractor.id });
         let coiTokenForEmail = existingCOIs && existingCOIs[0] ? existingCOIs[0].coi_token : null;
         if (!existingCOIs || existingCOIs.length === 0) {
           // Generate secure COI token using crypto
@@ -191,7 +191,7 @@ export default function GCProjectView() {
               : []);
           additionalInsuredList.push(...extraAIs);
           
-          await compliant.entities.GeneratedCOI.create({
+          await apiClient.entities.GeneratedCOI.create({
             project_id: projectData.id,
             project_name: projectData.project_name,
             gc_id: projectData.gc_id,
@@ -240,10 +240,10 @@ export default function GCProjectView() {
           
           // Store password for login
           try {
-            const contractors = await compliant.entities.Contractor.list();
+            const contractors = await apiClient.entities.Contractor.list();
             const existing = contractors.find(c => c.id === subcontractor.id);
             if (existing) {
-              await compliant.entities.Contractor.update(subcontractor.id, {
+              await apiClient.entities.Contractor.update(subcontractor.id, {
                 password: password
               });
             }
@@ -274,7 +274,7 @@ export default function GCProjectView() {
       if (!coi) throw new Error("COI not found");
 
       // Update COI with GC signature status
-      await compliant.entities.GeneratedCOI.update(coiId, {
+      await apiClient.entities.GeneratedCOI.update(coiId, {
         hold_harmless_status: 'signed',
         hold_harmless_gc_signed_date: new Date().toISOString()
       });
