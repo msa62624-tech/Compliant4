@@ -27,12 +27,21 @@ const envUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.
 const computedCodespacesUrl = (() => {
   if (typeof window === 'undefined') return null;
   const { protocol, host } = window.location;
-  // Codespaces host example: something-5175.app.github.dev → switch to -3001
-  // Match pattern: (prefix)-(port).app.github.dev and replace port with 3001
-  const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-  if (m) {
-    return `${protocol}//${m[1]}-3001${m[3]}`;
+  
+  // Codespaces URL patterns:
+  // Pattern 1: something-5175.app.github.dev (with port in subdomain)
+  const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+  if (withPortMatch) {
+    return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
   }
+  
+  // Pattern 2: something.github.dev (without port - default Codespaces format)
+  // Only match if it's .github.dev but NOT .app.github.dev (already handled above)
+  if (host.endsWith('.github.dev') && !host.endsWith('.app.github.dev')) {
+    // Replace .github.dev with -3001.app.github.dev (only at the end)
+    return `${protocol}//${host.replace(/\.github\.dev$/, '-3001.app.github.dev')}`;
+  }
+  
   // Fallback: replace :5175 or :5176 with :3001 if present (for localhost-style URLs)
   const { origin } = window.location;
   if (origin.includes(':5175')) return origin.replace(':5175', ':3001');

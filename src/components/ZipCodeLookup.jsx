@@ -12,9 +12,14 @@ export default function ZipCodeLookup({ value, onChange, onCityStateFound }) {
       // Check if we have a valid 5-digit ZIP code base
       if (zipBase && zipBase.length === 5 && !isLooking) {
         setIsLooking(true);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
         try {
-          // Use free Zippopotam API for ZIP code lookup
-          const response = await fetch(`https://api.zippopotam.us/us/${zipBase}`);
+          // Use free Zippopotam API for ZIP code lookup with timeout
+          const response = await fetch(`https://api.zippopotam.us/us/${zipBase}`, {
+            signal: controller.signal
+          });
           
           if (response.ok) {
             const data = await response.json();
@@ -29,8 +34,15 @@ export default function ZipCodeLookup({ value, onChange, onCityStateFound }) {
             }
           }
         } catch (error) {
-          console.error('Error looking up ZIP code:', error);
+          // Silently fail - ZIP code lookup is optional convenience feature
+          // Log for debugging but don't show error to user
+          if (error.name === 'AbortError') {
+            console.warn('⏱️ ZIP code lookup timed out (network may be restricted)');
+          } else {
+            console.error('Error looking up ZIP code:', error);
+          }
         } finally {
+          clearTimeout(timeoutId); // Always clear timeout, whether successful or not
           setIsLooking(false);
         }
       }

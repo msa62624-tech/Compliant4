@@ -47,6 +47,12 @@ const US_STATES = [
   { code: 'WI', name: 'Wisconsin' }, { code: 'WY', name: 'Wyoming' }
 ];
 
+// Helper function to check if error is network-related
+const isNetworkError = (err) => {
+  const networkPatterns = ['Network', 'Failed to fetch', 'Load failed'];
+  return networkPatterns.some(pattern => err.message?.includes(pattern)) || err.name === 'TypeError';
+};
+
 export default function Contractors() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -544,13 +550,14 @@ InsureTrack Team`
           `Technical details: ${error.message}`;
       } else if (error.message.includes('Unauthorized')) {
         errorMessage = `❌ Authentication Error: Please log in again.\n\n${error.message}`;
-      } else if (error.message.includes('Network') || error.message.includes('Failed to fetch')) {
+      } else if (isNetworkError(error)) {
         errorMessage = `❌ Network Error: Cannot connect to backend.\n\n` +
           `Please ensure:\n` +
-          `1. Backend server is running (http://localhost:3001)\n` +
-          `2. VITE_API_BASE_URL is configured correctly in .env file\n` +
-          `3. There are no firewall or CORS issues\n\n` +
-          `Technical details: ${error.message}`;
+          `1. Backend server is running\n` +
+          `2. Backend URL is correctly configured\n` +
+          `3. No firewall or CORS issues blocking the connection\n\n` +
+          `For Codespaces: Ensure port 3001 is forwarded and set to public visibility.\n\n` +
+          `Technical details: ${error.message || error.toString()}`;
       }
       
       alert(errorMessage);
