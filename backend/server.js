@@ -72,6 +72,10 @@ const JWT_SECRET = (() => {
   }
 })();
 
+// Dummy password hash for timing attack prevention in login endpoints
+// Used when user not found or has no password to ensure bcrypt comparison takes consistent time
+const DUMMY_PASSWORD_HASH = '$2a$10$dummyhashdummyhashdummyhashdummyhashdummyhashdummyhashdummy';
+
 // Basic file path helpers used by upload/extraction flows
 function validateAndSanitizeFilename(name) {
   if (!name || typeof name !== 'string') throw new Error('Invalid filename');

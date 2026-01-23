@@ -127,7 +127,10 @@ function Sidebar({ onLogout }) {
 export default function Pages({ onLogout }) {
   const [isGCPublicSession, setIsGCPublicSession] = useState(() => {
     if (typeof window === 'undefined') return false
-    const isGC = window.location.pathname.startsWith('/gc-dashboard') || sessionStorage.getItem('gcPublicSession') === 'true'
+    const isGC = window.location.pathname.startsWith('/gc-dashboard') || 
+                 window.location.pathname.startsWith('/gc-login') ||
+                 window.location.pathname.startsWith('/gc-project') ||
+                 sessionStorage.getItem('gcPublicSession') === 'true'
     return isGC;
   })
 
@@ -237,20 +240,15 @@ export default function Pages({ onLogout }) {
         return
       }
 
-      if (isAuthenticated) {
-        // Only set session storage if not already set (avoid redundant operations)
-        if (!sessionStorage.getItem('gcPublicSession')) {
-          sessionStorage.setItem('gcPublicSession', 'true')
-        }
-        if (gcId && !sessionStorage.getItem('gcPortalId')) {
-          sessionStorage.setItem('gcPortalId', gcId)
-        }
-
-        // Do NOT clear existing token; keep session for API access
-        setIsGCPublicSession(true)
-      } else {
-        setIsGCPublicSession(false)
+      // Always set GC session if on any GC route (login or dashboard)
+      // Login page should render even without authentication
+      if (!sessionStorage.getItem('gcPublicSession')) {
+        sessionStorage.setItem('gcPublicSession', 'true')
       }
+      if (gcId && !sessionStorage.getItem('gcPortalId')) {
+        sessionStorage.setItem('gcPortalId', gcId)
+      }
+      setIsGCPublicSession(true)
     }
   }, [isGCRoute])
 
