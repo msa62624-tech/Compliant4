@@ -86,6 +86,8 @@ Separate test that verifies:
 ## Test Results
 
 ### All Tests Passing ✅
+
+**Admin Interface Tests:**
 ```
 Running 3 tests using 2 workers
 
@@ -95,6 +97,31 @@ Running 3 tests using 2 workers
 
 3 passed (22.8s)
 ```
+
+**Public Portals Tests:** ⭐ **NEW - VERIFIED**
+```
+Running 9 tests using 1 worker
+
+✓ Public Portals E2E Tests › GC Portal - Login and Dashboard Access (15.4s)
+✓ Public Portals E2E Tests › GC Portal - Dashboard direct access (14.0s)
+✓ Public Portals E2E Tests › Broker Portal - Login and Dashboard Access (2.3s)
+✓ Public Portals E2E Tests › Broker Portal - Dashboard direct access (3.3s)
+✓ Public Portals E2E Tests › Broker Portal - Upload COI page accessibility (2.2s)
+✓ Public Portals E2E Tests › Subcontractor Portal - Dashboard Access (1.9s)
+✓ Public Portals E2E Tests › Subcontractor Portal - Dashboard with ID parameter (2.0s)
+✓ Public Portals E2E Tests › Subcontractor Portal - Broker Verification page (2.0s)
+✓ Public Portals E2E Tests › Portal Navigation - Verify all portal URLs (12.5s)
+
+9 passed (56.5s)
+```
+
+### Portal Test Screenshots
+
+**Broker Portal Login Page:**
+![Broker Portal Login](https://github.com/user-attachments/assets/51ddcac1-29e4-4d7c-ab0f-7ce4cdefc585)
+
+**Subcontractor Portal Access:**
+![Subcontractor Portal](https://github.com/user-attachments/assets/c0212f1f-c793-4a93-a078-420d41734865)
 
 ## Technical Highlights
 
