@@ -251,6 +251,46 @@ export default function Contractors() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    console.log('📝 Form submission started');
+    console.log('Form data:', {
+      company_name: formData.company_name,
+      email: formData.email,
+      phone: formData.phone,
+      mailing_address: formData.mailing_address,
+      mailing_city: formData.mailing_city,
+      mailing_state: formData.mailing_state,
+      mailing_zip_code: formData.mailing_zip_code,
+    });
+    
+    // Validate required fields
+    if (!formData.company_name?.trim()) {
+      alert('⚠️ Company name is required');
+      return;
+    }
+    if (!formData.contact_person?.trim()) {
+      alert('⚠️ Primary contact person is required');
+      return;
+    }
+    if (!formData.email?.trim()) {
+      alert('⚠️ Email is required');
+      return;
+    }
+    if (!formData.phone?.trim()) {
+      alert('⚠️ Phone number is required');
+      return;
+    }
+    if (!formData.mailing_address?.trim()) {
+      alert('⚠️ Street address is required');
+      return;
+    }
+    // More lenient address validation - only warn if address looks incomplete
+    if (!formData.mailing_city && !formData.mailing_state && !formData.mailing_zip_code) {
+      const confirmSubmit = window.confirm(
+        '⚠️ Address appears incomplete (no city, state, or ZIP code).\n\nDo you want to submit anyway?'
+      );
+      if (!confirmSubmit) return;
+    }
+    
     // Sync address fields - support both naming conventions (mailing_* and standard)
     const data = {
       ...formData,
@@ -289,7 +329,7 @@ export default function Contractors() {
         let emailSent = false;
         
         try {
-          const createdPortal = await compliant.entities.Portal.create({
+          const portalPayload = {
             user_type: 'gc',
             user_id: newGC.id,
             user_name: data.company_name,
@@ -300,6 +340,22 @@ export default function Contractors() {
             status: 'active',
             welcome_email_sent: false,
             welcome_email_sent_date: null
+          };
+          
+          console.log('📝 Creating Portal for GC:', {
+            ...portalPayload,
+            access_token: portalToken.substring(0, 10) + '...' // Only show first 10 chars for security
+          });
+          
+          console.log('🔄 Attempting Portal creation with payload:', {
+            ...portalPayload,
+            access_token: portalToken.substring(0, 10) + '...'
+          });
+          const createdPortal = await compliant.entities.Portal.create(portalPayload);
+          console.log('✅ Portal created successfully:', {
+            id: createdPortal.id,
+            user_type: createdPortal.user_type,
+            user_email: createdPortal.user_email
           });
           portalCreated = true;
           
@@ -330,7 +386,19 @@ export default function Contractors() {
           }
         } catch (portalError) {
           console.error('❌ Failed to create portal:', portalError);
+          console.error('Portal error details:', {
+            name: portalError.name,
+            message: portalError.message,
+            status: portalError.status,
+            response: portalError.response,
+            stack: portalError.stack
+          });
+          console.error('Full error object:', JSON.stringify(portalError, Object.getOwnPropertyNames(portalError)));
           portalCreated = false;
+          // Show user-friendly error with more details
+          const errorMsg = portalError.message || 'Unknown error';
+          const statusInfo = portalError.status ? ` (HTTP ${portalError.status})` : '';
+          alert(`⚠️ GC created but portal setup failed${statusInfo}: ${errorMsg}\n\nCheck browser console for details. You may need to resend the welcome email.`);
         }
         
         // Create portals and send emails for additional contacts
@@ -1114,6 +1182,12 @@ InsureTrack Team`
                   type="submit"
                   className="bg-red-600 hover:bg-red-700"
                   disabled={createContractorMutation.isPending || updateContractorMutation.isPending}
+                  onClick={() => console.log('🖱️ Submit button clicked', {
+                    isPending: createContractorMutation.isPending || updateContractorMutation.isPending,
+                    hasCompanyName: !!formData.company_name,
+                    hasEmail: !!formData.email,
+                    hasAddress: !!formData.mailing_address
+                  })}
                 >
                   {editingContractor ? 'Update' : 'Add'} General Contractor
                 </Button>

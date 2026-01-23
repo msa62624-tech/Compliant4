@@ -3,12 +3,14 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
-export default function AddressAutocomplete({ value, onChange, onAddressSelect, placeholder = "Start typing address..." }) {
+export default function AddressAutocomplete({ value, onChange, onAddressSelect, placeholder = "Start typing address...", required }) {
   const inputRef = useRef(null);
   const autocompleteRef = useRef(null);
   const [error, setError] = useState(null);
   const [apiFailed, setApiFailed] = useState(false);
   const initializeAttemptRef = useRef(0);
+  const [manualMode, setManualMode] = useState(false);
+  const [selectedFromAutocomplete, setSelectedFromAutocomplete] = useState(false);
 
   useEffect(() => {
     // Ensure Google Maps API script is loaded
@@ -78,7 +80,7 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
         const place = autocompleteRef.current.getPlace();
 
         if (!place.address_components) {
-          setError("Could not parse address. Please try again.");
+          setError("Could not parse address. You can still enter it manually.");
           return;
         }
 
@@ -91,6 +93,8 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
 
         let streetNumber = '';
         let route = '';
+        let premise = ''; // For building/suite numbers
+        let subpremise = ''; // For apt/unit numbers
 
         place.address_components.forEach((component) => {
           const types = component.types;
@@ -100,6 +104,12 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
           }
           if (types.includes('route')) {
             route = component.long_name;
+          }
+          if (types.includes('premise')) {
+            premise = component.long_name;
+          }
+          if (types.includes('subpremise')) {
+            subpremise = component.long_name;
           }
           if (types.includes('locality')) {
             addressData.city = component.long_name;
@@ -112,9 +122,14 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
           }
         });
 
-        addressData.address = `${streetNumber} ${route}`.trim();
+        // Build address from available components
+        // Support addresses with or without street numbers - be very flexible
+        const addressParts = [streetNumber, route, premise, subpremise].filter(Boolean);
+        addressData.address = addressParts.join(' ').trim() || place.formatted_address?.split(',')[0]?.trim() || '';
 
-        if (addressData.state && addressData.city) {
+        // VERY lenient validation - accept any address as long as we got something
+        if (addressData.address || addressData.city || addressData.state) {
+          setSelectedFromAutocomplete(true);
           if (onAddressSelect) {
             onAddressSelect(addressData);
           }
@@ -122,8 +137,16 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
             onChange(addressData.address);
           }
           setError(null);
+          // Reset the autocomplete flag after a short delay to allow continued editing
+          setTimeout(() => {
+            setSelectedFromAutocomplete(false);
+            if (inputRef.current) {
+              // Re-enable the input and allow further typing
+              inputRef.current.disabled = false;
+            }
+          }, 100);
         } else {
-          setError("Address missing state or city. Please select a complete address.");
+          setError("Address incomplete. Please adjust or enter manually.");
         }
       });
 
@@ -139,10 +162,38 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
         <Input
           ref={inputRef}
           value={value}
-          onChange={(e) => onChange && onChange(e.target.value)}
+          onChange={(e) => {
+            const newValue = e.target.value;
+            if (onChange) {
+              onChange(newValue);
+            }
+            // Clear autocomplete selection flag when user types manually
+            if (selectedFromAutocomplete) {
+              setSelectedFromAutocomplete(false);
+            }
+            setManualMode(true);
+          }}
+          onFocus={() => {
+            setManualMode(false);
+            // Reset selection flag on focus to allow fresh autocomplete
+            setSelectedFromAutocomplete(false);
+          }}
+          onKeyDown={(e) => {
+            // Clear autocomplete selection flag to allow manual editing
+            if (selectedFromAutocomplete) {
+              setSelectedFromAutocomplete(false);
+            }
+          }}
+          onInput={(e) => {
+            // Ensure value updates happen regardless of autocomplete state
+            if (onChange && e.target.value !== value) {
+              onChange(e.target.value);
+            }
+          }}
           placeholder={placeholder}
           className={`${error ? 'border-amber-300' : ''} pac-target-input`}
           autoComplete="off"
+          required={required}
         />
       </div>
       {error && (
