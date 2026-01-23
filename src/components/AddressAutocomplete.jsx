@@ -13,23 +13,28 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
   const [selectedFromAutocomplete, setSelectedFromAutocomplete] = useState(false);
 
   useEffect(() => {
-    // Ensure Google Maps API script is loaded
+    // Ensure Google Maps API script is loaded with proper async callback
     if (!window.google?.maps?.places) {
       const loadGoogleMapsScript = () => {
         if (document.getElementById('google-maps-script')) {
           return; // Script already loading/loaded
         }
         
+        // Set up callback for async loading
+        window.initGoogleMaps = () => {
+          console.log('✅ Google Maps loaded successfully');
+          if (inputRef.current) {
+            initializeAutocomplete();
+          }
+        };
+        
         const script = document.createElement('script');
         script.id = 'google-maps-script';
-        script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyBBbK2wSmVFPtU5eScUh9RBz-gE7Qx4Sws&libraries=places';
+        script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyBBbK2wSmVFPtU5eScUh9RBz-gE7Qx4Sws&libraries=places&callback=initGoogleMaps&loading=async';
         script.async = true;
         script.defer = true;
         script.onerror = () => {
-          setApiFailed(true);
-          setError("Address autocomplete unavailable. Enter address manually.");
-        };
-        window.gapi_error = () => {
+          console.warn('⚠️ Google Maps failed to load - using manual entry mode');
           setApiFailed(true);
           setError("Address autocomplete unavailable. Enter address manually.");
         };
@@ -37,31 +42,34 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
       };
 
       loadGoogleMapsScript();
+    } else {
+      // Google Maps already loaded
+      if (inputRef.current) {
+        initializeAutocomplete();
+      }
     }
 
-    // Wait for Google Maps to be available
-    const attemptInit = () => {
-      if (window.google?.maps?.places && inputRef.current) {
-        initializeAutocomplete();
-        return true;
-      }
-      return false;
-    };
-
-    if (attemptInit()) return;
-
-    // Poll for availability
+    // Fallback: Poll for availability if callback doesn't work
     const checkInterval = setInterval(() => {
       initializeAttemptRef.current++;
-      if (attemptInit()) {
+      if (window.google?.maps?.places && inputRef.current && !autocompleteRef.current) {
+        initializeAutocomplete();
         clearInterval(checkInterval);
       }
-      if (initializeAttemptRef.current > 50) {
-        clearInterval(checkInterval); // Stop after 5 seconds
+      if (initializeAttemptRef.current > 30) {
+        // After 3 seconds, give up and allow manual entry
+        console.warn('⚠️ Google Maps autocomplete unavailable - manual entry mode');
+        setApiFailed(true);
+        clearInterval(checkInterval);
       }
     }, 100);
 
-    return () => clearInterval(checkInterval);
+    return () => {
+      clearInterval(checkInterval);
+      if (window.initGoogleMaps) {
+        delete window.initGoogleMaps;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -69,12 +77,31 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
     if (!inputRef.current || !window.google?.maps?.places || autocompleteRef.current) return;
 
     try {
+      console.log('🔧 Initializing Google Maps autocomplete...');
+      
       // Initialize autocomplete with options for all 50 states
       autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
         componentRestrictions: { country: 'us' },
         fields: ['address_components', 'formatted_address', 'geometry'],
         types: ['address'],
       });
+
+      // CRITICAL: Prevent Google Maps from blocking input after selection
+      const input = inputRef.current;
+      input.setAttribute('autocomplete', 'new-password'); // Prevent browser autocomplete conflict
+      
+      // Allow Enter key without blocking
+      const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+          const dropdown = document.querySelector('.pac-container');
+          if (!dropdown || dropdown.style.display === 'none') {
+            // No dropdown visible - allow form submission
+            return;
+          }
+          e.preventDefault(); // Prevent form submission only if dropdown is open
+        }
+      };
+      input.addEventListener('keydown', handleKeyDown);
 
       autocompleteRef.current.addListener('place_changed', () => {
         const place = autocompleteRef.current.getPlace();
@@ -137,21 +164,17 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
             onChange(addressData.address);
           }
           setError(null);
-          // Reset the autocomplete flag after a short delay to allow continued editing
-          setTimeout(() => {
-            setSelectedFromAutocomplete(false);
-            if (inputRef.current) {
-              // Re-enable the input and allow further typing
-              inputRef.current.disabled = false;
-            }
-          }, 100);
+          // Reset the autocomplete flag immediately to allow continued editing
+          setSelectedFromAutocomplete(false);
         } else {
           setError("Address incomplete. Please adjust or enter manually.");
         }
       });
 
+      console.log('✅ Google Maps autocomplete initialized successfully');
     } catch (err) {
-      console.error('Autocomplete initialization error:', err);
+      console.error('❌ Autocomplete initialization error:', err);
+      setApiFailed(true);
       setError("Address lookup unavailable. Please enter manually.");
     }
   };
@@ -193,6 +216,8 @@ export default function AddressAutocomplete({ value, onChange, onAddressSelect, 
           placeholder={placeholder}
           className={`${error ? 'border-amber-300' : ''} pac-target-input`}
           autoComplete="off"
+          data-form-type="other"
+          spellCheck="false"
           required={required}
         />
       </div>

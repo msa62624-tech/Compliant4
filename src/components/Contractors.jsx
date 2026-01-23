@@ -1039,25 +1039,23 @@ InsureTrack Team`
                   <div className="grid md:grid-cols-4 gap-4">
                     <div className="space-y-2 md:col-span-2">
                       <Label htmlFor="mailing_city">
-                        City <span className="text-red-500">*</span>
+                        City
                       </Label>
                       <Input
                         id="mailing_city"
                         value={formData.mailing_city}
                         onChange={(e) => setFormData({ ...formData, mailing_city: e.target.value })}
                         placeholder="City"
-                        required
                       />
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="mailing_state">
-                        State <span className="text-red-500">*</span>
+                        State
                       </Label>
                       <Select
                         value={formData.mailing_state}
                         onValueChange={(value) => setFormData({ ...formData, mailing_state: value })}
-                        required
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="State" />
@@ -1074,13 +1072,12 @@ InsureTrack Team`
 
                     <div className="space-y-2">
                       <Label htmlFor="mailing_zip_code">
-                        ZIP Code <span className="text-red-500">*</span>
+                        ZIP Code
                       </Label>
                       <ZipCodeLookup
                         value={formData.mailing_zip_code}
                         onChange={(value) => setFormData({ ...formData, mailing_zip_code: value })}
                         onCityStateFound={handleZipCityStateFound}
-                        required
                       />
                     </div>
                   </div>
