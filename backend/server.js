@@ -1411,35 +1411,16 @@ app.use('/entities/', apiLimiter);
 app.use('/auth/login', authLimiter);
 
 // CORS configuration with environment-aware origin validation
+// CORS: reflect requesting origin to allow Codespaces and credentials
 const corsOptions = {
-  // Echo back the requesting origin (needed for credentials)
-  origin: (origin, callback) => {
-    console.log('🔍 CORS Request from origin:', origin);
-    // Allow no-origin (curl/mobile) and any HTTPS/HTTP origin in dev
-    if (!origin || process.env.NODE_ENV !== 'production') return callback(null, origin || true);
-    try {
-      const parsed = new URL(origin);
-      if (parsed.hostname.endsWith('.app.github.dev') || parsed.hostname.endsWith('.github.dev')) {
-        return callback(null, origin);
-      }
-      if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
-        return callback(null, origin);
-      }
-    } catch (e) {
-      console.log('❌ CORS parse error');
-      return callback(new Error('CORS not allowed'));
-    }
-    console.log('❌ CORS Blocked');
-    return callback(new Error('CORS not allowed'));
-  },
+  origin: true, // reflect origin
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 3600
+  maxAge: 86400
 };
 
 app.use(cors(corsOptions));
-// Preflight
 app.options('*', cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
