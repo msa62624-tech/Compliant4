@@ -136,6 +136,35 @@ Best regards,
 InsureTrack System`,
     });
 
+    // Also send reply/upload links (public upload-endorsement endpoint) so broker can attach endorsements
+    try {
+      const backendBase = baseUrl.replace(':5175', ':3001').replace(':5176', ':3001');
+      const replyLink = `mailto:${subcontractor.broker_email}`;
+      const uploadEndorsementLink = `${backendBase}/public/upload-endorsement?coi_token=${coi.coi_token}`;
+      const uploadEndorsementRegenLink = `${uploadEndorsementLink}&regen_coi=true`;
+
+      await sendEmail({
+        to: subcontractor.broker_email,
+        subject: `⚠️ Action Required: Upload Endorsement or Reply - ${subcontractor.company_name}`,
+        body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
+
+You can reply to this message or upload endorsement documents using the links below.
+
+Reply by email: ${replyLink}
+Upload endorsement (no auth): ${uploadEndorsementLink}
+Upload & regenerate COI: ${uploadEndorsementRegenLink}
+
+When you upload the endorsement, the system will attempt to read the endorsement, save the extracted fields, and (optionally) regenerate the COI PDF for the project.
+
+If you prefer to attach files directly to your reply, please send them to the email above or use the upload link to include attachments and trigger regeneration.
+
+Thank you,
+InsureTrack System`
+      });
+    } catch (err) {
+      console.warn('Error sending broker reply/upload links email:', err?.message || err);
+    }
+
     // Create notification record for sub
     try {
       await apiClient.entities.Message.create({
@@ -216,6 +245,15 @@ export async function notifyCOIDeficiencies(coi, subcontractor, project, deficie
     // Notify broker of deficiencies with upload options
     await sendEmail({
       to: subcontractor.broker_email,
+      includeSampleCOI: true,
+      sampleCOIData: {
+        project_name: project?.project_name,
+        gc_name: project?.gc_name,
+        gc_owner: project?.gc_owner || project?.gc_owner_name,
+        trade: coi?.trade_types?.join(', ') || coi?.trade_type || subcontractor.trade_types?.join(', '),
+        program: project?.program_name || project?.program_id,
+        additional_insureds: project?.additional_insureds || [project?.gc_name]
+      },
       subject: `⚠️ COI Corrections Needed - ${subcontractor.company_name} (${project.project_name})`,
       body: `The Certificate of Insurance you submitted for ${subcontractor.company_name} requires corrections before approval.
 
@@ -326,6 +364,15 @@ export async function notifyBrokerCOIReview(coi, subcontractor, project) {
   try {
     await sendEmail({
       to: subcontractor.broker_email,
+      includeSampleCOI: true,
+      sampleCOIData: {
+        project_name: project?.project_name,
+        gc_name: project?.gc_name,
+        gc_owner: project?.gc_owner || project?.gc_owner_name,
+        trade: coi?.trade_types?.join(', ') || coi?.trade_type || subcontractor.trade_types?.join(', '),
+        program: project?.program_name || project?.program_id,
+        additional_insureds: project?.additional_insureds || [project?.gc_name]
+      },
       subject: `📋 Certificate Ready for Review & Signature: ${subcontractor.company_name}`,
       body: `A Certificate of Insurance is ready for your review and signature.
 

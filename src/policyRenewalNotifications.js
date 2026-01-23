@@ -87,6 +87,13 @@ export async function notifyBrokerPolicyRenewal(subcontractor, oldPolicy, newPol
   try {
     await sendEmail({
       to: subcontractor.broker_email,
+      includeSampleCOI: true,
+      sampleCOIData: {
+        project_name: project?.project_name,
+        gc_name: project?.gc_name,
+        trade: newPolicy.insurance_type,
+        program: project?.program_name || project?.program_id
+      },
       subject: `Policy Renewal - Action Required: ${newPolicy.insurance_type.replace(/_/g, ' ')} for ${subcontractor.company_name}`,
       body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
 

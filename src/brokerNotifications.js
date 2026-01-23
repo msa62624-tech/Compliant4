@@ -25,6 +25,12 @@ export async function notifyBrokerAssignment(subcontractor, oldBrokerEmail = nul
       
       await sendEmail({
         to: subcontractor.broker_email,
+        includeSampleCOI: true,
+        sampleCOIData: {
+          trade: subcontractor.trade_types?.join(', '),
+          program: subcontractor.program_name || subcontractor.program_id,
+          additional_insureds: [subcontractor.broker_name || subcontractor.company_name]
+        },
         subject: `New Subcontractor Assignment - ${subcontractor.company_name}`,
         body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
 
@@ -96,6 +102,11 @@ InsureTrack System`
     try {
       await sendEmail({
         to: oldBrokerEmail,
+        includeSampleCOI: true,
+        sampleCOIData: {
+          trade: subcontractor.trade_types?.join(', '),
+          program: subcontractor.program_name || subcontractor.program_id,
+        },
         subject: `Broker Reassignment - ${subcontractor.company_name}`,
         body: `Dear Insurance Broker,
 
@@ -504,6 +515,13 @@ export async function notifyBrokerCOIPending(coi, subcontractor, project) {
       const signLink = coi?.coi_token ? `${baseUrl}/broker-upload-coi?token=${coi.coi_token}&action=sign&step=3` : brokerDashboardLink;
       await sendEmail({
         to: subcontractor.broker_email,
+        includeSampleCOI: true,
+        sampleCOIData: {
+          project_name: project?.project_name,
+          gc_name: project?.gc_name,
+          trade: coi?.trade_types?.join(', ') || subcontractor.trade_types?.join(', '),
+          program: project?.program_name || project?.program_id
+        },
         subject: `COI Approval Required - ${subcontractor.company_name}`,
         body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
 

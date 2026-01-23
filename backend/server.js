@@ -3,6 +3,7 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import pdfParse from 'pdf-parse';
 import nodemailer from 'nodemailer';
+import PDFDocument from 'pdfkit';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
@@ -2263,7 +2264,7 @@ app.post('/integrations/invoke-llm', authenticateToken, (req, res) => {
 
 // Public email endpoint - no authentication required (for broker portal)
 app.post('/public/send-email', emailLimiter, async (req, res) => {
-  const { to, subject, body, html, cc, bcc, from, replyTo } = req.body || {};
+  const { to, subject, body, html, cc, bcc, from, replyTo, attachments: incomingAttachments, includeSampleCOI, sampleCOIData } = req.body || {};
   if (!to || !subject || (!body && !html)) {
     return res.status(400).json({ error: 'Missing required fields: to, subject, body/html' });
   }
@@ -2293,6 +2294,129 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
   const rejectUnauthorized = parseBool(rejectUnauthorizedEnv, true);
 
   try {
+    // Helper: create an ACORD-style sample COI PDF buffer based on provided data
+    const generateSampleCOIPDF = (data = {}) => {
+      return new Promise((resolve, reject) => {
+        try {
+          const doc = new PDFDocument({ size: 'LETTER', margin: 36 });
+          const chunks = [];
+          doc.on('data', (c) => chunks.push(c));
+          doc.on('end', () => resolve(Buffer.concat(chunks)));
+
+          // Header - ACORD style
+          doc.fontSize(18).font('Helvetica-Bold').text('ACORD CERTIFICATE OF LIABILITY INSURANCE', { align: 'center' });
+          doc.moveDown(0.5);
+
+          // Top block: Producer / Insured / NAIC
+          const leftX = doc.x;
+          const colGap = 260;
+
+          // Producer (Broker) - intentionally left blank per spec
+          doc.fontSize(9).font('Helvetica-Bold').text('PRODUCER:', leftX, doc.y);
+          doc.font('Helvetica').text('', leftX, doc.y);
+          doc.moveDown(0.2);
+
+          // Insured (Named Insured) - left blank per spec
+          doc.font('Helvetica-Bold').text('INSURED:', leftX, doc.y);
+          doc.font('Helvetica').text('', leftX, doc.y);
+          doc.moveDown(0.2);
+
+          // Certificate Holder / To section - show GC and mark Per Project
+          doc.font('Helvetica-Bold').text('CERTIFICATE HOLDER (TO):', leftX, doc.y);
+          const certHolder = data.gc_name || data.project_name || 'General Contractor';
+          doc.font('Helvetica').text(`${certHolder}  (Per Project: YES)`, { continued: false });
+          doc.moveDown(0.5);
+
+          // Small infos: Program / Trade
+          doc.fontSize(9).font('Helvetica-Bold').text('INSURANCE PROGRAM:', leftX);
+          doc.font('Helvetica').text(data.program || 'N/A');
+          doc.moveDown(0.1);
+          doc.font('Helvetica-Bold').text('TRADE:', leftX);
+          doc.font('Helvetica').text(data.trade || 'N/A');
+          doc.moveDown(0.5);
+
+          // Insurer names header
+          doc.fontSize(10).font('Helvetica-Bold').text('INSURER(S) AFFORDING COVERAGE', leftX);
+          doc.moveDown(0.2);
+          doc.fontSize(9).font('Helvetica').text('Insurance Company (A)    Insurance Company (B)    Insurance Company (C)');
+          doc.moveDown(0.5);
+
+          // Job / Project Location details
+          if (data.projectName || data.projectAddress) {
+            doc.fontSize(9).font('Helvetica-Bold').text('PROJECT / JOB LOCATION:', leftX);
+            if (data.projectName) {
+              doc.font('Helvetica').text(`Project: ${data.projectName}`);
+            }
+            if (data.projectAddress) {
+              doc.font('Helvetica').text(`Location: ${data.projectAddress}`);
+            }
+            doc.moveDown(0.4);
+          }
+
+          // Coverage table header
+          doc.fontSize(9).font('Helvetica-Bold').text('TYPE OF INSURANCE', leftX);
+          doc.text('   |   INSURER', leftX + 220);
+          doc.text('   |   POLICY NUMBER', leftX + 340);
+          doc.text('   |   EFFECTIVE', leftX + 430);
+          doc.text('   |   EXPIRATION', leftX + 500);
+          doc.moveDown(0.2);
+
+          const coverageRow = (label) => {
+            doc.font('Helvetica').text(label, { continued: true });
+            doc.text('   Insurance Company', { continued: true, align: 'left' });
+            doc.text('   XXXX', { continued: true, align: 'left' });
+            doc.text('   xx/dx/xx', { continued: true, align: 'left' });
+            doc.text('   xx/dx/xx');
+            doc.moveDown(0.1);
+          };
+
+          // Provide common coverage rows
+          coverageRow('GENERAL LIABILITY');
+          coverageRow('AUTOMOBILE LIABILITY');
+          coverageRow('WORKERS COMPENSATION AND EMPLOYERS LIABILITY');
+          coverageRow('EXCESS / UMBRELLA LIABILITY');
+          doc.moveDown(0.3);
+
+          // Additional Insureds
+          doc.font('Helvetica-Bold').text('ADDITIONAL INSURED(S):');
+          if (Array.isArray(data.additional_insureds) && data.additional_insureds.length > 0) {
+            data.additional_insureds.forEach(ai => doc.font('Helvetica').text(`• ${ai}`));
+          } else {
+            if (data.gc_owner) doc.font('Helvetica').text(`• ${data.gc_owner}`);
+            if (data.gc_name) doc.font('Helvetica').text(`• ${data.gc_name}`);
+          }
+          doc.moveDown(0.3);
+
+          // Certificate Holder (explicit block)
+          doc.font('Helvetica-Bold').text('CERTIFICATE HOLDER:');
+          doc.font('Helvetica').text(data.gc_name || certHolder);
+          doc.moveDown(0.2);
+
+          // Per Project and Occurrence markers
+          doc.font('Helvetica-Bold').text('PER PROJECT:');
+          doc.font('Helvetica').text('YES');
+          doc.font('Helvetica-Bold').text('OCCURRENCE:');
+          doc.font('Helvetica').text('YES');
+          doc.moveDown(0.4);
+
+          // Important placeholders required by spec
+          doc.fontSize(9).font('Helvetica-Bold').text('NAMED INSURED:');
+          doc.font('Helvetica').text('');
+          doc.moveDown(0.1);
+          doc.font('Helvetica-Bold').text('BROKER / ILBROKER:');
+          doc.font('Helvetica').text('');
+          doc.moveDown(0.3);
+
+          // Footer note
+          doc.fontSize(8).font('Helvetica').text('This is a SAMPLE certificate generated for review purposes only. All carriers, policy numbers and dates are placeholders.', { align: 'left' });
+
+          doc.end();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    };
+
     let transporter;
     let mockEmail = false;
 
@@ -2502,6 +2626,36 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
       // Verify transport before sending to catch configuration issues early
       await transporter.verify();
 
+      // Prepare attachments array for nodemailer
+      const mailAttachments = [];
+      if (Array.isArray(incomingAttachments) && incomingAttachments.length > 0) {
+        for (const a of incomingAttachments) {
+          // Expecting { filename, content, contentType } with content as base64 or text
+          if (a && a.filename) {
+            const att = { filename: a.filename };
+            if (a.content && a.encoding === 'base64') {
+              att.content = Buffer.from(a.content, 'base64');
+            } else if (a.content && a.encoding === 'utf8') {
+              att.content = Buffer.from(a.content, 'utf8');
+            } else if (a.content) {
+              att.content = a.content;
+            }
+            if (a.contentType) att.contentType = a.contentType;
+            mailAttachments.push(att);
+          }
+        }
+      }
+
+      // Optionally generate and attach a sample COI PDF for broker emails
+      if (includeSampleCOI) {
+        try {
+          const pdfBuffer = await generateSampleCOIPDF(sampleCOIData || {});
+          mailAttachments.push({ filename: 'sample_coi.pdf', content: pdfBuffer, contentType: 'application/pdf' });
+        } catch (pdfErr) {
+          console.warn('Could not generate sample COI PDF:', pdfErr?.message || pdfErr);
+        }
+      }
+
       info = await transporter.sendMail({
         from: from || defaultFrom,
         to,
@@ -2511,6 +2665,7 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
         subject,
         text: body || undefined,
         html: html || undefined,
+        attachments: mailAttachments.length > 0 ? mailAttachments : undefined,
       });
 
       previewUrl = nodemailer.getTestMessageUrl ? nodemailer.getTestMessageUrl(info) : undefined;
@@ -2977,6 +3132,165 @@ app.post('/public/upload-file', uploadLimiter, upload.single('file'), (req, res)
   } catch (error) {
     console.error('❌ File upload error:', error);
     return sendError(res, 500, 'File upload failed', { error: error.message });
+  }
+});
+
+// Public: Upload endorsement and optionally regenerate COI
+app.post('/public/upload-endorsement', uploadLimiter, upload.single('file'), async (req, res) => {
+  try {
+    const { coi_token } = req.query || req.body || {};
+    const regenFlag = String((req.query && req.query.regen_coi) || (req.body && req.body.regen_coi) || '').toLowerCase() === 'true' || (req.query && req.query.regen_coi === '1');
+
+    if (!req.file) return sendError(res, 400, 'No file uploaded');
+    if (!coi_token) return sendError(res, 400, 'coi_token is required');
+
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+
+    console.log('✅ Endorsement uploaded:', { filename: req.file.filename, url: fileUrl });
+
+    // Extract endorsement fields using existing performExtraction helper
+    const schema = {
+      endorsement_code: 'string',
+      endorsement_name: 'string',
+      effective_date: 'Date',
+      expiration_date: 'Date',
+      endorsement_text: 'string'
+    };
+
+    let extractionResult = { status: 'success', output: {} };
+    try {
+      extractionResult = await performExtraction({ file_url: fileUrl, json_schema: schema });
+    } catch (exErr) {
+      console.warn('Endorsement extraction failed, continuing with minimal metadata:', exErr?.message || exErr);
+    }
+
+    // Find COI by token and attach endorsement metadata
+    const coi = (entities.GeneratedCOI || []).find(c => c.coi_token === coi_token);
+    if (!coi) {
+      console.warn('No GeneratedCOI found for token:', coi_token);
+    }
+
+    const endorsementRecord = {
+      id: `endorsement-${Date.now()}`,
+      file_url: fileUrl,
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      extracted: extractionResult.output || {},
+      extraction_meta: { method: extractionResult.extraction_method || 'ai_or_regex', info: extractionResult.message || '' },
+      uploaded_at: new Date().toISOString()
+    };
+
+    if (coi) {
+      coi.gl_endorsements = coi.gl_endorsements || [];
+      coi.gl_endorsements.push(endorsementRecord);
+
+      // If regen flag is set, attempt to regenerate COI PDF using AdobePDFService
+      if (regenFlag) {
+        try {
+          // Find project info if available
+          let projectInfo = null;
+          if (coi.project_id || coi.project_name) {
+            projectInfo = (entities.Project || []).find(p => p.id === coi.project_id || p.project_name === coi.project_name || p.project_name === coi.project_name);
+          }
+
+          const coiData = {
+            coiId: coi.id || coi.coi_token || Date.now(),
+            subcontractorName: coi.subcontractor_name || coi.subcontractor || 'Subcontractor',
+            subcontractorAddress: coi.subcontractor_address || '',
+            broker: { name: coi.broker_name, email: coi.broker_email },
+            coverages: coi.coverages || [],
+            additional_insureds: coi.gl_additional_insured || coi.gl_additional_insureds || [],
+            projectName: projectInfo?.project_name || coi.project_name || '',
+            projectAddress: projectInfo?.address || projectInfo?.project_address || coi.project_address || ''
+          };
+
+          const filename = await adobePDF.generateCOIPDF(coiData, UPLOADS_DIR);
+          const generatedUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+          coi.pdf_url = generatedUrl;
+          coi.generated_pdf = filename;
+          coi.status = 'pending_broker';
+          coi.uploaded_for_review_date = new Date().toISOString();
+
+          // Notify broker to review/sign the regenerated COI and attach the PDF
+          try {
+            if (coi.broker_email) {
+              // Read generated PDF and encode as base64 for attachment in the internal send-email
+              const generatedFilePath = path.join(UPLOADS_DIR, filename);
+              let attachmentBase64 = null;
+              try {
+                const fbuf = fs.readFileSync(generatedFilePath);
+                attachmentBase64 = fbuf.toString('base64');
+              } catch (readErr) {
+                console.warn('Could not read regenerated COI PDF for attachment:', readErr?.message || readErr);
+              }
+
+              // Build sign link to front-end broker upload/sign route
+              const frontendHost = req.get('host').replace(/:3001$/, ':5175');
+              const signLink = `${req.protocol}://${frontendHost}/broker-upload-coi?token=${coi.coi_token}&action=sign&step=3`;
+
+              const emailPayload = {
+                to: coi.broker_email,
+                subject: `🔔 COI Regenerated - Please Review & Sign: ${coi.subcontractor_name || 'Subcontractor'}`,
+                body: `A Certificate of Insurance has been regenerated with the uploaded endorsement changes. Please review and sign the new certificate:\n\nSign here: ${signLink}\n\nIf the link does not work, visit your broker dashboard and review pending COIs.`,
+                includeSampleCOI: false,
+                attachments: []
+              };
+
+              if (attachmentBase64) {
+                emailPayload.attachments.push({ filename: filename, content: attachmentBase64, encoding: 'base64', contentType: 'application/pdf' });
+              }
+
+              // Send internal POST to our public send-email endpoint
+              try {
+                const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+                await fetch(internalUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(emailPayload)
+                });
+                // Create an in-system message record for broker notification
+                try {
+                  if (entities.Message && Array.isArray(entities.Message)) {
+                    entities.Message.push({
+                      id: `msg-${Date.now()}`,
+                      message_type: 'coi_regenerated',
+                      sender_id: 'system',
+                      recipient: coi.broker_email || coi.broker_name || null,
+                      recipient_id: coi.broker_id || null,
+                      subject: emailPayload.subject,
+                      body: emailPayload.body,
+                      related_entity: 'GeneratedCOI',
+                      related_entity_id: coi.id,
+                      is_read: false,
+                      created_at: new Date().toISOString()
+                    });
+                  }
+                } catch (msgErr) {
+                  console.warn('Could not create in-system message for broker notification:', msgErr?.message || msgErr);
+                }
+              } catch (emailErr) {
+                console.error('Failed to send internal notification email to broker:', emailErr?.message || emailErr);
+              }
+            }
+          } catch (notifyErr) {
+            console.error('Error notifying broker after COI regen:', notifyErr?.message || notifyErr);
+          }
+        } catch (regenErr) {
+          console.error('Failed to regenerate COI PDF:', regenErr?.message || regenErr);
+        }
+      }
+    }
+
+    // Persist (in-memory) and respond
+    // In production this would save to DB
+    return res.json({ ok: true, endorsement: endorsementRecord, coi: coi || null });
+  } catch (error) {
+    console.error('public upload-endorsement error:', error?.message || error);
+    return sendError(res, 500, 'Endorsement upload failed', { error: error.message });
   }
 });
 
