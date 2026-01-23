@@ -87,14 +87,14 @@ export default function BrokerDashboard() {
   // SECURITY: Show access error if not authenticated or missing credentials
   if (!isAuthenticated || (!effectiveBrokerName && !effectiveBrokerEmail)) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
-        <Card className="max-w-md border-slate-700 bg-slate-800">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <Card className="max-w-md">
           <CardContent className="p-8 text-center">
-            <AlertTriangle className="w-16 h-16 mx-auto text-amber-400 mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">Authentication Required</h2>
-            <p className="text-slate-300">Please log in to access the broker dashboard.</p>
+            <AlertTriangle className="w-16 h-16 mx-auto text-amber-500 mb-4" />
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Authentication Required</h2>
+            <p className="text-slate-600">Please log in to access the broker dashboard.</p>
             <Button 
-              className="mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              className="mt-4"
               onClick={() => window.location.href = '/broker-login'}
             >
               Go to Login
@@ -107,8 +107,8 @@ export default function BrokerDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-teal-400" />
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-red-600" />
       </div>
     );
   }
@@ -124,12 +124,12 @@ export default function BrokerDashboard() {
   ).length;
 
   const statusConfig = {
-    awaiting_broker_info: { label: 'Awaiting Info', color: 'bg-red-500/20 text-red-300 border-red-400/30', icon: Clock, bgIcon: 'bg-red-500/20' },
-    awaiting_broker_upload: { label: 'Awaiting Upload', color: 'bg-amber-500/20 text-amber-300 border-amber-400/30', icon: Upload, bgIcon: 'bg-amber-500/20' },
-    awaiting_broker_signature: { label: 'Needs Signature', color: 'bg-purple-500/20 text-purple-300 border-purple-400/30', icon: FileText, bgIcon: 'bg-purple-500/20' },
-    awaiting_admin_review: { label: 'Under Review', color: 'bg-rose-500/20 text-indigo-300 border-indigo-400/30', icon: Clock, bgIcon: 'bg-rose-500/20' },
-    active: { label: 'Active', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30', icon: CheckCircle2, bgIcon: 'bg-emerald-500/20' },
-    deficiency_pending: { label: 'Deficiency', color: 'bg-red-500/20 text-red-300 border-red-400/30', icon: AlertTriangle, bgIcon: 'bg-red-500/20' },
+    awaiting_broker_info: { label: 'Awaiting Info', color: 'bg-red-100 text-red-700 border-red-200', icon: Clock },
+    awaiting_broker_upload: { label: 'Awaiting Upload', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Upload },
+    awaiting_broker_signature: { label: 'Needs Signature', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: FileText },
+    awaiting_admin_review: { label: 'Under Review', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: Clock },
+    active: { label: 'Active', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
+    deficiency_pending: { label: 'Deficiency', color: 'bg-red-100 text-red-700 border-red-200', icon: AlertTriangle },
   };
 
   const firstCOI = allCOIs.length > 0 ? allCOIs[0] : null;
@@ -137,24 +137,26 @@ export default function BrokerDashboard() {
   const brokerCompany = firstCOI?.broker_company || firstCOI?.broker_gl_company || '';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="space-y-6 animate-fade-in">
-          <div className="flex items-start justify-between gap-6">
-            <div className="flex items-start gap-6">
-              <div className="flex-shrink-0">
-                <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-red-400 to-rose-500 flex items-center justify-center text-white text-3xl font-bold shadow-2xl">
-                  {displayBrokerName?.[0]?.toUpperCase() || 'B'}
-                </div>
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-red-600 via-rose-500 to-orange-500 flex items-center justify-center text-white text-2xl font-bold shadow-md">
+                {displayBrokerName?.[0]?.toUpperCase() || 'B'}
               </div>
-              <div className="flex-1">
-                <h1 className="text-4xl font-bold text-white mb-2">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
                   {displayBrokerName}
                 </h1>
                 {brokerCompany && (
-                  <p className="text-xl text-slate-300 mb-3">{brokerCompany}</p>
+                  <p className="text-lg text-slate-600">{brokerCompany}</p>
                 )}
+                <div className="flex items-center gap-2 mt-1">
+                  <Mail className="w-4 h-4 text-slate-500" />
+                  <span className="text-sm text-slate-600">{effectiveBrokerEmail}</span>
+                </div>
               </div>
             </div>
             <UserProfile 
@@ -166,16 +168,10 @@ export default function BrokerDashboard() {
               companyName={brokerCompany}
             />
           </div>
-          <div className="flex items-center gap-3">
-            <div className="inline-flex items-center gap-2 px-3 py-2 bg-slate-700/50 rounded-lg border border-slate-600">
-              <Mail className="w-5 h-5 text-teal-400" />
-              <span className="text-slate-200 text-sm">{effectiveBrokerEmail}</span>
-            </div>
-          </div>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in-delay-100">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             icon={FileText}
             label="Total Requests"
@@ -205,38 +201,36 @@ export default function BrokerDashboard() {
         </div>
 
         {/* Messages Section */}
-        <div className="animate-fade-in-delay-200">
-          <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-sm shadow-xl">
-            <CardHeader className="border-b border-slate-700 pb-6">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-teal-400" />
-                <CardTitle className="text-2xl font-bold bg-gradient-to-r from-red-200 to-rose-200 bg-clip-text text-transparent">
-                  Message Center
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6">
-              <MessageThread 
-                messages={messages} 
-                currentUser={{
-                  user_type: 'broker',
-                  id: effectiveBrokerEmail,
-                  name: displayBrokerName,
-                  email: effectiveBrokerEmail
-                }}
-                recipientType="admin"
-              />
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="shadow-lg">
+          <CardHeader className="border-b border-slate-200 pb-6">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-red-600" />
+              <CardTitle className="text-2xl font-bold text-slate-900">
+                Message Center
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <MessageThread 
+              messages={messages} 
+              currentUser={{
+                user_type: 'broker',
+                id: effectiveBrokerEmail,
+                name: displayBrokerName,
+                email: effectiveBrokerEmail
+              }}
+              recipientType="admin"
+            />
+          </CardContent>
+        </Card>
 
         {/* Requests List */}
-        <div className="animate-fade-in-delay-300">
-          <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-sm shadow-xl">
-            <CardHeader className="border-b border-slate-700 pb-6">
+        <div>
+          <Card className="shadow-lg">
+            <CardHeader className="border-b border-slate-200 pb-6">
               <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-teal-400" />
-                <CardTitle className="text-2xl font-bold bg-gradient-to-r from-red-200 to-rose-200 bg-clip-text text-transparent">
+                <Shield className="w-5 h-5 text-red-600" />
+                <CardTitle className="text-2xl font-bold text-slate-900">
                   Certificate Requests
                 </CardTitle>
               </div>
@@ -244,14 +238,14 @@ export default function BrokerDashboard() {
             <CardContent className="p-0">
               {allCOIs.length === 0 ? (
                 <div className="p-12 text-center">
-                  <div className="inline-flex items-center justify-center w-20 h-20 bg-slate-700 rounded-full mb-6">
-                    <FileText className="w-10 h-10 text-slate-500" />
+                  <div className="inline-flex items-center justify-center w-20 h-20 bg-slate-100 rounded-full mb-6">
+                    <FileText className="w-10 h-10 text-slate-400" />
                   </div>
-                  <h3 className="text-xl font-semibold text-white mb-2">No Requests Yet</h3>
-                  <p className="text-slate-400">Certificate requests will appear here</p>
+                  <h3 className="text-xl font-semibold text-slate-900 mb-2">No Requests Yet</h3>
+                  <p className="text-slate-600">Certificate requests will appear here</p>
                 </div>
               ) : (
-                <div className="divide-y divide-slate-700">
+                <div className="divide-y divide-slate-200">
                   {allCOIs.map((coi, index) => {
                     const _project = allProjects.find(p => p.id === coi.project_id);
                     const config = statusConfig[coi.status] || statusConfig.awaiting_broker_info;
@@ -260,12 +254,12 @@ export default function BrokerDashboard() {
                     return (
                       <div 
                         key={coi.id} 
-                        className={`p-6 transition-all duration-300 hover:bg-slate-700/30 border-l-4 border-transparent hover:border-teal-400 ${index % 2 === 0 ? 'bg-slate-800/30' : ''}`}
+                        className={`p-6 transition-all hover:bg-slate-50 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}
                       >
                         <div className="flex items-start justify-between gap-4 mb-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-3">
-                              <h3 className="text-lg font-bold text-white">{coi.subcontractor_name}</h3>
+                              <h3 className="text-lg font-bold text-slate-900">{coi.subcontractor_name}</h3>
                               <Badge className={`${config.color} border`}>
                                 <StatusIcon className="w-3 h-3 mr-1" />
                                 {config.label}
@@ -274,8 +268,8 @@ export default function BrokerDashboard() {
                                 <Badge 
                                   className={`${
                                     coi.compliance_status === 'compliant' 
-                                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50' 
-                                      : 'bg-red-500/20 text-red-300 border-red-400/50'
+                                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200' 
+                                      : 'bg-red-100 text-red-700 border-red-200'
                                   } border`}
                                 >
                                   {coi.compliance_status === 'compliant' ? (
@@ -294,19 +288,19 @@ export default function BrokerDashboard() {
                             </div>
                             
                             <div className="grid grid-cols-2 gap-3 text-sm">
-                              <div className="flex items-center gap-2 text-slate-300">
-                                <Building2 className="w-4 h-4 text-teal-400" />
-                                <span><strong className="text-slate-200">Project:</strong> {coi.project_name}</span>
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <Building2 className="w-4 h-4 text-red-600" />
+                                <span><strong className="text-slate-900">Project:</strong> {coi.project_name}</span>
                               </div>
-                              <div className="flex items-center gap-2 text-slate-300">
-                                <Briefcase className="w-4 h-4 text-teal-400" />
-                                <span><strong className="text-slate-200">GC:</strong> {coi.gc_name}</span>
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <Briefcase className="w-4 h-4 text-red-600" />
+                                <span><strong className="text-slate-900">GC:</strong> {coi.gc_name}</span>
                               </div>
-                              <div className="flex items-center gap-2 text-slate-300">
-                                <span><strong className="text-slate-200">Trade:</strong> {coi.trade_type}</span>
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <span><strong className="text-slate-900">Trade:</strong> {coi.trade_type}</span>
                               </div>
                               {coi.sub_notified_date && (
-                                <div className="text-xs text-slate-400">
+                                <div className="text-xs text-slate-500">
                                   Requested: {format(new Date(coi.sub_notified_date), 'MMM d, yyyy')}
                                 </div>
                               )}
@@ -319,7 +313,7 @@ export default function BrokerDashboard() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => window.open(coi.sample_coi_pdf_url, '_blank')}
-                                className="text-red-400 border-red-400/30 hover:bg-red-500/20 transition-all"
+                                className="text-red-600 border-red-200 hover:bg-red-50"
                               >
                                 <FileText className="w-4 h-4 mr-2" />
                                 Sample
@@ -330,9 +324,9 @@ export default function BrokerDashboard() {
                               <Button
                                 size="sm"
                                 onClick={() => window.location.href = `${window.location.origin}${createPageUrl('broker-upload-coi')}?token=${coi.coi_token}`}
-                                className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white group"
+                                className="bg-red-600 hover:bg-red-700 text-white"
                               >
-                                <Upload className="w-4 h-4 mr-2 group-hover:translate-y-0.5 transition-transform" />
+                                <Upload className="w-4 h-4 mr-2" />
                                 Upload
                               </Button>
                             )}
@@ -343,7 +337,7 @@ export default function BrokerDashboard() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => window.open(coi.first_coi_url, '_blank')}
-                                  className="text-emerald-400 border-emerald-400/30 hover:bg-emerald-500/20 transition-all"
+                                  className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
                                 >
                                   <CheckCircle2 className="w-4 h-4 mr-2" />
                                   View
@@ -355,7 +349,7 @@ export default function BrokerDashboard() {
                                     setSelectedCOIForReplace(coi);
                                     setReplaceDialogOpen(true);
                                   }}
-                                  className="text-amber-400 border-amber-400/30 hover:bg-amber-500/20 transition-all"
+                                  className="text-amber-600 border-amber-200 hover:bg-amber-50"
                                   title="Replace approved document (will change status to pending review)"
                                 >
                                   <RefreshCw className="w-4 h-4 mr-2" />
@@ -367,12 +361,12 @@ export default function BrokerDashboard() {
                         </div>
 
                         {coi.deficiency_message && (
-                          <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+                          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                             <div className="flex items-start gap-2">
-                              <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                              <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                               <div>
-                                <p className="text-sm font-semibold text-red-300 mb-1">Deficiency Details</p>
-                                <p className="text-sm text-red-200">{coi.deficiency_message}</p>
+                                <p className="text-sm font-semibold text-red-700 mb-1">Deficiency Details</p>
+                                <p className="text-sm text-red-600">{coi.deficiency_message}</p>
                               </div>
                             </div>
                           </div>
@@ -412,58 +406,31 @@ export default function BrokerDashboard() {
           }}
         />
       )}
-
-      <style>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .animate-fade-in {
-          animation: fade-in 0.6s ease-out;
-        }
-
-        .animate-fade-in-delay-100 {
-          animation: fade-in 0.6s ease-out 0.1s both;
-        }
-
-        .animate-fade-in-delay-200 {
-          animation: fade-in 0.6s ease-out 0.2s both;
-        }
-
-        .animate-fade-in-delay-300 {
-          animation: fade-in 0.6s ease-out 0.3s both;
-        }
-      `}</style>
     </div>
   );
 }
 
 function StatCard({ icon: Icon, label, value, colorClass, highlight }) {
   const colorMap = {
-    blue: { bg: 'from-red-500/10 to-rose-600/5', icon: 'text-red-400', border: 'border-red-500/20', hover: 'hover:border-red-400/40' },
-    amber: { bg: 'from-amber-500/10 to-amber-600/5', icon: 'text-amber-400', border: 'border-amber-500/20', hover: 'hover:border-amber-400/40' },
-    emerald: { bg: 'from-emerald-500/10 to-emerald-600/5', icon: 'text-emerald-400', border: 'border-emerald-500/20', hover: 'hover:border-emerald-400/40' },
-    red: { bg: 'from-red-500/10 to-red-600/5', icon: 'text-red-400', border: 'border-red-500/20', hover: 'hover:border-red-400/40' },
+    blue: { bg: 'bg-red-50', icon: 'text-red-600', border: 'border-red-200' },
+    amber: { bg: 'bg-amber-50', icon: 'text-amber-600', border: 'border-amber-200' },
+    emerald: { bg: 'bg-emerald-50', icon: 'text-emerald-600', border: 'border-emerald-200' },
+    red: { bg: 'bg-red-50', icon: 'text-red-600', border: 'border-red-200' },
   };
 
   const colors = colorMap[colorClass];
 
   return (
-    <div className={`relative p-6 bg-gradient-to-br ${colors.bg} border ${colors.border} rounded-xl ${colors.hover} transition-all duration-300 ${highlight ? 'ring-1 ring-offset-2 ring-offset-slate-900 ' + colors.border : ''}`}>
-      <div className="flex items-center justify-between mb-4">
-        <div className={`p-3 bg-${colorClass}-500/20 rounded-lg`}>
-          <Icon className={`w-6 h-6 ${colors.icon}`} />
+    <Card className={`transition-all hover:shadow-md ${highlight ? 'ring-2 ring-red-500' : ''}`}>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className={`p-3 ${colors.bg} rounded-lg`}>
+            <Icon className={`w-6 h-6 ${colors.icon}`} />
+          </div>
         </div>
-      </div>
-      <h3 className="text-sm font-medium text-slate-400 mb-1">{label}</h3>
-      <p className="text-3xl font-bold text-white">{value}</p>
-    </div>
+        <h3 className="text-sm font-medium text-slate-600 mb-1">{label}</h3>
+        <p className="text-3xl font-bold text-slate-900">{value}</p>
+      </CardContent>
+    </Card>
   );
 }
