@@ -471,6 +471,8 @@ export async function notifyAdminBrokerChanged(subcontractor, newBrokers, oldBro
     // Build notification details
     const oldBrokersList = (oldBrokers || []).map(b => `${b.name} (${b.email})`).join(', ') || 'None';
     const newBrokersList = newBrokers.map(b => `${b.name} (${b.email}) - ${Object.entries(b.policies).filter(([_, v]) => v).map(([k]) => k.toUpperCase()).join(', ')}`).join(', ');
+    
+    const affectedProjectsList = projects.map(p => `• ${p.project_name}`).join('\n');
 
     // Send notification to admins
     for (const adminEmail of adminEmails) {
@@ -491,41 +493,11 @@ NEW BROKERS:
 ${newBrokersList}
 
 AFFECTED PROJECTS:
-${projects.map(p => `• ${p.project_name}`).join('\n')}
+${affectedProjectsList}
 
 ACTION REQUIRED:
-New COI upload and policy request requirements have been generated for the updated brokers. Please review pending items.`
+Please review the attached broker information and generate new COI upload requests and policy requirements for the updated brokers through the admin dashboard.`
       });
-    }
-
-    // Generate new COI and policy requests for affected projects
-    for (const project of projects) {
-      for (const broker of newBrokers) {
-        try {
-          // Create new COI request for each policy type this broker handles
-          const policyTypes = Object.entries(broker.policies)
-            .filter(([_, selected]) => selected)
-            .map(([policy]) => policy.toUpperCase());
-
-          for (const policyType of policyTypes) {
-            await apiClient.post('/projects/generate-coi-request', {
-              project_id: project.id,
-              contractor_id: subcontractor.id,
-              broker_email: broker.email,
-              policy_type: policyType,
-            });
-          }
-
-          // Create new policy request
-          await apiClient.post('/projects/generate-policy-request', {
-            project_id: project.id,
-            contractor_id: subcontractor.id,
-            broker_email: broker.email,
-          });
-        } catch (reqErr) {
-          console.error(`Failed to generate requests for broker ${broker.email}:`, reqErr);
-        }
-      }
     }
 
   } catch (error) {
