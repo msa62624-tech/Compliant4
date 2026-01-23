@@ -177,7 +177,7 @@ export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }
     // Notify each broker with login link and assigned policies
     try {
       const baseUrl = getFrontendBaseUrl();
-      const brokerLoginLink = `${baseUrl}/broker-verification`;
+      const brokerLoginLink = `${baseUrl}/broker-login`;
 
       for (const broker of brokers) {
         const assignedPolicies = Object.entries(broker.policies)
