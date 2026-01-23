@@ -1172,6 +1172,14 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
     created_date: new Date().toISOString()
   });
 
+  // Also store password on the Contractor entity for login endpoint
+  if (contractor.id && entities.Contractor) {
+    const contractorIndex = entities.Contractor.findIndex(c => c.id === contractor.id);
+    if (contractorIndex !== -1) {
+      entities.Contractor[contractorIndex].password = hashedPassword;
+    }
+  }
+
   // Note: Temporary password should be sent via email, not returned in response
   // Returning userId and username only for confirmation
   return { username, role: 'gc', userId, passwordSet: true };
