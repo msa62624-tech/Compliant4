@@ -225,15 +225,16 @@ export default function BrokerDashboard() {
         </Card>
 
         {/* Requests List */}
-        <Card className="shadow-lg">
-          <CardHeader className="border-b border-slate-200 pb-6">
-            <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-red-600" />
-              <CardTitle className="text-2xl font-bold text-slate-900">
-                Certificate Requests
-              </CardTitle>
-            </div>
-          </CardHeader>
+        <div>
+          <Card className="shadow-lg">
+            <CardHeader className="border-b border-slate-200 pb-6">
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-red-600" />
+                <CardTitle className="text-2xl font-bold text-slate-900">
+                  Certificate Requests
+                </CardTitle>
+              </div>
+            </CardHeader>
             <CardContent className="p-0">
               {allCOIs.length === 0 ? (
                 <div className="p-12 text-center">
