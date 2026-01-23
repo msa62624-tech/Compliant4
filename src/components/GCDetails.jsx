@@ -126,10 +126,11 @@ export default function GCDetails() {
       contact_person: contractor.contact_person || '',
       email: contractor.email || '',
       phone: contractor.phone || '',
-      mailing_address: contractor.mailing_address || '',
-      mailing_city: contractor.mailing_city || '',
-      mailing_state: contractor.mailing_state || '',
-      mailing_zip_code: contractor.mailing_zip_code || '',
+      // Support both naming conventions - prefer mailing_* but fall back to standard fields
+      mailing_address: contractor.mailing_address || contractor.address || '',
+      mailing_city: contractor.mailing_city || contractor.city || '',
+      mailing_state: contractor.mailing_state || contractor.state || '',
+      mailing_zip_code: contractor.mailing_zip_code || contractor.zip_code || '',
       additional_contacts: contractor.additional_contacts || [],
       license_number: contractor.license_number || '',
       status: contractor.status || 'active',
@@ -190,9 +191,17 @@ export default function GCDetails() {
 
   const handleUpdateInfo = async (e) => {
     e.preventDefault();
+    // Sync address fields - support both naming conventions
     await updateContractorMutation.mutateAsync({
       id: gcId,
-      data: formData,
+      data: {
+        ...formData,
+        // Standard address fields (for backward compatibility)
+        address: formData.mailing_address,
+        city: formData.mailing_city,
+        state: formData.mailing_state,
+        zip_code: formData.mailing_zip_code,
+      },
     });
   };
 

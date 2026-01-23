@@ -159,10 +159,11 @@ export default function Contractors() {
         contact_person: contractor.contact_person || '',
         email: contractor.email || '',
         phone: contractor.phone || '',
-        mailing_address: contractor.mailing_address || '',
-        mailing_city: contractor.mailing_city || '',
-        mailing_state: contractor.mailing_state || '',
-        mailing_zip_code: contractor.mailing_zip_code || '',
+        // Support both naming conventions - prefer mailing_* but fall back to standard fields
+        mailing_address: contractor.mailing_address || contractor.address || '',
+        mailing_city: contractor.mailing_city || contractor.city || '',
+        mailing_state: contractor.mailing_state || contractor.state || '',
+        mailing_zip_code: contractor.mailing_zip_code || contractor.zip_code || '',
         additional_contacts: contractor.additional_contacts || [],
         license_number: contractor.license_number || '',
         status: contractor.status || 'active',
@@ -250,9 +251,16 @@ export default function Contractors() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Sync address fields - support both naming conventions (mailing_* and standard)
     const data = {
       ...formData,
       contractor_type: 'general_contractor',
+      // Standard address fields (for backward compatibility)
+      address: formData.mailing_address,
+      city: formData.mailing_city,
+      state: formData.mailing_state,
+      zip_code: formData.mailing_zip_code,
+      // Keep mailing_* fields as well
       ...(!editingContractor && { admin_id: user?.id, admin_name: user?.name })
     };
 
