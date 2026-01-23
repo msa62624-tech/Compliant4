@@ -115,6 +115,118 @@ export const TRADE_REQUIREMENTS = {
     },
   },
 
+  // Additional Tier 1 common trades
+  'concrete': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'masonry': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'drywall': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'painting': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'flooring': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'siding': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'glazing': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'windows_doors': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'insulation': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'sheet_metal': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'tile': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'millwork': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'landscaping': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'paving': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'steel_erection': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'rebar': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'fire_protection': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'elevator': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'waterproofing': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'caulking': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'acoustical_ceiling': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+  'sitework': {
+    tier: 1,
+    requiredInsurance: ['gl', 'wc', 'auto'],
+    specificRequirements: { gl: { minimumLimits: { eachOccurrence: 1000000, generalAggregate: 2000000 } }, wc: { mandatory: true } },
+  },
+
   // TIER 2: Specialty Trades
   'roofing': {
     tier: 2,
@@ -614,11 +726,27 @@ export function getRequirementDescription(requirement, project, subTrades) {
  * Get all available trades for selection
  */
 export function getAvailableTrades() {
-  return Object.keys(TRADE_REQUIREMENTS).map((key) => ({
+  const base = Object.keys(TRADE_REQUIREMENTS).map((key) => ({
     value: key,
-    label: key.charAt(0).toUpperCase() + key.slice(1).replace('_', ' '),
+    label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
     tier: TRADE_REQUIREMENTS[key].tier,
   }));
+
+  // Synthetic scope-based trade categories requested by user
+  const synthetic = [
+    {
+      value: 'exterior_above_2_stories',
+      label: 'Any exterior work above 2 stories',
+      tier: 2,
+    },
+    {
+      value: 'exterior_below_2_stories',
+      label: 'Any exterior work 2 stories or below',
+      tier: 1,
+    }
+  ];
+
+  return [...base, ...synthetic];
 }
 
 /**

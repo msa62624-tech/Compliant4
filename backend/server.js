@@ -27,9 +27,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Core directories for data and uploads
+const DATA_DIR = path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'entities.json');
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+
 // JWT_SECRET persistence: Load from env or generate and persist to file
 // This ensures tokens remain valid across server restarts in development
-const JWT_SECRET_FILE = path.join(__dirname, 'data', '.jwt-secret');
+const JWT_SECRET_FILE = path.join(DATA_DIR, '.jwt-secret');
 const JWT_SECRET = (() => {
   // Priority 1: Use environment variable if set
   if (process.env.JWT_SECRET) {
@@ -45,273 +50,221 @@ const JWT_SECRET = (() => {
   // Priority 3: Load or generate persistent secret for development
   try {
     // Ensure data directory exists
-    const dataDir = path.join(__dirname, 'data');
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
     }
-    
-    // Try to load existing secret
+
     if (fs.existsSync(JWT_SECRET_FILE)) {
-      const secret = fs.readFileSync(JWT_SECRET_FILE, 'utf8').trim();
-      if (secret) {
-        console.log('✅ Loaded persistent JWT_SECRET from file (development mode)');
-        return secret;
+      const secretFromDisk = fs.readFileSync(JWT_SECRET_FILE, 'utf8').trim();
+      if (secretFromDisk) {
+        console.log('🔐 Loaded JWT secret from disk');
+        return secretFromDisk;
       }
     }
-    
-    // Generate new secret and persist it
+
     const newSecret = crypto.randomBytes(32).toString('hex');
-    fs.writeFileSync(JWT_SECRET_FILE, newSecret, { mode: 0o600 });
-    console.log('✅ Generated new JWT_SECRET and saved to file (development mode)');
-    console.warn('⚠️  WARNING: For production, set JWT_SECRET environment variable!');
+    fs.writeFileSync(JWT_SECRET_FILE, newSecret, 'utf8');
+    console.log('🔐 Generated and persisted new JWT secret');
     return newSecret;
-  } catch (err) {
-    console.error('❌ Failed to load/generate persistent JWT_SECRET:', err.message);
-    console.warn('⚠️  Falling back to hardcoded default (tokens will be invalidated on restart)');
-    return 'compliant-dev-secret-change-in-production';
+  } catch (e) {
+    console.warn('⚠️ Failed to persist JWT secret, using ephemeral secret in memory');
+    return crypto.randomBytes(32).toString('hex');
   }
 })();
 
-// Dummy bcrypt hash for constant-time comparison when user doesn't exist
-// This prevents timing attacks by ensuring bcrypt.compare() is always called
-const DUMMY_PASSWORD_HASH = '$2b$10$9X4HmyiIQHx45BHBqyw2nupLpYmTy620G.MD74lV4lriXkp.oAXUW';
+// Basic file path helpers used by upload/extraction flows
+function validateAndSanitizeFilename(name) {
+  if (!name || typeof name !== 'string') throw new Error('Invalid filename');
+  const safe = name.replace(/[^a-zA-Z0-9._\/-]/g, '');
+  if (safe.includes('..')) throw new Error('Invalid filename');
+  return safe;
+}
 
-// Initialize integrations
-const adobePDF = new AdobePDFService();
-const aiAnalysis = new AIAnalysisService();
-// Default admin emails (configure via env: ADMIN_EMAILS="admin1@example.com,admin2@example.com")
-const DEFAULT_ADMIN_EMAILS = (process.env.ADMIN_EMAILS || process.env.DEFAULT_ADMIN_EMAILS || '')
-  .split(',')
-  .map(e => e.trim())
-  .filter(e => !!e);
-
-// Persistent storage configuration
-const DATA_DIR = path.join(__dirname, 'data');
-const DATA_FILE = path.join(DATA_DIR, 'entities.json');
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
+function verifyPathWithinDirectory(resolvedPath, baseDir) {
+  const normalizedBase = path.resolve(baseDir) + path.sep;
+  const normalizedPath = path.resolve(resolvedPath);
+  if (!normalizedPath.startsWith(normalizedBase)) {
+    throw new Error('Path traversal detected');
+  }
+}
 
 // Ensure uploads directory exists
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-  console.log('✅ Created uploads directory:', UPLOADS_DIR);
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('⚠️ Could not ensure uploads directory:', e?.message || e);
 }
 
-// =======================
-// FILE VALIDATION UTILITIES
-// =======================
-const ALLOWED_MIMETYPES = {
-  pdf: 'application/pdf',
-  png: 'image/png',
-  jpeg: 'image/jpeg',
-  jpg: 'image/jpeg'
-};
-
-const ALLOWED_EXTENSIONS = ['.pdf', '.png', '.jpeg', '.jpg'];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
-// Validate file upload
-const validateFile = (file) => {
-  if (!file) return { valid: false, error: 'No file provided' };
-  
-  // Check extension
-  const ext = path.extname(file.originalname).toLowerCase();
-  if (!ALLOWED_EXTENSIONS.includes(ext)) {
-    return { valid: false, error: `Invalid file extension: ${ext}. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}` };
-  }
-  
-  // Check MIME type
-  const mimeValues = Object.values(ALLOWED_MIMETYPES);
-  if (!mimeValues.includes(file.mimetype)) {
-    return { valid: false, error: `Invalid MIME type: ${file.mimetype}. Allowed: ${mimeValues.join(', ')}` };
-  }
-  
-  // Check file size
-  if (file.size > MAX_FILE_SIZE) {
-    return { valid: false, error: `File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit` };
-  }
-  
-  // Check for suspicious filename patterns
-  // eslint-disable-next-line no-control-regex
-  if (/[<>:"|?*\x00-\x1F]/.test(file.originalname)) {
-    return { valid: false, error: 'Filename contains invalid characters' };
-  }
-  
-  return { valid: true };
-};
-
-// =======================
-// TIMING-SAFE TOKEN COMPARISON
-// =======================
-/**
- * Timing-safe string comparison to prevent timing attacks
- * This implementation prevents information leakage about token length by
- * always performing comparison operations even when lengths differ.
- * 
- * The function pads both strings to the same length and performs a constant-time
- * comparison, then verifies the original lengths match. This ensures an attacker
- * cannot distinguish between "wrong length" and "wrong content" via timing analysis.
- * 
- * @param {string} a - First string to compare
- * @param {string} b - Second string to compare
- * @returns {boolean} - True if strings match exactly (content and length), false otherwise
- */
-const timingSafeEqual = (a, b) => {
-  if (typeof a !== 'string' || typeof b !== 'string') {
-    return false;
-  }
-  
-  // Store original lengths for final verification
-  const lenA = a.length;
-  const lenB = b.length;
-  
-  // Use a fixed maximum length for padding to avoid timing leaks from Math.max()
-  // 256 bytes should be sufficient for most use cases (tokens, passwords, etc.)
-  const FIXED_MAX_LENGTH = 256;
-  
-  // Pad both strings to the fixed length
-  const paddedA = a.padEnd(FIXED_MAX_LENGTH, '\0');
-  const paddedB = b.padEnd(FIXED_MAX_LENGTH, '\0');
-  
-  // Convert strings to buffers for crypto.timingSafeEqual
-  const bufA = Buffer.from(paddedA, 'utf8');
-  const bufB = Buffer.from(paddedB, 'utf8');
-  
-  // Perform constant-time comparison on padded strings
-  const contentMatch = crypto.timingSafeEqual(bufA, bufB);
-  
-  // Check if original lengths match using constant-time comparison
-  // We use bitwise XOR to avoid timing leaks from short-circuit evaluation
-  // XOR returns 0 if values are equal, non-zero otherwise
-  const lengthMatch = (lenA ^ lenB) === 0;
-  
-  // Return true only if both content and length match
-  // Using bitwise AND to combine results in constant time
-  return !!(contentMatch & lengthMatch);
-};
-
-// =======================
-// FILE PATH VALIDATION UTILITIES
-// =======================
-/**
- * Validates and sanitizes a filename to prevent path traversal attacks
- * @param {string} filename - The filename to validate
- * @returns {string} - The sanitized filename
- * @throws {Error} - If the filename contains path traversal patterns
- */
-function validateAndSanitizeFilename(filename) {
-  // Explicit type and value validation
-  if (typeof filename !== 'string' || filename.length === 0) {
-    throw new Error('Filename must be a non-empty string');
-  }
-  
-  // Security: Prevent path traversal attacks by removing any directory separators
-  const sanitizedFilename = path.basename(filename);
-  
-  // Check for suspicious patterns that path.basename might not catch
-  if (sanitizedFilename !== filename || 
-      filename.includes('..') || 
-      filename.includes('/') || 
-      filename.includes('\\')) {
-    throw new Error('Invalid filename: path traversal detected');
-  }
-  
-  return sanitizedFilename;
-}
-
-/**
- * Verifies that a file path is within the allowed directory
- * @param {string} filePath - The file path to verify
- * @param {string} allowedDir - The allowed base directory
- * @throws {Error} - If the path is outside the allowed directory
- */
-function verifyPathWithinDirectory(filePath, allowedDir) {
-  const resolvedPath = path.resolve(filePath);
-  const resolvedAllowedDir = path.resolve(allowedDir);
-  
-  // Ensure trailing separator to prevent prefix-matching vulnerabilities
-  // (e.g., /uploads vs /uploads-backup)
-  // Allow exact directory match or paths that start with directory + separator
-  if (resolvedPath !== resolvedAllowedDir && !resolvedPath.startsWith(resolvedAllowedDir + path.sep)) {
-    throw new Error('Invalid file path: access denied');
-  }
-}
-
-// Configure multer for file uploads with enhanced validation
+// Multer configuration for file uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, UPLOADS_DIR);
-  },
-  filename: (req, file, cb) => {
-    // Use crypto for secure random filename generation
-    const randomBytes = crypto.randomBytes(8);
-    const uniqueSuffix = `${Date.now()}-${randomBytes.toString('hex')}`;
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const timestamp = Date.now();
+    const safeOriginal = (file.originalname || 'file')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 200);
+    cb(null, `${timestamp}-${safeOriginal}`);
   }
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: MAX_FILE_SIZE },
-  fileFilter: (req, file, cb) => {
-    const validation = validateFile(file);
-    if (!validation.valid) {
-      return cb(new Error(validation.error), false);
-    }
-    cb(null, true);
-  }
+  limits: { fileSize: 20 * 1024 * 1024 } // 20MB
 });
 
-// In-memory storage (replace with database in production)
-const entities = {
-  InsuranceDocument: [
-    {
-      id: 'doc-001',
-      subcontractor_name: 'ABC Plumbing LLC',
-      contractor_id: 'gc-001',
-      project_id: 'proj-001',
-      gc_id: 'gc-001',
-      document_type: 'Certificate of Insurance',
-      insurance_type: 'general_liability',
-      policy_number: 'POL-2024-001',
-      coverage_amount: 2000000,
-      effective_date: '2024-01-01',
-      expiry_date: '2025-12-31',
-      approval_status: 'approved',
-      status: 'active',
-      created_by: 'admin@insuretrack.com',
-      created_date: '2024-01-15T10:00:00Z',
-      document_url: 'https://storage.example.com/documents/doc-001.pdf'
+// Create entity
+app.post('/entities/:entityName', authenticateToken, async (req, res) => {
+  const { entityName } = req.params;
+  const data = req.body;
+  if (!entities[entityName]) {
+    return res.status(404).json({ error: `Entity ${entityName} not found` });
+  }
+
+  if (entityName === 'User') {
+    if (!data.email) return res.status(400).json({ error: 'Email is required for User creation' });
+    if (!data.name) return res.status(400).json({ error: 'Name is required for User creation' });
+    if (!data.password) return res.status(400).json({ error: 'Password is required for User creation' });
+    if (!validateEmail(data.email)) return res.status(400).json({ error: 'Invalid email format' });
+    if (users.find(u => u.email === data.email)) return res.status(400).json({ error: 'Email already exists' });
+    if (entities.User.find(u => u.email === data.email)) return res.status(400).json({ error: 'Email already exists' });
+
+    const username = data.username || data.email.split('@')[0];
+    if (users.find(u => u.username === username)) return res.status(400).json({ error: 'Username already exists' });
+
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const userId = `user-${Date.now()}`;
+    const newUser = {
+      id: userId,
+      username,
+      password: hashedPassword,
+      email: data.email,
+      name: data.name,
+      role: data.role || 'admin',
+      is_active: data.is_active !== undefined ? data.is_active : true,
+      createdAt: new Date().toISOString(),
+      createdBy: req.user.id
+    };
+    users.push(newUser);
+    const userEntity = {
+      id: userId,
+      username,
+      email: data.email,
+      name: data.name,
+      role: data.role || 'admin',
+      is_active: data.is_active !== undefined ? data.is_active : true,
+      created_date: newUser.createdAt,
+      createdBy: req.user.id
+    };
+    entities.User.push(userEntity);
+    debouncedSave();
+    return res.status(201).json(userEntity);
+  }
+
+  const newItem = {
+    id: `${entityName}-${Date.now()}`,
+    ...data,
+    createdAt: new Date().toISOString(),
+    createdBy: req.user.id
+  };
+
+  let gcLogin = null;
+  if (entityName === 'Contractor' && data.contractor_type === 'general_contractor') {
+    gcLogin = await ensureGcLogin(newItem, { forceCreate: true });
+    if (gcLogin) newItem.gc_login_created = true;
+  }
+
+  entities[entityName].push(newItem);
+  debouncedSave();
+  const responsePayload = gcLogin ? { ...newItem, gcLogin } : newItem;
+  res.status(201).json(responsePayload);
+});
+
+// Update entity
+app.patch('/entities/:entityName/:id', authenticateToken, (req, res) => {
+  const { entityName, id } = req.params;
+  const updates = req.body || {};
+  if (!entities[entityName]) {
+    return res.status(404).json({ error: `Entity ${entityName} not found` });
+  }
+  const index = entities[entityName].findIndex(item => item.id === id);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Item not found' });
+  }
+
+  if (entityName === 'User') {
+    const current = entities.User[index];
+    const updatedUser = {
+      ...current,
+      ...updates,
+      ...(updates.is_active !== undefined && { is_active: updates.is_active }),
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.user.id
+    };
+    entities.User[index] = updatedUser;
+    debouncedSave();
+    return res.json(updatedUser);
+  }
+
+  entities[entityName][index] = {
+    ...entities[entityName][index],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+    updatedBy: req.user.id
+  };
+  debouncedSave();
+  res.json(entities[entityName][index]);
+});
+
+// Query (filter) entities via POST body
+app.post('/entities/:entityName/query', authenticateToken, (req, res) => {
+  const { entityName } = req.params;
+  if (!entities[entityName]) {
+    return res.status(404).json({ error: `Entity ${entityName} not found` });
+  }
+  let data = entities[entityName];
+  const body = req.body || {};
+  const { sort, includeArchived, ...rawFilters } = body;
+
+  // Apply simple equality filters
+  const filters = rawFilters || {};
+  if (Object.keys(filters).length > 0) {
+    data = data.filter(item => {
+      return Object.entries(filters).every(([key, value]) => {
+        return item[key] === value || item[key] === String(value);
+      });
+    });
+  }
+
+  if (includeArchived !== true && includeArchived !== 'true') {
+    data = data.filter(item => !item.isArchived && item.status !== 'archived');
+  }
+
+  if (sort) {
+    const isDescending = typeof sort === 'string' && sort.startsWith('-');
+    const sortField = isDescending ? sort.substring(1) : sort;
+    const allowedSortFields = ['id', 'email', 'created_date', 'name', 'company_name', 'status', 'createdAt', 'uploaded_for_review_date', 'uploaded_date'];
+    if (!allowedSortFields.includes(sortField)) {
+      return sendError(res, 400, `Invalid sort field. Allowed fields: ${allowedSortFields.join(', ')}`);
     }
-  ],
+    data = [...data].sort((a, b) => {
+      const aVal = a[sortField] || '';
+      const bVal = b[sortField] || '';
+      const cmp = aVal > bVal ? 1 : (aVal < bVal ? -1 : 0);
+      return isDescending ? -cmp : cmp;
+    });
+  }
+
+  res.json(data);
+});
+// ========== Entities ==========
+const entities = {
+  InsuranceDocument: [],
   Project: [
     {
-      id: 'proj-001',
-      project_name: 'Hudson Yards Tower B',
-      gc_id: 'gc-001',
-      gc_name: 'BuildCorp Construction',
-      gc_address: '100 Wall Street, New York, NY 10005',
-      address: '500 W 33rd St',
-      city: 'New York',
-      state: 'NY',
-      zip_code: '10001',
-      project_type: 'Commercial High-Rise',
-      start_date: '2024-01-01',
-      estimated_completion: '2025-12-31',
-      budget: 50000000,
-      status: 'active',
-      program_id: 'program-001',
-      owner_entity: 'Hudson Yards Development LLC',
-      additional_insured_entities: ['Hudson Yards Property LLC', 'Related Companies'],
-      needs_admin_setup: false,
-      created_date: '2023-11-01T10:00:00Z'
-    },
-    {
-      id: 'proj-002',
-      project_name: 'Downtown Office Complex',
-      gc_id: 'gc-001',
-      gc_name: 'BuildCorp Construction',
-      gc_address: '100 Wall Street, New York, NY 10005',
+      id: 'project-001',
+      name: 'Downtown Plaza Renovation',
       address: '123 Business Ave',
       city: 'New York',
       state: 'NY',
@@ -478,17 +431,7 @@ const entities = {
       name: 'Miriam Sabel', 
       role: 'super_admin',
       created_date: '2023-01-01T10:00:00Z'
-    },
-    // Example admin assistant with assigned GC
-    // { 
-    //   id: '3', 
-    //   username: 'assistant1', 
-    //   email: 'assistant1@insuretrack.com', 
-    //   name: 'Admin Assistant', 
-    //   role: 'admin_assistant',
-    //   assigned_gc_ids: ['gc-001'], // Can see everything related to these GCs
-    //   created_date: '2023-01-01T10:00:00Z'
-    // }
+    }
   ],
   ProjectSubcontractor: [],
   SubInsuranceRequirement: [
@@ -543,42 +486,38 @@ const entities = {
   ],
   GeneratedCOI: [],
   Trade: [
-    {
-      id: 'trade-001',
-      trade_name: 'Plumbing',
-      category: 'Mechanical',
-      is_active: true,
-      requires_professional_liability: false,
-      requires_pollution_liability: false,
-      created_date: '2023-01-01T10:00:00Z'
-    },
-    {
-      id: 'trade-002',
-      trade_name: 'Electrical',
-      category: 'Electrical',
-      is_active: true,
-      requires_professional_liability: false,
-      requires_pollution_liability: false,
-      created_date: '2023-01-01T10:00:00Z'
-    },
-    {
-      id: 'trade-003',
-      trade_name: 'HVAC',
-      category: 'Mechanical',
-      is_active: true,
-      requires_professional_liability: false,
-      requires_pollution_liability: false,
-      created_date: '2023-01-01T10:00:00Z'
-    },
-    {
-      id: 'trade-004',
-      trade_name: 'Concrete',
-      category: 'Structural',
-      is_active: true,
-      requires_professional_liability: false,
-      requires_pollution_liability: false,
-      created_date: '2023-01-01T10:00:00Z'
-    }
+    { id: 'trade-001', trade_name: 'Carpentry', category: 'General', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-002', trade_name: 'Electrical', category: 'Electrical', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-003', trade_name: 'Plumbing', category: 'Mechanical', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-004', trade_name: 'HVAC', category: 'Mechanical', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-005', trade_name: 'Concrete', category: 'Structural', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-006', trade_name: 'Masonry', category: 'Structural', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-007', trade_name: 'Drywall', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-008', trade_name: 'Painting', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-009', trade_name: 'Flooring', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-010', trade_name: 'Siding', category: 'Exterior', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-011', trade_name: 'Roofing', category: 'Exterior', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-012', trade_name: 'Glazing', category: 'Exterior', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-013', trade_name: 'Windows & Doors', category: 'Exterior', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-014', trade_name: 'Insulation', category: 'Envelope', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-015', trade_name: 'Sheet Metal', category: 'Mechanical', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-016', trade_name: 'Tile', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-017', trade_name: 'Millwork', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-018', trade_name: 'Landscaping', category: 'Sitework', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-019', trade_name: 'Paving', category: 'Sitework', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-020', trade_name: 'Steel Erection', category: 'Structural', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-021', trade_name: 'Rebar', category: 'Structural', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-022', trade_name: 'Fire Protection', category: 'Mechanical', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-023', trade_name: 'Elevator', category: 'Specialty', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-024', trade_name: 'Waterproofing', category: 'Envelope', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-025', trade_name: 'Caulking', category: 'Envelope', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-026', trade_name: 'Acoustical Ceiling', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-027', trade_name: 'Excavation', category: 'Sitework', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-028', trade_name: 'Demolition', category: 'Sitework', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-029', trade_name: 'Crane Operator', category: 'Specialty', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-030', trade_name: 'Scaffold', category: 'Specialty', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-031', trade_name: 'Any exterior work above 2 stories', category: 'Scope', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
+    { id: 'trade-032', trade_name: 'Any exterior work 2 stories or below', category: 'Scope', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' }
   ],
   InsuranceProgram: [
     {
@@ -599,7 +538,7 @@ const entities = {
       email: 'sarah@nycbrokers.com',
       phone: '212-555-9000',
       status: 'active',
-      password: null, // Hashed password will be set when broker sets/resets password
+      password: null,
       created_date: '2023-01-01T10:00:00Z'
     }
   ],
@@ -902,6 +841,66 @@ loadEntities();
 
 // Run data migration after loading entities
 migrateBrokerPasswords();
+
+// Ensure default trades exist even if data file predates them
+function ensureDefaultTradesPresent() {
+  const defaults = [
+    { trade_name: 'Plumbing', category: 'Mechanical' },
+    { trade_name: 'Electrical', category: 'Electrical' },
+    { trade_name: 'HVAC', category: 'Mechanical' },
+    { trade_name: 'Concrete', category: 'Structural' },
+    { trade_name: 'Carpentry', category: 'General' },
+    { trade_name: 'Roofing', category: 'Exterior' },
+    { trade_name: 'Siding', category: 'Exterior' },
+    { trade_name: 'Masonry', category: 'Structural' },
+    { trade_name: 'Steel Erection', category: 'Structural' },
+    { trade_name: 'Drywall', category: 'Finishes' },
+    { trade_name: 'Painting', category: 'Finishes' },
+    { trade_name: 'Flooring', category: 'Finishes' },
+    { trade_name: 'Glazing', category: 'Exterior' },
+    { trade_name: 'Windows & Doors', category: 'Exterior' },
+    { trade_name: 'Waterproofing', category: 'Exterior' },
+    { trade_name: 'Excavation', category: 'Sitework' },
+    { trade_name: 'Demolition', category: 'Sitework' },
+    { trade_name: 'Crane Operator', category: 'High Risk' },
+    { trade_name: 'Scaffold', category: 'High Risk' },
+    { trade_name: 'Fire Protection', category: 'Mechanical' },
+    { trade_name: 'Elevator', category: 'Specialty' },
+    { trade_name: 'Insulation', category: 'Thermal' },
+    { trade_name: 'Sheet Metal', category: 'Mechanical' },
+    { trade_name: 'Tile', category: 'Finishes' },
+    { trade_name: 'Millwork', category: 'Finishes' },
+    { trade_name: 'Landscaping', category: 'Sitework' },
+    { trade_name: 'Paving', category: 'Sitework' },
+    { trade_name: 'Exterior Work (Above 2 Stories)', category: 'Scope' },
+    { trade_name: 'Exterior Work (≤ 2 Stories)', category: 'Scope' },
+  ];
+
+  const existing = entities.Trade || (entities.Trade = []);
+  const existingNames = new Set(existing.map(t => (t.trade_name || '').toLowerCase()));
+  let added = 0;
+  for (const d of defaults) {
+    if (!existingNames.has(d.trade_name.toLowerCase())) {
+      existing.push({
+        id: `trade-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        trade_name: d.trade_name,
+        category: d.category,
+        is_active: true,
+        requires_professional_liability: false,
+        requires_pollution_liability: false,
+        created_date: new Date().toISOString(),
+      });
+      existingNames.add(d.trade_name.toLowerCase());
+      added++;
+    }
+  }
+  if (added > 0) {
+    console.log(`🔧 Ensured default trades present: added ${added}`);
+    debouncedSave();
+  }
+}
+
+ensureDefaultTradesPresent();
 
 function parseDollarAmounts(blockText) {
   const matches = [...(blockText || '').matchAll(/\$([0-9,]+)/g)].map(m => parseInt(m[1].replace(/,/g, ''), 10));
@@ -1946,331 +1945,185 @@ app.post('/auth/reset-password',
     }
   });
 
-// Entity endpoints
+// Entity endpoints (clean rebuild)
 // Get archived entities (Admin only) - Must be before generic route
 app.get('/entities/:entityName/archived', authenticateToken, requireAdmin, (req, res) => {
   const { entityName } = req.params;
-  
   if (!entities[entityName]) {
     return sendError(res, 404, `Entity ${entityName} not found`);
   }
-
   const archivedItems = entities[entityName].filter(item => item.isArchived === true || item.status === 'archived');
-  
   sendSuccess(res, archivedItems);
 });
 
+// List or read one
 app.get('/entities/:entityName', authenticateToken, (req, res) => {
   const { entityName } = req.params;
   const { sort, id, includeArchived } = req.query;
-  
   if (!entities[entityName]) {
     return res.status(404).json({ error: `Entity ${entityName} not found` });
   }
-
   let data = entities[entityName];
-  
-  // If id is provided, return single entity
   if (id) {
     const item = data.find(item => item.id === id);
-    // Filter archived items unless explicitly requested
     if (!item || (includeArchived !== 'true' && (item.isArchived || item.status === 'archived'))) {
       return res.status(404).json({ error: `${entityName} with id '${id}' not found` });
     }
     return res.json(item);
   }
-  
-  // Filter out archived items by default (unless includeArchived=true)
   if (includeArchived !== 'true') {
     data = data.filter(item => !item.isArchived && item.status !== 'archived');
   }
-  
-  // Simple sorting with whitelist validation
   if (sort) {
-    // Whitelist of allowed sort fields to prevent property pollution
-    const allowedSortFields = ['id', 'email', 'created_date', 'name', 'company_name', 'status', 'createdAt'];
-    
-    if (!allowedSortFields.includes(sort)) {
+    const isDescending = sort.startsWith('-');
+    const sortField = isDescending ? sort.substring(1) : sort;
+    const allowedSortFields = ['id', 'email', 'created_date', 'name', 'company_name', 'status', 'createdAt', 'uploaded_for_review_date', 'uploaded_date'];
+    if (!allowedSortFields.includes(sortField)) {
       return sendError(res, 400, `Invalid sort field. Allowed fields: ${allowedSortFields.join(', ')}`);
     }
-    
     data = [...data].sort((a, b) => {
-      const aVal = a[sort] || '';
-      const bVal = b[sort] || '';
-      return aVal > bVal ? 1 : -1;
+      const aVal = a[sortField] || '';
+      const bVal = b[sortField] || '';
+      const cmp = aVal > bVal ? 1 : (aVal < bVal ? -1 : 0);
+      return isDescending ? -cmp : cmp;
     });
   }
-
   res.json(data);
 });
 
-app.post('/entities/:entityName/query', authenticateToken, (req, res) => {
+// Query via querystring
+app.get('/entities/:entityName/query', authenticateToken, (req, res) => {
   const { entityName } = req.params;
-  const filters = req.body;
-  
   if (!entities[entityName]) {
     return res.status(404).json({ error: `Entity ${entityName} not found` });
   }
-  // GET endpoint for entity query filtering (accepts query parameters)
-  app.get('/entities/:entityName/query', authenticateToken, (req, res) => {
-    const { entityName } = req.params;
-  
-    if (!entities[entityName]) {
-      return res.status(404).json({ error: `Entity ${entityName} not found` });
-    }
-
-    let data = entities[entityName];
-  
-    // Apply filters from query parameters
-    const filters = Object.fromEntries(
-      Object.entries(req.query).filter(([key]) => !['sort', 'includeArchived'].includes(key))
-    );
-  
-    // Simple filtering - match all provided criteria
-    if (Object.keys(filters).length > 0) {
-      data = data.filter(item => {
-        return Object.entries(filters).every(([key, value]) => {
-          return item[key] === value || item[key] === String(value);
-        });
-      });
-    }
-  
-    // Filter out archived items by default (unless includeArchived=true)
-    const includeArchived = req.query.includeArchived;
-    if (includeArchived !== 'true') {
-      data = data.filter(item => !item.isArchived && item.status !== 'archived');
-    }
-  
-    // Apply sorting if provided
-    const sort = req.query.sort;
-    if (sort) {
-      const isDescending = sort.startsWith('-');
-      const sortField = isDescending ? sort.substring(1) : sort;
-    
-      const allowedSortFields = ['id', 'email', 'created_date', 'name', 'company_name', 'status', 'createdAt', 'uploaded_for_review_date', 'uploaded_date'];
-    
-      if (!allowedSortFields.includes(sortField)) {
-        return sendError(res, 400, `Invalid sort field. Allowed fields: ${allowedSortFields.join(', ')}`);
-      }
-    
-      data = [...data].sort((a, b) => {
-        const aVal = a[sortField] || '';
-        const bVal = b[sortField] || '';
-        const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-        return isDescending ? -comparison : comparison;
-      });
-    }
-  
-    res.json(data);
-  });
-
-
   let data = entities[entityName];
-      // Simple sorting with whitelist validation
-      if (sort) {
-        // Parse sort field - handle -fieldname for descending sort
-        const isDescending = sort.startsWith('-');
-        const sortField = isDescending ? sort.substring(1) : sort;
-    
-        // Whitelist of allowed sort fields to prevent property pollution
-        const allowedSortFields = ['id', 'email', 'created_date', 'name', 'company_name', 'status', 'createdAt', 'uploaded_for_review_date', 'uploaded_date'];
-    
-        if (!allowedSortFields.includes(sortField)) {
-          return sendError(res, 400, `Invalid sort field. Allowed fields: ${allowedSortFields.join(', ')}`);
-        }
-    
-        data = [...data].sort((a, b) => {
-          const aVal = a[sortField] || '';
-          const bVal = b[sortField] || '';
-          const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-          return isDescending ? -comparison : comparison;
-        });
-      }
+  const filters = Object.fromEntries(
+    Object.entries(req.query).filter(([key]) => !['sort', 'includeArchived'].includes(key))
+  );
+  if (Object.keys(filters).length > 0) {
+    data = data.filter(item => {
+      return Object.entries(filters).every(([key, value]) => {
+        return item[key] === value || item[key] === String(value);
+      });
+    });
+  }
+  if (req.query.includeArchived !== 'true') {
+    data = data.filter(item => !item.isArchived && item.status !== 'archived');
+  }
+  const { sort } = req.query;
+  if (sort) {
+    const isDescending = sort.startsWith('-');
+    const sortField = isDescending ? sort.substring(1) : sort;
+    const allowedSortFields = ['id', 'email', 'created_date', 'name', 'company_name', 'status', 'createdAt', 'uploaded_for_review_date', 'uploaded_date'];
+    if (!allowedSortFields.includes(sortField)) {
+      return sendError(res, 400, `Invalid sort field. Allowed fields: ${allowedSortFields.join(', ')}`);
+    }
+    data = [...data].sort((a, b) => {
+      const aVal = a[sortField] || '';
+      const bVal = b[sortField] || '';
+      const cmp = aVal > bVal ? 1 : (aVal < bVal ? -1 : 0);
+      return isDescending ? -cmp : cmp;
+    });
+  }
+  return res.json({ success: true, data, timestamp: new Date().toISOString() });
+});
+
+// Create
+app.post('/entities/:entityName', authenticateToken, async (req, res) => {
+  const { entityName } = req.params;
   const data = req.body;
-  
   if (!entities[entityName]) {
     return res.status(404).json({ error: `Entity ${entityName} not found` });
   }
-
-  // Special handling for User entity creation
   if (entityName === 'User') {
-    // Validate required fields for User
-    if (!data.email) {
-      return res.status(400).json({ error: 'Email is required for User creation' });
-    }
-    if (!data.name) {
-      return res.status(400).json({ error: 'Name is required for User creation' });
-    }
-    if (!data.password) {
-      return res.status(400).json({ error: 'Password is required for User creation' });
-    }
-
-    // Validate email format
-    if (!validateEmail(data.email)) {
-      return res.status(400).json({ error: 'Invalid email format' });
-    }
-
-    // Check for duplicate email in users array
-    if (users.find(u => u.email === data.email)) {
-      return res.status(400).json({ error: 'Email already exists' });
-    }
-
-    // Check for duplicate email in entities.User
-    if (entities.User.find(u => u.email === data.email)) {
-      return res.status(400).json({ error: 'Email already exists' });
-    }
-
-    // Generate username from email if not provided
+    if (!data.email) return res.status(400).json({ error: 'Email is required for User creation' });
+    if (!data.name) return res.status(400).json({ error: 'Name is required for User creation' });
+    if (!data.password) return res.status(400).json({ error: 'Password is required for User creation' });
+    if (!validateEmail(data.email)) return res.status(400).json({ error: 'Invalid email format' });
+    if (users.find(u => u.email === data.email)) return res.status(400).json({ error: 'Email already exists' });
+    if (entities.User.find(u => u.email === data.email)) return res.status(400).json({ error: 'Email already exists' });
     const username = data.username || data.email.split('@')[0];
-
-    // Check for duplicate username
-    if (users.find(u => u.username === username)) {
-      return res.status(400).json({ error: 'Username already exists' });
-    }
-
-    // Hash the password
+    if (users.find(u => u.username === username)) return res.status(400).json({ error: 'Username already exists' });
     const hashedPassword = await bcrypt.hash(data.password, 10);
-
     const userId = `user-${Date.now()}`;
-    const newUser = {
-      id: userId,
-      username,
-      password: hashedPassword,
-      email: data.email,
-      name: data.name,
-      role: data.role || 'admin',
-      is_active: data.is_active !== undefined ? data.is_active : true,
-      createdAt: new Date().toISOString(),
-      createdBy: req.user.id
-    };
-
-    // Add to users array for authentication
+    const newUser = { id: userId, username, password: hashedPassword, email: data.email, name: data.name, role: data.role || 'admin', is_active: data.is_active !== undefined ? data.is_active : true, createdAt: new Date().toISOString(), createdBy: req.user.id };
     users.push(newUser);
-
-    // Add to entities.User for display (without password)
-    const userEntity = {
-      id: userId,
-      username,
-      email: data.email,
-      name: data.name,
-      role: data.role || 'admin',
-      is_active: data.is_active !== undefined ? data.is_active : true,
-      created_date: newUser.createdAt,
-      createdBy: req.user.id
-    };
+    const userEntity = { id: userId, username, email: data.email, name: data.name, role: data.role || 'admin', is_active: data.is_active !== undefined ? data.is_active : true, created_date: newUser.createdAt, createdBy: req.user.id };
     entities.User.push(userEntity);
-
-    // Persist to disk
     debouncedSave();
-
-    // Return user entity (without password)
     return res.status(201).json(userEntity);
   }
-
-  const newItem = {
-    id: `${entityName}-${Date.now()}`,
-    ...data,
-    createdAt: new Date().toISOString(),
-    createdBy: req.user.id
-  };
-
+  const newItem = { id: `${entityName}-${Date.now()}`, ...data, createdAt: new Date().toISOString(), createdBy: req.user.id };
   let gcLogin = null;
   if (entityName === 'Contractor' && data.contractor_type === 'general_contractor') {
     gcLogin = await ensureGcLogin(newItem, { forceCreate: true });
-    if (gcLogin) {
-      newItem.gc_login_created = true;
-    }
+    if (gcLogin) newItem.gc_login_created = true;
   }
-
   entities[entityName].push(newItem);
-  
-  // Persist to disk
   debouncedSave();
-  
   const responsePayload = gcLogin ? { ...newItem, gcLogin } : newItem;
   res.status(201).json(responsePayload);
 });
 
-app.patch('/entities/:entityName/:id', authenticateToken, async (req, res) => {
+// Update
+app.patch('/entities/:entityName/:id', authenticateToken, (req, res) => {
   const { entityName, id } = req.params;
-  const updates = req.body;
-  
+  const updates = req.body || {};
   if (!entities[entityName]) {
     return res.status(404).json({ error: `Entity ${entityName} not found` });
   }
-
   const index = entities[entityName].findIndex(item => item.id === id);
   if (index === -1) {
     return res.status(404).json({ error: 'Item not found' });
   }
-
-  // Special handling for User entity updates
   if (entityName === 'User') {
-    const existingUser = entities.User[index];
-    
-    // If email is being updated, validate it
-    if (updates.email && updates.email !== existingUser.email) {
-      if (!validateEmail(updates.email)) {
-        return res.status(400).json({ error: 'Invalid email format' });
-      }
-
-      // Check for duplicate email
-      if (users.find(u => u.email === updates.email && u.id !== id)) {
-        return res.status(400).json({ error: 'Email already exists' });
-      }
-      if (entities.User.find(u => u.email === updates.email && u.id !== id)) {
-        return res.status(400).json({ error: 'Email already exists' });
-      }
-    }
-
-    // If password is being updated, hash it
-    let hashedPassword;
-    if (updates.password) {
-      hashedPassword = await bcrypt.hash(updates.password, 10);
-    }
-
-    // Update in users array
-    const userIndex = users.findIndex(u => u.id === id);
-    if (userIndex !== -1) {
-      users[userIndex] = {
-        ...users[userIndex],
-        ...(updates.email && { email: updates.email }),
-        ...(updates.name && { name: updates.name }),
-        ...(updates.role && { role: updates.role }),
-        ...(hashedPassword && { password: hashedPassword }),
-        ...(updates.is_active !== undefined && { is_active: updates.is_active })
-      };
-    }
-
-    // Update in entities.User (without password)
-    const updatedUser = {
-      ...entities.User[index],
-      ...(updates.email && { email: updates.email }),
-      ...(updates.name && { name: updates.name }),
-      ...(updates.role && { role: updates.role }),
-      ...(updates.is_active !== undefined && { is_active: updates.is_active }),
-      updatedAt: new Date().toISOString(),
-      updatedBy: req.user.id
-    };
+    const current = entities.User[index];
+    const updatedUser = { ...current, ...updates, ...(updates.is_active !== undefined && { is_active: updates.is_active }), updatedAt: new Date().toISOString(), updatedBy: req.user.id };
     entities.User[index] = updatedUser;
-
-    // Persist to disk
     debouncedSave();
-
     return res.json(updatedUser);
   }
-
-  entities[entityName][index] = {
-    ...entities[entityName][index],
-    ...updates,
-    updatedAt: new Date().toISOString(),
-    updatedBy: req.user.id
-  };
-
-  // Persist to disk
+  entities[entityName][index] = { ...entities[entityName][index], ...updates, updatedAt: new Date().toISOString(), updatedBy: req.user.id };
   debouncedSave();
-
   res.json(entities[entityName][index]);
+});
+
+// Query via POST body
+app.post('/entities/:entityName/query', authenticateToken, (req, res) => {
+  const { entityName } = req.params;
+  if (!entities[entityName]) {
+    return res.status(404).json({ error: `Entity ${entityName} not found` });
+  }
+  let data = entities[entityName];
+  const body = req.body || {};
+  const { sort, includeArchived, ...rawFilters } = body;
+  const filters = rawFilters || {};
+  if (Object.keys(filters).length > 0) {
+    data = data.filter(item => {
+      return Object.entries(filters).every(([key, value]) => {
+        return item[key] === value || item[key] === String(value);
+      });
+    });
+  }
+  if (includeArchived !== true && includeArchived !== 'true') {
+    data = data.filter(item => !item.isArchived && item.status !== 'archived');
+  }
+  if (sort) {
+    const isDescending = typeof sort === 'string' && sort.startsWith('-');
+    const sortField = isDescending ? sort.substring(1) : sort;
+    const allowedSortFields = ['id', 'email', 'created_date', 'name', 'company_name', 'status', 'createdAt', 'uploaded_for_review_date', 'uploaded_date'];
+    if (!allowedSortFields.includes(sortField)) {
+      return sendError(res, 400, `Invalid sort field. Allowed fields: ${allowedSortFields.join(', ')}`);
+    }
+    data = [...data].sort((a, b) => {
+      const aVal = a[sortField] || '';
+      const bVal = b[sortField] || '';
+      const cmp = aVal > bVal ? 1 : (aVal < bVal ? -1 : 0);
+      return isDescending ? -cmp : cmp;
+    });
+  }
+  res.json(data);
 });
 
 app.delete('/entities/:entityName/:id', authenticateToken, (req, res) => {

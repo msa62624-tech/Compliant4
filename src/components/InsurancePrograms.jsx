@@ -48,9 +48,9 @@ export default function InsurancePrograms() {
     gl_products_completed_ops: null,
     umbrella_each_occurrence: null,
     umbrella_aggregate: null,
-    wc_each_accident: 500000,
-    wc_disease_policy_limit: 500000,
-    wc_disease_each_employee: 500000,
+    wc_each_accident: 1000000,
+    wc_disease_policy_limit: 1000000,
+    wc_disease_each_employee: 1000000,
     auto_combined_single_limit: null,
     applicable_trades: [],
     is_all_other_trades: false,
@@ -71,6 +71,27 @@ export default function InsurancePrograms() {
     wc_disease_policy_limit: null,
     wc_disease_each_employee: null,
     auto_combined_single_limit: 1000000,
+    auto_hired_non_owned_required: true,
+    applicable_trades: [],
+    is_all_other_trades: false,
+  });
+
+  const newUmbrellaRequirement = (tierName = 'Tier 1') => ({
+    id: `req-local-${Date.now()}-${Math.random()}`,
+    trade_name: 'All Trades',
+    tier: tierName,
+    insurance_type: 'umbrella_policy',
+    is_required: true,
+    gl_each_occurrence: null,
+    gl_general_aggregate: null,
+    gl_products_completed_ops: null,
+    umbrella_each_occurrence: 1000000,
+    umbrella_aggregate: 1000000,
+    wc_each_accident: null,
+    wc_disease_policy_limit: null,
+    wc_disease_each_employee: null,
+    auto_combined_single_limit: null,
+    auto_hired_non_owned_required: null,
     applicable_trades: [],
     is_all_other_trades: false,
   });
@@ -225,6 +246,7 @@ export default function InsurancePrograms() {
             pdf_name: file.name,
             pdf_type: file.type || 'application/pdf'
           });
+          // Show preview for user review
           setParsePreview(parsed);
         } catch (err) {
           console.error(err);
@@ -269,9 +291,43 @@ export default function InsurancePrograms() {
       );
       queryClient.invalidateQueries(['programs']);
       setParsePreview(null);
+      setParseError('');
     } catch (err) {
       console.error(err);
       setParseError('Failed to save imported program.');
+    }
+  };
+
+  const autoImportAndPopulate = async (parsed) => {
+    try {
+      // Auto-populate form with parsed data
+      setFormData(prev => ({
+        ...prev,
+        name: parsed.program?.name || prev.name,
+        description: parsed.program?.description || prev.description,
+        pdf_name: parsed.program?.pdf_name || prev.pdf_name,
+        pdf_data: parsed.program?.pdf_data || prev.pdf_data,
+        pdf_type: parsed.program?.pdf_type || prev.pdf_type,
+      }));
+
+      // Extract unique tiers from requirements
+      const tierSet = new Set((parsed.requirements || []).map(r => r.tier).filter(Boolean));
+      const extractedTiers = Array.from(tierSet).sort().map((tierName, idx) => ({
+        name: tierName,
+        id: `tier-${Date.now()}-${idx}`
+      }));
+
+      if (extractedTiers.length > 0) {
+        setTiers(extractedTiers);
+      }
+
+      // Set requirements directly from parsed data
+      setRequirements(parsed.requirements || []);
+      setParsePreview(null);
+      setParseError('');
+    } catch (err) {
+      console.error('Auto-import failed:', err);
+      setParseError('Failed to auto-populate from PDF. Please review manually.');
     }
   };
 
@@ -373,8 +429,14 @@ export default function InsurancePrograms() {
                 <Button variant="outline" onClick={() => setParsePreview(null)}>
                   Dismiss
                 </Button>
+                <Button variant="outline" onClick={async () => {
+                  await autoImportAndPopulate(parsePreview);
+                  if (!isDialogOpen) setIsDialogOpen(true);
+                }}>
+                  Edit Manually
+                </Button>
                 <Button className="bg-red-600 hover:bg-red-700" onClick={handleConfirmImport}>
-                  Save Program & Requirements
+                  Save Directly
                 </Button>
               </div>
             </CardContent>
@@ -778,42 +840,86 @@ export default function InsurancePrograms() {
                                 </div>
                               </div>
                               
-                              <Select 
-                                value="" 
-                                onValueChange={(tradeValue) => {
-                                  // Add trade to this tier's requirements
-                                  const tierReqs = requirements.filter(r => r.tier === tier.name);
-                                  if (tierReqs.length === 0) {
-                                    // Create first requirement for this tier
-                                    setRequirements(prev => [...prev, {
-                                      ...newGLRequirement(tier.name),
-                                      applicable_trades: [tradeValue]
-                                    }]);
-                                  } else {
-                                    // Add trade to existing requirements
-                                    setRequirements(prev => prev.map(r => {
-                                      if (r.tier === tier.name) {
-                                        const currentTrades = r.applicable_trades || [];
-                                        if (!currentTrades.includes(tradeValue)) {
-                                          return { ...r, applicable_trades: [...currentTrades, tradeValue] };
-                                        }
-                                      }
-                                      return r;
-                                    }));
+                              {/* Trade selection grid */}
+                              {(() => {
+                                const selectedBefore = new Set(
+                                  tiers
+                                    .slice(0, tierIndex)
+                                    .flatMap(t => requirements
+                                      .filter(r => r.tier === t.name)
+                                      .flatMap(r => r.applicable_trades || [])
+                                    )
+                                );
+                                const selectedHere = new Set(
+                                  requirements
+                                    .filter(r => r.tier === tier.name)
+                                    .flatMap(r => r.applicable_trades || [])
+                                );
+                                const visibleTrades = allTrades.filter(t => !selectedBefore.has(t.value));
+
+                                const toggleTrade = (tradeValue) => {
+                                  const isSelected = selectedHere.has(tradeValue);
+                                  if (requirements.filter(r => r.tier === tier.name).length === 0) {
+                                    // ensure at least one requirement exists to carry the selection
+                                    setRequirements(prev => [...prev, { ...newGLRequirement(tier.name), applicable_trades: isSelected ? [] : [tradeValue] }]);
+                                    return;
                                   }
-                                }}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select trades for this tier..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {allTrades.map((trade) => (
-                                    <SelectItem key={trade.value} value={trade.value}>
-                                      {trade.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                  setRequirements(prev => prev.map(r => {
+                                    if (r.tier !== tier.name) return r;
+                                    const current = new Set(r.applicable_trades || []);
+                                    if (isSelected) {
+                                      current.delete(tradeValue);
+                                    } else {
+                                      current.add(tradeValue);
+                                    }
+                                    return { ...r, applicable_trades: Array.from(current) };
+                                  }));
+                                };
+
+                                const selectAllVisible = () => {
+                                  const allValues = visibleTrades.map(t => t.value);
+                                  if (requirements.filter(r => r.tier === tier.name).length === 0) {
+                                    setRequirements(prev => [...prev, { ...newGLRequirement(tier.name), applicable_trades: allValues }]);
+                                    return;
+                                  }
+                                  setRequirements(prev => prev.map(r => r.tier === tier.name ? { ...r, applicable_trades: Array.from(new Set([...(r.applicable_trades || []), ...allValues])) } : r));
+                                };
+
+                                return (
+                                  <div className="space-y-2">
+                                    {tierIndex > 0 && (
+                                      <div className="flex justify-end">
+                                        <Button type="button" variant="outline" size="sm" onClick={selectAllVisible}>Select All</Button>
+                                      </div>
+                                    )}
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                      {visibleTrades.map(trade => {
+                                        const active = selectedHere.has(trade.value);
+                                        return (
+                                          <button
+                                            key={trade.value}
+                                            type="button"
+                                            onClick={() => toggleTrade(trade.value)}
+                                            className={`text-left p-3 rounded border transition ${active ? 'bg-red-50 border-red-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <Checkbox 
+                                                checked={active} 
+                                                onCheckedChange={(checked) => {
+                                                  toggleTrade(trade.value);
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                              />
+                                              <span className="text-sm font-medium">{trade.label}</span>
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-1">Tier {trade.tier}</div>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
 
                               {/* Display selected trades */}
                               <div className="flex flex-wrap gap-2 mt-2">
@@ -853,6 +959,9 @@ export default function InsurancePrograms() {
                                   </Button>
                                   <Button type="button" variant="outline" size="sm" onClick={() => setRequirements(prev => [...prev, newAutoRequirement(tier.name)])}>
                                     <Plus className="w-3 h-3 mr-1" /> Auto
+                                  </Button>
+                                  <Button type="button" variant="outline" size="sm" onClick={() => setRequirements(prev => [...prev, newUmbrellaRequirement(tier.name)])}>
+                                    <Plus className="w-3 h-3 mr-1" /> Umbrella
                                   </Button>
                                 </div>
                               </div>
@@ -903,7 +1012,13 @@ export default function InsurancePrograms() {
                                     )}
 
                                     {req.insurance_type === 'auto_liability' && (
-                                      <Input type="number" placeholder="Combined Single Limit" value={req.auto_combined_single_limit || ''} onChange={(e) => setRequirements(prev => prev.map(r => r.id === req.id ? { ...r, auto_combined_single_limit: Number(e.target.value) || null } : r))} className="text-sm" />
+                                      <div className="grid grid-cols-2 gap-2 items-center">
+                                        <Input type="number" placeholder="Combined Single Limit" value={req.auto_combined_single_limit || ''} onChange={(e) => setRequirements(prev => prev.map(r => r.id === req.id ? { ...r, auto_combined_single_limit: Number(e.target.value) || null } : r))} className="text-sm" />
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox id={`hnoa-${req.id}`} checked={!!req.auto_hired_non_owned_required} onCheckedChange={(checked) => setRequirements(prev => prev.map(r => r.id === req.id ? { ...r, auto_hired_non_owned_required: !!checked } : r))} />
+                                          <Label htmlFor={`hnoa-${req.id}`} className="text-xs cursor-pointer">Hired & Non-owned required</Label>
+                                        </div>
+                                      </div>
                                     )}
                                   </div>
                                 ))}
