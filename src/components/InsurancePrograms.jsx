@@ -96,6 +96,9 @@ export default function InsurancePrograms() {
     is_all_other_trades: false,
   });
 
+  // Helper to check if insurance type is umbrella/excess
+  const isUmbrellaType = (type) => type === 'umbrella_policy' || type === 'excess_liability';
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState(null);
   const [formData, setFormData] = useState({
@@ -197,6 +200,8 @@ export default function InsurancePrograms() {
         const reqs = Array.isArray(programReqs) ? programReqs : (programReqs?.data || []);
         console.log('Loaded requirements for program:', reqs.length);
         console.log('First few requirements:', reqs.slice(0, 3));
+        console.log('Insurance types found:', reqs.map(r => r.insurance_type));
+        console.log('Umbrella requirements:', reqs.filter(r => isUmbrellaType(r.insurance_type)));
         setRequirements(reqs);
         
         // Extract unique tiers from loaded requirements
@@ -873,7 +878,7 @@ export default function InsurancePrograms() {
                                   <h3 className="text-base font-bold text-slate-900">{tier.name}</h3>
                                   <span className="text-sm text-slate-500 bg-slate-100 px-2 py-1 rounded">
                                     {tierReqs.filter(r => r.insurance_type === 'general_liability').length} GL
-                                    {tierReqs.filter(r => r.insurance_type === 'umbrella_policy').length > 0 ? ` + Umbrella` : ''}
+                                    {tierReqs.filter(r => isUmbrellaType(r.insurance_type)).length > 0 ? ` + Umbrella` : ''}
                                   </span>
                                 </div>
                                 <div className="flex gap-2">
@@ -924,7 +929,7 @@ export default function InsurancePrograms() {
                                         <div className="flex items-center justify-between mb-2">
                                           <span className="font-semibold text-sm">
                                             {req.insurance_type === 'general_liability' ? '💰 General Liability' : 
-                                             req.insurance_type === 'umbrella_policy' ? '☂️ Excess/Umbrella' : req.insurance_type}
+                                             isUmbrellaType(req.insurance_type) ? '☂️ Excess/Umbrella' : req.insurance_type}
                                           </span>
                                           <Button 
                                             type="button" 
@@ -968,7 +973,7 @@ export default function InsurancePrograms() {
                                           </div>
                                         )}
                                         
-                                        {req.insurance_type === 'umbrella_policy' && (
+                                        {isUmbrellaType(req.insurance_type) && (
                                           <div className="grid grid-cols-2 gap-2 text-sm">
                                             <div>
                                               <p className="text-xs text-slate-600">Each Occurrence</p>
@@ -998,7 +1003,7 @@ export default function InsurancePrograms() {
                                     <Plus className="w-3 h-3 mr-1" /> Add GL
                                   </Button>
                                 )}
-                                {tierReqs.filter(r => r.insurance_type === 'umbrella_policy').length === 0 && (
+                                {tierReqs.filter(r => isUmbrellaType(r.insurance_type)).length === 0 && (
                                   <Button 
                                     type="button" 
                                     size="sm"
