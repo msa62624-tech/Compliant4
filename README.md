@@ -48,10 +48,11 @@ cd backend
 npm install
 # .env file already configured with defaults
 npm run dev
+   - Example quick-test: see `scripts/test-requests.sh` to exercise debug, public users, login and protected calls (requires `jq` locally)
 ```
 
 Backend runs on `http://localhost:3001`  
-Frontend runs on `http://localhost:5173`
+Frontend runs on `http://localhost:5175`
 
 For email configuration, see [docs/EMAIL_SETUP.md](docs/EMAIL_SETUP.md).
 
@@ -178,7 +179,7 @@ VITE_API_BASE_URL=https://organic-system-wrpwv4xxwvxv3v4pw-3001.app.github.dev
 ```bash
 PORT=3001
 JWT_SECRET=compliant-dev-secret-change-in-production
-FRONTEND_URL=https://organic-system-wrpwv4xxwvxv3v4pw-5174.app.github.dev
+FRONTEND_URL=https://organic-system-wrpwv4xxwvxv3v4pw-5175.app.github.dev
 NODE_ENV=development
 ```
 

@@ -38,8 +38,8 @@ NODE_ENV=development
 JWT_SECRET=insuretrack-dev-secret-change-in-production
 
 # CORS - Set to your frontend URL (update if frontend uses different port)
-# If frontend runs on 5175 instead of 5173, use http://localhost:5175
-FRONTEND_URL=http://localhost:5173
+# If your frontend runs on 5173 instead, change this to http://localhost:5173
+FRONTEND_URL=http://localhost:5175
 
 # SMTP (Email) - Optional for development
 # Leave these commented out to use mock email service
@@ -80,13 +80,13 @@ VITE_API_BASE_URL=http://localhost:3001
 npm run dev
 ```
 
-The frontend will start on http://localhost:5173 (or the next available port like 5175)
+The frontend will start on http://localhost:5175 (or the next available port like 5173 if 5175 is busy)
 
 **Important**: If the frontend starts on a different port (e.g., 5175), update the `FRONTEND_URL` in `backend/.env` to match that port.
 
 ### 4. Access the Application
 
-1. Open your browser to http://localhost:5173 (or the port shown in the terminal)
+1. Open your browser to http://localhost:5175 (or the port shown in the terminal)
 2. Login with default credentials:
    - Username: `admin`
    - Password: `INsure2026!`

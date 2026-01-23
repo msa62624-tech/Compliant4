@@ -1471,7 +1471,7 @@ app.use(cors({
     return callback(new Error('CORS not allowed'));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 3600 // 1 hour
 }));
@@ -2011,23 +2011,81 @@ app.post('/entities/:entityName/query', authenticateToken, (req, res) => {
   if (!entities[entityName]) {
     return res.status(404).json({ error: `Entity ${entityName} not found` });
   }
+  // GET endpoint for entity query filtering (accepts query parameters)
+  app.get('/entities/:entityName/query', authenticateToken, (req, res) => {
+    const { entityName } = req.params;
+  
+    if (!entities[entityName]) {
+      return res.status(404).json({ error: `Entity ${entityName} not found` });
+    }
+
+    let data = entities[entityName];
+  
+    // Apply filters from query parameters
+    const filters = Object.fromEntries(
+      Object.entries(req.query).filter(([key]) => !['sort', 'includeArchived'].includes(key))
+    );
+  
+    // Simple filtering - match all provided criteria
+    if (Object.keys(filters).length > 0) {
+      data = data.filter(item => {
+        return Object.entries(filters).every(([key, value]) => {
+          return item[key] === value || item[key] === String(value);
+        });
+      });
+    }
+  
+    // Filter out archived items by default (unless includeArchived=true)
+    const includeArchived = req.query.includeArchived;
+    if (includeArchived !== 'true') {
+      data = data.filter(item => !item.isArchived && item.status !== 'archived');
+    }
+  
+    // Apply sorting if provided
+    const sort = req.query.sort;
+    if (sort) {
+      const isDescending = sort.startsWith('-');
+      const sortField = isDescending ? sort.substring(1) : sort;
+    
+      const allowedSortFields = ['id', 'email', 'created_date', 'name', 'company_name', 'status', 'createdAt', 'uploaded_for_review_date', 'uploaded_date'];
+    
+      if (!allowedSortFields.includes(sortField)) {
+        return sendError(res, 400, `Invalid sort field. Allowed fields: ${allowedSortFields.join(', ')}`);
+      }
+    
+      data = [...data].sort((a, b) => {
+        const aVal = a[sortField] || '';
+        const bVal = b[sortField] || '';
+        const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+        return isDescending ? -comparison : comparison;
+      });
+    }
+  
+    res.json(data);
+  });
+
 
   let data = entities[entityName];
-  
-  // Simple filtering
-  if (filters && Object.keys(filters).length > 0) {
-    data = data.filter(item => {
-      return Object.entries(filters).every(([key, value]) => {
-        return item[key] === value;
-      });
-    });
-  }
-
-  res.json(data);
-});
-
-app.post('/entities/:entityName', apiLimiter, authenticateToken, async (req, res) => {
-  const { entityName } = req.params;
+      // Simple sorting with whitelist validation
+      if (sort) {
+        // Parse sort field - handle -fieldname for descending sort
+        const isDescending = sort.startsWith('-');
+        const sortField = isDescending ? sort.substring(1) : sort;
+    
+        // Whitelist of allowed sort fields to prevent property pollution
+        const allowedSortFields = ['id', 'email', 'created_date', 'name', 'company_name', 'status', 'createdAt', 'uploaded_for_review_date', 'uploaded_date'];
+    
+        if (!allowedSortFields.includes(sortField)) {
+          return sendError(res, 400, `Invalid sort field. Allowed fields: ${allowedSortFields.join(', ')}`);
+        }
+    
+        data = [...data].sort((a, b) => {
+          const aVal = a[sortField] || '';
+          const bVal = b[sortField] || '';
+          const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+          return isDescending ? -comparison : comparison;
+        });
+      }
   const data = req.body;
   
   if (!entities[entityName]) {
@@ -2555,6 +2613,24 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
       details: err?.message || 'Unknown error',
       mockEmail: true
     });
+  }
+});
+
+// Public users list (no auth) - useful for quick manual testing only
+// Returns limited user info and should NOT be used in production.
+app.get('/public/users', (req, res) => {
+  try {
+    const safeUsers = (users || []).map(u => ({
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      name: u.name,
+      role: u.role
+    }));
+    res.json(safeUsers);
+  } catch (err) {
+    console.error('Public users error:', err?.message || err);
+    res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
 
@@ -4428,30 +4504,79 @@ app.use((err, req, res, _next) => {
 
 // Start server (skip if running in serverless environment like Vercel)
 if (!process.env.VERCEL) {
-  const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`compliant.team Backend running on http://localhost:${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`CORS allowed: ${process.env.FRONTEND_URL || '*'}`);
-    console.log(`✅ Security: Helmet enabled, Rate limiting active`);
-    
-    // Email service status
-    const hasSmtpConfig = (process.env.SMTP_HOST || process.env.SMTP_SERVICE) && 
-                          process.env.SMTP_USER && 
-                          process.env.SMTP_PASS;
-    if (hasSmtpConfig) {
-      console.log(`✅ Email service: CONFIGURED (${process.env.SMTP_SERVICE || process.env.SMTP_HOST})`);
-      console.log(`   From: ${process.env.SMTP_FROM || process.env.SMTP_USER}`);
-    } else {
-      console.log(`⚠️  Email service: TEST MODE (not configured for real emails)`);
-      console.log(`   Configure SMTP in backend/.env to send real emails`);
-      console.log(`   See EMAIL_QUICKSTART.md for quick setup`);
+  // Debug endpoint to help diagnose routing/CORS issues
+  app.get('/_debug/routes', (req, res) => {
+    return res.json({
+      ok: true,
+      frontend_url: process.env.FRONTEND_URL || null,
+      sample_endpoints: [
+        '/entities/User',
+        '/auth/login',
+        '/public/send-email',
+        '/integrations/email-verify'
+      ]
+    });
+  });
+
+  // Attempt to bind to configured PORT, but if it's in use try the next ports
+  const configuredPort = Number(process.env.PORT || PORT || 3001);
+  const MAX_PORT_TRIES = 10;
+
+  const tryListen = (port) => new Promise((resolve, reject) => {
+    const s = app.listen(port, '0.0.0.0');
+    const onError = (err) => {
+      s.removeAllListeners();
+      reject(err);
+    };
+    s.once('listening', () => {
+      s.removeListener('error', onError);
+      resolve(s);
+    });
+    s.once('error', onError);
+  });
+
+  (async () => {
+    for (let i = 0; i <= MAX_PORT_TRIES; i++) {
+      const p = configuredPort + i;
+      try {
+        const server = await tryListen(p);
+        console.log(`compliant.team Backend running on http://localhost:${p}`);
+        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`CORS allowed: ${process.env.FRONTEND_URL || '*'}`);
+        console.log(`✅ Security: Helmet enabled, Rate limiting active`);
+
+        const hasSmtpConfig = (process.env.SMTP_HOST || process.env.SMTP_SERVICE) && 
+                              process.env.SMTP_USER && 
+                              process.env.SMTP_PASS;
+        if (hasSmtpConfig) {
+          console.log(`✅ Email service: CONFIGURED (${process.env.SMTP_SERVICE || process.env.SMTP_HOST})`);
+          console.log(`   From: ${process.env.SMTP_FROM || process.env.SMTP_USER}`);
+        } else {
+          console.log(`⚠️  Email service: TEST MODE (not configured for real emails)`);
+          console.log(`   Configure SMTP in backend/.env to send real emails`);
+          console.log(`   See EMAIL_QUICKSTART.md for quick setup`);
+        }
+
+        // Expose chosen port to environment for downstream processes
+        process.env.PORT = String(p);
+
+        server.on('error', (err) => {
+          console.error('Server error:', err);
+        });
+
+        return;
+      } catch (err) {
+        if (err && err.code === 'EADDRINUSE') {
+          console.warn(`Port ${p} in use — trying next port`);
+          continue;
+        }
+        console.error('Failed to start server:', err);
+        break;
+      }
     }
-  });
-  
-  server.on('error', (err) => {
-    console.error('Server error:', err);
-    process.exit(1);
-  });
+
+    console.error(`Unable to bind to any port in range ${configuredPort}-${configuredPort + MAX_PORT_TRIES}. Please free a port or set PORT to an available port.`);
+  })();
 }
 
 // Export for Vercel serverless

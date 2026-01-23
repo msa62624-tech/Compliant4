@@ -35,7 +35,7 @@ export default function ForgotPassword({ onBackToLogin }) {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001')}/auth/request-password-reset`,
+        `${import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001')}/auth/request-password-reset`,
         {
           method: 'POST',
           headers: {

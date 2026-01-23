@@ -20,7 +20,7 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
   const [responseText, setResponseText] = useState('');
 
   const apiBase = import.meta.env.VITE_API_BASE_URL || 
-                 window.location.origin.replace(':5173', ':3001');
+                 window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001');
 
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['notifications', recipientId, recipientType],

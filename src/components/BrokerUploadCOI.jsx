@@ -862,7 +862,7 @@ export default function BrokerUploadCOI() {
       // Auto-trigger AI policy analysis
       setUploadProgress('Running AI policy analysis...');
       try {
-        const apiBase = backendBase || (import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001'));
+        const apiBase = backendBase || (import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001'));
         const authToken = sessionStorage.getItem('token');
         
         const policyAnalysisRes = await fetch(`${apiBase}/integrations/analyze-policy`, {

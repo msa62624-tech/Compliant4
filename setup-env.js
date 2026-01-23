@@ -398,7 +398,7 @@ async function setupBackend() {
 
   // Ask about frontend URL
   log('\n🌐 Frontend URL Configuration:\n', colors.bright);
-  const frontendUrl = await promptUser('Enter your frontend URL (default: http://localhost:5173): ');
+  const frontendUrl = await promptUser('Enter your frontend URL (default: http://localhost:5175): ');
   
   if (frontendUrl && frontendUrl.trim() !== '') {
     backendEnvContent = backendEnvContent.replace(
@@ -407,7 +407,7 @@ async function setupBackend() {
     );
     log(`✅ Frontend URL set to: ${frontendUrl.trim()}`, colors.green);
   } else {
-    log('✅ Using default frontend URL: http://localhost:5173', colors.green);
+    log('✅ Using default frontend URL: http://localhost:5175', colors.green);
   }
 
   // Write the backend .env file

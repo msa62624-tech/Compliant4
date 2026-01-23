@@ -62,7 +62,7 @@ npm run dev
    ```bash
    PORT=3001
    JWT_SECRET=your-secret-key-change-in-production
-   FRONTEND_URL=http://localhost:5173
+   FRONTEND_URL=http://localhost:5175
    ```
 
    **Email configuration (choose one):**

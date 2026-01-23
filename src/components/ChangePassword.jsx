@@ -50,7 +50,7 @@ export default function ChangePassword({ userId, userEmail, onPasswordChanged })
 
     try {
       // Call API to change password
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001')}/auth/change-password`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001')}/auth/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

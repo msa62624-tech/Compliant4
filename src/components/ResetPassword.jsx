@@ -62,7 +62,7 @@ export default function ResetPassword() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001')}/auth/reset-password`,
+        `${import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001')}/auth/reset-password`,
         {
           method: 'POST',
           headers: {

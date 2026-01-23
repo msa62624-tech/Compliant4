@@ -24,12 +24,30 @@ npm start
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and configure:
+Copy `backend/.env.example` to `backend/.env` (or set env vars in your hosting provider) and configure values locally. DO NOT commit real credentials (SMTP passwords, JWT secrets) to source control.
+
+Example values (development):
 
 ```bash
+# in backend/.env
 PORT=3001
 JWT_SECRET=your-production-secret-key
-FRONTEND_URL=https://insuretrack1234.vercel.app
+FRONTEND_URL=http://localhost:5175
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_USER=your-email@domain.com
+SMTP_PASS=your-smtp-password
+```
+
+For Vite/frontend, set `VITE_API_BASE_URL` in the frontend environment (see `.env.example` at repo root).
+
+To verify email transport is working (after setting SMTP env vars), call the protected verify endpoint (requires auth) or use the public verify endpoint during development:
+
+```bash
+# If running locally and authenticated, GET /integrations/email-verify
+curl -i -H "Authorization: Bearer <token>" http://localhost:3001/integrations/email-verify
+
+# For public send-email verification (POST /integrations/public/send-email) use the API
 ```
 
 ## Default Test Users

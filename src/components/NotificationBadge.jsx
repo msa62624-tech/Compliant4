@@ -15,7 +15,7 @@ export default function NotificationBadge({ recipientId, recipientType }) {
     queryFn: async () => {
       try {
         const apiBase = import.meta.env.VITE_API_BASE_URL || 
-                       window.location.origin.replace(':5173', ':3001');
+                 window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001');
         const response = await fetch(
           `${apiBase}/notifications?recipient_id=${recipientId}&recipient_type=${recipientType}&is_read=false`,
           {

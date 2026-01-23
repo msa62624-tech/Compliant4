@@ -64,7 +64,7 @@ The warning banner is removed, and the login page shows a clean interface with:
    npm install
    npm run dev
    ```
-   Frontend runs on: `http://localhost:5173` (or next available port)
+   Frontend runs on: `http://localhost:5175` (or next available port such as 5173)
 
 3. **Login**:
    - Username: `admin`
