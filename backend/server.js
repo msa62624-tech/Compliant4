@@ -1411,43 +1411,24 @@ app.use('/entities/', apiLimiter);
 app.use('/auth/login', authLimiter);
 
 // CORS configuration with environment-aware origin validation
-const ALLOWED_ORIGINS = [
-  process.env.FRONTEND_URL,
-  // Localhost in dev
-  ...(process.env.NODE_ENV === 'development' ? [
-    'http://localhost:5173',
-    'http://localhost:5175',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5175'
-  ] : [])
-].filter(Boolean);
-
-// Simplified CORS: allow Codespaces and any origin in development to avoid blocked requests
-app.use(cors({
+const corsOptions = {
+  // Echo back the requesting origin (needed for credentials)
   origin: (origin, callback) => {
     console.log('🔍 CORS Request from origin:', origin);
-
-    // Allow requests with no origin (curl, mobile)
-    if (!origin) return callback(null, true);
-
+    // Allow no-origin (curl/mobile) and any HTTPS/HTTP origin in dev
+    if (!origin || process.env.NODE_ENV !== 'production') return callback(null, origin || true);
     try {
       const parsed = new URL(origin);
-
-      // Explicit whitelist
-      if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-
-      // Codespaces (both app.github.dev and github.dev fallbacks)
       if (parsed.hostname.endsWith('.app.github.dev') || parsed.hostname.endsWith('.github.dev')) {
-        return callback(null, true);
+        return callback(null, origin);
       }
-
-      // Development: allow everything
-      if (process.env.NODE_ENV !== 'production') return callback(null, true);
-    } catch (err) {
+      if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
+        return callback(null, origin);
+      }
+    } catch (e) {
       console.log('❌ CORS parse error');
       return callback(new Error('CORS not allowed'));
     }
-
     console.log('❌ CORS Blocked');
     return callback(new Error('CORS not allowed'));
   },
@@ -1455,7 +1436,11 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 3600
-}));
+};
+
+app.use(cors(corsOptions));
+// Preflight
+app.options('*', cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 
