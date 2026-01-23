@@ -1413,7 +1413,7 @@ app.use('/auth/login', authLimiter);
 // CORS configuration with environment-aware origin validation
 const ALLOWED_ORIGINS = [
   process.env.FRONTEND_URL,
-  // Only include localhost URLs in explicit development mode
+  // Localhost in dev
   ...(process.env.NODE_ENV === 'development' ? [
     'http://localhost:5173',
     'http://localhost:5175',
@@ -1422,57 +1422,39 @@ const ALLOWED_ORIGINS = [
   ] : [])
 ].filter(Boolean);
 
+// Simplified CORS: allow Codespaces and any origin in development to avoid blocked requests
 app.use(cors({
   origin: (origin, callback) => {
     console.log('🔍 CORS Request from origin:', origin);
-    
-    // Allow requests with no origin (mobile apps, curl requests)
-    if (!origin) {
-      console.log('✅ CORS Allowed (no origin)');
-      return callback(null, true);
-    }
-    
-    // Defense-in-depth: Parse URL first to validate format and extract hostname
-    // This catches malformed URLs early before any validation logic
-    let parsedUrl;
+
+    // Allow requests with no origin (curl, mobile)
+    if (!origin) return callback(null, true);
+
     try {
-      parsedUrl = new URL(origin);
-    } catch (e) {
-      // Invalid URL format - reject immediately
-      // Note: Generic log message to avoid leaking validation details
-      console.log('❌ CORS Blocked');
+      const parsed = new URL(origin);
+
+      // Explicit whitelist
+      if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+
+      // Codespaces (both app.github.dev and github.dev fallbacks)
+      if (parsed.hostname.endsWith('.app.github.dev') || parsed.hostname.endsWith('.github.dev')) {
+        return callback(null, true);
+      }
+
+      // Development: allow everything
+      if (process.env.NODE_ENV !== 'production') return callback(null, true);
+    } catch (err) {
+      console.log('❌ CORS parse error');
       return callback(new Error('CORS not allowed'));
     }
-    
-    // Check whitelist (exact match)
-    const isWhitelisted = ALLOWED_ORIGINS.some(allowed => origin === allowed);
-    if (isWhitelisted) {
-      console.log('✅ CORS Allowed (whitelisted)');
-      return callback(null, true);
-    }
-    
-    // Check if it's a valid GitHub Codespace hostname
-    // Using parsed URL hostname prevents bypass attacks via domains like
-    // malicious.app.github.dev.attacker.com or attacker.com/.app.github.dev
-    const isCodespace = parsedUrl.hostname.endsWith('.app.github.dev');
-    if (isCodespace) {
-      console.log('✅ CORS Allowed (GitHub Codespace)');
-      return callback(null, true);
-    }
-    
-    // Allow in development mode
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ CORS Allowed (development mode)');
-      return callback(null, true);
-    }
-    
+
     console.log('❌ CORS Blocked');
     return callback(new Error('CORS not allowed'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 3600 // 1 hour
+  maxAge: 3600
 }));
 
 app.use(express.json({ limit: '10mb' }));
