@@ -6,7 +6,7 @@ Successfully implemented a comprehensive end-to-end test suite for the compliant
 ## What Was Delivered
 
 ### 1. Comprehensive E2E Test (`e2e/full-e2e.spec.js`)
-A full workflow test that covers:
+A full admin workflow test that covers:
 - ✅ Login authentication with admin credentials
 - ✅ Navigation to Contractors page
 - ✅ Creating a new General Contractor
@@ -17,14 +17,41 @@ A full workflow test that covers:
 - ✅ Dashboard navigation
 - ✅ Logout functionality
 
-### 2. Backend Connectivity Test
+### 2. Public Portals Test Suite (`e2e/portals.spec.js`) ⭐ **NEW**
+Comprehensive tests for all three public portals:
+
+#### GC Portal Tests:
+- ✅ Login page accessibility
+- ✅ Authentication redirect verification
+- ✅ Dashboard access control
+
+#### Broker Portal Tests:
+- ✅ Login page accessibility
+- ✅ Authentication redirect verification
+- ✅ Dashboard access control
+- ✅ Upload COI page accessibility
+- ✅ Document upload routes
+
+#### Subcontractor Portal Tests:
+- ✅ Dashboard accessibility
+- ✅ ID parameter handling
+- ✅ Broker verification page
+
+#### Combined Navigation:
+- ✅ All portal URL accessibility
+- ✅ Authentication flow verification
+- ✅ Navigation summary report
+
+### 3. Backend Connectivity Test
 Separate test that verifies:
 - ✅ Backend API connectivity
 - ✅ Authentication flow
 - ✅ API response handling
 
 ### 3. Visual Documentation
-11 screenshots capturing each step of the workflow:
+11 screenshots capturing each step of the admin workflow + 11 screenshots for portal tests:
+
+**Admin Interface:**
 1. Login page
 2. Dashboard after login
 3. Contractors listing
@@ -36,6 +63,19 @@ Separate test that verifies:
 9. Insurance programs
 10. Dashboard final state
 11. Logout state
+
+**Public Portals:**
+1. GC login page
+2. GC login form
+3. GC dashboard redirect
+4. Broker login page
+5. Broker login form
+6. Broker dashboard redirect
+7. Broker upload COI page
+8. Subcontractor dashboard
+9. Subcontractor dashboard with ID
+10. Broker verification page
+11. Portal navigation summary
 
 ### 4. Configuration Updates
 - ✅ Fixed Playwright config to use ES modules
@@ -90,8 +130,9 @@ npm run test:e2e
 ## File Changes
 
 ### New Files
-- `e2e/full-e2e.spec.js` - Comprehensive workflow test (274 lines)
-- Screenshots directory with 11 workflow images
+- `e2e/full-e2e.spec.js` - Comprehensive admin workflow test (274 lines)
+- `e2e/portals.spec.js` - Public portals test suite (309 lines) ⭐ **NEW**
+- Screenshots directories with admin + portal workflow images
 
 ### Modified Files
 - `playwright.config.js` - Updated to ES module syntax

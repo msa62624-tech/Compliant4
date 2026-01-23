@@ -2,7 +2,7 @@
 
 ## Overview
 
-This directory contains end-to-end (E2E) tests for the compliant.team insurance tracking application using Playwright.
+This directory contains end-to-end (E2E) tests for the compliant.team insurance tracking application using Playwright, including tests for the admin interface and all public portals.
 
 ## Test Files
 
@@ -12,8 +12,8 @@ Basic smoke test that:
 - Captures a screenshot
 - Verifies the page loads successfully
 
-### 2. `full-e2e.spec.js` ⭐ **New Full Workflow Test**
-Comprehensive end-to-end test covering the complete user workflow:
+### 2. `full-e2e.spec.js` - Admin Interface Test
+Comprehensive end-to-end test covering the complete admin workflow:
 
 #### Test Coverage:
 1. **Login Flow**
@@ -69,6 +69,44 @@ Separate test that verifies:
 - Authentication flow
 - API response handling
 
+### 3. `portals.spec.js` ⭐ **New Public Portals Test Suite**
+Comprehensive tests for all three public portals (GC, Broker, Subcontractor):
+
+#### GC Portal Tests:
+1. **Login Page Access** - Verifies GC login form is accessible
+2. **Dashboard Authentication** - Tests authentication redirect from dashboard
+3. **Portal Navigation** - Validates GC-specific routes
+
+#### Broker Portal Tests:
+1. **Login Page Access** - Verifies Broker login form is accessible
+2. **Dashboard Authentication** - Tests authentication redirect from dashboard
+3. **Upload COI Page** - Verifies upload functionality page accessibility
+4. **Upload Page** - Tests document upload routes
+
+#### Subcontractor Portal Tests:
+1. **Dashboard Access** - Tests subcontractor dashboard loading
+2. **Dashboard with ID** - Verifies ID parameter handling
+3. **Broker Verification** - Tests broker verification page for subs
+
+#### Combined Navigation Test:
+- Tests all portal URLs for accessibility
+- Verifies proper redirects and authentication flows
+- Generates summary of portal accessibility
+
+#### Portal Screenshots:
+The portal tests capture screenshots for each portal:
+- `gc-01-login-page.png` - GC login page
+- `gc-02-login-form.png` - GC login form
+- `gc-03-dashboard-redirect.png` - GC dashboard auth redirect
+- `broker-01-login-page.png` - Broker login page
+- `broker-02-login-form.png` - Broker login form
+- `broker-03-dashboard-redirect.png` - Broker dashboard auth redirect
+- `broker-04-upload-coi-page.png` - Broker upload COI page
+- `sub-01-dashboard-page.png` - Subcontractor dashboard
+- `sub-02-dashboard-with-id.png` - Subcontractor dashboard with ID
+- `sub-03-broker-verification.png` - Broker verification page
+- `portals-navigation-summary.png` - Navigation summary
+
 ## Prerequisites
 
 - Node.js and npm installed
@@ -102,9 +140,16 @@ Or directly with Playwright:
 npx playwright test --project=chromium
 ```
 
-### Run specific test:
+### Run specific test suite:
 ```bash
+# Admin interface tests
 npx playwright test e2e/full-e2e.spec.js --project=chromium
+
+# Public portals tests
+npx playwright test e2e/portals.spec.js --project=chromium
+
+# Basic smoke test
+npx playwright test e2e/example.spec.js --project=chromium
 ```
 
 ### Run with custom base URL:
@@ -138,9 +183,23 @@ Screenshots are saved in `e2e/screenshots/` directory showing each step of the w
 
 As documented in the main README:
 
+### Admin Interface
 | Username | Password     | Role         |
 |----------|--------------|--------------|
 | admin    | INsure2026!  | super_admin  |
+
+### Public Portals
+
+The public portals (GC, Broker, Subcontractor) require specific credentials or links:
+
+- **GC Portal**: Accessible at `/gc-login` - requires GC-specific credentials
+- **Broker Portal**: Accessible at `/broker-login` - requires broker credentials  
+- **Subcontractor Portal**: Accessible at `/subcontractor-dashboard` - typically accessed via unique links with ID parameters
+
+**Note**: Portal tests verify page accessibility and authentication flows without requiring actual credentials. To test full portal workflows, you'll need to:
+1. Create test accounts in the admin interface
+2. Obtain login credentials or access links
+3. Update test files with valid credentials
 
 ## CI/CD Integration
 
