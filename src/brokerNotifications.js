@@ -319,6 +319,15 @@ You have been added to a new construction project!
         // User may already exist
       }
       
+      // Store password on Contractor entity for login
+      try {
+        await compliant.entities.Contractor.update(subcontractor.id, {
+          password: password
+        });
+      } catch (_pwError) {
+        console.error('Failed to store password on contractor:', _pwError);
+      }
+      
     } catch (error) {
       console.error('Error sending subcontractor project notification:', error);
     }

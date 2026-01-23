@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { compliant } from "@/api/compliantClient";
+import { getApiBase } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { generateSecurePassword, formatLoginCredentialsForEmail, createUserCredentials } from "@/passwordUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,29 +27,64 @@ export default function SubEnterBrokerInfo() {
     queryKey: ["coi-by-token", token],
     enabled: !!token,
     queryFn: async () => {
-      const cois = await compliant.entities.GeneratedCOI.list();
-      return cois.find((c) => c.coi_token === token);
+      if (!token) return null;
+      try {
+        const res = await fetch(`${getApiBase()}/public/coi-by-token?token=${encodeURIComponent(token)}`);
+        if (!res.ok) return null;
+        return await res.json();
+      } catch (error) {
+        console.error('Error fetching COI:', error);
+        return null;
+      }
     },
+    retry: 1,
   });
 
   const { data: subcontractor, isLoading: subLoading } = useQuery({
     queryKey: ["sub-for-coi", coi?.subcontractor_id],
     enabled: !!coi?.subcontractor_id,
     queryFn: async () => {
-      const contractors = await compliant.entities.Contractor.list();
-      return contractors.find((c) => c.id === coi.subcontractor_id);
+      try {
+        const res = await fetch(`${getApiBase()}/public/contractor/${coi.subcontractor_id}`, {
+          credentials: 'include'
+        });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch (error) {
+        console.error('Error fetching subcontractor:', error);
+        return null;
+      }
     },
+    retry: 1,
   });
 
   const updateSubcontractorMutation = useMutation({
-    mutationFn: ({ id, data }) => compliant.entities.Contractor.update(id, data),
+    mutationFn: async ({ id, data }) => {
+      const res = await fetch(`${getApiBase()}/public/contractor/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error('Failed to update subcontractor');
+      return res.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(["sub-for-coi", coi?.subcontractor_id]);
     },
   });
 
   const updateCoiMutation = useMutation({
-    mutationFn: ({ id, data }) => compliant.entities.GeneratedCOI.update(id, data),
+    mutationFn: async ({ id, data }) => {
+      const res = await fetch(`${getApiBase()}/public/coi-by-token`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ token, updates: data })
+      });
+      if (!res.ok) throw new Error('Failed to update COI');
+      return res.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(["coi-by-token", token]);
     },
@@ -115,7 +150,12 @@ export default function SubEnterBrokerInfo() {
             {}
           );
           userCredentials.password = password; // Use the same password from email
-          await compliant.entities.User.create(userCredentials);
+        await fetch(`${getApiBase()}/entities/User`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(userCredentials)
+        });
         } catch (_userError) {
           // User may already exist - that's fine
         }

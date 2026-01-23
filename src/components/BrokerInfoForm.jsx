@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/apiClient";
+import { sendEmail } from "@/emailHelper";
+import { generateSecurePassword, formatLoginCredentialsForEmail, createUserCredentials } from "@/passwordUtils";
+import { getFrontendBaseUrl } from "@/urlConfig";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +47,44 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
         broker_company: form.broker_company,
       },
     });
+    
+    // Notify broker with credentials
+    try {
+      const baseUrl = getFrontendBaseUrl();
+      const brokerDashboardLink = `${baseUrl}/broker-dashboard`;
+      
+      // Generate secure credentials for broker
+      const password = generateSecurePassword();
+      const loginInfo = formatLoginCredentialsForEmail(
+        form.broker_email,
+        password,
+        brokerDashboardLink,
+        brokerDashboardLink
+      );
+      
+      await sendEmail({
+        to: form.broker_email,
+        subject: `Insurance Broker Account Setup - ${subcontractor.company_name}`,
+        body: `Hello ${form.broker_name || ""},\n\nYou have been designated as the insurance broker for ${subcontractor.company_name}.\n\n${loginInfo}\n\nYou can manage all COI requests through your dashboard.\n\nThank you.`
+      });
+      
+      // Create broker user account
+      try {
+        const userCredentials = createUserCredentials(
+          form.broker_email,
+          form.broker_name || form.broker_email,
+          'broker',
+          {}
+        );
+        userCredentials.password = password;
+        await apiClient.entities.User.create(userCredentials);
+      } catch (_userError) {
+        // User may already exist - that's fine
+      }
+    } catch (err) {
+      console.error("Failed to notify broker:", err);
+      // Don't fail the whole operation if email fails
+    }
   };
 
   return (

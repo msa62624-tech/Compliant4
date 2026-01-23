@@ -181,10 +181,11 @@ export default function Pages({ onLogout }) {
     if (typeof window === 'undefined') return
     const isSubRoute = window.location.pathname.startsWith('/subcontractor-dashboard') || window.location.pathname.startsWith('/sub-enter-broker-info')
     if (isSubRoute) {
-      // Check if authenticated (not required for login page)
+      // sub-enter-broker-info uses token auth, doesn't need login
+      const requiresAuth = !window.location.pathname.startsWith('/sub-enter-broker-info')
       const isAuthenticated = sessionStorage.getItem('subAuthenticated') === 'true'
       
-      if (!isAuthenticated && window.location.pathname !== '/subcontractor-login') {
+      if (requiresAuth && !isAuthenticated && window.location.pathname !== '/subcontractor-login') {
         // Redirect to login
         window.location.href = '/subcontractor-login'
         return

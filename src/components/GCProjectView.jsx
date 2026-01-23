@@ -47,7 +47,7 @@ export default function GCProjectView() {
     queryKey: ["gc-project-subs", projectId],
     queryFn: async () => {
       const allSubs = await compliant.entities.ProjectSubcontractor.list();
-      return allSubs.filter((ps) => ps.project_id === projectId);
+      return allSubs.filter((ps) => ps.project_id === projectId && ps.status !== 'archived');
     },
     enabled: !!projectId,
     retry: 1,
@@ -220,12 +220,36 @@ export default function GCProjectView() {
         // Notify subcontractor to provide broker info (simple form, not broker portal)
         if (contactEmail && !subcontractor.broker_email && coiTokenForEmail) {
           const enterBrokerLink = `${window.location.origin}/sub-enter-broker-info?token=${coiTokenForEmail}`;
+          
+          // Generate secure login credentials (for future dashboard access)
+          const { generateSecurePassword, formatLoginCredentialsForEmail } = await import('@/passwordUtils');
+          const password = generateSecurePassword();
+          const dashboardLink = `${window.location.origin}/subcontractor-dashboard?id=${subcontractor.id}`;
+          const loginInfo = formatLoginCredentialsForEmail(
+            contactEmail,
+            password,
+            dashboardLink,
+            dashboardLink
+          );
 
           await sendEmail({
             to: contactEmail,
             subject: `Broker Information Needed - ${projectData.project_name}`,
-            body: `You have been added to ${projectData.project_name}.\n\nPlease provide your broker's name and contact so we can request the COI:\n${enterBrokerLink}\n\nAfter submitting, we'll notify your broker to upload the COI.`
+            body: `You have been added to ${projectData.project_name}.\n\nPlease provide your broker's name and contact so we can request the COI:\n${enterBrokerLink}\n\nAfter submitting, we'll notify your broker to upload the COI.\n\n${loginInfo}\n\nYou can use these credentials to access your full dashboard anytime.`
           }).catch(err => console.error("Direct sub email failed", err));
+          
+          // Store password for login
+          try {
+            const contractors = await compliant.entities.Contractor.list();
+            const existing = contractors.find(c => c.id === subcontractor.id);
+            if (existing) {
+              await compliant.entities.Contractor.update(subcontractor.id, {
+                password: password
+              });
+            }
+          } catch (err) {
+            console.error('Failed to store password:', err);
+          }
         }
 
         try {
