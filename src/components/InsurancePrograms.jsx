@@ -907,11 +907,10 @@ export default function InsurancePrograms() {
                                       {visibleTrades.map(trade => {
                                         const active = selectedHere.has(trade.value);
                                         return (
-                                          <button
+                                          <div
                                             key={trade.value}
-                                            type="button"
                                             onClick={() => toggleTrade(trade.value)}
-                                            className={`text-left p-3 rounded border transition ${active ? 'bg-red-50 border-red-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                                            className={`text-left p-3 rounded border transition cursor-pointer ${active ? 'bg-red-50 border-red-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}
                                           >
                                             <div className="flex items-center gap-2">
                                               <Checkbox 
@@ -924,7 +923,7 @@ export default function InsurancePrograms() {
                                               <span className="text-sm font-medium">{trade.label}</span>
                                             </div>
                                             <div className="text-xs text-slate-500 mt-1">Tier {trade.tier}</div>
-                                          </button>
+                                          </div>
                                         );
                                       })}
                                     </div>
