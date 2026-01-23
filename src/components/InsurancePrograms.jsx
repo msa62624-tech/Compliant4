@@ -196,6 +196,7 @@ export default function InsurancePrograms() {
         const programReqs = await apiClient.entities.SubInsuranceRequirement.filter({ program_id: program.id });
         const reqs = Array.isArray(programReqs) ? programReqs : (programReqs?.data || []);
         console.log('Loaded requirements for program:', reqs.length);
+        console.log('First few requirements:', reqs.slice(0, 3));
         setRequirements(reqs);
         
         // Extract unique tiers from loaded requirements
@@ -204,10 +205,12 @@ export default function InsurancePrograms() {
           name: tierName,
           id: `tier-${tierName}-${idx}`
         }));
+        console.log('Extracted tiers:', extractedTiers);
         
         if (extractedTiers.length > 0) {
           setTiers(extractedTiers);
         } else {
+          console.warn('No tiers found in requirements, creating default Tier 1');
           setTiers([{ name: 'Tier 1', id: `tier-${Date.now()}` }]);
         }
       } catch (err) {
@@ -771,7 +774,9 @@ export default function InsurancePrograms() {
                       }}
                     />
                     {formData.pdf_name && (
-                      <p className="text-xs text-slate-600">Attached: {formData.pdf_name}</p>
+                      <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                        <span className="text-sm text-amber-900">📄 {formData.pdf_name}</span>
+                      </div>
                     )}
                     <p className="text-xs text-slate-500">
                       Upload the official program PDF so admins and GCs can view it.
@@ -931,6 +936,20 @@ export default function InsurancePrograms() {
                                             <Trash2 className="w-3 h-3" />
                                           </Button>
                                         </div>
+                                        
+                                        {/* Show applicable trades */}
+                                        {req.applicable_trades && req.applicable_trades.length > 0 && (
+                                          <div className="mb-2 pb-2 border-b">
+                                            <p className="text-xs text-slate-600 mb-1">Trades:</p>
+                                            <div className="flex flex-wrap gap-1">
+                                              {req.applicable_trades.map((trade) => (
+                                                <Badge key={trade} variant="secondary" className="text-xs">
+                                                  {allTrades.find(t => t.value === trade)?.label || trade}
+                                                </Badge>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
                                         
                                         {req.insurance_type === 'general_liability' && (
                                           <div className="grid grid-cols-3 gap-2 text-sm">
