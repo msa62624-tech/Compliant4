@@ -833,10 +833,12 @@ InsureTrack Team`
       return;
     }
 
-    const projectName = project?.project_name || coi?.project_name || 'Unassigned Project';
-    const projectAddress = project?.project_address || project?.address || coi?.project_address || 'Project address pending';
-    const gcName = project?.gc_name || coi?.gc_name || 'General Contractor';
-    const projectId = project?.id || coi?.project_id || '';
+    const safeProject = project || {};
+    const projectName = safeProject.project_name || coi?.project_name || 'Unassigned Project';
+    const projectAddress = safeProject.project_address || safeProject.address || coi?.project_address || 'Project address pending';
+    const gcName = safeProject.gc_name || coi?.gc_name || 'General Contractor';
+    const gcEmail = safeProject.gc_email || coi?.gc_email || null;
+    const projectId = safeProject.id || coi?.project_id || '';
 
     // Update COI status
     await updateCOIMutation.mutateAsync({
@@ -908,10 +910,12 @@ InsureTrack Team`
     const emailSubject = deficiencySubject.trim() || `⚠️ COI Corrections Needed - ${projectName} (${coi.subcontractor_name})`;
 
     // Send deficiency notification to broker with all options
-    await sendMessageMutation.mutateAsync({
-      to: coi.contact_email || coi.broker_email,
-      subject: emailSubject,
-      body: `The Certificate of Insurance you submitted for ${coi.subcontractor_name} requires corrections before approval.
+    const brokerRecipient = coi.contact_email || coi.broker_email || gcEmail;
+    if (brokerRecipient) {
+      await sendMessageMutation.mutateAsync({
+        to: brokerRecipient,
+        subject: emailSubject,
+        body: `The Certificate of Insurance you submitted for ${coi.subcontractor_name} requires corrections before approval.
 
 PROJECT:
 • Project: ${projectName}
@@ -946,12 +950,15 @@ Reply to this email or contact the project administrator.
 
 Best regards,
 InsureTrack Team`
-    });
+      });
+    } else {
+      console.warn('Deficiency not sent: no broker/contact recipient available');
+    }
 
     // Notify GC about deficiency
-    if (project?.gc_email) {
+    if (gcEmail) {
       await sendMessageMutation.mutateAsync({
-        to: project.gc_email,
+        to: gcEmail,
         subject: `⚠️ Insurance Corrections Requested - ${coi.subcontractor_name} (${projectName})`,
         body: `A subcontractor's insurance certificate requires corrections before it can be approved.
 
@@ -977,10 +984,13 @@ InsureTrack Team`
 
     // Notify subcontractor
     const subDashboardLink = `${window.location.origin}${createPageUrl('subcontractor-dashboard')}?id=${coi.subcontractor_id}`;
-    await sendMessageMutation.mutateAsync({
-      to: coi.contact_email || coi.subcontractor_name,
-      subject: `⚠️ Certificate Update Needed - ${projectName}`,
-      body: `Your insurance certificate for ${projectName} needs updates before approval.
+    // Only email subcontractor contacts; do not fallback to broker/GC to avoid sending them subcontractor portal links
+    const subRecipient = coi.contact_email || coi.subcontractor_email || coi.subcontractor_contact_email;
+    if (subRecipient) {
+      await sendMessageMutation.mutateAsync({
+        to: subRecipient,
+        subject: `⚠️ Certificate Update Needed - ${projectName}`,
+        body: `Your insurance certificate for ${projectName} needs updates before approval.
 
 Your insurance broker has been notified of the required corrections. Please contact them to:
 • Review the specific issues that need addressing
@@ -988,7 +998,7 @@ Your insurance broker has been notified of the required corrections. Please cont
 • Resubmit the corrected certificate or a new one
 
 PROJECT: ${projectName}
-GENERAL CONTRACTOR: ${project.gc_name}
+GENERAL CONTRACTOR: ${gcName}
 
 Once your broker resubmits, we'll review and approve.
 
@@ -997,7 +1007,10 @@ ${subDashboardLink}
 
 Best regards,
 InsureTrack Team`
-    });
+      });
+    } else {
+      console.warn('Subcontractor deficiency notice not sent: no recipient available');
+    }
 
     // Reset form and close dialog
     setIsDeficiencyDialogOpen(false);

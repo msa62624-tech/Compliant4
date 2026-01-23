@@ -114,11 +114,18 @@ export default function BrokerUploadCOI() {
           setCurrentSignatureType('broker');
         }
       } else if (action === 'upload') {
-        // If instructed to upload, go to COI upload if none, otherwise policy upload
-        if (!coiRecord.first_coi_uploaded && !coiRecord.first_coi_url) {
+        // Respect explicit step override for endorsement/policy uploads
+        if (normalizedStep === 2) {
+          setCurrentStep(2);
+        } else if (normalizedStep === 1) {
           setCurrentStep(1);
         } else {
-          setCurrentStep(2);
+          // If instructed to upload, go to COI upload if none, otherwise policy upload
+          if (!coiRecord.first_coi_uploaded && !coiRecord.first_coi_url) {
+            setCurrentStep(1);
+          } else {
+            setCurrentStep(2);
+          }
         }
       } else if (normalizedStep === 1 || normalizedStep === 2) {
         setCurrentStep(normalizedStep);

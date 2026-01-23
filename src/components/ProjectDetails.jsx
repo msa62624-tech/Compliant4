@@ -1401,6 +1401,10 @@ InsureTrack System`
       return { status: 'pending_broker', label: 'Pending Broker Info', icon: Clock, color: 'blue' };
     }
 
+    if (sub.compliance_status === 'deficiency_pending') {
+      return { status: 'deficiency_pending', label: 'Deficiency Sent to Broker', icon: AlertTriangle, color: 'amber' };
+    }
+
     const subCOIs = allCOIs.filter(c => c.project_sub_id === sub.id && c.project_id === project.id);
     const hasPendingHoldHarmless = subCOIs.some(c =>
       c.hold_harmless_status === 'pending_signature' ||
@@ -1430,6 +1434,7 @@ InsureTrack System`
 
   const _complianceStatusConfig = {
     pending_broker: { label: 'Pending Broker Info', icon: Clock, color: 'blue' },
+    deficiency_pending: { label: 'Deficiency Sent to Broker', icon: AlertTriangle, color: 'amber' },
     pending_documents: { label: 'Pending Documents', icon: Clock, color: 'amber' },
     pending_hold_harmless: { label: 'Pending Hold Harmless', icon: Clock, color: 'amber' },
     compliant: { label: 'Compliant', icon: CheckCircle2, color: 'emerald' },
@@ -1809,6 +1814,35 @@ InsureTrack System`
           </Card>
         </div>
 
+        {/* Program Requirements Overview */}
+        <div className="animate-fade-in-delay-225">
+          <Card className="border-slate-700 bg-slate-800/40 backdrop-blur-sm shadow-xl mb-6">
+            <CardHeader className="border-b border-slate-700 pb-4">
+              <CardTitle className="text-lg text-white">Program Requirements ({project.program_id || 'No Program Set'})</CardTitle>
+              <p className="text-slate-300 text-sm">Shows requirements pulled from the program and state; use the manager below for project-specific uploads.</p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {(requirements.length === 0 && stateRequirements.length === 0) && (
+                <p className="text-slate-400 text-sm">No program or state requirements found for this project.</p>
+              )}
+              {requirements.map((req) => (
+                <div key={req.id} className="text-slate-100 text-sm border border-slate-700 rounded-lg p-3">
+                  <div className="font-semibold">Trade: {req.trade_name || req.trade_types?.join(', ') || 'All Trades'}</div>
+                  <div className="text-slate-300">Tier: {req.tier || req.requirement_tier || 'standard'}</div>
+                  <div className="text-slate-300">Type: {req.insurance_type || 'general_liability'}</div>
+                </div>
+              ))}
+              {stateRequirements.map((req) => (
+                <div key={`state-${req.id}`} className="text-slate-100 text-sm border border-amber-700/50 rounded-lg p-3 bg-amber-500/5">
+                  <div className="font-semibold">State Requirement ({req.state})</div>
+                  <div className="text-slate-300">Type: {req.insurance_type}</div>
+                  {req.minimum_coverage && <div className="text-slate-300">Minimum: ${req.minimum_coverage.toLocaleString()}</div>}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Insurance Requirements Documents Section */}
         <div className="animate-fade-in-delay-250">
           <ProjectRequirementsManager 
@@ -1855,6 +1889,15 @@ InsureTrack System`
                 <div className="divide-y divide-slate-700">
                   {projectSubs.slice(0, 5).map((sub, idx) => {
                     const compStatus = calculateComplianceStatus(sub);
+                    const subCOIs = allCOIs.filter(c => (
+                      c.project_sub_id === sub.id ||
+                      c.subcontractor_id === sub.subcontractor_id ||
+                      c.subcontractor_name === sub.subcontractor_name
+                    ) && (!c.project_id || c.project_id === project.id));
+                    const subDocs = documents.filter(d => (
+                      d.subcontractor_id === sub.subcontractor_id ||
+                      d.subcontractor_name === sub.subcontractor_name
+                    ) && (!d.project_id || d.project_id === project.id || d.gc_id === project.gc_id));
                     return (
                       <SubcontractorRow 
                         key={sub.id} 
@@ -1862,6 +1905,8 @@ InsureTrack System`
                         compStatus={compStatus}
                         project={project}
                         idx={idx}
+                        cois={subCOIs}
+                        docs={subDocs}
                         onEdit={openEditDialog}
                       />
                     );
@@ -2040,7 +2085,7 @@ function StatCardProject({ icon: Icon, label, value, colorClass }) {
   );
 }
 
-function SubcontractorRow({ sub, compStatus, project: _project, idx, onEdit }) {
+function SubcontractorRow({ sub, compStatus, project: _project, idx, onEdit, cois = [], docs = [] }) {
   const statusStyles = {
     compliant: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30' },
     pending: { bg: 'bg-amber-500/10', border: 'border-amber-500/20', badge: 'bg-amber-500/20 text-amber-300 border-amber-400/30' },
@@ -2065,7 +2110,7 @@ function SubcontractorRow({ sub, compStatus, project: _project, idx, onEdit }) {
           
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="text-slate-300">
-              <span className="text-slate-400">Trade:</span> {sub.trade_type}
+              <span className="text-slate-400">Trade:</span> {sub.trade_types?.join(', ') || sub.trade_type || '—'}
             </div>
             {sub.contact_email && (
               <div className="text-slate-300">
@@ -2073,6 +2118,39 @@ function SubcontractorRow({ sub, compStatus, project: _project, idx, onEdit }) {
               </div>
             )}
           </div>
+
+          {/* COIs and Documents uploaded */}
+          {(cois.length > 0 || docs.length > 0) && (
+            <div className="mt-4 space-y-2">
+              {cois.length > 0 && (
+                <div className="text-slate-200 text-sm">
+                  <span className="text-slate-400">COIs:</span>{' '}
+                  {cois.map((c, i) => (
+                    <span key={c.id || c.coi_token || i} className="inline-flex items-center gap-1 mr-3">
+                      <a href={c.first_coi_url || c.pdf_url || '#'} target="_blank" rel="noreferrer" className="text-teal-300 underline">
+                        {c.first_coi_uploaded ? 'Uploaded COI' : 'COI Request'}
+                      </a>
+                      {c.status && <Badge variant="outline" className="border-slate-600 text-slate-200">{c.status}</Badge>}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {docs.length > 0 && (
+                <div className="text-slate-200 text-sm">
+                  <span className="text-slate-400">Documents:</span>{' '}
+                  {docs.map((d, i) => (
+                    <span key={d.id || i} className="inline-flex items-center gap-1 mr-3">
+                      <a href={d.file_url || d.document_url || '#'} target="_blank" rel="noreferrer" className="text-amber-300 underline">
+                        {d.name || d.document_name || 'Document'}
+                      </a>
+                      {d.insurance_type && <Badge variant="outline" className="border-slate-600 text-slate-200">{d.insurance_type}</Badge>}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           <Button 
