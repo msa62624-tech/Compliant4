@@ -2766,6 +2766,44 @@ app.patch('/public/contractor/:id', publicApiLimiter, (req, res) => {
   }
 });
 
+// Public: Get ProjectSubcontractors for a subcontractor
+app.get('/public/project-subcontractors/:subId', (req, res) => {
+  try {
+    const { subId } = req.params;
+    const projectSubs = (entities.ProjectSubcontractor || []).filter(ps => ps.subcontractor_id === subId);
+    return res.json(projectSubs);
+  } catch (err) {
+    console.error('Error fetching project subcontractors:', err);
+    return res.status(500).json({ error: 'Failed to load project subcontractors' });
+  }
+});
+
+// Public: Get Projects for a subcontractor
+app.get('/public/projects-for-sub/:subId', (req, res) => {
+  try {
+    const { subId } = req.params;
+    const projectSubs = (entities.ProjectSubcontractor || []).filter(ps => ps.subcontractor_id === subId);
+    const projectIds = projectSubs.map(ps => ps.project_id);
+    const projects = (entities.Project || []).filter(p => projectIds.includes(p.id));
+    return res.json(projects);
+  } catch (err) {
+    console.error('Error fetching projects for sub:', err);
+    return res.status(500).json({ error: 'Failed to load projects' });
+  }
+});
+
+// Public: Get COIs for a subcontractor
+app.get('/public/cois-for-sub/:subId', (req, res) => {
+  try {
+    const { subId } = req.params;
+    const cois = (entities.GeneratedCOI || []).filter(c => c.subcontractor_id === subId);
+    return res.json(cois);
+  } catch (err) {
+    console.error('Error fetching COIs for sub:', err);
+    return res.status(500).json({ error: 'Failed to load COIs' });
+  }
+});
+
 // Public: Update all COI records for a contractor (for broker assignment propagation)
 app.post('/public/update-cois-for-contractor', publicApiLimiter, (req, res) => {
   try {

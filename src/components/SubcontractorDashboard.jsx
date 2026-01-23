@@ -1,4 +1,4 @@
-import { apiClient } from "@/api/apiClient";
+import { apiClient, getApiBase } from "@/api/apiClient";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,13 +27,21 @@ export default function SubcontractorDashboard() {
   const { data: subcontractor, isLoading: subLoading, error: subError } = useQuery({
     queryKey: ['subcontractor', subId, subEmail],
     queryFn: async () => {
-      const contractors = await apiClient.entities.Contractor.list();
       if (subId) {
-        return contractors.find(c => c.id === subId && c.contractor_type === 'subcontractor');
+        try {
+          const res = await fetch(`${getApiBase()}/public/contractor/${subId}`, {
+            credentials: 'include'
+          });
+          if (!res.ok) return null;
+          const contractor = await res.json();
+          if (contractor.contractor_type === 'subcontractor') return contractor;
+          return null;
+        } catch (error) {
+          console.error('Error fetching contractor:', error);
+          return null;
+        }
       }
-      if (subEmail) {
-        return contractors.find(c => c.email === subEmail && c.contractor_type === 'subcontractor');
-      }
+      // Email-based lookup not supported in public mode - require ID
       return null;
     },
     enabled: !!(subId || subEmail),
@@ -44,13 +52,16 @@ export default function SubcontractorDashboard() {
     queryKey: ['sub-assigned-projects', subId],
     queryFn: async () => {
       if (!subId) return [];
-      const allProjectSubs = await apiClient.entities.ProjectSubcontractor.list();
-      const myProjectIds = allProjectSubs
-        .filter(ps => ps.subcontractor_id === subId)
-        .map(ps => ps.project_id);
-      
-      const allProjects = await apiClient.entities.Project.list();
-      return allProjects.filter(p => myProjectIds.includes(p.id));
+      try {
+        const res = await fetch(`${getApiBase()}/public/projects-for-sub/${subId}`, {
+          credentials: 'include'
+        });
+        if (!res.ok) return [];
+        return await res.json();
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+        return [];
+      }
     },
     enabled: !!subId,
   });
@@ -59,8 +70,16 @@ export default function SubcontractorDashboard() {
     queryKey: ['sub-cois', subcontractor?.id],
     queryFn: async () => {
       if (!subcontractor?.id) return [];
-      const cois = await apiClient.entities.GeneratedCOI.list('-created_date');
-      return cois.filter(c => c.subcontractor_id === subcontractor.id);
+      try {
+        const res = await fetch(`${getApiBase()}/public/cois-for-sub/${subcontractor.id}`, {
+          credentials: 'include'
+        });
+        if (!res.ok) return [];
+        return await res.json();
+      } catch (error) {
+        console.error('Error fetching COIs:', error);
+        return [];
+      }
     },
     enabled: !!subcontractor?.id,
   });
