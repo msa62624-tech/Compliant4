@@ -3341,6 +3341,7 @@ async function extractTextFromPDF(filePath) {
 // Helper function to extract common fields using regex patterns (fallback when AI is not configured)
 function extractFieldsWithRegex(text, schema) {
   const extracted = {};
+  const upper = (text || '').toUpperCase();
   
   // Extract policy numbers (various formats)
   const policyPatterns = [
@@ -3421,15 +3422,78 @@ function extractFieldsWithRegex(text, schema) {
     
     // Name fields - extract first substantial text block
     else if (lowerField.includes('name') && fieldType.toLowerCase().includes('string')) {
-      // Try to find company/person name patterns
-      const namePattern = /([A-Z][a-zA-Z\s&,.']+(?:LLC|Inc|Corp|Company|Corporation|Ltd)?)/;
-      const matches = text.match(namePattern);
-      if (matches && matches.length > 0) {
-        extracted[fieldName] = matches[0].trim();
+      // Prefer ACORD INSURED block if present
+      const insuredBlock = upper.match(/INSURED\s+([A-Z0-9 &.,'\-]{2,100})/);
+      if (insuredBlock && insuredBlock[1]) {
+        extracted[fieldName] = insuredBlock[1].trim();
+      } else {
+        // Fallback generic name pattern
+        const namePattern = /([A-Z][a-zA-Z\s&,.']+(?:LLC|Inc|Corp|Company|Corporation|Ltd)?)/;
+        const matches = text.match(namePattern);
+        if (matches && matches.length > 0) {
+          extracted[fieldName] = matches[0].trim();
+        }
       }
     }
   }
   
+  // ACORD 25 specific label-driven extraction for GL and common fields
+  const getAmountAfter = (label) => {
+    const re = new RegExp(label + "[\\\s:]*\\$?([\\d,]+(?:\\.\\d{2})?)", 'i');
+    const m = text.match(re);
+    return m && m[1] ? parseFloat(m[1].replace(/[$,]/g, '')) : null;
+  };
+
+  const getValueAfter = (label) => {
+    const re = new RegExp(label + "[\\\s:]*([A-Za-z0-9 &.,'\-]{2,100})", 'i');
+    const m = text.match(re);
+    return m && m[1] ? m[1].trim() : null;
+  };
+
+  if ('gl_each_occurrence' in schema && extracted.gl_each_occurrence == null) {
+    const v = getAmountAfter('EACH\\s+OCCURRENCE');
+    if (v) extracted.gl_each_occurrence = v;
+  }
+  if ('gl_general_aggregate' in schema && extracted.gl_general_aggregate == null) {
+    const v = getAmountAfter('GENERAL\\s+AGGREGATE');
+    if (v) extracted.gl_general_aggregate = v;
+  }
+  if ('gl_products_completed_ops' in schema && extracted.gl_products_completed_ops == null) {
+    const v = getAmountAfter('PRODUCTS\\s*-\\s*COMP/OP\\s*AGG');
+    if (v) extracted.gl_products_completed_ops = v;
+  }
+  if ('gl_personal_adv_injury' in schema && extracted.gl_personal_adv_injury == null) {
+    const v = getAmountAfter('PERSONAL\\s*&\\s*ADV\\s*INJURY');
+    if (v) extracted.gl_personal_adv_injury = v;
+  }
+  if ('gl_damage_rented_premises' in schema && extracted.gl_damage_rented_premises == null) {
+    const v = getAmountAfter('DAMAGE\\s+TO\\s+RENTED\\s+PREMISES');
+    if (v) extracted.gl_damage_rented_premises = v;
+  }
+  if ('gl_med_exp' in schema && extracted.gl_med_exp == null) {
+    const v = getAmountAfter('MED\\s+EXP');
+    if (v) extracted.gl_med_exp = v;
+  }
+
+  if ('gl_effective_date' in schema && !extracted.gl_effective_date) {
+    const v = getValueAfter('POLICY\\s+EFF');
+    if (v) extracted.gl_effective_date = v;
+  }
+  if ('gl_expiration_date' in schema && !extracted.gl_expiration_date) {
+    const v = getValueAfter('POLICY\\s+EXP');
+    if (v) extracted.gl_expiration_date = v;
+  }
+
+  if ('named_insured' in schema && !extracted.named_insured) {
+    const v = getValueAfter('INSURED');
+    if (v) extracted.named_insured = v;
+  }
+
+  if ('policy_number_gl' in schema && !extracted.policy_number_gl) {
+    const v = getValueAfter('POLICY\\s+NUMBER');
+    if (v) extracted.policy_number_gl = v.replace(/^(POLICY\s+NUMBER\s*[:#]\s*)/i, '').trim();
+  }
+
   return extracted;
 }
 
