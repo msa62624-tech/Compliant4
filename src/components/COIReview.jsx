@@ -833,6 +833,11 @@ InsureTrack Team`
       return;
     }
 
+    const projectName = project?.project_name || coi?.project_name || 'Unassigned Project';
+    const projectAddress = project?.project_address || project?.address || coi?.project_address || 'Project address pending';
+    const gcName = project?.gc_name || coi?.gc_name || 'General Contractor';
+    const projectId = project?.id || coi?.project_id || '';
+
     // Update COI status
     await updateCOIMutation.mutateAsync({
       id: coi.id,
@@ -848,9 +853,10 @@ InsureTrack Team`
 
     // Build broker upload links
     const brokerUploadLink = `${window.location.origin}${createPageUrl('broker-upload-coi')}?token=${coi.coi_token}`;
+    const endorsementUploadLink = includeEndorsementUpload
+      ? `${brokerUploadLink}&action=upload&step=2`
+      : null;
     const brokerDashboardLink = `${window.location.origin}${createPageUrl('broker-dashboard')}?email=${encodeURIComponent(coi.broker_email)}&coiId=${coi.id}`;
-    const endorsementUploadLink = includeEndorsementUpload ? brokerUploadLink : null;
-
     // Helper function to build email sections
     const buildAttachmentsSection = () => {
       if (deficiencyAttachments.length === 0) return '';
@@ -899,7 +905,7 @@ InsureTrack Team`
     const endorsementSection = buildEndorsementSection();
 
     // Determine subject line
-    const emailSubject = deficiencySubject.trim() || `⚠️ COI Corrections Needed - ${project.project_name} (${coi.subcontractor_name})`;
+    const emailSubject = deficiencySubject.trim() || `⚠️ COI Corrections Needed - ${projectName} (${coi.subcontractor_name})`;
 
     // Send deficiency notification to broker with all options
     await sendMessageMutation.mutateAsync({
@@ -908,9 +914,9 @@ InsureTrack Team`
       body: `The Certificate of Insurance you submitted for ${coi.subcontractor_name} requires corrections before approval.
 
 PROJECT:
-• Project: ${project.project_name}
-• Location: ${project.project_address}
-• General Contractor: ${project.gc_name}
+• Project: ${projectName}
+• Location: ${projectAddress}
+• General Contractor: ${gcName}
 • Trade: ${coi.trade_type}
 
 DEFICIENCIES IDENTIFIED:
@@ -946,11 +952,11 @@ InsureTrack Team`
     if (project?.gc_email) {
       await sendMessageMutation.mutateAsync({
         to: project.gc_email,
-        subject: `⚠️ Insurance Corrections Requested - ${coi.subcontractor_name} (${project.project_name})`,
+        subject: `⚠️ Insurance Corrections Requested - ${coi.subcontractor_name} (${projectName})`,
         body: `A subcontractor's insurance certificate requires corrections before it can be approved.
 
 PROJECT:
-• Project: ${project.project_name}
+• Project: ${projectName}
 • Subcontractor: ${coi.subcontractor_name}
 • Trade: ${coi.trade_type}
 
@@ -962,7 +968,7 @@ ${deficiencyText}${endorsementSection}
 We've notified the broker and expect corrections within 5 business days.
 
 VIEW PROJECT:
-${window.location.origin}${createPageUrl('ProjectDetails')}?id=${project.id}
+${window.location.origin}${createPageUrl('ProjectDetails')}?id=${projectId}
 
 Best regards,
 InsureTrack Team`
@@ -973,15 +979,15 @@ InsureTrack Team`
     const subDashboardLink = `${window.location.origin}${createPageUrl('subcontractor-dashboard')}?id=${coi.subcontractor_id}`;
     await sendMessageMutation.mutateAsync({
       to: coi.contact_email || coi.subcontractor_name,
-      subject: `⚠️ Certificate Update Needed - ${project.project_name}`,
-      body: `Your insurance certificate for ${project.project_name} needs updates before approval.
+      subject: `⚠️ Certificate Update Needed - ${projectName}`,
+      body: `Your insurance certificate for ${projectName} needs updates before approval.
 
 Your insurance broker has been notified of the required corrections. Please contact them to:
 • Review the specific issues that need addressing
 • Provide any additional documentation if needed
 • Resubmit the corrected certificate or a new one
 
-PROJECT: ${project.project_name}
+PROJECT: ${projectName}
 GENERAL CONTRACTOR: ${project.gc_name}
 
 Once your broker resubmits, we'll review and approve.

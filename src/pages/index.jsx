@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } f
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Building2, FileText, Users, Home, LogOut, Menu, X, Zap, Clock, AlertTriangle, Archive, MessageSquare } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import auth from '@/auth.js'
 
 // Import all your pages
 import Contractors from '@/components/Contractors.jsx'
@@ -243,6 +244,18 @@ export default function Pages({ onLogout }) {
            window.location.pathname.startsWith('/gc-project') ||
            window.location.pathname.startsWith('/gc-login')
   })()
+
+  // If an admin token exists and we're not on a GC public route, disable GC public mode
+  useEffect(() => {
+    if (auth.getToken && auth.getToken()) {
+      if (!isGCRoute && isGCPublicSession) {
+        sessionStorage.removeItem('gcPublicSession')
+        sessionStorage.removeItem('gcPortalId')
+        sessionStorage.removeItem('gcAuthenticated')
+        setIsGCPublicSession(false)
+      }
+    }
+  }, [isGCRoute, isGCPublicSession])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

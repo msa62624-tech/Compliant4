@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { createUserCredentials, generateSecurePassword } from "@/passwordUtils";
-import { getFrontendBaseUrl } from "@/urlConfig";
+import { getFrontendBaseUrl, createBrokerUploadLink, createBrokerDashboardLink } from "@/urlConfig";
 import { notifyAdminBrokerChanged } from "@/coiNotifications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -181,19 +181,36 @@ export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }
 
       for (const broker of brokers) {
         const password = generateSecurePassword();
+        const brokerDashboardLink = createBrokerDashboardLink(broker.name, broker.email);
+
+        // Generate a token up front so email link, upload request, and GeneratedCOI all align
+        const uploadToken = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 10);
+        const brokerUploadLink = `${baseUrl}/broker-upload-coi?token=${uploadToken}`;
         const assignedPolicies = Object.entries(broker.policies)
           .filter(([_, selected]) => selected)
           .map(([policy]) => {
             const labels = { gl: "General Liability", auto: "Auto Liability", wc: "Workers Compensation", umbrella: "Umbrella" };
             return labels[policy];
           })
-          .join(", ");
+          .join(", ") || (subcontractor.trade_types?.join(', ') || 'General Construction');
+        const projectLocation = subcontractor.address || subcontractor.city || subcontractor.company_name;
 
         try {
           await sendEmail({
             to: broker.email,
             subject: `Insurance Broker Account Setup - ${subcontractor.company_name}`,
-            body: `Hello ${broker.name || ""},\n\nYou have been designated as the insurance broker for ${subcontractor.company_name}.\n\nAssigned Policies: ${assignedPolicies}\n\nLOGIN CREDENTIALS:\nEmail: ${broker.email}\nPassword: ${password}\nLogin URL: ${brokerLoginLink}\n\nYou can manage all COI requests through your dashboard. Change your password in account settings after logging in.\n\nThank you.`
+            body: `Hello ${broker.name || ""},\n\nYou have been designated as the insurance broker for ${subcontractor.company_name}.\n\nAssigned Policies: ${assignedPolicies}\n\nLOGIN CREDENTIALS:\nEmail: ${broker.email}\nPassword: ${password}\n\nQuick Actions:\n- Upload insurance for this subcontractor: ${brokerUploadLink}\n- Access your broker dashboard: ${brokerDashboardLink}\n- Login page (same credentials): ${brokerLoginLink}\n\nYou can manage all COI requests through your dashboard. Change your password in account settings after logging in.\n\nThank you.`,
+            includeSampleCOI: true,
+            sampleCOIData: {
+              trade: assignedPolicies || 'General Construction',
+              program: subcontractor.program_name || subcontractor.program_id || 'Standard Program',
+              gc_name: subcontractor.company_name,
+              project_name: subcontractor.company_name,
+              projectAddress: projectLocation,
+              certificate_holder: subcontractor.company_name,
+              additional_insureds: [subcontractor.company_name].filter(Boolean),
+              insured_name: subcontractor.company_name,
+            }
           });
         } catch (emailErr) {
           console.error(`Failed to email ${broker.email}:`, emailErr);
@@ -211,6 +228,40 @@ export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }
           await apiClient.entities.User.create(userCredentials);
         } catch (_userError) {
           // User may already exist - that's fine
+        }
+
+        try {
+          // Create a pending upload request so the broker sees it in their portal
+          await apiClient.entities.BrokerUploadRequest.create({
+            broker_email: broker.email,
+            broker_name: broker.name,
+            broker_company: broker.company,
+            subcontractor_id: subId,
+            subcontractor_name: subcontractor.company_name,
+            project_id: null,
+            project_name: null,
+            status: 'pending',
+            sent_date: new Date().toISOString(),
+            upload_token: uploadToken,
+          });
+
+          // Create a minimal GeneratedCOI record so the upload link works with the token
+          await apiClient.entities.GeneratedCOI.create({
+            coi_token: uploadToken,
+            status: 'awaiting_broker_upload',
+            broker_email: broker.email,
+            broker_name: broker.name,
+            broker_company: broker.company,
+            subcontractor_id: subId,
+            subcontractor_name: subcontractor.company_name,
+            project_id: null,
+            project_name: subcontractor.company_name,
+            project_address: projectLocation,
+            trade_type: assignedPolicies,
+            created_date: new Date().toISOString(),
+          });
+        } catch (uploadErr) {
+          console.error(`Failed to create broker upload request for ${broker.email}:`, uploadErr);
         }
 
         try {

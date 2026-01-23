@@ -15,6 +15,20 @@ import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
+// Safe, timing-attack-resistant string comparison used for token checks
+const timingSafeEqual = (a, b) => {
+  if (a === undefined || b === undefined) return false;
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) return false;
+  try {
+    return crypto.timingSafeEqual(bufA, bufB);
+  } catch (err) {
+    console.warn('timingSafeEqual comparison failed:', err?.message || err);
+    return false;
+  }
+};
+
 // Load environment variables from .env
 dotenv.config();
 // Import AI and PDF integration services
@@ -2744,34 +2758,33 @@ app.get('/public/broker-requests', (req, res) => {
     const lowerEmail = email ? String(email).toLowerCase().trim() : null;
     const lowerName = name ? String(name).toLowerCase().trim() : null;
 
-    const list = (entities.GeneratedCOI || []).filter(c => {
-      // If both name and email provided, BOTH must match
-      if (lowerName && lowerEmail) {
-        const matchesGlobal = 
-          c.broker_email?.toLowerCase().trim() === lowerEmail &&
-          c.broker_name?.toLowerCase().trim() === lowerName;
-        
-        const matchesGL = 
-          c.broker_gl_email?.toLowerCase().trim() === lowerEmail &&
-          c.broker_gl_name?.toLowerCase().trim() === lowerName;
-        
-        const matchesAuto = 
-          c.broker_auto_email?.toLowerCase().trim() === lowerEmail &&
-          c.broker_auto_name?.toLowerCase().trim() === lowerName;
-        
-        const matchesUmbrella = 
-          c.broker_umbrella_email?.toLowerCase().trim() === lowerEmail &&
-          c.broker_umbrella_name?.toLowerCase().trim() === lowerName;
-        
-        const matchesWC = 
-          c.broker_wc_email?.toLowerCase().trim() === lowerEmail &&
-          c.broker_wc_name?.toLowerCase().trim() === lowerName;
-        
-        return matchesGlobal || matchesGL || matchesAuto || matchesUmbrella || matchesWC;
+    const cois = (entities.GeneratedCOI || []).filter(c => {
+      // Prefer exact email matching; name becomes optional filter
+      if (lowerEmail) {
+        const emailMatch = (
+          c.broker_email?.toLowerCase().trim() === lowerEmail ||
+          c.broker_gl_email?.toLowerCase().trim() === lowerEmail ||
+          c.broker_auto_email?.toLowerCase().trim() === lowerEmail ||
+          c.broker_umbrella_email?.toLowerCase().trim() === lowerEmail ||
+          c.broker_wc_email?.toLowerCase().trim() === lowerEmail
+        );
+        if (!emailMatch) return false;
+        // If name provided, use it as a soft filter (contains match) but do not block results when names differ
+        if (lowerName) {
+          return (
+            c.broker_name?.toLowerCase().includes(lowerName) ||
+            c.broker_gl_name?.toLowerCase().includes(lowerName) ||
+            c.broker_auto_name?.toLowerCase().includes(lowerName) ||
+            c.broker_umbrella_name?.toLowerCase().includes(lowerName) ||
+            c.broker_wc_name?.toLowerCase().includes(lowerName) ||
+            true // allow when name mismatch to avoid missing requests
+          );
+        }
+        return true;
       }
       
-      // Fallback to name-only matching
-      if (lowerName && !lowerEmail) {
+      // Fallback to name-only matching when email not provided
+      if (lowerName) {
         return (
           c.broker_name?.toLowerCase().includes(lowerName) ||
           c.broker_gl_name?.toLowerCase().includes(lowerName) ||
@@ -2780,19 +2793,30 @@ app.get('/public/broker-requests', (req, res) => {
           c.broker_wc_name?.toLowerCase().includes(lowerName)
         );
       }
-      
-      // Fallback to email-only matching
-      if (lowerEmail && !lowerName) {
-        return (
-          c.broker_email?.toLowerCase().trim() === lowerEmail ||
-          c.broker_gl_email?.toLowerCase().trim() === lowerEmail ||
-          c.broker_auto_email?.toLowerCase().trim() === lowerEmail ||
-          c.broker_umbrella_email?.toLowerCase().trim() === lowerEmail ||
-          c.broker_wc_email?.toLowerCase().trim() === lowerEmail
-        );
-      }
       return false;
-    }).sort((a, b) => new Date(b.created_date || b.created_at || 0) - new Date(a.created_date || a.created_at || 0));
+    });
+
+    // Also include BrokerUploadRequest records for this broker (email match)
+    const uploadRequests = (entities.BrokerUploadRequest || [])
+      .filter(r => lowerEmail && (r.broker_email || '').toLowerCase().trim() === lowerEmail)
+      .map(r => ({
+        id: r.id,
+        broker_email: r.broker_email,
+        broker_name: r.broker_name,
+        broker_company: r.broker_company,
+        subcontractor_id: r.subcontractor_id,
+        subcontractor_name: r.subcontractor_name,
+        project_id: r.project_id,
+        project_name: r.project_name,
+        coi_token: r.upload_token, // align with broker-upload portal
+        upload_token: r.upload_token,
+        // Normalize status to portal-friendly values
+        status: r.status === 'uploaded' ? 'awaiting_admin_review' : 'awaiting_broker_upload',
+        created_date: r.sent_date || r.created_at || r.created_date,
+      }));
+
+    const list = [...cois, ...uploadRequests]
+      .sort((a, b) => new Date(b.created_date || b.created_at || 0) - new Date(a.created_date || a.created_at || 0));
 
     return res.json(list);
   } catch (err) {
