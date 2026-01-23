@@ -1173,6 +1173,12 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
   });
 
   // Also store password on the Contractor entity for login endpoint
+  // Set it directly on the passed contractor object since it may not be in the array yet
+  if (contractor) {
+    contractor.password = hashedPassword;
+  }
+
+  // Also try to update in the array if it exists there (for later calls)
   if (contractor.id && entities.Contractor) {
     const contractorIndex = entities.Contractor.findIndex(c => c.id === contractor.id);
     if (contractorIndex !== -1) {
