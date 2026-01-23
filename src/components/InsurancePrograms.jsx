@@ -779,11 +779,11 @@ export default function InsurancePrograms() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="hh_upload">Hold Harmless Template (HTML preferred)</Label>
+                    <Label htmlFor="hh_upload">Hold Harmless Template (PDF)</Label>
                     <Input
                       id="hh_upload"
                       type="file"
-                      accept="text/html,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      accept="application/pdf"
                       disabled={isUploading}
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
