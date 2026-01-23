@@ -1186,9 +1186,9 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
     }
   }
 
-  // Note: Temporary password should be sent via email, not returned in response
-  // Returning userId and username only for confirmation
-  return { username, role: 'gc', userId, passwordSet: true };
+  // Return temporary password so frontend can send it in welcome email
+  // The frontend is responsible for not storing it in localStorage
+  return { username, role: 'gc', userId, passwordSet: true, password: tempPassword };
 }
 
 // Ensure seeded GCs get logins (idempotent) - using async/await
