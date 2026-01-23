@@ -11,14 +11,29 @@ export const getAuthHeader = () => auth.getAuthHeader();
 export const getApiBase = () => {
   const envBase = import.meta.env.VITE_API_BASE_URL;
   if (envBase) return envBase;
-  const origin = window.location.origin;
-  // Codespaces domains encode port in subdomain: -5175.app.github.dev
-  if (origin.includes('.app.github.dev')) {
-    return origin
-      .replace('-5173', '-3001')
-      .replace('-5175', '-3001');
+  
+  const { protocol, host, origin } = window.location;
+  
+  // Codespaces URL patterns:
+  // Pattern 1: something-5175.app.github.dev (with port in subdomain)
+  const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+  if (withPortMatch) {
+    return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
   }
-  return origin.replace(':5173', ':3001').replace(':5175', ':3001');
+  
+  // Pattern 2: something.github.dev (without port - default Codespaces format)
+  const withoutPortMatch = host.match(/^(.+)(\.github\.dev)$/);
+  if (withoutPortMatch) {
+    return `${protocol}//${withoutPortMatch[1]}-3001.app${withoutPortMatch[2]}`;
+  }
+  
+  // Fallback for localhost with port
+  if (origin.includes(':5173')) return origin.replace(':5173', ':3001');
+  if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
+  if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
+  
+  // Default fallback
+  return 'http://localhost:3001';
 };
 
 // Generic fetch wrapper
