@@ -130,8 +130,7 @@ export default function Pages({ onLogout }) {
     if (typeof window === 'undefined') return false
     const isGC = window.location.pathname.startsWith('/gc-dashboard') || 
                  window.location.pathname.startsWith('/gc-login') ||
-                 window.location.pathname.startsWith('/gc-project') ||
-                 sessionStorage.getItem('gcPublicSession') === 'true'
+                 window.location.pathname.startsWith('/gc-project')
     return isGC;
   })
 
@@ -270,6 +269,17 @@ export default function Pages({ onLogout }) {
       setIsGCPublicSession(true)
     }
   }, [isGCRoute])
+
+  // Ensure admin routes are not hijacked by a lingering GC public session flag
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!isGCRoute && isGCPublicSession) {
+      // Clear GC public session state when outside GC routes
+      sessionStorage.removeItem('gcPublicSession')
+      // Do not clear authentication or portal id; only disable GC router in this tab
+      setIsGCPublicSession(false)
+    }
+  }, [isGCRoute, isGCPublicSession])
 
   // If we are in GC public mode but the path drifted, force back to the GC dashboard with the stored id
   useEffect(() => {

@@ -250,7 +250,8 @@ export const apiClient = {
     BrokerUploadRequest: createEntityAPI('BrokerUploadRequest'),
     Message: createEntityAPI('Message'),
     Notification: createEntityAPI('Notification'),
-    Portal: createEntityAPI('Portal')
+    Portal: createEntityAPI('Portal'),
+    Trade: createEntityAPI('Trade')
   },
   integrations: {
     Core: coreIntegrations,

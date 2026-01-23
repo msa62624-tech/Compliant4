@@ -212,6 +212,17 @@ export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }
         } catch (_userError) {
           // User may already exist - that's fine
         }
+
+        try {
+          // Set the broker password in the backend so they can log in with the generated password
+          await apiClient.api.post('/admin/set-broker-password', {
+            email: broker.email,
+            password: password
+          });
+        } catch (passwordErr) {
+          console.error(`Failed to set password for broker ${broker.email}:`, passwordErr);
+          toast.warning(`Password for ${broker.email} may not be set - they may need password reset`);
+        }
       }
       
       toast.success("All brokers notified and saved");

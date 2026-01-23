@@ -539,8 +539,8 @@ Return actual data only. If not found, return null.`,
 
         {/* Create/Edit Project Dialog */}
         {isDialogOpen && (
-          <div className="fixed inset-0 z-[99999] bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+          <div className="fixed inset-0 z-[99999] bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl h-[90vh] max-h-[90vh] overflow-hidden flex flex-col">
               <div className="flex items-center justify-between mb-6 px-6 pt-6">
                 <h2 className="text-xl font-bold text-slate-900">
                   {editingProject ? 'Edit Project' : 'Create New Project'}
@@ -580,7 +580,7 @@ Return actual data only. If not found, return null.`,
                         <SelectTrigger>
                           <SelectValue placeholder="Select type" />
                         </SelectTrigger>
-                        <SelectContent className="z-[100000]">
+                        <SelectContent className="max-h-60 overflow-y-auto z-[100000]">
                           <SelectItem value="commercial">Commercial</SelectItem>
                           <SelectItem value="residential">Residential</SelectItem>
                           <SelectItem value="mixed_use">Mixed Use</SelectItem>
@@ -627,7 +627,7 @@ Return actual data only. If not found, return null.`,
                         <SelectTrigger>
                           <SelectValue placeholder="Select structure type" />
                         </SelectTrigger>
-                        <SelectContent className="z-[100000]">
+                        <SelectContent className="max-h-60 overflow-y-auto z-[100000]">
                           <SelectItem value="concrete">Concrete</SelectItem>
                           <SelectItem value="steel">Steel</SelectItem>
                           <SelectItem value="wood">Wood</SelectItem>
@@ -647,7 +647,7 @@ Return actual data only. If not found, return null.`,
                         <SelectTrigger>
                           <SelectValue placeholder="Select occupancy" />
                         </SelectTrigger>
-                        <SelectContent className="z-[100000]">
+                        <SelectContent className="max-h-60 overflow-y-auto z-[100000]">
                           <SelectItem value="condos">Condos</SelectItem>
                           <SelectItem value="rentals">Rentals</SelectItem>
                           <SelectItem value="mixed">Mixed</SelectItem>
@@ -702,7 +702,7 @@ Return actual data only. If not found, return null.`,
                         <SelectTrigger>
                           <SelectValue placeholder="State" />
                         </SelectTrigger>
-                        <SelectContent className="max-h-60 z-[100000]">
+                        <SelectContent className="max-h-60 overflow-y-auto z-[100000]">
                           {US_STATES.map((state) => (
                             <SelectItem key={state.code} value={state.code}>
                               {state.name}
@@ -778,7 +778,7 @@ Return actual data only. If not found, return null.`,
                       <SelectTrigger>
                         <SelectValue placeholder="Select insurance program" />
                       </SelectTrigger>
-                      <SelectContent className="z-[100000]">
+                      <SelectContent className="max-h-60 overflow-y-auto z-[100000]">
                         {programs.map((program) => (
                           <SelectItem key={program.id} value={program.id}>
                             {program.name}

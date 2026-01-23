@@ -2515,7 +2515,8 @@ app.get('/public/users', (req, res) => {
 });
 
 app.post('/integrations/send-email', authenticateToken, async (req, res) => {
-  const { to, subject, body, html, cc, bcc, from, replyTo } = req.body || {};
+  // Align with public endpoint: support attachments and optional sample COI
+  const { to, subject, body, html, cc, bcc, from, replyTo, attachments: incomingAttachments, includeSampleCOI, sampleCOIData } = req.body || {};
   if (!to || !subject || (!body && !html)) {
     return res.status(400).json({ error: 'Missing required fields: to, subject, body/html' });
   }
