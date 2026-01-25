@@ -88,11 +88,19 @@ export default function COIReview() {
     enabled: !!coiId,
   });
 
-  const { data: project } = useQuery({
+  const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ['project', coi?.project_id],
     queryFn: async () => {
+      if (!coi?.project_id) {
+        console.warn('No project_id in COI');
+        return null;
+      }
       const projects = await apiClient.entities.Project.list();
-      return projects.find(p => p.id === coi.project_id);
+      const foundProject = projects.find(p => p.id === coi.project_id);
+      if (!foundProject) {
+        console.warn(`Project not found with id: ${coi.project_id}`);
+      }
+      return foundProject;
     },
     enabled: !!coi?.project_id,
   });
@@ -631,6 +639,17 @@ Analyze for deficiencies - check all 12 items above. Remember: ONLY flag coverag
   };
 
   const handleApprove = async () => {
+    // Check if project is loaded
+    if (!project) {
+      alert('Cannot approve COI: Project information is not available. Please refresh the page and try again.');
+      console.error('Cannot approve COI: project not found', { 
+        coiId: coi?.id, 
+        projectId: coi?.project_id,
+        projectLoading 
+      });
+      return;
+    }
+
     // Update confirmation message based on renewal status
     const confirmMessage = isRenewal 
       ? 'Approve this COI renewal? (No new hold harmless agreement required for renewals)'
@@ -717,9 +736,14 @@ Thank you!`
     });
 
     // Send approval notification with hold harmless requirement
+    // This should never happen now due to early return, but keeping as safety check
     if (!project) {
-      console.error('Cannot send hold harmless email: project not found');
-      alert('COI approved, but notification email could not be sent (project not found).');
+      console.error('Cannot send hold harmless email: project not found', {
+        coiId: coi?.id,
+        projectId: coi?.project_id,
+        projectLoading
+      });
+      alert('COI approved, but notification email could not be sent (project not found). Please notify the subcontractor manually.');
     } else {
       try {
         const subPortalLink = `${window.location.origin}${createPageUrl('subcontractor-dashboard')}?id=${coi.subcontractor_id || ''}`;
@@ -1166,10 +1190,11 @@ InsureTrack Team`
             <Button
               onClick={handleApprove}
               className="bg-emerald-600 hover:bg-emerald-700"
-              disabled={updateCOIMutation.isPending}
+              disabled={updateCOIMutation.isPending || projectLoading || !project}
+              title={!project ? "Waiting for project information..." : "Approve this COI"}
             >
               <CheckCircle2 className="w-4 h-4 mr-2" />
-              Approve
+              {projectLoading ? 'Loading...' : 'Approve'}
             </Button>
           </div>
         </div>
