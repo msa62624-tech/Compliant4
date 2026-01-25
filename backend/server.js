@@ -42,6 +42,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy for rate limiting with X-Forwarded-For header
+app.set('trust proxy', 1);
+
 // Core directories for data and uploads
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'entities.json');

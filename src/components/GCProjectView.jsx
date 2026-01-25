@@ -153,8 +153,49 @@ export default function GCProjectView() {
 
       return await psResponse.json();
     },
-    onSuccess: (created) => {
+    onSuccess: async (created) => {
       queryClient.invalidateQueries(["gc-project-subs", projectId]);
+      
+      // Send notification email to subcontractor
+      try {
+        const { protocol, host, origin } = window.location;
+        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                           import.meta?.env?.VITE_API_BASE_URL || '';
+        
+        const contactEmail = form.contact_email.trim();
+        const emailBody = `You have been added to project "${project?.project_name}" as a ${form.trade} subcontractor.
+
+Company: ${form.subcontractor_name}
+Project: ${project?.project_name}
+Trade: ${form.trade}
+Contact: ${project?.gc_name}
+
+Next Steps:
+1. Your broker will be contacted to provide a Certificate of Insurance (COI)
+2. You will receive instructions on how to submit your insurance requirements
+3. Once approved, you can proceed with work on this project
+
+If you have any questions, please contact ${project?.gc_name}.
+
+Best regards,
+InsureTrack System`;
+
+        await fetch(`${backendBase}/public/send-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: contactEmail,
+            subject: `You've Been Added to ${project?.project_name}`,
+            body: emailBody
+          })
+        }).catch(err => console.error('Failed to send notification email:', err));
+      } catch (err) {
+        console.error('Email notification error:', err);
+      }
+      
       setForm({ subcontractor_name: "", trade: "", contact_email: "" });
       toast.success('Subcontractor added successfully!');
     },
