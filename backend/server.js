@@ -6916,6 +6916,11 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
         hold_harmless_status: coi.hold_harmless_status && coi.hold_harmless_status.startsWith('signed') ? coi.hold_harmless_status : 'signed_by_sub'
       };
     } else if (signer === 'gc' || signer === 'general_contractor') {
+      // WORKFLOW REQUIREMENT: GC can only sign AFTER subcontractor has signed
+      if (!coi.hold_harmless_sub_signed_url) {
+        return sendError(res, 400, 'Subcontractor must sign the hold harmless agreement before GC can sign');
+      }
+      
       entities.GeneratedCOI[idx] = {
         ...coi,
         hold_harmless_gc_signed_url: signed_url,
