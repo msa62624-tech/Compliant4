@@ -3174,6 +3174,37 @@ app.post('/public/create-project-subcontractor', publicApiLimiter, (req, res) =>
       return res.status(403).json({ error: 'Unauthorized: Project does not belong to this GC' });
     }
 
+    // Ensure Contractor record exists for this subcontractor
+    let contractor = (entities.Contractor || []).find(c => c.id === subcontractor_id);
+    let tempPassword = '';
+    if (!contractor) {
+      // Generate temporary password
+      tempPassword = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const hashedPassword = bcryptjs.hashSync(tempPassword, 10);
+      
+      contractor = {
+        id: subcontractor_id,
+        company_name: subcontractor_name,
+        contact_person: subcontractor_name,
+        email: (contact_email || '').toLowerCase(),
+        phone: '',
+        address: '',
+        city: '',
+        state: '',
+        zip: '',
+        password: hashedPassword,
+        role: 'subcontractor',
+        portal_login: true,
+        created_date: new Date().toISOString(),
+        created_by: 'gc-portal'
+      };
+      
+      if (!entities.Contractor) entities.Contractor = [];
+      entities.Contractor.push(contractor);
+      debouncedSave();
+      console.log('✅ Created Contractor for subcontractor via GC portal:', contractor.id);
+    }
+
     const newProjectSub = {
       id: `ProjectSub-${Date.now()}`,
       project_id,
@@ -3194,7 +3225,13 @@ app.post('/public/create-project-subcontractor', publicApiLimiter, (req, res) =>
     debouncedSave();
     
     console.log('✅ Created ProjectSubcontractor via GC portal:', newProjectSub.id);
-    return res.json(newProjectSub);
+    
+    // Return with contractor credentials info
+    return res.json({
+      ...newProjectSub,
+      contractor_username: contractor.email || contractor.id,
+      contractor_password: tempPassword || undefined // Only include if newly created
+    });
   } catch (err) {
     console.error('❌ Public ProjectSubcontractor create error:', err?.message || err);
     return res.status(500).json({ error: 'Failed to create project subcontractor' });
@@ -3208,6 +3245,109 @@ app.get('/public/all-project-subcontractors', (req, res) => {
   } catch (err) {
     console.error('Error fetching project subcontractors:', err);
     return res.status(500).json({ error: 'Failed to load project subcontractors' });
+  }
+});
+
+// Public: Create Portal for subcontractor/broker/GC
+app.post('/public/create-portal', publicApiLimiter, (req, res) => {
+  try {
+    const { user_type, user_id, user_email, user_name, dashboard_url, access_token } = req.body || {};
+    
+    if (!user_type || !user_id || !user_email) {
+      return res.status(400).json({ error: 'user_type, user_id, and user_email are required' });
+    }
+
+    // Check if portal already exists
+    const existing = (entities.Portal || []).find(p => p.user_id === user_id && p.user_type === user_type);
+    if (existing) {
+      console.log('✅ Portal already exists:', existing.id);
+      return res.json(existing);
+    }
+
+    const newPortal = {
+      id: `Portal-${Date.now()}`,
+      user_type,
+      user_id,
+      user_email,
+      user_name: user_name || user_email,
+      dashboard_url: dashboard_url || `${process.env.FRONTEND_URL}/${user_type}-dashboard?id=${user_id}`,
+      status: 'active',
+      access_token: access_token || crypto.randomBytes(24).toString('hex'),
+      created_date: new Date().toISOString(),
+      created_by: 'public-portal'
+    };
+
+    if (!entities.Portal) entities.Portal = [];
+    entities.Portal.push(newPortal);
+    debouncedSave();
+    
+    console.log('✅ Created Portal:', newPortal.id, user_type, user_email);
+    return res.json(newPortal);
+  } catch (err) {
+    console.error('❌ Public Portal create error:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to create portal' });
+  }
+});
+
+// Public: Create GeneratedCOI (certificate request)
+app.post('/public/create-coi-request', publicApiLimiter, (req, res) => {
+  try {
+    const { 
+      project_id, project_name, gc_id, gc_name,
+      subcontractor_id, subcontractor_name, trade_type,
+      project_sub_id, broker_email, broker_name,
+      contact_email, coi_token,
+      certificate_holder, certificate_holder_address,
+      additional_insureds, project_location
+    } = req.body || {};
+    
+    if (!project_id || !subcontractor_id) {
+      return res.status(400).json({ error: 'project_id and subcontractor_id are required' });
+    }
+
+    // Check if COI already exists for this project/sub combo
+    const existing = (entities.GeneratedCOI || []).find(c => 
+      c.project_id === project_id && c.subcontractor_id === subcontractor_id
+    );
+    if (existing) {
+      console.log('✅ COI request already exists:', existing.id);
+      return res.json(existing);
+    }
+
+    const newCOI = {
+      id: `COI-${Date.now()}`,
+      project_id,
+      project_name,
+      gc_id,
+      gc_name,
+      subcontractor_id,
+      subcontractor_name,
+      trade_type,
+      project_sub_id,
+      status: 'awaiting_broker_upload',
+      broker_email: broker_email || contact_email,
+      broker_name: broker_name || undefined,
+      contact_email: contact_email || broker_email,
+      created_date: new Date().toISOString(),
+      first_coi_uploaded: false,
+      first_coi_url: null,
+      coi_token: coi_token || `coi-${Date.now()}-${crypto.randomBytes(12).toString('hex')}`,
+      certificate_holder,
+      certificate_holder_address,
+      additional_insureds: additional_insureds || [],
+      project_location,
+      created_by: 'public-portal'
+    };
+
+    if (!entities.GeneratedCOI) entities.GeneratedCOI = [];
+    entities.GeneratedCOI.push(newCOI);
+    debouncedSave();
+    
+    console.log('✅ Created COI request:', newCOI.id, subcontractor_name);
+    return res.json(newCOI);
+  } catch (err) {
+    console.error('❌ Public COI create error:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to create COI request' });
   }
 });
 
@@ -3245,6 +3385,17 @@ app.get('/public/cois-for-sub/:subId', (req, res) => {
     return res.json(cois);
   } catch (err) {
     console.error('Error fetching COIs for sub:', err);
+    return res.status(500).json({ error: 'Failed to load COIs' });
+  }
+});
+
+// Public: Get all COIs (for GC dashboard status)
+app.get('/public/all-cois', (req, res) => {
+  try {
+    const cois = entities.GeneratedCOI || [];
+    return res.json(cois);
+  } catch (err) {
+    console.error('Error fetching all COIs:', err);
     return res.status(500).json({ error: 'Failed to load COIs' });
   }
 });

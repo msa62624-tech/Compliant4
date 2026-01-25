@@ -84,8 +84,37 @@ export default function GCProjectView() {
   const { data: allSubcontractors = [] } = useQuery({
     queryKey: ["all-subs-for-typeahead"],
     queryFn: async () => {
-      // Allow creation of new subs, no pre-loaded list needed for public portal
-      return [];
+      try {
+        // Fetch all subcontractors from the public endpoint
+        const { protocol, host, origin } = window.location;
+        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                           import.meta?.env?.VITE_API_BASE_URL || '';
+        
+        const response = await fetch(`${backendBase}/public/all-project-subcontractors`);
+        if (!response.ok) throw new Error('Failed to fetch subcontractors');
+        const subs = await response.json();
+        
+        // Deduplicate by subcontractor_id and transform to have company_name field
+        const uniqueSubs = {};
+        subs.forEach(sub => {
+          if (!uniqueSubs[sub.subcontractor_id]) {
+            uniqueSubs[sub.subcontractor_id] = {
+              id: sub.subcontractor_id,
+              company_name: sub.subcontractor_name,
+              contact_email: sub.contact_email,
+              trade_type: sub.trade_type,
+            };
+          }
+        });
+        
+        return Object.values(uniqueSubs);
+      } catch (err) {
+        console.error('Error fetching subcontractors for typeahead:', err);
+        return [];
+      }
     },
     retry: 1,
   });
@@ -160,38 +189,116 @@ export default function GCProjectView() {
       try {
         const { protocol, host, origin } = window.location;
         const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
-                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
-                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
-                           import.meta?.env?.VITE_API_BASE_URL || '';
+        
+        // Construct portal login URL for subcontractor
+        let portalUrl;
+        if (m) {
+          // GitHub Codespaces format
+          portalUrl = `${protocol}//${m[1]}-5175${m[3]}/sub-login`;
+        } else if (origin.includes(':5175')) {
+          portalUrl = origin.replace(':5175', '') + '/sub-login';
+        } else if (origin.includes(':5176')) {
+          portalUrl = origin.replace(':5176', '') + '/sub-login';
+        } else {
+          portalUrl = origin + '/sub-login';
+        }
         
         const contactEmail = form.contact_email.trim();
-        const emailBody = `You have been added to project "${project?.project_name}" as a ${form.trade} subcontractor.
-
-Company: ${form.subcontractor_name}
-Project: ${project?.project_name}
-Trade: ${form.trade}
-Contact: ${project?.gc_name}
-
-Next Steps:
-1. Your broker will be contacted to provide a Certificate of Insurance (COI)
-2. You will receive instructions on how to submit your insurance requirements
-3. Once approved, you can proceed with work on this project
-
-If you have any questions, please contact ${project?.gc_name}.
-
-Best regards,
-InsureTrack System`;
-
-        console.log('📧 Sending email to:', contactEmail, 'via', `${backendBase}/public/send-email`);
         
-        const emailResponse = await fetch(`${backendBase}/public/send-email`, {
+        // Create formatted HTML email
+        let emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background-color: #1e40af; color: white; padding: 20px; border-radius: 5px; }
+    .section { margin: 20px 0; padding: 15px; background-color: #f5f5f5; border-left: 4px solid #1e40af; }
+    .section-title { font-weight: bold; font-size: 16px; margin-bottom: 10px; color: #1e40af; }
+    .field { margin: 8px 0; }
+    .label { font-weight: bold; color: #1e40af; }
+    .credentials { background-color: #fffbea; padding: 15px; border-radius: 5px; border: 1px solid #fbbf24; }
+    .button { background-color: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px; }
+    .footer { font-size: 12px; color: #666; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>Welcome to InsureTrack</h2>
+      <p>You've been added to a new project</p>
+    </div>
+
+    <p>Dear ${form.subcontractor_name},</p>
+
+    <p>You have been added to the following project:</p>
+
+    <div class="section">
+      <div class="section-title">📋 PROJECT DETAILS</div>
+      <div class="field"><span class="label">Project Name:</span> ${project?.project_name}</div>
+      <div class="field"><span class="label">Trade Type:</span> ${form.trade}</div>
+      <div class="field"><span class="label">Address:</span> ${project?.address || 'Address not provided'}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🔐 PORTAL LOGIN INFORMATION</div>
+      <div class="credentials">`;
+
+        if (created.contractor_password) {
+          emailHtml += `
+        <div class="field"><span class="label">Username:</span> ${created.contractor_username}</div>
+        <div class="field"><span class="label">Password:</span> ${created.contractor_password}</div>`;
+        } else {
+          emailHtml += `
+        <div class="field"><span class="label">Username:</span> ${created.contractor_username}</div>
+        <div class="field"><span class="label">Password:</span> [You previously set this during registration]</div>`;
+        }
+
+        emailHtml += `
+        <a href="${portalUrl}" class="button">Login to Portal →</a>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📝 NEXT STEPS</div>
+      <ol>
+        <li>Click the button above or visit the portal</li>
+        <li>Log in with your credentials</li>
+        <li>Add your broker information in your account settings</li>
+        <li>Submit your Certificate of Insurance (COI)</li>
+        <li>Once approved, you can start work on this project</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <div class="section-title">❓ QUESTIONS?</div>
+      <p>Contact your General Contractor: <strong>${project?.gc_name}</strong></p>
+    </div>
+
+    <div class="footer">
+      <p>Best regards,<br>InsureTrack Team</p>
+      <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+        // Get backend base URL
+        const backendBaseUrl = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                              origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                              origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                              import.meta?.env?.VITE_API_BASE_URL || '';
+        
+        console.log('📧 Sending email to:', contactEmail, 'with portal link:', portalUrl);
+        
+        const emailResponse = await fetch(`${backendBaseUrl}/public/send-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to: contactEmail,
-            subject: `You've Been Added to ${project?.project_name}`,
-            body: emailBody
+            subject: `You've Been Added to ${project?.project_name} - Portal Access`,
+            html: emailHtml
           })
         });
         
@@ -338,7 +445,7 @@ InsureTrack System`;
           <div>
             <p className="text-sm text-slate-600">General Contractor Portal</p>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{project.project_name}</h1>
-            <p className="text-sm text-slate-600">{project.project_address || "Address not provided"}</p>
+            <p className="text-sm text-slate-600">{project.address || "Address not provided"}</p>
           </div>
           <Button variant="outline" onClick={() => navigate(`/gc-dashboard?id=${gcId || ""}`)}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to projects

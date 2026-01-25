@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FolderOpen, AlertTriangle, Search } from "lucide-react";
+import { FolderOpen, AlertTriangle, Search, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import UserProfile from "@/components/UserProfile.jsx";
 import NotificationBanner from "@/components/NotificationBanner.jsx";
@@ -33,27 +33,6 @@ export default function GCDashboard() {
       sessionStorage.setItem('public_access_enabled', 'true');
     }
   }, [gcId]);
-
-  // Fetch GC data
-  const { data: contractor, isLoading: contractorLoading, error: contractorError } = useQuery({
-    queryKey: ['gc-contractor', gcId],
-    queryFn: async () => {
-      try {
-        const allContractors = await compliant.entities.Contractor.list();
-        const gc = allContractors.find(c => c.id === gcId);
-        if (!gc) {
-          console.warn(`Contractor ${gcId} not found`);
-          return null;
-        }
-        return gc;
-      } catch (err) {
-        console.error('Error fetching contractor:', err);
-        return null;
-      }
-    },
-    enabled: !!gcId,
-    retry: 1,
-  });
 
   // Fetch projects - don't filter by status, show all
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
@@ -115,7 +94,18 @@ export default function GCDashboard() {
     queryKey: ['gc-cois', gcId],
     queryFn: async () => {
       try {
-        const allCois = await compliant.entities.GeneratedCOI.list();
+        // Use public endpoint to fetch all COIs
+        const { protocol, host, origin } = window.location;
+        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                           import.meta?.env?.VITE_API_BASE_URL || '';
+        
+        const response = await fetch(`${backendBase}/public/all-cois`);
+        if (!response.ok) throw new Error('Failed to fetch COIs');
+        const allCois = await response.json();
+        
         // Filter to COIs for this GC's projects
         const projectIds = new Set(projects.map(p => p.id));
         return allCois.filter(coi => projectIds.has(coi.project_id));
@@ -135,6 +125,7 @@ export default function GCDashboard() {
     );
     
     if (relatedCois.length === 0) {
+      console.log(`[${sub.subcontractor_name}] No COIs found, returning: ${sub.compliance_status || 'pending_broker'}`);
       return sub.compliance_status || 'pending_broker';
     }
     
@@ -144,6 +135,8 @@ export default function GCDashboard() {
       const bDate = new Date(b.created_date || 0);
       return bDate - aDate;
     })[0];
+    
+    console.log(`[${sub.subcontractor_name}] Found COI with status: ${latestCoi.status}`, latestCoi);
     
     // Map COI status to compliance status
     if (latestCoi.status === 'approved' || latestCoi.status === 'compliant') {
@@ -156,6 +149,20 @@ export default function GCDashboard() {
     
     return latestCoi.status || sub.compliance_status || 'pending_broker';
   };
+
+  // Log COI data for debugging
+  React.useEffect(() => {
+    console.log('🔍 GC Dashboard Debug:', {
+      gcId,
+      projectsCount: projects.length,
+      coisCount: cois.length,
+      subsCount: projectSubs.length,
+      searchTerm,
+      searchType,
+      filteredProjectsCount: filteredProjects.length,
+      coisData: cois.slice(0, 3) // First 3 COIs
+    });
+  }, [cois, projects, projectSubs, gcId, searchTerm, searchType, filteredProjects]);
 
   // Filter projects and subs based on search
   const filteredProjects = projects.filter(project => {
@@ -206,35 +213,6 @@ export default function GCDashboard() {
     );
   }
 
-  if (contractorError) {
-    console.error('❌ Error loading contractor:', contractorError);
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="p-8 text-center">
-            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold mb-2">Error Loading Portal</h2>
-            <p className="text-slate-600">{contractorError?.message || 'Failed to load contractor data'}</p>
-            <p className="text-xs text-slate-500 mt-4">Please refresh the page or contact support</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (contractorLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="p-8 text-center">
-            <div className="animate-spin w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-slate-600 font-medium">Loading your portal...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Header */}
@@ -243,18 +221,18 @@ export default function GCDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
-                {contractor?.company_name || `General Contractor (${gcId})`}
+                General Contractor Portal
               </h1>
-              <p className="text-sm text-slate-600">General Contractor Portal</p>
+              <p className="text-sm text-slate-600">Manage Your Projects & Subcontractors</p>
             </div>
             <UserProfile 
               user={{ 
                 id: gcId, 
-                name: contractor?.contact_person || contractor?.company_name,
-                email: contractor?.email,
+                name: `General Contractor (${gcId})`,
+                email: '',
                 role: 'gc'
               }}
-              companyName={contractor?.company_name}
+              companyName={`General Contractor (${gcId})`}
               companyId={gcId}
             />
           </div>
@@ -264,10 +242,6 @@ export default function GCDashboard() {
 
       {/* Content */}
       <div className="max-w-5xl mx-auto p-4 md:p-8">
-        {/* Notification Banner */}
-        {contractor?.email && (
-          <NotificationBanner gcEmail={contractor.email} />
-        )}
 
         <Card>
           <CardHeader className="border-b">
@@ -330,7 +304,17 @@ export default function GCDashboard() {
                 <TableBody>
                   {filteredProjects.map((project) => {
                     const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
-                    const compliantCount = projectSubsList.filter(ps => {
+                    
+                    // If searching by subcontractor, filter the subs to show only matching ones
+                    let displaySubsList = projectSubsList;
+                    if (searchType === 'subcontractor' && searchTerm) {
+                      const searchLower = searchTerm.toLowerCase();
+                      displaySubsList = projectSubsList.filter(ps => 
+                        ps.subcontractor_name?.toLowerCase().includes(searchLower)
+                      );
+                    }
+                    
+                    const compliantCount = displaySubsList.filter(ps => {
                       const actualStatus = getActualStatus(ps);
                       return actualStatus === 'compliant';
                     }).length;
@@ -342,11 +326,11 @@ export default function GCDashboard() {
                         onClick={() => navigate(`/gc-project?project=${project.id}&id=${gcId}`)}
                       >
                         <TableCell className="font-medium">{project.project_name}</TableCell>
-                        <TableCell className="text-slate-600">{project.project_address || 'Address not provided'}</TableCell>
+                        <TableCell className="text-slate-600">{project.address || 'Address not provided'}</TableCell>
                         <TableCell>
                           <div className="text-sm">
                             <span className="font-semibold text-emerald-700">{compliantCount}</span>
-                            <span className="text-slate-500"> / {projectSubsList.length} compliant</span>
+                            <span className="text-slate-500"> / {displaySubsList.length} compliant</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -370,6 +354,71 @@ export default function GCDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Subcontractor Details when searching by subcontractor */}
+        {searchType === 'subcontractor' && searchTerm && (
+          <Card className="mt-6">
+            <CardHeader className="border-b">
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Matching Subcontractors ({filteredProjects.length} projects found)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {filteredProjects.length === 0 ? (
+                <div className="p-6 text-center text-slate-500">
+                  No subcontractors found matching "{searchTerm}"
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead>Company</TableHead>
+                      <TableHead>Trade</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProjects.flatMap((project) => {
+                      const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
+                      const searchLower = searchTerm.toLowerCase();
+                      const matchingSubs = projectSubsList.filter(ps => 
+                        ps.subcontractor_name?.toLowerCase().includes(searchLower)
+                      );
+                      
+                      console.log(`Project ${project.project_name}: ${matchingSubs.length} matching subs`);
+                      
+                      return matchingSubs.map((sub) => {
+                        const status = getActualStatus(sub);
+                        const statusColor = status === 'compliant' ? 'bg-emerald-50 text-emerald-700' :
+                                           status === 'awaiting_broker_upload' ? 'bg-yellow-50 text-yellow-700' :
+                                           status === 'awaiting_admin_review' ? 'bg-blue-50 text-blue-700' :
+                                           'bg-slate-100 text-slate-700';
+                        
+                        return (
+                          <TableRow key={sub.id} className="hover:bg-slate-50">
+                            <TableCell className="font-medium">{sub.subcontractor_name}</TableCell>
+                            <TableCell>{sub.trade_type || 'N/A'}</TableCell>
+                            <TableCell className="text-slate-600">{project.project_name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={statusColor}>
+                                {status === 'compliant' ? '✓ Compliant' :
+                                 status === 'awaiting_broker_upload' ? 'Awaiting Broker' :
+                                 status === 'awaiting_admin_review' ? 'Under Review' :
+                                 'Pending'}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      });
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
