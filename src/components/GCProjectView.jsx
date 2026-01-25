@@ -235,7 +235,7 @@ export default function GCProjectView() {
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .header { 
-      background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
       color: white; 
       padding: 30px 20px; 
       text-align: center;
@@ -257,14 +257,14 @@ export default function GCProjectView() {
       margin: 20px 0; 
       padding: 15px; 
       background-color: #f5f5f5; 
-      border-left: 4px solid #1e40af;
+      border-left: 4px solid #dc2626;
       border-radius: 4px;
     }
     .section-title { 
       font-weight: 600; 
       font-size: 15px; 
       margin: 0 0 12px 0;
-      color: #1e40af; 
+      color: #dc2626; 
     }
     .field { 
       margin: 8px 0; 
@@ -272,19 +272,19 @@ export default function GCProjectView() {
     }
     .label { 
       font-weight: 600; 
-      color: #1e40af; 
+      color: #dc2626; 
       display: inline-block;
       min-width: 120px;
     }
     .credentials { 
-      background-color: #fffbea; 
+      background-color: #fef2f2; 
       padding: 15px; 
       border-radius: 6px; 
-      border-left: 4px solid #fbbf24;
+      border-left: 4px solid #dc2626;
       margin: 15px 0;
     }
     .button { 
-      background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
       color: white; 
       padding: 12px 28px; 
       text-decoration: none; 

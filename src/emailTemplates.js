@@ -1,6 +1,6 @@
 /**
  * Standardized email templates that match InsureTrack system UI
- * Color scheme: #1e40af (primary blue), #fbbf24 (warning/accent), #f97316 (critical/alert)
+ * Color scheme: #dc2626 (destructive red), #991b1b (dark red)
  */
 
 export const EMAIL_STYLES = `
@@ -21,7 +21,7 @@ export const EMAIL_STYLES = `
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .header { 
-      background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
       color: white; 
       padding: 30px 20px; 
       text-align: center;
@@ -43,14 +43,14 @@ export const EMAIL_STYLES = `
       margin: 20px 0; 
       padding: 15px; 
       background-color: #f5f5f5; 
-      border-left: 4px solid #1e40af;
+      border-left: 4px solid #dc2626;
       border-radius: 4px;
     }
     .section-title { 
       font-weight: 600; 
       font-size: 15px; 
       margin: 0 0 12px 0;
-      color: #1e40af; 
+      color: #dc2626; 
     }
     .field { 
       margin: 8px 0; 
@@ -58,31 +58,31 @@ export const EMAIL_STYLES = `
     }
     .label { 
       font-weight: 600; 
-      color: #1e40af; 
+      color: #dc2626; 
       display: inline-block;
       min-width: 120px;
     }
     .credentials { 
-      background-color: #fffbea; 
+      background-color: #fef2f2; 
       padding: 15px; 
       border-radius: 6px; 
-      border-left: 4px solid #fbbf24;
+      border-left: 4px solid #dc2626;
       margin: 15px 0;
     }
     .alert {
       background-color: #fee2e2;
-      border-left: 4px solid #f97316;
+      border-left: 4px solid #dc2626;
       padding: 15px;
       border-radius: 4px;
       margin: 15px 0;
     }
     .alert-title {
       font-weight: 600;
-      color: #dc2626;
+      color: #991b1b;
       margin: 0 0 8px 0;
     }
     .button { 
-      background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
       color: white; 
       padding: 12px 28px; 
       text-decoration: none; 
@@ -100,7 +100,7 @@ export const EMAIL_STYLES = `
     }
     .button-secondary {
       background-color: #f3f4f6;
-      color: #1e40af;
+      color: #dc2626;
       padding: 12px 28px;
       text-decoration: none;
       border-radius: 6px;
@@ -124,19 +124,19 @@ export const EMAIL_STYLES = `
     }
     .list-item:before {
       content: "✓ ";
-      color: #1e40af;
+      color: #dc2626;
       font-weight: bold;
       margin-left: -20px;
       margin-right: 8px;
     }
     h2 { 
-      color: #1e40af; 
+      color: #dc2626; 
       margin: 20px 0 15px 0;
       font-size: 18px;
       font-weight: 600;
     }
     h3 {
-      color: #1e40af;
+      color: #dc2626;
       margin: 15px 0 10px 0;
       font-size: 15px;
       font-weight: 600;
