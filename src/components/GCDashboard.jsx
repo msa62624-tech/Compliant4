@@ -106,9 +106,56 @@ export default function GCDashboard() {
         return [];
       }
     },
-    enabled: !!gcId,
+    enabled: !!gcId && projects.length > 0,
     retry: 1,
   });
+
+  // Fetch COIs to determine actual compliance status
+  const { data: cois = [] } = useQuery({
+    queryKey: ['gc-cois', gcId],
+    queryFn: async () => {
+      try {
+        const allCois = await compliant.entities.GeneratedCOI.list();
+        // Filter to COIs for this GC's projects
+        const projectIds = new Set(projects.map(p => p.id));
+        return allCois.filter(coi => projectIds.has(coi.project_id));
+      } catch (err) {
+        console.error('Error fetching COIs:', err);
+        return [];
+      }
+    },
+    enabled: !!gcId && projects.length > 0,
+    retry: 1,
+  });
+
+  // Helper function to get actual status for a subcontractor
+  const getActualStatus = (sub) => {
+    const relatedCois = cois.filter(c => 
+      c.subcontractor_id === sub.subcontractor_id || c.project_sub_id === sub.id
+    );
+    
+    if (relatedCois.length === 0) {
+      return sub.compliance_status || 'pending_broker';
+    }
+    
+    // Find the most recent COI
+    const latestCoi = relatedCois.sort((a, b) => {
+      const aDate = new Date(a.created_date || 0);
+      const bDate = new Date(b.created_date || 0);
+      return bDate - aDate;
+    })[0];
+    
+    // Map COI status to compliance status
+    if (latestCoi.status === 'approved' || latestCoi.status === 'compliant') {
+      return 'compliant';
+    } else if (latestCoi.status === 'awaiting_admin_review') {
+      return 'awaiting_admin_review';
+    } else if (latestCoi.status === 'awaiting_broker_upload') {
+      return 'awaiting_broker_upload';
+    }
+    
+    return latestCoi.status || sub.compliance_status || 'pending_broker';
+  };
 
   // Filter projects and subs based on search
   const filteredProjects = projects.filter(project => {
@@ -283,7 +330,10 @@ export default function GCDashboard() {
                 <TableBody>
                   {filteredProjects.map((project) => {
                     const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
-                    const compliantCount = projectSubsList.filter(ps => ps.compliance_status === 'compliant').length;
+                    const compliantCount = projectSubsList.filter(ps => {
+                      const actualStatus = getActualStatus(ps);
+                      return actualStatus === 'compliant';
+                    }).length;
 
                     return (
                       <TableRow
