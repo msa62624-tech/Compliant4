@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
+import { getBackendBaseUrl } from "@/urlConfig";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,15 +20,8 @@ export default function BrokerUploadCOI() {
   const stepParam = urlParams.get('step');
   const queryClient = useQueryClient();
 
-  // Compute backend base for Codespaces or local
-  const backendBase = React.useMemo(() => {
-    const { protocol, host, origin } = window.location;
-    const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-    if (m) return `${protocol}//${m[1]}-3001${m[3]}`;
-    if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
-    if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
-    return import.meta?.env?.VITE_API_BASE_URL || '';
-  }, []);
+  // Compute backend base for API calls
+  const backendBase = React.useMemo(() => getBackendBaseUrl(), []);
 
   // Ensure page doesn't redirect to login
   React.useEffect(() => {

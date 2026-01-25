@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { compliant } from "@/api/compliantClient";
+import { getBackendBaseUrl } from "@/urlConfig";
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Button } from '@/components/ui/button';
@@ -29,7 +30,7 @@ export default function SubcontractorLogin({ onLogin }) {
       }
 
       // Call backend contractor login endpoint for proper bcrypt verification
-      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const apiBase = getBackendBaseUrl();
       const response = await fetch(`${apiBase}/public/contractor-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
