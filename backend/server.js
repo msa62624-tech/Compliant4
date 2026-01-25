@@ -561,6 +561,84 @@ loadEntities();
 // Ensure broker records exist for authentication
 seedBrokersFromData();
 
+// Remove sample placeholder GC once a real GC exists to avoid duplicate records
+function cleanupPlaceholderGCs() {
+  try {
+    const contractors = entities.Contractor || [];
+    const isPlaceholder = (c) =>
+      c?.contractor_type === 'general_contractor' &&
+      (c.company_name || '').toLowerCase().includes('your gc');
+
+    const placeholders = contractors.filter(isPlaceholder);
+    if (!placeholders.length) return;
+
+    const realGCs = contractors.filter(c => c.contractor_type === 'general_contractor' && !isPlaceholder(c));
+    // Keep the placeholder if it's the only GC available
+    if (!realGCs.length) return;
+
+    placeholders.forEach(ph => {
+      // Remove contractor
+      entities.Contractor = entities.Contractor.filter(c => c.id !== ph.id);
+      // Remove associated GC user accounts
+      if (entities.User) {
+        entities.User = entities.User.filter(u => u.gc_id !== ph.id);
+      }
+      // Remove associated GC portals
+      if (entities.Portal) {
+        entities.Portal = entities.Portal.filter(p => p.user_id !== ph.id);
+      }
+      console.log('🧹 Removed placeholder GC record:', ph.company_name || ph.id);
+    });
+
+    debouncedSave();
+  } catch (err) {
+    console.warn('⚠️ Placeholder GC cleanup failed:', err?.message || err);
+  }
+}
+
+cleanupPlaceholderGCs();
+
+// Ensure there is at least one GC account for portal login in empty datasets
+function ensureDefaultGC() {
+  const contractors = entities.Contractor || [];
+  const hasGC = contractors.some(c => c.contractor_type === 'general_contractor');
+  if (hasGC) return;
+
+  const defaultPassword = 'GCpassword123!';
+  const hash = bcrypt.hashSync(defaultPassword, 10);
+  const gcId = `Contractor-${Date.now()}`;
+
+  const gc = {
+    id: gcId,
+    company_name: 'Default GC',
+    contact_person: 'Default GC',
+    email: 'gc@example.com',
+    phone: '',
+    mailing_address: '',
+    mailing_city: '',
+    mailing_state: '',
+    mailing_zip_code: '',
+    status: 'active',
+    contractor_type: 'general_contractor',
+    address: '',
+    city: '',
+    state: '',
+    zip_code: '',
+    admin_id: 'system',
+    admin_name: 'system',
+    createdAt: new Date().toISOString(),
+    createdBy: 'system',
+    password: hash,
+    gc_login_created: true
+  };
+
+  entities.Contractor.push(gc);
+  debouncedSave();
+  console.log('✅ Seeded default GC account for portal login:', gc.email, '(password:', defaultPassword, ')');
+}
+
+ensureDefaultGC();
+
 // Run data migration after loading entities
 migrateBrokerPasswords();
 
@@ -1140,16 +1218,28 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
 // Simple, manual CORS middleware that runs on ALL requests/responses
 // This ensures CORS headers are set BEFORE any route handler or error handler
 app.use((req, res, next) => {
-  // Set CORS headers on every response
-  const origin = req.headers.origin;
-  res.header('Access-Control-Allow-Origin', origin || '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
+  // Resolve the origin to echo back; prefer request origin, then configured frontend URL
+  const requestOrigin = req.headers.origin;
+  const envOrigin = process.env.FRONTEND_URL || process.env.VITE_FRONTEND_URL;
+  const allowOrigin = requestOrigin || envOrigin || '*';
+
+  res.header('Access-Control-Allow-Origin', allowOrigin);
+  if (allowOrigin !== '*') {
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Vary', 'Origin');
+  }
+
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  const requestedHeaders = req.headers['access-control-request-headers'];
+  res.header(
+    'Access-Control-Allow-Headers',
+    requestedHeaders || 'Content-Type, Authorization, X-Requested-With, Accept'
+  );
+  res.header('Access-Control-Max-Age', '600');
   
   // Handle preflight requests immediately
   if (req.method === 'OPTIONS') {
-    return res.status(204).send();
+    return res.status(204).end();
   }
   
   // Continue to next middleware
@@ -2125,9 +2215,22 @@ app.post('/integrations/nyc/property', authenticateToken, async (req, res) => {
     const socrataToken = process.env.SOCRATA_APP_TOKEN;
 
     if (!geoclientAppId || !geoclientAppKey) {
-      return res.status(501).json({
-        error: 'NYC Geoclient not configured',
-        message: 'Set NYC_GEOCLIENT_APP_ID and NYC_GEOCLIENT_APP_KEY to enable address→BBL lookup.'
+      // Fallback: return a soft response so the UI can continue without hard failure
+      return res.status(200).json({
+        warning: 'NYC Geoclient not configured; returning stubbed response.',
+        address,
+        city: null,
+        state: null,
+        zip_code: null,
+        block_number: null,
+        lot_number: null,
+        bin: null,
+        height_stories: null,
+        project_type: null,
+        unit_count: null,
+        structure_type: null,
+        owner_entity: null,
+        additional_insured_entities: []
       });
     }
 
@@ -2275,12 +2378,22 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
         try {
           // Fetch program requirements if program is specified
           let programRequirements = null;
-          if (data.program) {
+          if (data.program || data.program_id) {
             try {
-              const programs = entities.InsuranceProgram?.filter(p => p.name === data.program) || [];
-              if (programs && programs.length > 0) {
-                const programId = programs[0].id;
-                programRequirements = entities.ProgramRequirement?.filter(req => req.program_id === programId) || [];
+              let programId = data.program_id;
+              if (!programId && data.program) {
+                const programs = entities.InsuranceProgram?.filter(p => p.name === data.program || p.program_name === data.program) || [];
+                if (programs && programs.length > 0) {
+                  programId = programs[0].id;
+                }
+              }
+              if (programId) {
+                // Check both SubInsuranceRequirement and ProgramRequirement
+                programRequirements = [
+                  ...(entities.SubInsuranceRequirement?.filter(req => req.program_id === programId) || []),
+                  ...(entities.ProgramRequirement?.filter(req => req.program_id === programId) || [])
+                ];
+                console.log(`📋 Found ${programRequirements.length} program requirements for program ${programId}`);
               }
             } catch (err) {
               console.warn('Could not fetch program requirements:', err?.message);
@@ -2293,14 +2406,39 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
             const tradesList = data.trade.split(',').map(t => t.trim().toLowerCase());
             tradeRequirements = programRequirements.filter(req => {
               const applicableTrades = req.applicable_trades || [];
-              return applicableTrades.some(t => tradesList.includes(t.toLowerCase()));
+              // Also check trade_name for direct match
+              const tradeName = (req.trade_name || '').toLowerCase();
+              const scope = (req.scope || '').toLowerCase();
+              
+              // Check if requirement applies to "All Trades"
+              if (applicableTrades.some(t => t.toLowerCase() === 'all trades') || 
+                  tradeName === 'all trades') {
+                return true;
+              }
+              
+              // Check if requirement is marked as "all other trades" or tier D fallback
+              if (req.is_all_other_trades || 
+                  tradeName.includes('all other') || 
+                  scope.includes('all other')) {
+                return true;
+              }
+              
+              // Check for exact or partial trade match
+              return applicableTrades.some(t => tradesList.includes(t.toLowerCase())) ||
+                     tradesList.some(t => tradeName.includes(t) || t.includes(tradeName) || scope.includes(t));
             });
+            console.log(`📋 Matched ${tradeRequirements.length} requirements for trade(s): ${data.trade}`);
           }
 
           // Determine if umbrella is required
           const hasUmbrellaRequirement = tradeRequirements && tradeRequirements.some(req => 
             req.insurance_type === 'umbrella_policy' || req.umbrella_each_occurrence
           );
+          
+          if (hasUmbrellaRequirement) {
+            const umbReq = tradeRequirements.find(r => r.insurance_type === 'umbrella_policy' || r.umbrella_each_occurrence);
+            console.log(`✅ Umbrella required: ${umbReq.umbrella_each_occurrence?.toLocaleString() || 'N/A'}`);
+          }
 
           const doc = new PDFDocument({ size: 'LETTER', margin: 40 });
           const chunks = [];
@@ -2328,6 +2466,7 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
           // PRODUCER BOX (Left side)
           drawBox(margin, yPos, contentWidth * 0.6, 80);
           doc.fontSize(6).font('Helvetica-Bold').text('PRODUCER', margin + 3, yPos + 3);
+          // Do NOT include broker info on sample COI; use generic placeholders
           doc.fontSize(8).font('Helvetica').text('(Broker/Producer Name and Contact)', margin + 3, yPos + 12);
           doc.fontSize(7).text('(Address, Phone, Email to be completed)', margin + 3, yPos + 25);
 
@@ -2454,8 +2593,9 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
           doc.fontSize(6).font('Helvetica-Bold').text('DESCRIPTION OF OPERATIONS / LOCATIONS / VEHICLES', margin + 3, yPos + 3);
           doc.fontSize(7).font('Helvetica');
           const umbrellaText = hasUmbrellaRequirement ? ' & Umbrella' : '';
+          const jobLocationText = data.projectAddress ? `\n\nJob Location: ${data.projectAddress}` : '';
           doc.text(
-            `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`,
+            `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.${jobLocationText}`,
             margin + 3,
             yPos + 13,
             { width: contentWidth * 0.6 - 6, align: 'left' }
@@ -2482,11 +2622,277 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
           doc.fontSize(8).font('Helvetica');
           const certHolder = data.gc_name || 'General Contractor';
           doc.text(certHolder, certHolderX + 3, yPos + 15);
-          if (data.projectAddress) {
-            doc.fontSize(7).text(data.projectAddress, certHolderX + 3, yPos + 25, { width: contentWidth * 0.4 - 8 });
+          if (data.gc_mailing_address) {
+            doc.fontSize(7).text(data.gc_mailing_address, certHolderX + 3, yPos + 25, { width: contentWidth * 0.4 - 8 });
           }
           if (data.project_name) {
             doc.fontSize(7).text(`Re: ${data.project_name}`, certHolderX + 3, yPos + 40, { width: contentWidth * 0.4 - 8 });
+          }
+
+          yPos += 82;
+
+          // CANCELLATION NOTICE
+          doc.fontSize(6).font('Helvetica-Bold').text('CANCELLATION', margin, yPos);
+          doc.fontSize(6).font('Helvetica').text('SHOULD ANY OF THE ABOVE DESCRIBED POLICIES BE CANCELLED BEFORE THE EXPIRATION DATE THEREOF, NOTICE WILL BE DELIVERED IN ACCORDANCE WITH THE POLICY PROVISIONS.', margin, yPos + 8, { width: contentWidth, align: 'justify' });
+
+          yPos += 25;
+
+          // AUTHORIZED REPRESENTATIVE
+          doc.fontSize(6).font('Helvetica-Bold').text('AUTHORIZED REPRESENTATIVE', margin, yPos);
+          doc.fontSize(7).font('Helvetica').text('(Signature)', margin, yPos + 15);
+
+          // Footer
+          doc.fontSize(5).font('Helvetica').text('© 1988-2015 ACORD CORPORATION. All rights reserved.', margin, pageHeight - margin - 15);
+          doc.text('ACORD 25 (2016/03)', pageWidth - margin - 80, pageHeight - margin - 15);
+
+          doc.end();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    };
+
+    // Helper: Generate a regenerated COI PDF using stored data with updated job fields
+    const generateGeneratedCOIPDF = async (coiRecord = {}) => {
+      return new Promise(async (resolve, reject) => {
+        try {
+          const doc = new PDFDocument({ size: 'LETTER', margin: 40 });
+          const chunks = [];
+          doc.on('data', (c) => chunks.push(c));
+          doc.on('end', () => resolve(Buffer.concat(chunks)));
+
+          const pageWidth = 612; // Letter size width in points
+          const pageHeight = 792; // Letter size height in points
+          const margin = 40;
+          const contentWidth = pageWidth - (margin * 2);
+          
+          // Helper to draw boxes
+          const drawBox = (x, y, width, height) => {
+            doc.rect(x, y, width, height).stroke();
+          };
+
+          // ACORD 25 FORM HEADER
+          doc.fontSize(7).font('Helvetica').text('ACORD', margin, margin);
+          doc.fontSize(6).text('CERTIFICATE OF LIABILITY INSURANCE', margin, margin + 8);
+          doc.fontSize(6).text('DATE (MM/DD/YYYY)', pageWidth - margin - 100, margin);
+          doc.fontSize(8).text(new Date().toLocaleDateString('en-US'), pageWidth - margin - 100, margin + 10);
+
+          let yPos = margin + 30;
+
+          // PRODUCER BOX (Left side) - from original COI
+          drawBox(margin, yPos, contentWidth * 0.6, 80);
+          doc.fontSize(6).font('Helvetica-Bold').text('PRODUCER', margin + 3, yPos + 3);
+          doc.fontSize(8).font('Helvetica').text(coiRecord.broker_name || '(Broker/Producer Name)', margin + 3, yPos + 12);
+          if (coiRecord.broker_address) {
+            doc.fontSize(7).text(coiRecord.broker_address, margin + 3, yPos + 25);
+          }
+
+          // CONTACT INFO BOX (Right side) - from original COI
+          const contactBoxX = margin + (contentWidth * 0.6) + 2;
+          drawBox(contactBoxX, yPos, contentWidth * 0.4 - 2, 40);
+          doc.fontSize(6).font('Helvetica-Bold').text('CONTACT', contactBoxX + 3, yPos + 3);
+          doc.fontSize(6).font('Helvetica').text('NAME:', contactBoxX + 3, yPos + 12);
+          if (coiRecord.broker_contact) {
+            doc.fontSize(6).text(coiRecord.broker_contact, contactBoxX + 50, yPos + 12);
+          }
+          doc.fontSize(6).text('PHONE: ', contactBoxX + 3, yPos + 22);
+          if (coiRecord.broker_phone) {
+            doc.fontSize(6).text(coiRecord.broker_phone, contactBoxX + 50, yPos + 22);
+          }
+          doc.fontSize(6).text('E-MAIL:', contactBoxX + 3, yPos + 32);
+          if (coiRecord.broker_email) {
+            doc.fontSize(6).text(coiRecord.broker_email, contactBoxX + 50, yPos + 32);
+          }
+
+          // INSURER INFO BOX (Right side, bottom)
+          drawBox(contactBoxX, yPos + 42, contentWidth * 0.4 - 2, 38);
+          doc.fontSize(6).font('Helvetica-Bold').text('INSURER(S) AFFORDING COVERAGE', contactBoxX + 3, yPos + 44);
+          doc.fontSize(6).font('Helvetica').text('INSURER A:', contactBoxX + 3, yPos + 54);
+          doc.fontSize(6).text(coiRecord.insurance_carrier_gl || '', contactBoxX + 50, yPos + 54);
+          doc.fontSize(6).text('INSURER B:', contactBoxX + 3, yPos + 64);
+          doc.fontSize(6).text(coiRecord.insurance_carrier_umbrella || '', contactBoxX + 50, yPos + 64);
+          doc.fontSize(6).text('INSURER C:', contactBoxX + 3, yPos + 74);
+          doc.fontSize(6).text(coiRecord.insurance_carrier_wc || '', contactBoxX + 50, yPos + 74);
+
+          yPos += 82;
+
+          // INSURED BOX - Named Insured from original COI
+          drawBox(margin, yPos, contentWidth * 0.6, 45);
+          doc.fontSize(6).font('Helvetica-Bold').text('INSURED', margin + 3, yPos + 3);
+          doc.fontSize(8).font('Helvetica').text(coiRecord.subcontractor_name || coiRecord.named_insured || '(Named Insured)', margin + 3, yPos + 12);
+          if (coiRecord.subcontractor_address) {
+            doc.fontSize(7).text(coiRecord.subcontractor_address, margin + 3, yPos + 25);
+          }
+
+          yPos += 47;
+
+          // COVERAGES SECTION
+          doc.fontSize(7).font('Helvetica-Bold').text('COVERAGES', margin, yPos);
+          doc.fontSize(6).font('Helvetica').text('THIS IS TO CERTIFY THAT THE POLICIES OF INSURANCE LISTED BELOW HAVE BEEN ISSUED TO THE INSURED NAMED ABOVE FOR THE POLICY PERIOD INDICATED.', margin, yPos + 10, { width: contentWidth, align: 'justify' });
+
+          yPos += 30;
+
+          // Coverage Table Header
+          drawBox(margin, yPos, contentWidth, 20);
+          doc.fontSize(6).font('Helvetica-Bold');
+          doc.text('TYPE OF INSURANCE', margin + 3, yPos + 3);
+          doc.text('INSR', margin + 3, yPos + 12);
+          doc.text('LTR', margin + 3, yPos + 12);
+          doc.text('POLICY NUMBER', margin + 180, yPos + 8);
+          doc.text('POLICY EFF', margin + 300, yPos + 3);
+          doc.text('(MM/DD/YYYY)', margin + 300, yPos + 11);
+          doc.text('POLICY EXP', margin + 380, yPos + 3);
+          doc.text('(MM/DD/YYYY)', margin + 380, yPos + 11);
+          doc.text('LIMITS', margin + 460, yPos + 8);
+
+          yPos += 22;
+
+          // GENERAL LIABILITY ROW - use stored data from original
+          drawBox(margin, yPos, contentWidth, 60);
+          doc.fontSize(7).font('Helvetica-Bold').text('COMMERCIAL GENERAL LIABILITY', margin + 25, yPos + 3);
+          
+          // Use original form selections or default to OCCUR
+          const glFormType = coiRecord.gl_form_type || 'OCCUR';
+          const glBasis = coiRecord.gl_basis || 'PER OCCURRENCE';
+          doc.fontSize(6).font('Helvetica').text(
+            glFormType === 'CLAIMS-MADE' ? '☒ CLAIMS-MADE  ☐ OCCUR' : '☐ CLAIMS-MADE  ☒ OCCUR',
+            margin + 25,
+            yPos + 12
+          );
+          doc.fontSize(6).text(
+            glBasis === 'PER PROJECT' ? '☒ PER PROJECT  ☐ PER OCCURRENCE' : '☐ PER PROJECT  ☒ PER OCCURRENCE',
+            margin + 25,
+            yPos + 20
+          );
+          
+          doc.fontSize(6).text('A', margin + 5, yPos + 3);
+          doc.fontSize(6).text(coiRecord.policy_number_gl || '(Policy #)', margin + 180, yPos + 8);
+          doc.fontSize(6).text(coiRecord.gl_effective_date ? new Date(coiRecord.gl_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 8);
+          doc.fontSize(6).text(coiRecord.gl_expiration_date ? new Date(coiRecord.gl_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 8);
+          
+          // GL Limits - use stored values from original
+          doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 460, yPos + 3);
+          doc.text(`$ ${(coiRecord.gl_each_occurrence || 1000000).toLocaleString()}`, margin + 460, yPos + 10);
+          doc.text('GENERAL AGGREGATE', margin + 460, yPos + 22);
+          doc.text(`$ ${(coiRecord.gl_general_aggregate || 2000000).toLocaleString()}`, margin + 460, yPos + 29);
+          doc.text('PRODUCTS - COMP/OP AGG', margin + 460, yPos + 41);
+          doc.text(`$ ${(coiRecord.gl_products_completed_ops || 2000000).toLocaleString()}`, margin + 460, yPos + 48);
+
+          yPos += 62;
+
+          // AUTOMOBILE LIABILITY ROW - if policy exists
+          if (coiRecord.policy_number_auto || coiRecord.insurance_carrier_auto) {
+            drawBox(margin, yPos, contentWidth, 35);
+            doc.fontSize(7).font('Helvetica-Bold').text('AUTOMOBILE LIABILITY', margin + 25, yPos + 3);
+            const autoFormType = coiRecord.auto_form_type || 'ANY AUTO';
+            doc.fontSize(6).font('Helvetica').text(
+              autoFormType === 'ANY AUTO' ? '☒ ANY AUTO  ☐ OWNED  ☐ SCHEDULED' : '☐ ANY AUTO  ☐ OWNED  ☐ SCHEDULED',
+              margin + 25,
+              yPos + 12
+            );
+            doc.fontSize(6).text('☐ HIRED  ☐ NON-OWNED', margin + 25, yPos + 20);
+            doc.fontSize(6).text('B', margin + 5, yPos + 3);
+            doc.fontSize(6).text(coiRecord.policy_number_auto || '(Policy #)', margin + 180, yPos + 12);
+            doc.fontSize(6).text(coiRecord.auto_effective_date ? new Date(coiRecord.auto_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
+            doc.fontSize(6).text(coiRecord.auto_expiration_date ? new Date(coiRecord.auto_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
+            doc.text('COMBINED SINGLE LIMIT', margin + 460, yPos + 8);
+            doc.text(`$ ${(coiRecord.auto_combined_single_limit || 1000000).toLocaleString()}`, margin + 460, yPos + 15);
+
+            yPos += 37;
+          }
+
+          // WORKERS COMPENSATION ROW - always shown
+          drawBox(margin, yPos, contentWidth, 35);
+          doc.fontSize(7).font('Helvetica-Bold').text('WORKERS COMPENSATION', margin + 25, yPos + 3);
+          doc.fontSize(6).font('Helvetica').text('AND EMPLOYERS\' LIABILITY', margin + 25, yPos + 11);
+          const wcType = coiRecord.wc_form_type || 'STATUTORY LIMITS';
+          doc.fontSize(6).text(wcType === 'STATUTORY LIMITS' ? '☒ STATUTORY LIMITS' : '☐ STATUTORY LIMITS', margin + 25, yPos + 20);
+          doc.fontSize(6).text('C', margin + 5, yPos + 3);
+          doc.fontSize(6).text(coiRecord.policy_number_wc || '(Policy #)', margin + 180, yPos + 12);
+          doc.fontSize(6).text(coiRecord.wc_effective_date ? new Date(coiRecord.wc_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
+          doc.fontSize(6).text(coiRecord.wc_expiration_date ? new Date(coiRecord.wc_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
+          doc.text('E.L. EACH ACCIDENT', margin + 460, yPos + 3);
+          doc.text(`$ ${(coiRecord.wc_each_accident || 1000000).toLocaleString()}`, margin + 460, yPos + 10);
+          doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 460, yPos + 18);
+          doc.text(`$ ${(coiRecord.wc_disease_each_employee || 1000000).toLocaleString()}`, margin + 460, yPos + 25);
+
+          yPos += 37;
+
+          // UMBRELLA ROW - if policy exists
+          if (coiRecord.policy_number_umbrella || coiRecord.insurance_carrier_umbrella) {
+            drawBox(margin, yPos, contentWidth, 35);
+            doc.fontSize(7).font('Helvetica-Bold').text('UMBRELLA LIAB', margin + 25, yPos + 3);
+            const umbFormType = coiRecord.umbrella_form_type || 'OCCUR';
+            doc.fontSize(6).font('Helvetica').text(
+              umbFormType === 'CLAIMS-MADE' ? '☒ CLAIMS-MADE  ☐ OCCUR' : '☐ CLAIMS-MADE  ☒ OCCUR',
+              margin + 25,
+              yPos + 12
+            );
+            doc.fontSize(6).text('☒ FOLLOW FORM', margin + 25, yPos + 20);
+            doc.fontSize(6).text('D', margin + 5, yPos + 3);
+            doc.fontSize(6).text(coiRecord.policy_number_umbrella || '(Policy #)', margin + 180, yPos + 12);
+            doc.fontSize(6).text(coiRecord.umbrella_effective_date ? new Date(coiRecord.umbrella_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
+            doc.fontSize(6).text(coiRecord.umbrella_expiration_date ? new Date(coiRecord.umbrella_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
+            doc.text('EACH OCCURRENCE', margin + 460, yPos + 8);
+            doc.text(`$ ${(coiRecord.umbrella_each_occurrence || 2000000).toLocaleString()}`, margin + 460, yPos + 15);
+            doc.text('AGGREGATE', margin + 460, yPos + 23);
+            doc.text(`$ ${(coiRecord.umbrella_aggregate || 2000000).toLocaleString()}`, margin + 460, yPos + 30);
+            yPos += 37;
+          }
+
+          // DESCRIPTION OF OPERATIONS BOX - from original COI
+          drawBox(margin, yPos, contentWidth * 0.6, 80);
+          doc.fontSize(6).font('Helvetica-Bold').text('DESCRIPTION OF OPERATIONS / LOCATIONS / VEHICLES', margin + 3, yPos + 3);
+          doc.fontSize(7).font('Helvetica');
+          
+          // Use stored description or default
+          const umbrellaText = (coiRecord.policy_number_umbrella || coiRecord.insurance_carrier_umbrella) ? ' & Umbrella' : '';
+          const descriptionText = coiRecord.description_of_operations || 
+            `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`;
+          
+          doc.text(descriptionText, margin + 3, yPos + 13, { width: contentWidth * 0.6 - 6, align: 'left' });
+
+          // Additional Insureds - combine stored data with manually entered
+          doc.fontSize(7).font('Helvetica-Bold').text('ADDITIONAL INSURED(S):', margin + 3, yPos + 50);
+          doc.fontSize(7).font('Helvetica');
+          
+          // Merge stored additional insureds with any manually entered ones
+          let allAddlInsured = [];
+          if (Array.isArray(coiRecord.additional_insureds)) {
+            allAddlInsured = [...coiRecord.additional_insureds];
+          }
+          if (Array.isArray(coiRecord.manually_entered_additional_insureds)) {
+            allAddlInsured = [...allAddlInsured, ...coiRecord.manually_entered_additional_insureds];
+          }
+          // Remove duplicates
+          allAddlInsured = [...new Set(allAddlInsured)];
+          
+          if (allAddlInsured.length > 0) {
+            allAddlInsured.slice(0, 3).forEach((ai, idx) => {
+              doc.text(`• ${ai}`, margin + 3, yPos + 58 + (idx * 8), { width: contentWidth * 0.6 - 6 });
+            });
+          } else {
+            doc.text('• (See certificate holder below)', margin + 3, yPos + 58);
+          }
+
+          // CERTIFICATE HOLDER BOX (Bottom right) - UPDATED FIELD
+          const certHolderX = margin + (contentWidth * 0.6) + 2;
+          drawBox(certHolderX, yPos, contentWidth * 0.4 - 2, 80);
+          doc.fontSize(6).font('Helvetica-Bold').text('CERTIFICATE HOLDER', certHolderX + 3, yPos + 3);
+          doc.fontSize(8).font('Helvetica');
+          const certHolder = coiRecord.certificate_holder_name || coiRecord.gc_name || 'General Contractor';
+          doc.text(certHolder, certHolderX + 3, yPos + 15);
+          
+          // UPDATED: Project address from new job
+          if (coiRecord.updated_project_address || coiRecord.project_address) {
+            const projectAddr = coiRecord.updated_project_address || coiRecord.project_address;
+            doc.fontSize(7).text(projectAddr, certHolderX + 3, yPos + 25, { width: contentWidth * 0.4 - 8 });
+          }
+          
+          // UPDATED: Project name from new job
+          if (coiRecord.updated_project_name || coiRecord.project_name) {
+            const projName = coiRecord.updated_project_name || coiRecord.project_name;
+            doc.fontSize(7).text(`Re: ${projName}`, certHolderX + 3, yPos + 40, { width: contentWidth * 0.4 - 8 });
           }
 
           yPos += 82;
@@ -3344,16 +3750,14 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
     );
     const sequence = priorCOIs.length + 1;
 
-    // Derive broker info from Contractor record if not provided
-    let resolvedBrokerEmail = broker_email || contact_email || undefined;
-    let resolvedBrokerName = broker_name || undefined;
-    try {
-      const contractor = (entities.Contractor || []).find(c => c.id === subcontractor_id);
-      if (!resolvedBrokerEmail && contractor && Array.isArray(contractor.brokers) && contractor.brokers.length > 0) {
-        resolvedBrokerEmail = contractor.brokers[0].email;
-        resolvedBrokerName = contractor.brokers[0].name || resolvedBrokerName;
-      }
-    } catch(_) {}
+    // Derive broker info; prefer stored broker on subcontractor over contact email
+    const contractor = (entities.Contractor || []).find(c => c.id === subcontractor_id);
+    const primaryBroker = contractor && Array.isArray(contractor.brokers) && contractor.brokers.length > 0
+      ? contractor.brokers.find(b => b.email) || contractor.brokers[0]
+      : null;
+    const contactEmailNormalized = contact_email || undefined;
+    let resolvedBrokerEmail = broker_email || primaryBroker?.email || contactEmailNormalized;
+    let resolvedBrokerName = broker_name || primaryBroker?.name || primaryBroker?.company || undefined;
 
     // Fill certificate holder and additional insureds from Project if missing
     let holder = certificate_holder;
@@ -3407,18 +3811,44 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
     // Proactively notify broker if we have their email
     try {
       if (newCOI.broker_email) {
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5175';
+        const host = req.get('host') || '';
+        const frontendHost = host.replace(/:3001$/, ':5175');
+        const frontendUrl = process.env.FRONTEND_URL || `${req.protocol}://${frontendHost}` || 'http://localhost:5175';
+        const uploadLink = `${frontendUrl}/broker-upload-coi?token=${newCOI.coi_token}&action=upload&step=1`;
         const signLink = `${frontendUrl}/broker-upload-coi?token=${newCOI.coi_token}&action=sign&step=3`;
         const brokerDashboardLink = `${frontendUrl}/broker-dashboard?name=${encodeURIComponent(newCOI.broker_name || '')}&coiId=${newCOI.id}`;
         const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+        const ccRecipients = contactEmailNormalized && contactEmailNormalized !== newCOI.broker_email ? contactEmailNormalized : undefined;
+        
+        // Fetch program info and GC mailing address from project for sample COI
+        let programName = undefined;
+        let programId = undefined;
+        let gcMailingAddress = undefined;
+        try {
+          const proj = (entities.Project || []).find(p => p.id === project_id);
+          if (proj?.program_id) {
+            programId = proj.program_id;
+            const prog = (entities.InsuranceProgram || []).find(p => p.id === programId);
+            programName = prog?.name || prog?.program_name || undefined;
+          }
+          if (proj?.gc_id) {
+            const gc = (entities.Contractor || []).find(c => c.id === proj.gc_id);
+            if (gc) {
+              const addrParts = [gc.mailing_address || gc.address, gc.mailing_city || gc.city, gc.mailing_state || gc.state, gc.mailing_zip_code || gc.zip_code].filter(Boolean);
+              gcMailingAddress = addrParts.length ? addrParts.join(', ') : undefined;
+            }
+          }
+        } catch (_) {}
         
         // Build Sample COI data with project details for template
         const sampleCOIData = {
           project_name,
           gc_name,
+          gc_mailing_address: gcMailingAddress,
           projectAddress: project_location || `${req.body.project_location || 'Project Address'}`,
           trade: trade_type,
-          program: undefined,
+          program: programName,
+          program_id: programId,
           additional_insureds: insureds || [],
           additional_insured_entities: insureds || []
         };
@@ -3428,10 +3858,11 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to: newCOI.broker_email,
+            cc: ccRecipients,
             includeSampleCOI: true,
             sampleCOIData,
-            subject: `📋 Certificate Ready for Review & Signature: ${subcontractor_name}`,
-            body: `A Certificate of Insurance is ready for your review and signature.\n\nCLIENT:\n• Company: ${subcontractor_name}\n\nPROJECT:\n• Project: ${project_name}\n• Location: ${sampleCOIData.projectAddress}\n• General Contractor: ${gc_name}\n\nCERTIFICATE STATUS:\n• Trade(s): ${trade_type || 'N/A'}\n• Status: Awaiting Your Signature\n• Created: ${new Date().toLocaleDateString()}\n\n✍️ Sign Certificate:\n${signLink}\n\n📊 Broker Dashboard:\n${brokerDashboardLink}\n\nOnce you approve, the certificate will be submitted to the General Contractor.\n\nBest regards,\nInsureTrack System`
+            subject: `📋 Certificate Ready for Upload & Signature: ${subcontractor_name}`,
+            body: `A Certificate of Insurance request has been created for your client. Please upload policies first, then sign the prefilled COI.\n\nCLIENT:\n• Company: ${subcontractor_name}\n\nPROJECT:\n• Project: ${project_name}\n• Location: ${sampleCOIData.projectAddress}\n• General Contractor: ${gc_name}\n\nSTATUS:\n• Trade(s): ${trade_type || 'N/A'}\n• Status: Awaiting Upload & Signature\n• Created: ${new Date().toLocaleDateString()}\n\n📤 Upload Required Documents (Step 1):\n${uploadLink}\n\n✍️ Review & Sign COI (Step 3):\n${signLink}\n\n📊 Broker Dashboard:\n${brokerDashboardLink}\n\nOnce you upload and approve, the certificate will be submitted to the General Contractor.\n\nBest regards,\nInsureTrack System`
           })
         });
       }
@@ -3873,7 +4304,45 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
       analysis_method: 'rules_minimums'
     };
 
-    // Update COI record
+    // Enhance extracted data with form selections and checkbox states
+    // These will be preserved when regenerating the COI for new jobs
+    const enhancedCOIData = {
+      ...d,
+      // Preserve form type selections for GL
+      gl_form_type: d.gl_form_type || 'OCCUR',
+      gl_basis: d.gl_basis || 'PER OCCURRENCE',
+      
+      // Preserve form type for Auto
+      auto_form_type: d.auto_form_type || 'ANY AUTO',
+      
+      // Preserve form type for WC
+      wc_form_type: d.wc_form_type || 'STATUTORY LIMITS',
+      
+      // Preserve form type for Umbrella
+      umbrella_form_type: d.umbrella_form_type || 'OCCUR',
+      
+      // Store original broker info for regeneration
+      broker_name: d.broker_name || coi.broker_name || '',
+      broker_email: d.broker_email || coi.broker_email || '',
+      broker_phone: d.broker_phone || coi.broker_phone || '',
+      broker_address: d.broker_address || coi.broker_address || '',
+      broker_contact: d.broker_contact || '',
+      
+      // Store original description of operations
+      description_of_operations: d.description_of_operations || '',
+      
+      // Store original certificate holder if provided
+      certificate_holder_name: d.certificate_holder_name || '',
+      
+      // Store additional insureds for regeneration
+      additional_insureds: Array.isArray(d.additional_insureds) ? d.additional_insureds : [],
+      
+      // Will be used to store manually entered policies
+      manually_entered_policies: [],
+      manually_entered_additional_insureds: []
+    };
+
+    // Update COI record with enhanced data for regeneration
     entities.GeneratedCOI[coiIdx] = {
       ...coi,
       first_coi_url: fileUrl,
@@ -3881,7 +4350,7 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
       first_coi_upload_date: new Date().toISOString(),
       status: 'awaiting_admin_review',
       uploaded_for_review_date: new Date().toISOString(),
-      ...d,
+      ...enhancedCOIData,
       policy_analysis: policyAnalysis
     };
 
@@ -3933,6 +4402,133 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
   } catch (error) {
     console.error('public upload-coi error:', error?.message || error);
     return sendError(res, 500, 'COI upload failed', { error: error.message });
+  }
+});
+
+// Public: Regenerate COI for a new job using stored data with updated job fields
+app.post('/public/regenerate-coi', uploadLimiter, async (req, res) => {
+  try {
+    const { coi_token, certificate_holder_name, project_address, project_name, additional_insureds } = req.body || {};
+    
+    if (!coi_token) return sendError(res, 400, 'coi_token is required');
+    
+    // Find the COI record
+    const coiIdx = (entities.GeneratedCOI || []).findIndex(c => timingSafeEqual(c.coi_token, String(coi_token)));
+    if (coiIdx === -1) return sendError(res, 404, 'COI not found for token');
+    
+    const coi = entities.GeneratedCOI[coiIdx];
+    
+    // Verify we have original COI data to work with
+    if (!coi.first_coi_uploaded) {
+      return sendError(res, 400, 'Original COI must be uploaded before regeneration');
+    }
+    
+    // Build regeneration data using original stored data but with updated job fields
+    const regenData = {
+      // Original policy data (preserved from upload)
+      broker_name: coi.broker_name || '',
+      broker_email: coi.broker_email || '',
+      broker_phone: coi.broker_phone || '',
+      broker_address: coi.broker_address || '',
+      broker_contact: coi.broker_contact || '',
+      
+      subcontractor_name: coi.subcontractor_name || '',
+      subcontractor_address: coi.subcontractor_address || '',
+      named_insured: coi.named_insured || coi.subcontractor_name || '',
+      
+      // All original policy data
+      insurance_carrier_gl: coi.insurance_carrier_gl || '',
+      policy_number_gl: coi.policy_number_gl || '',
+      gl_each_occurrence: coi.gl_each_occurrence,
+      gl_general_aggregate: coi.gl_general_aggregate,
+      gl_products_completed_ops: coi.gl_products_completed_ops,
+      gl_effective_date: coi.gl_effective_date,
+      gl_expiration_date: coi.gl_expiration_date,
+      gl_form_type: coi.gl_form_type || 'OCCUR',
+      gl_basis: coi.gl_basis || 'PER OCCURRENCE',
+      
+      // Auto coverage if present
+      insurance_carrier_auto: coi.insurance_carrier_auto || '',
+      policy_number_auto: coi.policy_number_auto || '',
+      auto_combined_single_limit: coi.auto_combined_single_limit,
+      auto_effective_date: coi.auto_effective_date,
+      auto_expiration_date: coi.auto_expiration_date,
+      auto_form_type: coi.auto_form_type || 'ANY AUTO',
+      
+      // WC coverage
+      insurance_carrier_wc: coi.insurance_carrier_wc || '',
+      policy_number_wc: coi.policy_number_wc || '',
+      wc_each_accident: coi.wc_each_accident,
+      wc_disease_each_employee: coi.wc_disease_each_employee,
+      wc_effective_date: coi.wc_effective_date,
+      wc_expiration_date: coi.wc_expiration_date,
+      wc_form_type: coi.wc_form_type || 'STATUTORY LIMITS',
+      
+      // Umbrella coverage if present
+      insurance_carrier_umbrella: coi.insurance_carrier_umbrella || '',
+      policy_number_umbrella: coi.policy_number_umbrella || '',
+      umbrella_each_occurrence: coi.umbrella_each_occurrence,
+      umbrella_aggregate: coi.umbrella_aggregate,
+      umbrella_effective_date: coi.umbrella_effective_date,
+      umbrella_expiration_date: coi.umbrella_expiration_date,
+      umbrella_form_type: coi.umbrella_form_type || 'OCCUR',
+      
+      // Original description and additional insureds
+      description_of_operations: coi.description_of_operations || '',
+      additional_insureds: coi.additional_insureds || [],
+      
+      // UPDATED FIELDS for new job
+      updated_project_address: project_address || '',
+      updated_project_name: project_name || '',
+      certificate_holder_name: certificate_holder_name || coi.certificate_holder_name || coi.gc_name || '',
+      manually_entered_additional_insureds: Array.isArray(additional_insureds) ? additional_insureds : []
+    };
+    
+    // Generate new PDF with updated job fields
+    try {
+      const pdfBuffer = await generateGeneratedCOIPDF(regenData);
+      const filename = `gen-coi-${coi.id}-${Date.now()}.pdf`;
+      const filepath = path.join(UPLOADS_DIR, filename);
+      fs.writeFileSync(filepath, pdfBuffer);
+      
+      const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+      
+      // Update COI record with regenerated PDF and updated job info
+      entities.GeneratedCOI[coiIdx] = {
+        ...coi,
+        regenerated_coi_url: fileUrl,
+        regenerated_coi_filename: filename,
+        regenerated_at: new Date().toISOString(),
+        
+        // Update job-specific fields
+        certificate_holder_name: certificate_holder_name || coi.certificate_holder_name || coi.gc_name || '',
+        updated_project_address: project_address || coi.project_address || '',
+        updated_project_name: project_name || coi.project_name || '',
+        
+        // Add manually entered additional insureds to list
+        additional_insureds: regenData.additional_insureds,
+        manually_entered_additional_insureds: regenData.manually_entered_additional_insureds || []
+      };
+      
+      debouncedSave();
+      
+      console.log('✅ COI regenerated successfully:', { coi_token, filename, url: fileUrl });
+      
+      return res.json({
+        ok: true,
+        regenerated_coi_url: fileUrl,
+        filename: filename,
+        coi: entities.GeneratedCOI[coiIdx]
+      });
+      
+    } catch (pdfErr) {
+      console.error('Failed to generate regenerated COI PDF:', pdfErr?.message || pdfErr);
+      return sendError(res, 500, 'Failed to regenerate COI PDF', { error: pdfErr.message });
+    }
+    
+  } catch (error) {
+    console.error('public regenerate-coi error:', error?.message || error);
+    return sendError(res, 500, 'COI regeneration failed', { error: error.message });
   }
 });
 
@@ -5331,8 +5927,27 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
   }
 });
 
+// Explicit preflight handler for program PDF parsing (needed for Codespaces origins)
+app.options('/integrations/parse-program-pdf', (req, res) => {
+  const origin = req.headers.origin;
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Vary', 'Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  return res.status(204).send();
+});
+
 // Parse insurance program PDF -> structured program + requirements
 app.post('/integrations/parse-program-pdf', authenticateToken, async (req, res) => {
+  // Ensure CORS headers are present even on auth or validation failures
+  const origin = req.headers.origin;
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Vary', 'Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
   try {
     const { pdf_base64, pdf_name = 'Program.pdf', pdf_type = 'application/pdf' } = req.body || {};
     if (!pdf_base64) {

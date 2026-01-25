@@ -332,13 +332,8 @@ Return actual data only. If not found, return null.`,
         notes: project.notes || '',
       });
     } else {
-      // NEW PROJECT: Pre-populate with current GC data
+      // NEW PROJECT: Start with blank form (user enters their own address)
       resetForm();
-      if (gc && gc.address) {
-        // Auto-trigger ACRIS lookup for NYC addresses
-        const gcAddress = `${gc.address}${gc.city ? ', ' + gc.city : ''}${gc.state ? ', ' + gc.state : ''}`;
-        handleAddressChange(gcAddress);
-      }
     }
     setIsDialogOpen(true);
   };
@@ -565,7 +560,98 @@ Return actual data only. If not found, return null.`,
 
               <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
                 <div className="space-y-4 py-4 px-6 overflow-y-auto flex-1 min-h-0">
-                  <div className="grid md:grid-cols-2 gap-4">
+                  {/* ADDRESS FIELD FIRST - triggers auto-population of other fields */}
+                  <div className="space-y-2 border-b pb-4">
+                    <Label htmlFor="address">
+                      Street Address <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="address"
+                        value={formData.address}
+                        onChange={(e) => handleAddressChange(e.target.value)}
+                        placeholder="123 Business Ave"
+                        required
+                        autoFocus
+                      />
+                      {isAutoLookingUp && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <div className="animate-spin w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
+                        </div>
+                      )}
+                    </div>
+                    {formData.state === 'NY' && (
+                      <p className="text-xs text-red-600">
+                        ✓ Auto-loading owner & neighbors from NYC property records
+                      </p>
+                    )}
+                  </div>
+
+                  {/* CITY, STATE, ZIP (auto-populated from address) */}
+                  <div className="grid md:grid-cols-4 gap-4">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        placeholder="New York"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="state">State</Label>
+                      <Select
+                        value={formData.state}
+                        onValueChange={(value) => setFormData({ ...formData, state: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="State" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60 overflow-y-auto z-[100000]">
+                          {US_STATES.map((state) => (
+                            <SelectItem key={state.code} value={state.code}>
+                              {state.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="zip_code">ZIP Code</Label>
+                      <Input
+                        id="zip_code"
+                        value={formData.zip_code}
+                        onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
+                        placeholder="10001"
+                      />
+                    </div>
+                  </div>
+
+                  {/* OWNER & ADDITIONAL INSURED (auto-populated from address lookup) */}
+                  <div className="space-y-2 border-t pt-4">
+                    <Label htmlFor="owner_entity">Property Owner Entity</Label>
+                    <Input
+                      id="owner_entity"
+                      value={formData.owner_entity}
+                      onChange={(e) => setFormData({ ...formData, owner_entity: e.target.value })}
+                      placeholder="e.g., Hudson Yards Development LLC"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="additional_insured">Additional Insured Entities</Label>
+                    <Input
+                      id="additional_insured"
+                      value={formData.additional_insured_entities}
+                      onChange={(e) => setFormData({ ...formData, additional_insured_entities: e.target.value })}
+                      placeholder="Comma-separated list of neighbors and other required parties"
+                    />
+                  </div>
+
+                  {/* PROJECT NAME & TYPE */}
+                  <div className="grid md:grid-cols-2 gap-4 border-t pt-4">
                     <div className="space-y-2">
                       <Label htmlFor="project_name">
                         Project Name <span className="text-red-500">*</span>
@@ -665,94 +751,6 @@ Return actual data only. If not found, return null.`,
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="address">
-                      Street Address <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="address"
-                        value={formData.address}
-                        onChange={(e) => handleAddressChange(e.target.value)}
-                        placeholder="123 Business Ave"
-                        required
-                      />
-                      {isAutoLookingUp && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <div className="animate-spin w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
-                        </div>
-                      )}
-                    </div>
-                    {formData.state === 'NY' && (
-                      <p className="text-xs text-red-600">
-                        ✓ Auto-loading owner & neighbors from NYC property records
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid md:grid-cols-4 gap-4">
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="city">City</Label>
-                      <Input
-                        id="city"
-                        value={formData.city}
-                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                        placeholder="New York"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="state">State</Label>
-                      <Select
-                        value={formData.state}
-                        onValueChange={(value) => setFormData({ ...formData, state: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="State" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-60 overflow-y-auto z-[100000]">
-                          {US_STATES.map((state) => (
-                            <SelectItem key={state.code} value={state.code}>
-                              {state.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="zip_code">ZIP Code</Label>
-                      <Input
-                        id="zip_code"
-                        value={formData.zip_code}
-                        onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
-                        placeholder="10001"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 border-t pt-4">
-                    <Label htmlFor="owner_entity">Property Owner Entity</Label>
-                    <Input
-                      id="owner_entity"
-                      value={formData.owner_entity}
-                      onChange={(e) => setFormData({ ...formData, owner_entity: e.target.value })}
-                      placeholder="e.g., Hudson Yards Development LLC"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="additional_insured">Additional Insured Entities</Label>
-                    <Textarea
-                      id="additional_insured"
-                      value={formData.additional_insured_entities}
-                      onChange={(e) => setFormData({ ...formData, additional_insured_entities: e.target.value })}
-                      placeholder="Comma-separated list: Hudson Yards Property LLC, Related Companies, etc."
-                      rows={2}
-                    />
-                    <p className="text-xs text-slate-500">Comma-separated list of entities that must be additional insured</p>
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-4">

@@ -426,6 +426,30 @@ You have been added to a new construction project!
         console.error('❌ Error fetching COI for direct links:', err?.message || err);
       }
       
+      // If this appears to be the first time this broker is onboarding for this subcontractor/GC
+      // and the broker has no existing portal/user, treat as first-time onboarding and send full setup
+      let brokerPortals = [];
+      let brokerUsers = [];
+      try {
+        brokerPortals = await compliant.entities.Portal.filter({ user_email: brokerEmail, user_type: 'broker' });
+      } catch (_) {}
+      try {
+        brokerUsers = await compliant.entities.User.filter({ email: brokerEmail });
+      } catch (_) {}
+
+      const isBrokerKnown = (Array.isArray(brokerPortals) && brokerPortals.length > 0) || (Array.isArray(brokerUsers) && brokerUsers.length > 0);
+
+      // If first project for subcontractor AND broker is not known in system, trigger full broker assignment flow
+      if (isFirstProject && !hasUploadedDocs && !isBrokerKnown) {
+        try {
+          await notifyBrokerAssignment(subcontractor, null, true, assignedPolicies);
+          // Continue to next broker (notifyBrokerAssignment handles user creation and email)
+          continue;
+        } catch (nbErr) {
+          console.warn('Could not run notifyBrokerAssignment, falling back to email:', nbErr?.message || nbErr);
+        }
+      }
+
       // Policy-specific messaging for per-policy brokers
       const policySpecificText = assignedPolicies ? `
 You are assigned to the following policies for this subcontractor:

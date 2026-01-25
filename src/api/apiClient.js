@@ -8,51 +8,89 @@ import * as auth from '../auth.js';
 // Use centralized auth module for consistent token management
 export const getAuthHeader = () => auth.getAuthHeader();
 
-export const getApiBase = () => {
+// Build the API base URLs we should attempt, ordered by priority
+const getApiBaseCandidates = () => {
+  // Highest priority: explicit base URL
   const envBase = import.meta.env.VITE_API_BASE_URL;
-  if (envBase) return envBase;
-  
+  if (envBase) return [envBase.replace(/\/$/, '')];
+
+  const cachedBase = typeof window !== 'undefined' ? window.__API_BASE_CACHE__ : null;
+  const bases = [];
+  if (cachedBase) bases.push(cachedBase);
+
+  // Respect an overridable backend port, default to 3001
+  const preferredPort = String(import.meta.env.VITE_API_PORT || '3001');
+  const portsToTry = [preferredPort];
+
+  // Common fallback for Codespaces when 3001 is occupied
+  if (!portsToTry.includes('3002')) portsToTry.push('3002');
+
+  // Ensure 3001 is present even if env overrides a different port
+  if (!portsToTry.includes('3001')) portsToTry.push('3001');
+
   const { protocol, host, origin } = window.location;
-  
-  // Codespaces URL patterns:
-  // Pattern 1: something-5175.app.github.dev (with port in subdomain)
-  const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-  if (withPortMatch) {
-    return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
+
+  const deriveBaseForPort = (port) => {
+    const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+    if (withPortMatch) return `${protocol}//${withPortMatch[1]}-${port}${withPortMatch[3]}`;
+
+    if (host.endsWith('.github.dev') && !host.endsWith('.app.github.dev')) {
+      return `${protocol}//${host.replace(/\.github\.dev$/, `-${port}.app.github.dev`)}`;
+    }
+
+    if (origin.includes(':5173')) return origin.replace(/:\d+$/, `:${port}`);
+    if (origin.includes(':5175')) return origin.replace(/:\d+$/, `:${port}`);
+    if (origin.includes(':5176')) return origin.replace(/:\d+$/, `:${port}`);
+
+    return `http://localhost:${port}`;
+  };
+
+  const derivedBases = portsToTry.map(deriveBaseForPort).filter(Boolean);
+  return Array.from(new Set([...bases, ...derivedBases]));
+};
+
+export const getApiBase = () => getApiBaseCandidates()[0] || 'http://localhost:3001';
+
+// Fetch wrapper that retries across candidate bases on network/CORS failures
+const fetchWithFallback = async (buildRequest) => {
+  const bases = getApiBaseCandidates();
+  let lastError;
+
+  for (const base of bases) {
+    try {
+      const response = await buildRequest(base);
+      if (typeof window !== 'undefined') {
+        window.__API_BASE_CACHE__ = base;
+      }
+      return { response, base };
+    } catch (err) {
+      lastError = err;
+      const isNetworkError = err instanceof TypeError || err?.name === 'TypeError';
+      if (!isNetworkError) throw err;
+      // Network/CORS issues: try next base
+    }
   }
-  
-  // Pattern 2: something.github.dev (without port - default Codespaces format)
-  // Only match if it's .github.dev but NOT .app.github.dev (already handled above)
-  if (host.endsWith('.github.dev') && !host.endsWith('.app.github.dev')) {
-    // Replace .github.dev with -3001.app.github.dev (only at the end)
-    return `${protocol}//${host.replace(/\.github\.dev$/, '-3001.app.github.dev')}`;
-  }
-  
-  // Fallback for localhost with port
-  if (origin.includes(':5173')) return origin.replace(':5173', ':3001');
-  if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
-  if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
-  
-  // Default fallback
-  return 'http://localhost:3001';
+
+  throw lastError || new Error('API unreachable');
 };
 
 // Generic fetch wrapper
 const apiFetch = async (endpoint, options = {}) => {
-  const url = `${getApiBase()}${endpoint}`;
-  const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeader(),
-      ...options.headers
-    },
-    credentials: 'include',
-    ...options
-  });
+  const { response, base } = await fetchWithFallback((apiBase) =>
+    fetch(`${apiBase}${endpoint}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+        ...options.headers
+      },
+      credentials: 'include',
+      ...options
+    })
+  );
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`API Error (${response.status}): ${error}`);
+    throw new Error(`API Error (${response.status}) via ${base}: ${error}`);
   }
 
   return response.json();
@@ -97,12 +135,14 @@ const coreIntegrations = {
     const formData = new FormData();
     formData.append('file', file);
     
-    const response = await fetch(`${getApiBase()}/integrations/upload-file`, {
-      method: 'POST',
-      headers: getAuthHeader(),
-      body: formData,
-      credentials: 'include'
-    });
+    const { response } = await fetchWithFallback((apiBase) =>
+      fetch(`${apiBase}/integrations/upload-file`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: formData,
+        credentials: 'include'
+      })
+    );
 
     if (!response.ok) {
       throw new Error('File upload failed');
@@ -131,27 +171,29 @@ const coreIntegrations = {
 // Public integrations (no auth)
 const publicIntegrations = {
   BrokerSignCOI: async ({ token }) => {
-    const url = `${getApiBase()}/public/broker-sign-coi?token=${encodeURIComponent(token)}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include'
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`BrokerSignCOI failed (${res.status}): ${text}`);
+    const { response } = await fetchWithFallback((apiBase) =>
+      fetch(`${apiBase}/public/broker-sign-coi?token=${encodeURIComponent(token)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      })
+    );
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`BrokerSignCOI failed (${response.status}): ${text}`);
     }
-    return res.json();
+    return response.json();
   }
   ,
   ListPendingCOIs: async () => {
-    const url = `${getApiBase()}/public/pending-cois`;
-    const res = await fetch(url, { method: 'GET', credentials: 'include' });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`ListPendingCOIs failed (${res.status}): ${text}`);
+    const { response } = await fetchWithFallback((apiBase) =>
+      fetch(`${apiBase}/public/pending-cois`, { method: 'GET', credentials: 'include' })
+    );
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`ListPendingCOIs failed (${response.status}): ${text}`);
     }
-    return res.json();
+    return response.json();
   }
 };
 

@@ -141,8 +141,8 @@ export default function SubEnterBrokerInfo() {
           sampleCOIData: {
             project_name: coi.project_name,
             gc_name: coi.gc_name,
-            projectAddress: coi.project_address,
-            trade: sub?.trade_types?.join(', '),
+            projectAddress: coi.project_location || coi.certificate_holder_address,
+            trade: subcontractor?.trade_types?.join(', '),
             program: coi.program_name || coi.program_id,
             additional_insureds: coi.additional_insured_entities ? 
               (Array.isArray(coi.additional_insured_entities) ? coi.additional_insured_entities : 
