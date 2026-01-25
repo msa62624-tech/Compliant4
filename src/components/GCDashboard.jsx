@@ -60,7 +60,17 @@ export default function GCDashboard() {
     queryKey: ['gc-projects', gcId],
     queryFn: async () => {
       try {
-        const allProjects = await compliant.entities.Project.list();
+        // Use public endpoint to fetch all projects, then filter by gc_id
+        const { protocol, host, origin } = window.location;
+        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                           import.meta?.env?.VITE_API_BASE_URL || '';
+        
+        const response = await fetch(`${backendBase}/public/projects`);
+        if (!response.ok) throw new Error('Failed to fetch projects');
+        const allProjects = await response.json();
         return allProjects.filter(p => p.gc_id === gcId);
       } catch (err) {
         console.error('Error fetching projects:', err);
@@ -73,17 +83,30 @@ export default function GCDashboard() {
 
   // Fetch subcontractors
   const { data: projectSubs = [] } = useQuery({
-    queryKey: ['gc-subs', gcId],
+    queryKey: ['gc-subs', gcId, projects],
     queryFn: async () => {
       try {
-        const allSubs = await compliant.entities.ProjectSubcontractor.list();
-        return allSubs.filter(ps => ps.gc_id === gcId);
+        // Use public endpoint to fetch all project subcontractors
+        const { protocol, host, origin } = window.location;
+        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                           import.meta?.env?.VITE_API_BASE_URL || '';
+        
+        const response = await fetch(`${backendBase}/public/all-project-subcontractors`);
+        if (!response.ok) throw new Error('Failed to fetch subcontractors');
+        const allSubs = await response.json();
+        
+        // Filter to only show subcontractors for projects owned by this GC
+        const projectIds = new Set(projects.map(p => p.id));
+        return allSubs.filter(ps => projectIds.has(ps.project_id));
       } catch (err) {
         console.error('Error fetching subcontractors:', err);
         return [];
       }
     },
-    enabled: !!gcId,
+    enabled: !!gcId && projects.length > 0,
     retry: 1,
   });
 

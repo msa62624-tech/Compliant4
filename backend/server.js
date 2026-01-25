@@ -3122,6 +3122,16 @@ app.patch('/public/contractor/:id', publicApiLimiter, (req, res) => {
   }
 });
 
+// Public: Get All ProjectSubcontractors
+app.get('/public/all-project-subcontractors', (req, res) => {
+  try {
+    return res.json(entities.ProjectSubcontractor || []);
+  } catch (err) {
+    console.error('Error fetching project subcontractors:', err);
+    return res.status(500).json({ error: 'Failed to load project subcontractors' });
+  }
+});
+
 // Public: Get ProjectSubcontractors for a subcontractor
 app.get('/public/project-subcontractors/:subId', (req, res) => {
   try {
