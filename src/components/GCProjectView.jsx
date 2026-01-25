@@ -191,6 +191,45 @@ export default function GCProjectView() {
     onSuccess: async (created) => {
       queryClient.invalidateQueries(["gc-project-subs", projectId]);
       
+      const { protocol, host, origin } = window.location;
+      const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+      
+      // Get backend base URL
+      const backendBaseUrl = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                            origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                            origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                            import.meta?.env?.VITE_API_BASE_URL || '';
+      
+      // First, try to create a COI request for this subcontractor on this project
+      // This will happen even if we don't know the broker yet
+      try {
+        const coiResponse = await fetch(`${backendBaseUrl}/public/create-coi-request`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: project.id,
+            project_name: project.project_name,
+            gc_id: project.gc_id,
+            gc_name: project.gc_name,
+            subcontractor_id: created.subcontractor_id || created.id,
+            subcontractor_name: form.subcontractor_name,
+            trade_type: form.trade,
+            project_sub_id: created.id,
+            contact_email: form.contact_email.trim()
+          })
+        });
+        
+        if (coiResponse.ok) {
+          const coiData = await coiResponse.json();
+          console.log('✅ COI Request created:', coiData.id, 'with token:', coiData.coi_token);
+        } else {
+          const err = await coiResponse.json().catch(() => ({}));
+          console.warn('⚠️ COI creation response:', coiResponse.status, err);
+        }
+      } catch (err) {
+        console.error('❌ COI creation error:', err);
+      }
+      
       // ONLY send notification email if this is a NEW subcontractor (has password)
       // If contractor already existed, no welcome email is sent
       const isNewContractor = !!created.contractor_password;
@@ -198,9 +237,6 @@ export default function GCProjectView() {
       if (isNewContractor) {
         // Send notification email to subcontractor ONLY for new contractors
         try {
-        const { protocol, host, origin } = window.location;
-        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-        
         // Construct portal login URL for subcontractor
         let portalUrl;
         if (m) {
@@ -475,6 +511,112 @@ export default function GCProjectView() {
       }
       } else {
         console.log('ℹ️ Subcontractor already exists in system - no welcome email sent');
+        
+        // HOWEVER: If this subcontractor already has a broker from a previous project,
+        // we should notify that broker about the NEW COI request for this project
+        try {
+          // We need to fetch the COI we just created to get broker info
+          const allCOIsResponse = await fetch(`${backendBaseUrl}/public/all-cois`);
+          if (allCOIsResponse.ok) {
+            const allCOIs = await allCOIsResponse.json();
+            // Find any COI for this subcontractor with broker info
+            const existingCOI = allCOIs.find(c => 
+              c.subcontractor_id === (created.subcontractor_id || created.id) && 
+              c.broker_email
+            );
+            
+            if (existingCOI?.broker_email) {
+              console.log('📧 Found existing broker:', existingCOI.broker_email, 'for subcontractor:', form.subcontractor_name);
+              
+              // Find the COI we just created for this new project
+              const newCOI = allCOIs.find(c => 
+                c.subcontractor_id === (created.subcontractor_id || created.id) && 
+                c.project_id === project.id
+              );
+              
+              if (newCOI) {
+                // Send COI upload request email to the broker
+                const uploadLink = m ? 
+                  `${protocol}//${m[1]}-5175${m[3]}/broker-upload-coi?token=${newCOI.coi_token}&step=1&action=upload` :
+                  `${origin}/broker-upload-coi?token=${newCOI.coi_token}&step=1&action=upload`;
+                
+                const brokerEmailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 0; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 30px 20px; text-align: center; }
+    .content { padding: 30px; }
+    .section { margin: 20px 0; padding: 15px; background: #fef2f2; border-left: 4px solid #dc2626; }
+    .button { display: inline-block; background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; }
+    .footer { padding: 20px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Certificate of Insurance Request</h1>
+      <p>New Insurance Certificate Needed</p>
+    </div>
+    
+    <div class="content">
+      <p>Hello ${existingCOI.broker_name || 'Broker'},</p>
+      
+      <p>We have a new project for <strong>${form.subcontractor_name}</strong> and need a Certificate of Insurance (COI).</p>
+      
+      <div class="section">
+        <strong>Project:</strong> ${project.project_name}<br>
+        <strong>Subcontractor:</strong> ${form.subcontractor_name}<br>
+        <strong>Trade:</strong> ${form.trade}
+      </div>
+      
+      <p>Please upload the Certificate of Insurance using the button below:</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${uploadLink}" class="button">Upload COI →</a>
+      </div>
+      
+      <p style="color: #666; font-size: 14px;">
+        We've attached a sample Certificate of Insurance for your reference.
+      </p>
+    </div>
+    
+    <div class="footer">
+      <p><strong>InsureTrack</strong> - Insurance Compliance Management</p>
+      <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>
+`;
+                
+                const brokerEmailResponse = await fetch(`${backendBaseUrl}/public/send-email`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    to: existingCOI.broker_email,
+                    subject: `Certificate of Insurance Request for ${form.subcontractor_name} - ${project.project_name}`,
+                    html: brokerEmailHtml,
+                    includeSampleCOI: true,
+                    sampleCOIData: newCOI
+                  })
+                });
+                
+                if (brokerEmailResponse.ok) {
+                  console.log('✅ Broker notification sent to:', existingCOI.broker_email);
+                } else {
+                  console.warn('⚠️ Broker notification failed:', brokerEmailResponse.status);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error('❌ Error checking for existing broker:', err);
+        }
       }
       
       setForm({ subcontractor_name: "", trade: "", contact_email: "" });
