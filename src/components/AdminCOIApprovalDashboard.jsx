@@ -349,14 +349,14 @@ function StatCard({ icon: Icon, label, value, color }) {
     green: 'bg-green-50 border-green-200',
     amber: 'bg-amber-50 border-amber-200',
     red: 'bg-red-50 border-red-200',
-    blue: 'bg-red-50 border-red-200',
+    blue: 'bg-blue-50 border-blue-200',
   };
 
   const iconClasses = {
     green: 'text-green-600',
     amber: 'text-amber-600',
     red: 'text-red-600',
-    blue: 'text-red-600',
+    blue: 'text-blue-600',
   };
 
   return (
@@ -430,13 +430,13 @@ function COICard({
           <div>
             <p className="text-gray-600">GL Limit</p>
             <p className="font-semibold">
-              ${(coi.gl_each_occurrence / 1000000).toFixed(1)}M
+              {coi.gl_each_occurrence ? `$${(coi.gl_each_occurrence / 1000000).toFixed(1)}M` : 'N/A'}
             </p>
           </div>
           <div>
             <p className="text-gray-600">WC Limit</p>
             <p className="font-semibold">
-              ${(coi.wc_each_accident / 1000000).toFixed(1)}M
+              {coi.wc_each_accident ? `$${(coi.wc_each_accident / 1000000).toFixed(1)}M` : 'N/A'}
             </p>
           </div>
           <div>

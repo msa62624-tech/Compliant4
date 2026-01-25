@@ -72,46 +72,8 @@ generateCOIData({
   includePollution: true,
   
   // Metadata
-  isSample: true
-})
-```
-
----
-
-## ✅ New Methods in AdobePDFService
-
-### `generateSampleCOI(overrides, uploadDir)`
-Generate sample ACORD 25 COI PDFs
-- **Returns**: `{ success, coiData, filename, generatedAt, message }`
-- **Timeout**: 30 seconds
-
-### `getACORD25Template()`
-Get the template reference
-- **Returns**: `acord25Template` object
-
-### `generateCOIDataFromTemplate(overrides)`
-Generate COI data without PDF
-- **Returns**: Complete COI data object
-
-### `generateCOIPDF(coiData, uploadDir)` ⭐ Enhanced
-- **NEW**: 30-second timeout safeguard
-- **NEW**: Improved error handlers
-- **Prevents**: System hanging on PDF generation
-
----
-
-## 🔧 Sample Data Included
-
-**Producer**: ABC Insurance Brokers LLC (Sarah Williams)
-**Insured**: Sample Construction Company LLC  
-**Certificate Holder**: ABC Development Company
-**Insurers**: 6 sample insurance companies (A-F)
-
----
-
-## 🚀 Key Features
-
-✅ **ACORD 25 Compliant** - Official 2016/03 format  
+  This file has been moved to `docs/acord25/ACORD25_QUICK_REFERENCE.md`.
+  Please review the quick reference there.
 ✅ **Timeout Protection** - 30-second safety limit  
 ✅ **State-Specific** - NY, NJ, CT, PA requirements  
 ✅ **Flexible** - Easy customization via overrides  

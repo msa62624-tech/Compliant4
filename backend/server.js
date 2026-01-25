@@ -104,8 +104,12 @@ const DUMMY_PASSWORD_HASH = '$2a$10$dummyhashdummyhashdummyhashdummyhashdummyhas
 // Basic file path helpers used by upload/extraction flows
 function validateAndSanitizeFilename(name) {
   if (!name || typeof name !== 'string') throw new Error('Invalid filename');
-  const safe = name.replace(/[^a-zA-Z0-9._\/-]/g, '');
-  if (safe.includes('..')) throw new Error('Invalid filename');
+  // Disallow path separators and traversal characters to prevent directory escapes
+  // Only allow letters, numbers, dot, underscore, hyphen
+  const safe = name.replace(/[^a-zA-Z0-9._-]/g, '');
+  if (!safe || safe.includes('..') || safe.includes('/') || safe.includes('\\')) {
+    throw new Error('Invalid filename');
+  }
   return safe;
 }
 
@@ -159,7 +163,6 @@ const entities = {
   GCPortal: [],
   gcLogin: [],
   BrokerUpload: [],
-  BrokerLogin: [],
   COIDeficiency: [],
   EmailNotification: [],
   HoldHarmlessAgreement: [],
