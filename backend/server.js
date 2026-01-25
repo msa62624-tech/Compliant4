@@ -142,10 +142,27 @@ const storage = multer.diskStorage({
   }
 });
 
-// Initialize multer with limits
+// Initialize multer with limits and file type validation
+// SECURITY FIX: Added file type validation to only allow PDF files for insurance documents
 const upload = multer({
   storage,
-  limits: { fileSize: 20 * 1024 * 1024 } // 20MB
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+  fileFilter: function (req, file, cb) {
+    // Only allow PDF files for insurance/policy documents
+    const allowedMimeTypes = ['application/pdf'];
+    const allowedExtensions = ['.pdf'];
+    
+    const mimeTypeValid = allowedMimeTypes.includes(file.mimetype);
+    const extValid = allowedExtensions.some(ext => 
+      file.originalname.toLowerCase().endsWith(ext)
+    );
+    
+    if (mimeTypeValid && extValid) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed for insurance documents'));
+    }
+  }
 });
 
 // Renewal configuration
@@ -1043,8 +1060,21 @@ function buildProgramFromText(text, pdfName = 'Program') {
 
 // Passwords are hashed using bcrypt with salt rounds = 10
 // Admin password loaded from environment variable for security
-// IMPORTANT: Set ADMIN_PASSWORD_HASH environment variable in production for security
-const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '$2b$10$SdlYpKRtZWyeRtelxZazJ.E34HJK70pJCuAy4qXely62Z/LAvAzBO';
+// SECURITY FIX: Require ADMIN_PASSWORD_HASH in production, no default fallback
+const ADMIN_PASSWORD_HASH = (() => {
+  if (process.env.ADMIN_PASSWORD_HASH) {
+    return process.env.ADMIN_PASSWORD_HASH;
+  }
+  
+  // In production, fail fast if admin password not configured
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('ADMIN_PASSWORD_HASH environment variable is required in production');
+  }
+  
+  // Development fallback with warning
+  console.warn('⚠️ WARNING: Using default admin password hash for development. Set ADMIN_PASSWORD_HASH in production!');
+  return '$2b$10$SdlYpKRtZWyeRtelxZazJ.E34HJK70pJCuAy4qXely62Z/LAvAzBO';
+})();
 
 let users = [
   { id: '1', username: 'admin', password: ADMIN_PASSWORD_HASH, email: 'miriamsabel@insuretrack.onmicrosoft.com', name: 'Miriam Sabel', role: 'super_admin' }
@@ -1055,9 +1085,12 @@ let users = [
 const passwordResetTokens = new Map();
 
 // Email validation helper
+// SECURITY FIX: Improved email validation regex to be more strict
 function validateEmail(email) {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  // More comprehensive regex that validates proper email format
+  // Requires: local-part@domain.tld format with proper structure
+  const emailRegex = /^[a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(email) && email.length <= 254; // RFC 5321 max length
 }
 
 function generateTempPassword(length = 12) {
@@ -1222,31 +1255,31 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
 // =======================
 
 // Helmet configuration for security headers
-// TEMPORARILY DISABLED TO DEBUG CORS ISSUES
-// app.use(helmet({
-//   contentSecurityPolicy: {
-//     directives: {
-//       defaultSrc: ["'self'"],
-//       scriptSrc: ["'self'", "'unsafe-inline'"],
-//       styleSrc: ["'self'", "'unsafe-inline'"],
-//       imgSrc: ["'self'", 'data:', 'https:'],
-//       connectSrc: ["'self'", 'https:'],
-//       fontSrc: ["'self'"],
-//       objectSrc: ["'none'"],
-//       mediaSrc: ["'self'"],
-//       frameSrc: ["'none'"]
-//     }
-//   },
-//   crossOriginResourcePolicy: { policy: "cross-origin" },
-//   hsts: {
-//     maxAge: 31536000, // 1 year
-//     includeSubDomains: true,
-//     preload: true
-//   },
-//   noSniff: true,
-//   xssFilter: true,
-//   referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
-// }));
+// SECURITY FIX: Re-enabled Helmet for production security
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'", 'https:'],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"]
+    }
+  },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true
+  },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
 
 // =======================
 // CORS MIDDLEWARE (must come before body parser and routing)
@@ -1255,10 +1288,21 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
 // Simple, manual CORS middleware that runs on ALL requests/responses
 // This ensures CORS headers are set BEFORE any route handler or error handler
 app.use((req, res, next) => {
-  // Resolve the origin to echo back; prefer request origin, then configured frontend URL
+  // SECURITY FIX: Use explicit origin whitelist instead of echoing any origin
   const requestOrigin = req.headers.origin;
   const envOrigin = process.env.FRONTEND_URL || process.env.VITE_FRONTEND_URL;
-  const allowOrigin = requestOrigin || envOrigin || '*';
+  
+  // Define allowed origins (whitelist approach)
+  const allowedOrigins = [
+    envOrigin,
+    'http://localhost:5175',
+    'http://localhost:3000',
+    'http://127.0.0.1:5175',
+    'http://127.0.0.1:3000'
+  ].filter(Boolean); // Remove undefined/null values
+
+  // Check if request origin is in whitelist
+  const allowOrigin = allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0] || 'http://localhost:5175';
 
   res.header('Access-Control-Allow-Origin', allowOrigin);
   if (allowOrigin !== '*') {
@@ -1283,9 +1327,28 @@ app.use((req, res, next) => {
   next();
 });
 
-// Also use the cors package as backup (with simpler options)
+// Also use the cors package as backup (with explicit origin whitelist)
+// SECURITY FIX: Changed from 'origin: true' to explicit whitelist
 app.use(cors({
-  origin: true,
+  origin: function (origin, callback) {
+    const envOrigin = process.env.FRONTEND_URL || process.env.VITE_FRONTEND_URL;
+    const allowedOrigins = [
+      envOrigin,
+      'http://localhost:5175',
+      'http://localhost:3000',
+      'http://127.0.0.1:5175',
+      'http://127.0.0.1:3000'
+    ].filter(Boolean);
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -1304,16 +1367,13 @@ app.use(express.json({ limit: '10mb' }));
 // =======================
 
 // Rate limiting with different strategies
+// SECURITY FIX: Removed development mode skip - rate limiting should always be active
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
   message: { error: 'Too many requests from this IP, please try again later.' },
   standardHeaders: true,
-  legacyHeaders: false,
-  skip: (_req) => {
-    // Skip rate limiting for development
-    return process.env.NODE_ENV === 'development';
-  }
+  legacyHeaders: false
 });
 
 const authLimiter = rateLimit({
@@ -1707,7 +1767,9 @@ async function handlePasswordReset(req, res) {
     }
 
     // Verify token matches and is not expired
-    if (storedTokenData.token !== token || storedTokenData.expiresAt < Date.now()) {
+    // SECURITY FIX: Use timing-safe comparison for token validation
+    const tokenMatches = timingSafeEqual(storedTokenData.token, token);
+    if (!tokenMatches || storedTokenData.expiresAt < Date.now()) {
       return res.status(400).json({ error: 'Invalid or expired reset link' });
     }
 
