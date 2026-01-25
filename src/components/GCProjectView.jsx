@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, getApiBase } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { notifySubAddedToProject } from "@/brokerNotifications";
-import { getSubcontractorOnboardingEmail } from "@/emailTemplates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -212,16 +211,164 @@ export default function GCProjectView() {
         
         const contactEmail = form.contact_email.trim();
         
-        // Use standardized email template
-        const emailHtml = getSubcontractorOnboardingEmail(
-          form.subcontractor_name,
-          project?.project_name,
-          project?.address,
-          form.trade,
-          created.contractor_username,
-          created.contractor_password,
-          portalUrl
-        );
+        // Create formatted HTML email with standardized styling
+        const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      line-height: 1.6; 
+      color: #333; 
+      background-color: #f9fafb;
+    }
+    .container { 
+      max-width: 600px; 
+      margin: 0 auto; 
+      padding: 0; 
+      background-color: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .header { 
+      background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+      color: white; 
+      padding: 30px 20px; 
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0 0 10px 0;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    .header p {
+      margin: 0;
+      font-size: 14px;
+      opacity: 0.95;
+    }
+    .content { 
+      padding: 30px 20px; 
+    }
+    .section { 
+      margin: 20px 0; 
+      padding: 15px; 
+      background-color: #f5f5f5; 
+      border-left: 4px solid #1e40af;
+      border-radius: 4px;
+    }
+    .section-title { 
+      font-weight: 600; 
+      font-size: 15px; 
+      margin: 0 0 12px 0;
+      color: #1e40af; 
+    }
+    .field { 
+      margin: 8px 0; 
+      font-size: 14px;
+    }
+    .label { 
+      font-weight: 600; 
+      color: #1e40af; 
+      display: inline-block;
+      min-width: 120px;
+    }
+    .credentials { 
+      background-color: #fffbea; 
+      padding: 15px; 
+      border-radius: 6px; 
+      border-left: 4px solid #fbbf24;
+      margin: 15px 0;
+    }
+    .button { 
+      background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+      color: white; 
+      padding: 12px 28px; 
+      text-decoration: none; 
+      border-radius: 6px; 
+      display: inline-block; 
+      margin-top: 15px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+    }
+    .footer { 
+      font-size: 12px; 
+      color: #666; 
+      margin-top: 30px; 
+      padding-top: 20px; 
+      border-top: 1px solid #e5e7eb;
+      text-align: center;
+    }
+    ol, ul {
+      margin: 15px 0;
+      padding-left: 20px;
+    }
+    li {
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>👋 Welcome to InsureTrack</h1>
+      <p>You've been added to ${project?.project_name}</p>
+    </div>
+    
+    <div class="content">
+      <p>Dear ${form.subcontractor_name},</p>
+      
+      <p>You have been added to a new project in InsureTrack!</p>
+
+      <div class="section">
+        <div class="section-title">📋 PROJECT DETAILS</div>
+        <div class="field"><span class="label">Project:</span> ${project?.project_name}</div>
+        <div class="field"><span class="label">Trade:</span> ${form.trade}</div>
+        <div class="field"><span class="label">Location:</span> ${project?.address || 'Address not provided'}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🔐 PORTAL LOGIN INFORMATION</div>
+        <div class="credentials">
+          <div class="field"><span class="label">Username:</span> ${created.contractor_username}</div>
+          <div class="field"><span class="label">Password:</span> <strong>${created.contractor_password}</strong></div>
+          <p style="color: #dc2626; font-size: 13px; margin-top: 10px;">
+            ⚠️ <strong>Save your password</strong> - You'll need it to log in
+          </p>
+          <div style="text-align: center; margin-top: 15px;">
+            <a href="${portalUrl}" class="button">Login to Portal →</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">📝 GETTING STARTED</div>
+        <ol>
+          <li>Click the button above to access the portal</li>
+          <li>Log in with your credentials</li>
+          <li>Update your broker information in settings</li>
+          <li>Submit your Certificate of Insurance (COI)</li>
+          <li>Once approved, you're ready to start work!</li>
+        </ol>
+      </div>
+
+      <p style="color: #666; font-size: 13px; margin-top: 20px;">
+        <strong>Questions?</strong> Contact your General Contractor or the InsureTrack support team.
+      </p>
+    </div>
+    
+    <div class="footer">
+      <p><strong>InsureTrack</strong> - Insurance Compliance Management</p>
+      <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>
+`;
 
         // Get backend base URL
         const backendBaseUrl = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
