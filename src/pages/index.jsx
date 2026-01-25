@@ -147,7 +147,11 @@ export default function Pages({ onLogout }) {
   const [isGCPublicSession, setIsGCPublicSession] = useState(() => {
     if (typeof window === 'undefined') return false
     // Only use GC session if currently on GC path AND not authenticated as admin
-    return isOnGCPath && !hasAdminToken;
+    // Include /gc-login in the GC routes check
+    const onGCRoute = window.location.pathname.startsWith('/gc-dashboard') || 
+                      window.location.pathname.startsWith('/gc-project') ||
+                      window.location.pathname.startsWith('/gc-login');
+    return onGCRoute && !hasAdminToken;
   })
 
   const [isBrokerPublicSession, setIsBrokerPublicSession] = useState(() => {
