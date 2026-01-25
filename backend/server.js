@@ -6015,13 +6015,64 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
     if (!coi.first_coi_url) return res.status(400).json({ error: 'No COI PDF to sign' });
 
     const signedUrl = await adobePDF.signPDF(coi.first_coi_url, { signature_url });
+    // Mark COI active now that admin has signed the final certificate
     entities.GeneratedCOI[coiIdx] = {
       ...coi,
       admin_signature_url: signature_url || `https://storage.example.com/admin-signature-${Date.now()}.png`,
       final_coi_url: signedUrl,
-      status: coi.status === 'pending' ? 'pending' : coi.status,
+      status: 'active',
       signed_at: new Date().toISOString()
     };
+
+    // Notify stakeholders that COI is now active
+    try {
+      const project = (entities.Project || []).find(p => p.id === coi.project_id || p.project_name === coi.project_name);
+      const subcontractor = (entities.Contractor || []).find(c => c.id === coi.subcontractor_id);
+      const adminUrl = `${req.protocol}://${req.get('host')}`;
+      const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+
+      // Notify subcontractor
+      if (coi.contact_email) {
+        await fetch(internalUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: coi.contact_email,
+            subject: `✅ Your Certificate is Approved - ${project?.project_name || coi.project_name}`,
+            body: `Your Certificate of Insurance for ${project?.project_name || coi.project_name} has been approved and is now active.\n\nView certificate: ${entities.GeneratedCOI[coiIdx].final_coi_url || entities.GeneratedCOI[coiIdx].first_coi_url || '(not available)'}`
+          })
+        }).catch(() => {});
+      }
+
+      // Notify GC
+      if (project && project.gc_email) {
+        await fetch(internalUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: project.gc_email,
+            subject: `✅ Insurance Approved - ${coi.subcontractor_name} on ${project.project_name}`,
+            body: `A Certificate of Insurance has been approved for ${coi.subcontractor_name} on ${project.project_name}.\n\nView certificate: ${entities.GeneratedCOI[coiIdx].final_coi_url || entities.GeneratedCOI[coiIdx].first_coi_url || '(not available)'}`
+          })
+        }).catch(() => {});
+      }
+
+      // Notify broker
+      if (coi.broker_email) {
+        await fetch(internalUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: coi.broker_email,
+            subject: `✅ COI Approved - ${coi.subcontractor_name} - ${project?.project_name || coi.project_name}`,
+            body: `The Certificate of Insurance you generated has been approved and is now active.\n\nView certificate: ${entities.GeneratedCOI[coiIdx].final_coi_url || entities.GeneratedCOI[coiIdx].first_coi_url || '(not available)'}`
+          })
+        }).catch(() => {});
+      }
+    } catch (notifyErr) {
+      console.warn('Could not send activation notifications after admin sign:', notifyErr?.message || notifyErr);
+    }
+
     debouncedSave();
     return res.json(entities.GeneratedCOI[coiIdx]);
   } catch (err) {
@@ -6496,7 +6547,7 @@ app.post('/public/hold-harmless-sign-link', publicApiLimiter, async (req, res) =
       hold_harmless_status: coi.hold_harmless_status && coi.hold_harmless_status.startsWith('signed') ? coi.hold_harmless_status : 'pending_signature',
       hold_harmless_sign_url: signUrl,
       // Preserve any existing hold_harmless_template_url (do not clear it)
-      hold_harmless_template_url: coi.hold_harmless_template_url || coi.hold_harmless_template_url || null,
+      hold_harmless_template_url: coi.hold_harmless_template_url || null,
       hold_harmless_requested_date: new Date().toISOString()
     };
 
@@ -6506,6 +6557,50 @@ app.post('/public/hold-harmless-sign-link', publicApiLimiter, async (req, res) =
   } catch (err) {
     console.error('hold-harmless-sign-link error:', err?.message || err);
     return sendError(res, 500, 'Failed to create sign link');
+  }
+});
+
+// Public: Complete Hold Harmless signature callback (record signed URL)
+app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (req, res) => {
+  try {
+    const { token, signer, signed_url, signed_date } = req.body || {};
+    if (!token || !signer || !signed_url) return sendError(res, 400, 'token, signer, and signed_url are required');
+
+    const idx = (entities.GeneratedCOI || []).findIndex(c => timingSafeEqual(c.coi_token, String(token)));
+    if (idx === -1) return sendError(res, 404, 'COI not found for token');
+
+    const coi = entities.GeneratedCOI[idx];
+    const now = signed_date || new Date().toISOString();
+
+    if (signer === 'sub' || signer === 'subcontractor') {
+      entities.GeneratedCOI[idx] = {
+        ...coi,
+        hold_harmless_sub_signed_url: signed_url,
+        hold_harmless_sub_signed_date: now,
+        hold_harmless_status: coi.hold_harmless_status && coi.hold_harmless_status.startsWith('signed') ? coi.hold_harmless_status : 'signed_by_sub'
+      };
+    } else if (signer === 'gc' || signer === 'general_contractor') {
+      entities.GeneratedCOI[idx] = {
+        ...coi,
+        hold_harmless_gc_signed_url: signed_url,
+        hold_harmless_gc_signed_date: now,
+        hold_harmless_status: coi.hold_harmless_status && coi.hold_harmless_status.startsWith('signed') ? coi.hold_harmless_status : 'signed_by_gc'
+      };
+    } else {
+      return sendError(res, 400, 'Unknown signer type');
+    }
+
+    // If both sub and gc have signed, mark hold_harmless_status as fully signed
+    const updated = entities.GeneratedCOI[idx];
+    if (updated.hold_harmless_sub_signed_url && updated.hold_harmless_gc_signed_url) {
+      entities.GeneratedCOI[idx].hold_harmless_status = 'signed';
+    }
+
+    debouncedSave();
+    return res.json(entities.GeneratedCOI[idx]);
+  } catch (err) {
+    console.error('complete-hold-harmless-signature error:', err?.message || err);
+    return sendError(res, 500, 'Failed to record hold harmless signature');
   }
 });
 

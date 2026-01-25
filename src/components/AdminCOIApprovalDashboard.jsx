@@ -89,18 +89,23 @@ export default function AdminCOIApprovalDashboard() {
       const coi = cois.find((c) => c.id === coiId);
       if (!coi) throw new Error('COI not found');
 
-      // Update COI status
+      // Mark as approved by admin and activate immediately
       await apiClient.entities.GeneratedCOI.update(coiId, {
         status: 'active',
+        admin_approved: true,
         approved_at: new Date().toISOString(),
-        approved_by: 'admin',
+        approved_by: user?.id || 'admin',
       });
 
-      // Notify all stakeholders
-      const sub = subcontractors[coi.subcontractor_id];
-      const project = projects[coi.project_id];
-      if (sub && project) {
-        await notifyAllStakeholdersCOIApproved(coi, sub, project);
+      // Notify all stakeholders (subcontractor, GC, broker)
+      try {
+        const sub = subcontractors[coi.subcontractor_id];
+        const project = projects[coi.project_id];
+        if (sub && project) {
+          await notifyAllStakeholdersCOIApproved(coi, sub, project);
+        }
+      } catch (err) {
+        console.warn('Error notifying stakeholders after approval:', err?.message || err);
       }
 
       return coi;
