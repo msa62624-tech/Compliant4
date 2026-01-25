@@ -175,11 +175,22 @@ export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }
     }
 
     // Notify each broker with login credentials and assigned policies
+    // BUT: Only for newly added brokers, not existing ones
     try {
       const baseUrl = getFrontendBaseUrl();
       const brokerLoginLink = `${baseUrl}/broker-login`;
+      const existingBrokerEmails = new Set(existingBrokers.map(b => b.email?.toLowerCase()));
 
       for (const broker of brokers) {
+        // Only process if this is a new broker (not in existing list)
+        const isNewBroker = !existingBrokerEmails.has(broker.email?.toLowerCase());
+        
+        if (!isNewBroker) {
+          console.log(`ℹ️ Broker ${broker.email} already exists - skipping password generation and initial email`);
+          continue;
+        }
+
+        // ONLY generate password for NEW brokers on first assignment
         const password = generateSecurePassword();
         const brokerDashboardLink = createBrokerDashboardLink(broker.name, broker.email);
 

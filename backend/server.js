@@ -2306,7 +2306,7 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
   const rejectUnauthorizedEnv = process.env.SMTP_TLS_REJECT_UNAUTHORIZED;
   const defaultFrom = process.env.SMTP_FROM || process.env.FROM_EMAIL || 'no-reply@insuretrack.local';
 
-  console.log('📧 Public email send request:', { to, subject, hasSmtpHost: !!smtpHost, hasSmtpService: !!smtpService });
+  console.log('📧 Public email send request:', { to, subject, includeSampleCOI, hasSmtpHost: !!smtpHost, hasSmtpService: !!smtpService });
 
   const parseBool = (v, defaultVal) => {
     if (v === undefined) return defaultVal;
@@ -2793,10 +2793,13 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
       // Optionally generate and attach a sample COI PDF for broker emails
       if (includeSampleCOI) {
         try {
+          console.log('🔄 Generating sample COI PDF with data:', Object.keys(sampleCOIData || {}));
           const pdfBuffer = await generateSampleCOIPDF(sampleCOIData || {});
           mailAttachments.push({ filename: 'sample_coi.pdf', content: pdfBuffer, contentType: 'application/pdf' });
+          console.log('✅ Sample COI PDF generated and attached:', pdfBuffer.length, 'bytes');
         } catch (pdfErr) {
-          console.warn('Could not generate sample COI PDF:', pdfErr?.message || pdfErr);
+          console.error('❌ Could not generate sample COI PDF:', pdfErr?.message || pdfErr);
+          console.error('Full error:', pdfErr);
         }
       }
 
