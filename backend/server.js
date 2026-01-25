@@ -2381,7 +2381,7 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
           drawBox(margin, yPos, contentWidth, 60);
           doc.fontSize(7).font('Helvetica-Bold').text('COMMERCIAL GENERAL LIABILITY', margin + 25, yPos + 3);
           doc.fontSize(6).font('Helvetica').text('☐ CLAIMS-MADE  ☒ OCCUR', margin + 25, yPos + 12);
-          doc.fontSize(6).text('☒ PER PROJECT', margin + 25, yPos + 20);
+          doc.fontSize(6).text('☐ PER PROJECT  ☒ PER OCCURRENCE', margin + 25, yPos + 20);
           doc.fontSize(6).text('A', margin + 5, yPos + 3);
           doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 8);
           doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 8);
