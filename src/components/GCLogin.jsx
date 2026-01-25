@@ -78,7 +78,7 @@ export default function GCLogin({ onLogin }) {
   if (showForgotPassword) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-600 via-rose-600 to-orange-700 p-4">
-        <ForgotPassword onBackToLogin={() => setShowForgotPassword(false)} />
+        <ForgotPassword onBackToLogin={() => setShowForgotPassword(false)} portalType="gc" />
       </div>
     );
   }

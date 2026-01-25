@@ -2944,10 +2944,19 @@ app.get('/public/broker-requests', (req, res) => {
         created_date: r.sent_date || r.created_at || r.created_date,
       }));
 
-    const list = [...cois, ...uploadRequests]
-      .sort((a, b) => new Date(b.created_date || b.created_at || 0) - new Date(a.created_date || a.created_at || 0));
+    // Deduplicate: if a GeneratedCOI and BrokerUploadRequest have the same subcontractor_id and coi_token, 
+    // prefer the GeneratedCOI (it's more complete) and exclude the BrokerUploadRequest
+    const seenKeys = new Set();
+    const dedupedList = [...cois, ...uploadRequests]
+      .sort((a, b) => new Date(b.created_date || b.created_at || 0) - new Date(a.created_date || a.created_at || 0))
+      .filter(item => {
+        const key = `${item.subcontractor_id}-${item.coi_token}`;
+        if (seenKeys.has(key)) return false;
+        seenKeys.add(key);
+        return true;
+      });
 
-    return res.json(list);
+    return res.json(dedupedList);
   } catch (err) {
     console.error('Public broker-requests error:', err?.message || err);
     return res.status(500).json({ error: 'Failed to load broker requests' });
