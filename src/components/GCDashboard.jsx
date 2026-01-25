@@ -83,7 +83,7 @@ export default function GCDashboard() {
 
   // Fetch subcontractors
   const { data: projectSubs = [] } = useQuery({
-    queryKey: ['gc-subs', gcId, projects],
+    queryKey: ['gc-subs', gcId],
     queryFn: async () => {
       try {
         // Use public endpoint to fetch all project subcontractors
@@ -106,7 +106,7 @@ export default function GCDashboard() {
         return [];
       }
     },
-    enabled: !!gcId && projects.length > 0,
+    enabled: !!gcId,
     retry: 1,
   });
 
