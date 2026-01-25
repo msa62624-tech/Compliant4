@@ -467,6 +467,22 @@ Analyze for deficiencies - check all 12 items above. Remember: ONLY flag coverag
     try {
       const { file_url } = await apiClient.integrations.Core.UploadFile({ file });
 
+      // Extract COI fields from the uploaded PDF
+      let extractedData = {};
+      try {
+        const extractResponse = await fetch(`${getApiBase()}/public/extract-coi-fields`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_url })
+        });
+        if (extractResponse.ok) {
+          const extractResult = await extractResponse.json();
+          extractedData = extractResult.data || {};
+        }
+      } catch (extractErr) {
+        console.warn('Failed to extract COI fields, continuing without extracted data:', extractErr);
+      }
+
       await updateCOIMutation.mutateAsync({
         id: coi.id,
         data: {
@@ -475,8 +491,8 @@ Analyze for deficiencies - check all 12 items above. Remember: ONLY flag coverag
           first_coi_upload_date: new Date().toISOString(),
           status: 'awaiting_admin_review', // New status for AI review
           uploaded_for_review_date: new Date().toISOString(),
-          // Clear any previous analysis if a new file is uploaded
-          // Removed policy_analysis: null, as new analysis will overwrite it, and trigger is below
+          // Merge extracted data with the update
+          ...extractedData
         }
       });
 
