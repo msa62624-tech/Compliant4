@@ -28,29 +28,32 @@ export default function SubcontractorLogin({ onLogin }) {
         throw new Error('Please enter a valid email address');
       }
 
-      // Find subcontractor by email
-      const contractors = await compliant.entities.Contractor.list();
-      const subcontractor = contractors.find(
-        c => c.email?.toLowerCase() === email.toLowerCase() && c.contractor_type === 'subcontractor'
-      );
+      // Call backend contractor login endpoint for proper bcrypt verification
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiBase}/public/contractor-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
 
-      if (!subcontractor) {
-        throw new Error('Email not found. Please check and try again.');
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Login failed');
       }
 
-      // For now, simple password validation (in production, hash and compare)
-      // We'll store a basic password on the contractor record
-      if (subcontractor.password !== password) {
-        throw new Error('Incorrect password');
+      const { contractor } = await response.json();
+
+      if (!contractor) {
+        throw new Error('Email not found. Please check and try again.');
       }
 
       // Store subcontractor session
       sessionStorage.setItem('subPublicSession', 'true');
-      sessionStorage.setItem('subPortalId', subcontractor.id);
+      sessionStorage.setItem('subPortalId', contractor.id);
       sessionStorage.setItem('subPublicSessionInitialized', 'true');
       sessionStorage.setItem('subAuthenticated', 'true');
 
-      onLogin && onLogin(subcontractor.id);
+      onLogin && onLogin(contractor.id);
     } catch (err) {
       setError(err.message || 'Login failed');
     } finally {

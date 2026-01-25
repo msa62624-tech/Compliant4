@@ -3126,6 +3126,52 @@ app.patch('/public/contractor/:id', publicApiLimiter, (req, res) => {
   }
 });
 
+// Public: Contractor/Subcontractor login with password verification
+app.post('/public/contractor-login', publicApiLimiter, async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const contractor = (entities.Contractor || []).find(c => 
+      (c.email?.toLowerCase() === email.toLowerCase()) && 
+      (c.role === 'subcontractor' || c.contractor_type === 'subcontractor')
+    );
+
+    if (!contractor) {
+      // Don't reveal if email exists to prevent user enumeration
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Verify password using bcrypt
+    if (!contractor.password) {
+      console.warn('⚠️ Contractor missing password hash:', contractor.id);
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, contractor.password);
+    
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Return contractor data (without password hash)
+    const { password: _, ...contractorSafe } = contractor;
+    
+    console.log('✅ Contractor login successful:', contractor.id, contractor.email);
+    
+    return res.json({
+      success: true,
+      contractor: contractorSafe
+    });
+  } catch (err) {
+    console.error('❌ Contractor login error:', err?.message || err);
+    return res.status(500).json({ error: 'Authentication service error' });
+  }
+});
+
 // Public: Create a new contractor (subcontractor) - for GC portal
 app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
   try {
