@@ -323,7 +323,7 @@ export default function BrokerDashboard() {
                             {coi.coi_token && (coi.status === 'awaiting_broker_upload' || coi.status === 'awaiting_broker_signature' || coi.status === 'deficiency_pending') && (
                               <Button
                                 size="sm"
-                                onClick={() => window.location.href = `${window.location.origin}${createPageUrl('broker-upload-coi')}?token=${coi.coi_token}`}
+                                onClick={() => window.location.href = `${window.location.origin}${createPageUrl('broker-upload-coi')}?token=${coi.coi_token}&step=1`}
                                 className="bg-red-600 hover:bg-red-700 text-white"
                               >
                                 <Upload className="w-4 h-4 mr-2" />

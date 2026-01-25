@@ -500,7 +500,7 @@ ${activeProjects.map(p => `• ${p.project_name} - ${p.gc_name}`).join('\n')}
 Please review the sample certificate and upload the matching ACORD 25:
 
 Sample COI: ${coi.sample_coi_pdf_url || 'Available in upload portal'}
-Upload Portal: ${window.location.origin}/broker-upload-coi?token=${coi.coi_token}
+Upload Portal: ${window.location.origin}/broker-upload-coi?token=${coi.coi_token}&step=1
 
 The subcontractor cannot begin work until the certificate is on file.
 
@@ -559,7 +559,7 @@ Active Projects (${activeProjects.length}):
 ${activeProjects.map(p => `• ${p.project_name} - ${p.gc_name}`).join('\n')}
 
 ⚠️ URGENT ACTION REQUIRED:
-Upload the certificate NOW: ${window.location.origin}/broker-upload-coi?token=${coi.coi_token}
+Upload the certificate NOW: ${window.location.origin}/broker-upload-coi?token=${coi.coi_token}&step=1
 
 The subcontractor is unable to begin work and project timelines are being impacted.
 
@@ -617,7 +617,7 @@ Affected Projects (${activeProjects.length}):
 ${activeProjects.map(p => `• ${p.project_name} - ${p.gc_name}`).join('\n')}
 
 🚨 IMMEDIATE ACTION REQUIRED:
-Upload certificate IMMEDIATELY: ${window.location.origin}/broker-upload-coi?token=${coi.coi_token}
+Upload certificate IMMEDIATELY: ${window.location.origin}/broker-upload-coi?token=${coi.coi_token}&step=1
 
 If the certificate is not uploaded within 48 hours, the subcontractor will be removed from all projects and we will seek alternative insurance arrangements.
 

@@ -196,7 +196,7 @@ export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }
 
         // Generate a token up front so email link, upload request, and GeneratedCOI all align
         const uploadToken = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 10);
-        const brokerUploadLink = `${baseUrl}/broker-upload-coi?token=${uploadToken}`;
+        const brokerUploadLink = `${baseUrl}/broker-upload-coi?token=${uploadToken}&step=1`;
         const assignedPolicies = Object.entries(broker.policies)
           .filter(([_, selected]) => selected)
           .map(([policy]) => {

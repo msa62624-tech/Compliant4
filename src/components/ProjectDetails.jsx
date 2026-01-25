@@ -1110,7 +1110,7 @@ ${!hasReusableInsurance ? '<div class="watermark">SAMPLE<br/>BROKER REFERENCE</d
       if (insuranceData?.broker_email) {
         try {
           const baseUrl = window.location.origin.replace(/\/$/, '');
-          const brokerSignLink = `${baseUrl}${createPageUrl('broker-upload-coi')}?token=${coiToken}`;
+          const brokerSignLink = `${baseUrl}${createPageUrl('broker-upload-coi')}?token=${coiToken}&step=3&action=sign`;
 
           // Check if broker record exists, if not create it
           const _existingBroker = allSubcontractors.find(s => s.contractor_type === 'subcontractor')?.id;

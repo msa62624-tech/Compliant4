@@ -90,11 +90,13 @@ export function createBrokerDashboardLink(brokerName, brokerEmail) {
 }
 
 /**
- * Create a broker upload link
+ * Create a broker upload link for COI uploads
+ * @param {string} coiToken - The COI token for direct upload access
+ * @param {number} step - The step in the upload process (1=COI, 2=Policies, 3=Signature)
  */
-export function createBrokerUploadLink(subId, type = 'global') {
+export function createBrokerUploadLink(coiToken, step = 1) {
   const baseUrl = getFrontendBaseUrl();
-  return `${baseUrl}/broker-upload?type=${type}&subId=${subId}`;
+  return `${baseUrl}/broker-upload-coi?token=${coiToken}&step=${step}&action=upload`;
 }
 
 /**

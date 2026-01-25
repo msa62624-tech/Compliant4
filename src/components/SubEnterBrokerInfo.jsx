@@ -122,7 +122,7 @@ export default function SubEnterBrokerInfo() {
     // Notify the broker with credentials and links
     if (form.broker_email && token) {
       const baseUrl = getFrontendBaseUrl();
-      const brokerUploadLink = `${baseUrl}/broker-upload-coi?token=${token}`;
+      const brokerUploadLink = `${baseUrl}/broker-upload-coi?token=${token}&step=1`;
       const brokerDashboardLink = `${baseUrl}/broker-dashboard`;
       
       // Generate secure credentials for broker

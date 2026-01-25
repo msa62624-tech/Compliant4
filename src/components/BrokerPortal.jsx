@@ -137,7 +137,7 @@ export default function BrokerPortal() {
   };
 
   const handleUploadClick = (coi) => {
-    navigate(createPageUrl(`broker-upload-coi?token=${coi.coi_token}`));
+    navigate(createPageUrl(`broker-upload-coi?token=${coi.coi_token}&step=1`));
   };
 
   if (isLoading) {

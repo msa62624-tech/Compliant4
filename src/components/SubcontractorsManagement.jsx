@@ -128,7 +128,7 @@ export default function SubcontractorsManagement() {
 
     try {
       const baseUrl = window.location.origin.replace(/\/$/, '');
-      const brokerUploadLink = `${baseUrl}${createPageUrl(`broker-upload-coi`)}?token=${subCOI.coi_token}`;
+      const brokerUploadLink = `${baseUrl}${createPageUrl(`broker-upload-coi`)}?token=${subCOI.coi_token}&step=1`;
 
       await sendEmail({
         to: subCOI.broker_email,

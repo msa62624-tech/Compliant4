@@ -103,7 +103,7 @@ export default function BrokerRequestsTracking() {
   };
 
   const copyUploadLink = (token) => {
-    const url = `${window.location.origin}${createPageUrl('broker-upload-coi')}?token=${token}`;
+    const url = `${window.location.origin}${createPageUrl('broker-upload-coi')}?token=${token}&step=1`;
     navigator.clipboard.writeText(url);
     alert('Upload link copied to clipboard!');
   };

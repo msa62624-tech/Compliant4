@@ -62,10 +62,14 @@ export class NotificationLinkBuilder {
     return `${this.baseUrl}/broker-dashboard?name=${encodeURIComponent(brokerName)}&section=requests`;
   }
 
-  getBrokerUploadLink(subId, coiId = null) {
-    let url = `${this.baseUrl}/broker-upload?subId=${subId}`;
-    if (coiId) url += `&coiId=${coiId}`;
-    return url;
+  getBrokerUploadLink(coiToken, step = 1) {
+    // For COI uploads, use the broker-upload-coi page with token and step
+    if (coiToken) {
+      return `${this.baseUrl}/broker-upload-coi?token=${coiToken}&step=${step}&action=upload`;
+    }
+    // Fallback for older subId-based requests
+    console.warn('getBrokerUploadLink called without coiToken');
+    return `${this.baseUrl}/broker-upload`;
   }
 
   getBrokerCOILink(brokerName, coiId) {

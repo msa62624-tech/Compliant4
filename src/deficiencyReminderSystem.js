@@ -60,7 +60,7 @@ async function sendDeficiencyReminder(coi, project, broker) {
       return;
     }
 
-    const brokerUploadLink = `${window.location.origin}/broker-upload-coi?token=${coi.coi_token}`;
+    const brokerUploadLink = `${window.location.origin}/broker-upload-coi?token=${coi.coi_token}&step=2&action=upload`;
     const brokerDashboardLink = `${window.location.origin}/broker-dashboard?email=${encodeURIComponent(broker.broker_email)}&coiId=${coi.id}`;
     const daysOverdue = Math.floor((new Date() - new Date(coi.deficiency_sent_date)) / (1000 * 60 * 60 * 24));
 
