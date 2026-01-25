@@ -40,9 +40,6 @@ export default function COIReview() {
   const [requireNewCOI, setRequireNewCOI] = useState(false);
   const [applyToAllProjects, setApplyToAllProjects] = useState(false);
   const [analyzingCompliance, setAnalyzingCompliance] = useState(false);
-  const [programFile, setProgramFile] = useState(null);
-  const [isProgramReviewRunning, setIsProgramReviewRunning] = useState(false);
-  const [programReviewResult, setProgramReviewResult] = useState(null);
   const [isGeneratingCOI, setIsGeneratingCOI] = useState(false);
   const [isSigningCOI, setIsSigningCOI] = useState(false);
 
@@ -370,61 +367,6 @@ Analyze for deficiencies - check all 12 items above. Remember: ONLY flag coverag
     }
   };
 
-  const runProgramReview = async () => {
-    if (!project) {
-      alert('Project not loaded.');
-      return;
-    }
-    const reqContext = (requirements || []).map(r => ({
-      insurance_type: r.insurance_type,
-      tier: r.tier_name,
-      minimums: {
-        gl_each_occurrence: r.gl_each_occurrence,
-        gl_general_aggregate: r.gl_general_aggregate,
-        gl_products_completed_ops: r.gl_products_completed_ops,
-        umbrella_each_occurrence: r.umbrella_each_occurrence,
-        umbrella_aggregate: r.umbrella_aggregate,
-        wc_each_accident: r.wc_each_accident,
-        wc_disease_policy_limit: r.wc_disease_policy_limit,
-        wc_disease_each_employee: r.wc_disease_each_employee,
-        auto_combined_single_limit: r.auto_combined_single_limit,
-      },
-      required_endorsements: {
-        blanket_additional_insured: r.blanket_additional_insured,
-        waiver_of_subrogation: r.waiver_of_subrogation_required,
-        primary_non_contributory: r.primary_non_contributory,
-        per_project_aggregate: r.per_project_aggregate,
-      }
-    }));
-
-    try {
-      setIsProgramReviewRunning(true);
-      let programFileUrl = null;
-      if (programFile) {
-        const uploadRes = await apiClient.integrations.Core.UploadFile({ file: programFile });
-        programFileUrl = uploadRes.file_url || uploadRes.url || uploadRes.downloadUrl;
-      }
-      if (!programFileUrl && program?.program_pdf_url) {
-        programFileUrl = program.program_pdf_url;
-      }
-      if (!programFileUrl) {
-        alert('Please upload a Program PDF or set program_pdf_url on the Insurance Program.');
-        setIsProgramReviewRunning(false);
-        return;
-      }
-
-      const result = await apiClient.integrations.Public.ProgramReview({
-        file_url: programFileUrl,
-        requirements: reqContext
-      });
-      setProgramReviewResult(result);
-    } catch (err) {
-      console.error('Program review failed:', err);
-      alert('Program review failed.');
-    } finally {
-      setIsProgramReviewRunning(false);
-    }
-  };
 
   const generateCOIFromSystem = async () => {
     if (!coi) return;
@@ -1610,247 +1552,6 @@ InsureTrack Team`
           </Card>
         )}
 
-        {isAdmin && (
-          <Card className="border-2 border-purple-300 shadow-lg mt-6">
-            <CardHeader className="border-b bg-purple-50">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-purple-600" />
-                  Program Review (Insurance Program)
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  {program?.program_pdf_url && (
-                    <a
-                      href={program.program_pdf_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm text-purple-700 hover:underline flex items-center gap-1"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      View Program PDF
-                    </a>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={isGeneratingCOI}
-                    onClick={generateCOIFromSystem}
-                    className="ml-2 border-purple-300 text-purple-700 hover:bg-purple-50 whitespace-nowrap"
-                  >
-                    {isGeneratingCOI ? (
-                      <span className="flex items-center gap-2"><RefreshCw className="w-3 h-3 animate-spin" /> <span>Generating COI...</span></span>
-                    ) : (
-                      <span className="flex items-center gap-2"><FileText className="w-3 h-3" /> <span>Generate COI</span></span>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={isSigningCOI}
-                    onClick={signCOIAsAdmin}
-                    className="ml-2 border-green-300 text-green-700 hover:bg-green-50"
-                  >
-                    {isSigningCOI ? (
-                      <span className="flex items-center gap-2"><RefreshCw className="w-3 h-3 animate-spin" /> Applying Signature...</span>
-                    ) : (
-                      <span className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> Admin Sign</span>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="grid md:grid-cols-2 gap-4 items-end">
-                <div>
-                  <Label htmlFor="program-file">Upload Program PDF (optional)</Label>
-                  <Input
-                    id="program-file"
-                    type="file"
-                    accept="application/pdf"
-                    onChange={(e) => setProgramFile(e.target.files?.[0] || null)}
-                    className="mt-2"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Use the uploaded file or the saved program PDF.
-                  </p>
-                </div>
-                <div className="flex md:justify-end">
-                  <Button
-                    variant="default"
-                    disabled={isProgramReviewRunning || (!programFile && !program?.program_pdf_url)}
-                    onClick={runProgramReview}
-                    className="bg-purple-600 hover:bg-purple-700"
-                  >
-                    {isProgramReviewRunning ? (
-                      <span className="flex items-center gap-2">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Running Program Review...
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <Zap className="w-4 h-4" />
-                        Run Program Review
-                      </span>
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              {isProgramReviewRunning && (
-                <Alert className="bg-purple-50 border-purple-200">
-                  <AlertCircle className="h-4 w-4 text-purple-600" />
-                  <AlertDescription className="text-purple-900">
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full"></div>
-                      <span className="font-semibold">Analyzing Insurance Program...</span>
-                    </div>
-                    <p className="text-sm mt-1">Extracting policy data, comparing to requirements, and generating recommendations.</p>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {programReviewResult && (
-                <div className="space-y-6">
-                  <Card className="border-2 border-purple-200">
-                    <CardHeader className="bg-purple-50">
-                      <CardTitle className="text-purple-800">Summary</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 space-y-3">
-                      {programReviewResult.compliance?.summary && (
-                        <Alert className="bg-red-50 border-red-200">
-                          <FileText className="h-4 w-4 text-red-600" />
-                          <AlertDescription className="text-red-900">
-                            <p className="font-semibold mb-2">Compliance Summary:</p>
-                            <p className="text-sm">{programReviewResult.compliance.summary}</p>
-                          </AlertDescription>
-                        </Alert>
-                      )}
-
-                      {programReviewResult.programData?.text_preview && (
-                        <div className="bg-white rounded border p-3">
-                          <p className="text-xs font-semibold text-slate-500 mb-1">Program Text Preview</p>
-                          <pre className="text-xs whitespace-pre-wrap text-slate-800 max-h-48 overflow-auto">{programReviewResult.programData.text_preview}</pre>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <Card className="border-2 border-emerald-200">
-                      <CardHeader className="bg-emerald-50">
-                        <CardTitle className="text-emerald-800">Extracted Policy Data</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-4 space-y-2 text-sm">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <p className="text-xs text-slate-500">Policy #</p>
-                            <p className="font-mono">{programReviewResult.policyData?.policy_number || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-slate-500">Insurer</p>
-                            <p className="font-bold">{programReviewResult.policyData?.insurer_name || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-slate-500">Coverage Type</p>
-                            <p>{programReviewResult.policyData?.coverage_type || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-slate-500">Effective</p>
-                            <p>{programReviewResult.policyData?.effective_date || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-slate-500">Expiration</p>
-                            <p>{programReviewResult.policyData?.expiration_date || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-slate-500">Limits (Each / Agg)</p>
-                            <p>{programReviewResult.policyData?.limits?.each_occurrence || '—'} / {programReviewResult.policyData?.limits?.aggregate || '—'}</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-2 border-yellow-200">
-                      <CardHeader className="bg-yellow-50">
-                        <CardTitle className="text-yellow-800">Risk Assessment</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-4 space-y-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-300">Level: {programReviewResult.risk?.level || 'N/A'}</Badge>
-                          <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-300">Score: {programReviewResult.risk?.score ?? 'N/A'}</Badge>
-                        </div>
-                        {Array.isArray(programReviewResult.risk?.factors) && programReviewResult.risk.factors.length > 0 && (
-                          <div className="mt-2">
-                            <p className="text-xs text-slate-500 mb-1">Factors</p>
-                            <ul className="list-disc list-inside text-slate-800">
-                              {programReviewResult.risk.factors.map((f, i) => (
-                                <li key={`risk-factor-${i}-${f.substring(0,20)}`}>{f}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <Card className="border-2 border-orange-200">
-                    <CardHeader className="bg-orange-50">
-                      <CardTitle className="text-orange-800">Deficiencies</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 space-y-3">
-                      {Array.isArray(programReviewResult.compliance?.deficiencies) && programReviewResult.compliance.deficiencies.length > 0 ? (
-                        programReviewResult.compliance.deficiencies.slice(0, 10).map((d, idx) => (
-                          <div key={idx} className="border rounded p-3 bg-white">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge className={
-                                d.severity === 'critical' ? 'bg-red-600 text-white' :
-                                d.severity === 'major' ? 'bg-orange-600 text-white' :
-                                'bg-yellow-600 text-white'
-                              }>
-                                {d.severity?.toUpperCase() || 'ISSUE'}
-                              </Badge>
-                              {d.category && (
-                                <Badge variant="outline" className="bg-white">{d.category}</Badge>
-                              )}
-                            </div>
-                            <p className="font-bold text-slate-900">{d.title || d.description || 'Issue'}</p>
-                            {d.description && (
-                              <p className="text-sm text-slate-700 mt-1">{d.description}</p>
-                            )}
-                            {d.required_action && (
-                              <p className="text-xs text-slate-600 mt-2"><span className="font-semibold">Action:</span> {d.required_action}</p>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <Alert className="bg-emerald-50 border-emerald-300">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                          <AlertDescription className="text-emerald-900">No deficiencies identified in program review.</AlertDescription>
-                        </Alert>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {Array.isArray(programReviewResult.recommendations) && programReviewResult.recommendations.length > 0 && (
-                    <Card className="border-2 border-red-200">
-                      <CardHeader className="bg-red-50">
-                        <CardTitle className="text-red-800">Recommendations</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-4">
-                        <ul className="list-disc list-inside text-slate-800 space-y-1">
-                          {programReviewResult.recommendations.map((r, i) => (
-                            <li key={`recommendation-${i}-${r.substring(0,20)}`} className="text-sm">{r}</li>
-                          ))}
-                        </ul>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
         {/* Project & Subcontractor Info */}
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
@@ -1932,7 +1633,16 @@ InsureTrack Team`
           </CardHeader>
           <CardContent className="p-6">
             <div className="grid md:grid-cols-3 gap-4">
-              {coi.first_coi_url && (
+              {coi.first_coi_url && coi.coi_source === 'system_generated' && (
+                <Button variant="outline" className="justify-start" asChild>
+                  <a href={coi.first_coi_url} target="_blank" rel="noopener noreferrer">
+                    <FileText className="w-4 h-4 mr-2" />
+                    Generated ACORD 25
+                    <ExternalLink className="w-3 h-3 ml-auto" />
+                  </a>
+                </Button>
+              )}
+              {coi.first_coi_url && coi.coi_source !== 'system_generated' && (
                 <Button variant="outline" className="justify-start" asChild>
                   <a href={coi.first_coi_url} target="_blank" rel="noopener noreferrer">
                     <FileText className="w-4 h-4 mr-2" />

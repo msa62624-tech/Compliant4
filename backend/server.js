@@ -3931,42 +3931,7 @@ app.post('/public/extract-coi-fields', publicApiLimiter, async (req, res) => {
   }
 });
 
-// Public: Program review for insurance requirements (no auth)
-app.post('/public/program-review', publicApiLimiter, async (req, res) => {
-  try {
-    const { file_url, requirements = {} } = req.body || {};
-    if (!file_url) return res.status(400).json({ error: 'file_url is required' });
 
-    // Extract text from program PDF (Adobe PDF Services mock in dev)
-    const extracted = await adobePDF.extractText(file_url);
-
-    // Basic heuristics to collect known data points
-    const programData = {
-      source: file_url,
-      pages: extracted.pages,
-      metadata: extracted.metadata,
-      text_preview: (extracted.text || '').substring(0, 1000),
-    };
-
-    // AI compliance review based on extracted text
-    const policyData = await aiAnalysis.extractPolicyData(extracted.text || '', 'program');
-    const compliance = await aiAnalysis.analyzeCOICompliance(policyData, requirements);
-    const recommendations = await aiAnalysis.generateRecommendations(policyData, compliance.deficiencies);
-    const risk = await aiAnalysis.assessRisk(policyData, requirements);
-
-    return res.json({
-      status: 'success',
-      programData,
-      policyData,
-      compliance,
-      recommendations,
-      risk
-    });
-  } catch (err) {
-    console.error('public program-review error:', err?.message || err);
-    return res.status(500).json({ error: 'Program review failed' });
-  }
-});
 
 // Public: List pending COIs (limited fields)
 app.get('/public/pending-cois', (req, res) => {

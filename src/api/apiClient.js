@@ -130,21 +130,6 @@ const coreIntegrations = {
 
 // Public integrations (no auth)
 const publicIntegrations = {
-  ProgramReview: async ({ file_url, requirements }) => {
-    const url = `${getApiBase()}/public/program-review`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file_url, requirements }),
-      credentials: 'include'
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`ProgramReview failed (${res.status}): ${text}`);
-    }
-    return res.json();
-  }
-  ,
   BrokerSignCOI: async ({ token }) => {
     const url = `${getApiBase()}/public/broker-sign-coi?token=${encodeURIComponent(token)}`;
     const res = await fetch(url, {
