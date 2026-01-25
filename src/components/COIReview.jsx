@@ -1619,12 +1619,12 @@ InsureTrack Team`
                     size="sm"
                     disabled={isGeneratingCOI}
                     onClick={generateCOIFromSystem}
-                    className="ml-2 border-purple-300 text-purple-700 hover:bg-purple-50"
+                    className="ml-2 border-purple-300 text-purple-700 hover:bg-purple-50 whitespace-nowrap"
                   >
                     {isGeneratingCOI ? (
-                      <span className="flex items-center gap-2"><RefreshCw className="w-3 h-3 animate-spin" /> Generating COI...</span>
+                      <span className="flex items-center gap-2"><RefreshCw className="w-3 h-3 animate-spin" /> <span>Generating COI...</span></span>
                     ) : (
-                      <span className="flex items-center gap-2"><FileText className="w-3 h-3" /> Generate COI</span>
+                      <span className="flex items-center gap-2"><FileText className="w-3 h-3" /> <span>Generate COI</span></span>
                     )}
                   </Button>
                   <Button

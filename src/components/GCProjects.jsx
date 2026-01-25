@@ -539,9 +539,9 @@ Return actual data only. If not found, return null.`,
 
         {/* Create/Edit Project Dialog */}
         {isDialogOpen && (
-          <div className="fixed inset-0 z-[99999] bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl h-[90vh] max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between mb-6 px-6 pt-6">
+          <div className="fixed inset-0 z-[99999] bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b flex-shrink-0">
                 <h2 className="text-xl font-bold text-slate-900">
                   {editingProject ? 'Edit Project' : 'Create New Project'}
                 </h2>
@@ -553,8 +553,8 @@ Return actual data only. If not found, return null.`,
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="flex flex-col flex-1">
-                <div className="space-y-4 py-4 px-6 overflow-y-auto flex-1">
+              <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                <div className="space-y-4 py-4 px-6 overflow-y-auto flex-1 min-h-0">
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="project_name">
@@ -803,7 +803,7 @@ Return actual data only. If not found, return null.`,
                   </div>
                 </div>
 
-                <div className="flex gap-2 px-6 py-6 border-t bg-slate-50 rounded-b-lg">
+                <div className="flex gap-2 px-6 py-4 border-t bg-slate-50 flex-shrink-0">
                   <Button type="button" variant="outline" onClick={closeDialog}>
                     Cancel
                   </Button>

@@ -7,6 +7,7 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
+import { acord25Template, generateCOIData } from '../data/acord25Template.js';
 
 // No external http client needed; using mock and Node fetch where necessary
 export default class AdobePDFService {
@@ -342,10 +343,26 @@ INSURED: MPI Plumbing Corp
       
       doc.end();
       
-      // Wait for PDF to be written
+      // Wait for PDF to be written with timeout
       await new Promise((resolve, reject) => {
-        stream.on('finish', resolve);
-        stream.on('error', reject);
+        const timeout = setTimeout(() => {
+          reject(new Error('PDF generation timeout - stream did not finish within 30 seconds'));
+        }, 30000);
+        
+        stream.on('finish', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+        
+        stream.on('error', (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+        
+        doc.on('error', (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
       });
       
       console.log(`✅ COI PDF generated: ${filename}`);
@@ -435,10 +452,26 @@ INSURED: MPI Plumbing Corp
       
       doc.end();
       
-      // Wait for PDF to be written
+      // Wait for PDF to be written with timeout
       await new Promise((resolve, reject) => {
-        stream.on('finish', resolve);
-        stream.on('error', reject);
+        const timeout = setTimeout(() => {
+          reject(new Error('Policy generation timeout - stream did not finish within 30 seconds'));
+        }, 30000);
+        
+        stream.on('finish', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+        
+        stream.on('error', (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+        
+        doc.on('error', (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
       });
       
       console.log(`✅ Policy PDF generated: ${filename}`);
@@ -447,5 +480,54 @@ INSURED: MPI Plumbing Corp
       console.error('❌ Policy PDF generation error:', error.message);
       throw error;
     }
+  }
+
+  /**
+   * Generate a sample COI PDF using ACORD 25 template
+   * @param {object} overrides - Custom data to override template defaults
+   * @param {string} uploadDir - Directory to save the generated PDF
+   * @returns {Promise<object>} Generated COI data and filename
+   */
+  async generateSampleCOI(overrides = {}, uploadDir) {
+    try {
+      console.log(`📄 Adobe: Generating Sample ACORD 25 COI`);
+      
+      // Generate COI data using template
+      const coiData = generateCOIData({
+        ...overrides,
+        isSample: true
+      });
+      
+      // Generate the PDF
+      const filename = await this.generateCOIPDF(coiData, uploadDir);
+      
+      return {
+        success: true,
+        coiData,
+        filename,
+        generatedAt: new Date().toISOString(),
+        message: 'Sample COI generated successfully'
+      };
+    } catch (error) {
+      console.error('❌ Sample COI generation error:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get ACORD 25 template for reference
+   * @returns {object} The ACORD 25 template
+   */
+  getACORD25Template() {
+    return acord25Template;
+  }
+
+  /**
+   * Generate COI data using template (without PDF generation)
+   * @param {object} overrides - Custom data to override template defaults
+   * @returns {object} Complete COI data
+   */
+  generateCOIDataFromTemplate(overrides = {}) {
+    return generateCOIData(overrides);
   }
 }

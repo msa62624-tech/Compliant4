@@ -35,7 +35,7 @@ export default function ArchivePage() {
   });
 
   // Fetch archived contractors (GCs and Subs)
-  const { data: archivedContractors = [], isLoading: loadingContractors } = useQuery({
+  const { data: archivedContractors = [], isLoading: loadingContractors, error: contractorsError } = useQuery({
     queryKey: ['archived-contractors'],
     queryFn: async () => {
       const baseUrl = import.meta.env.VITE_API_BASE_URL ||
@@ -48,6 +48,7 @@ export default function ArchivePage() {
           return 'http://localhost:3001';
         })();
       
+      console.log('🗄️ Fetching archived contractors from:', `${baseUrl}/entities/Contractor/archived`);
       const response = await fetch(`${baseUrl}/entities/Contractor/archived`, {
         headers: {
           'Content-Type': 'application/json',
@@ -56,14 +57,19 @@ export default function ArchivePage() {
         credentials: 'include'
       });
       
-      if (!response.ok) throw new Error('Failed to fetch archived contractors');
-      return response.json();
+      if (!response.ok) {
+        console.error('❌ Failed to fetch archived contractors:', response.status, response.statusText);
+        throw new Error('Failed to fetch archived contractors');
+      }
+      const data = await response.json();
+      console.log('✅ Archived contractors:', data.length, 'items', data);
+      return data;
     },
     enabled: user?.role === 'super_admin' || user?.role === 'admin',
   });
 
   // Fetch archived projects
-  const { data: archivedProjects = [], isLoading: loadingProjects } = useQuery({
+  const { data: archivedProjects = [], isLoading: loadingProjects, error: projectsError } = useQuery({
     queryKey: ['archived-projects'],
     queryFn: async () => {
       const baseUrl = import.meta.env.VITE_API_BASE_URL ||
@@ -76,6 +82,7 @@ export default function ArchivePage() {
           return 'http://localhost:3001';
         })();
       
+      console.log('🗄️ Fetching archived projects from:', `${baseUrl}/entities/Project/archived`);
       const response = await fetch(`${baseUrl}/entities/Project/archived`, {
         headers: {
           'Content-Type': 'application/json',
@@ -84,8 +91,13 @@ export default function ArchivePage() {
         credentials: 'include'
       });
       
-      if (!response.ok) throw new Error('Failed to fetch archived projects');
-      return response.json();
+      if (!response.ok) {
+        console.error('❌ Failed to fetch archived projects:', response.status, response.statusText);
+        throw new Error('Failed to fetch archived projects');
+      }
+      const data = await response.json();
+      console.log('✅ Archived projects:', data.length, 'items', data);
+      return data;
     },
     enabled: user?.role === 'super_admin' || user?.role === 'admin',
   });
@@ -272,14 +284,31 @@ export default function ArchivePage() {
             <p className="text-slate-600">Loading archives...</p>
           </CardContent>
         </Card>
+      ) : (contractorsError || projectsError || loadingProjectSubs) ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-400" />
+            <h2 className="text-xl font-semibold mb-2 text-red-600">Error Loading Archives</h2>
+            <p className="text-slate-600 mb-2">
+              {contractorsError?.message || projectsError?.message || 'Failed to load archived data'}
+            </p>
+            <p className="text-sm text-slate-500">Check browser console for details</p>
+          </CardContent>
+        </Card>
       ) : filteredData.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <Archive className="w-16 h-16 mx-auto mb-4 text-slate-400" />
             <h2 className="text-xl font-semibold mb-2">No Archived Items</h2>
-            <p className="text-slate-600">
+            <p className="text-slate-600 mb-2">
               {searchQuery ? "No items match your search." : "There are no archived items yet."}
             </p>
+            <div className="mt-4 text-left max-w-md mx-auto space-y-1 text-sm text-slate-500">
+              <p>Debug info:</p>
+              <p>• Contractors: {archivedContractors?.length || 0}</p>
+              <p>• Projects: {archivedProjects?.length || 0}</p>
+              <p>• Project Subs: {archivedProjectSubs?.length || 0}</p>
+            </div>
           </CardContent>
         </Card>
       ) : (

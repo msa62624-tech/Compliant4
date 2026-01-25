@@ -2309,120 +2309,237 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
 
   try {
     // Helper: create an ACORD-style sample COI PDF buffer based on provided data
-    const generateSampleCOIPDF = (data = {}) => {
-      return new Promise((resolve, reject) => {
+    const generateSampleCOIPDF = async (data = {}) => {
+      return new Promise(async (resolve, reject) => {
         try {
-          const doc = new PDFDocument({ size: 'LETTER', margin: 36 });
+          // Fetch program requirements if program is specified
+          let programRequirements = null;
+          if (data.program) {
+            try {
+              const programs = entities.InsuranceProgram?.filter(p => p.name === data.program) || [];
+              if (programs && programs.length > 0) {
+                const programId = programs[0].id;
+                programRequirements = entities.ProgramRequirement?.filter(req => req.program_id === programId) || [];
+              }
+            } catch (err) {
+              console.warn('Could not fetch program requirements:', err?.message);
+            }
+          }
+
+          // Determine trade tier and requirements
+          let tradeRequirements = null;
+          if (data.trade && programRequirements && programRequirements.length > 0) {
+            const tradesList = data.trade.split(',').map(t => t.trim().toLowerCase());
+            tradeRequirements = programRequirements.filter(req => {
+              const applicableTrades = req.applicable_trades || [];
+              return applicableTrades.some(t => tradesList.includes(t.toLowerCase()));
+            });
+          }
+
+          // Determine if umbrella is required
+          const hasUmbrellaRequirement = tradeRequirements && tradeRequirements.some(req => 
+            req.insurance_type === 'umbrella_policy' || req.umbrella_each_occurrence
+          );
+
+          const doc = new PDFDocument({ size: 'LETTER', margin: 40 });
           const chunks = [];
           doc.on('data', (c) => chunks.push(c));
           doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-          // Header - ACORD style
-          doc.fontSize(18).font('Helvetica-Bold').text('ACORD CERTIFICATE OF LIABILITY INSURANCE', { align: 'center' });
-          doc.moveDown(0.5);
-
-          // Top block: Producer / Insured / NAIC
-          const leftX = doc.x;
-          const colGap = 260;
-
-          // Producer (Broker) - intentionally left blank per spec
-          doc.fontSize(9).font('Helvetica-Bold').text('PRODUCER:', leftX, doc.y);
-          doc.font('Helvetica').text('', leftX, doc.y);
-          doc.moveDown(0.2);
-
-          // Insured (Named Insured) - left blank per spec
-          doc.font('Helvetica-Bold').text('INSURED:', leftX, doc.y);
-          doc.font('Helvetica').text('', leftX, doc.y);
-          doc.moveDown(0.2);
-
-          // Certificate Holder / To section - show GC and mark Per Project
-          doc.font('Helvetica-Bold').text('CERTIFICATE HOLDER (TO):', leftX, doc.y);
-          const certHolder = data.gc_name || data.project_name || 'General Contractor';
-          doc.font('Helvetica').text(`${certHolder}  (Per Project: YES)`, { continued: false });
-          doc.moveDown(0.5);
-
-          // Small infos: Program / Trade
-          doc.fontSize(9).font('Helvetica-Bold').text('INSURANCE PROGRAM:', leftX);
-          doc.font('Helvetica').text(data.program || 'N/A');
-          doc.moveDown(0.1);
-          doc.font('Helvetica-Bold').text('TRADE:', leftX);
-          doc.font('Helvetica').text(data.trade || 'N/A');
-          doc.moveDown(0.5);
-
-          // Insurer names header
-          doc.fontSize(10).font('Helvetica-Bold').text('INSURER(S) AFFORDING COVERAGE', leftX);
-          doc.moveDown(0.2);
-          doc.fontSize(9).font('Helvetica').text('Insurance Company (A)    Insurance Company (B)    Insurance Company (C)');
-          doc.moveDown(0.5);
-
-          // Job / Project Location details
-          if (data.projectName || data.projectAddress) {
-            doc.fontSize(9).font('Helvetica-Bold').text('PROJECT / JOB LOCATION:', leftX);
-            if (data.projectName) {
-              doc.font('Helvetica').text(`Project: ${data.projectName}`);
-            }
-            if (data.projectAddress) {
-              doc.font('Helvetica').text(`Location: ${data.projectAddress}`);
-            }
-            doc.moveDown(0.4);
-          }
-
-          // Coverage table header
-          doc.fontSize(9).font('Helvetica-Bold').text('TYPE OF INSURANCE', leftX);
-          doc.text('   |   INSURER', leftX + 220);
-          doc.text('   |   POLICY NUMBER', leftX + 340);
-          doc.text('   |   EFFECTIVE', leftX + 430);
-          doc.text('   |   EXPIRATION', leftX + 500);
-          doc.moveDown(0.2);
-
-          const coverageRow = (label) => {
-            doc.font('Helvetica').text(label, { continued: true });
-            doc.text('   Insurance Company', { continued: true, align: 'left' });
-            doc.text('   XXXX', { continued: true, align: 'left' });
-            doc.text('   xx/dx/xx', { continued: true, align: 'left' });
-            doc.text('   xx/dx/xx');
-            doc.moveDown(0.1);
+          const pageWidth = 612; // Letter size width in points
+          const pageHeight = 792; // Letter size height in points
+          const margin = 40;
+          const contentWidth = pageWidth - (margin * 2);
+          
+          // Helper to draw boxes
+          const drawBox = (x, y, width, height) => {
+            doc.rect(x, y, width, height).stroke();
           };
 
-          // Provide common coverage rows
-          coverageRow('GENERAL LIABILITY');
-          coverageRow('AUTOMOBILE LIABILITY');
-          coverageRow('WORKERS COMPENSATION AND EMPLOYERS LIABILITY');
-          coverageRow('EXCESS / UMBRELLA LIABILITY');
-          doc.moveDown(0.3);
+          // ACORD 25 FORM HEADER
+          doc.fontSize(7).font('Helvetica').text('ACORD', margin, margin);
+          doc.fontSize(6).text('CERTIFICATE OF LIABILITY INSURANCE', margin, margin + 8);
+          doc.fontSize(6).text('DATE (MM/DD/YYYY)', pageWidth - margin - 100, margin);
+          doc.fontSize(8).text(new Date().toLocaleDateString('en-US'), pageWidth - margin - 100, margin + 10);
+
+          let yPos = margin + 30;
+
+          // PRODUCER BOX (Left side)
+          drawBox(margin, yPos, contentWidth * 0.6, 80);
+          doc.fontSize(6).font('Helvetica-Bold').text('PRODUCER', margin + 3, yPos + 3);
+          doc.fontSize(8).font('Helvetica').text('(Broker/Producer Name and Contact)', margin + 3, yPos + 12);
+          doc.fontSize(7).text('(Address, Phone, Email to be completed)', margin + 3, yPos + 25);
+
+          // CONTACT INFO BOX (Right side)
+          const contactBoxX = margin + (contentWidth * 0.6) + 2;
+          drawBox(contactBoxX, yPos, contentWidth * 0.4 - 2, 40);
+          doc.fontSize(6).font('Helvetica-Bold').text('CONTACT', contactBoxX + 3, yPos + 3);
+          doc.fontSize(6).font('Helvetica').text('NAME:', contactBoxX + 3, yPos + 12);
+          doc.fontSize(6).text('PHONE: ', contactBoxX + 3, yPos + 22);
+          doc.fontSize(6).text('E-MAIL:', contactBoxX + 3, yPos + 32);
+
+          // INSURER INFO BOX (Right side, bottom)
+          drawBox(contactBoxX, yPos + 42, contentWidth * 0.4 - 2, 38);
+          doc.fontSize(6).font('Helvetica-Bold').text('INSURER(S) AFFORDING COVERAGE', contactBoxX + 3, yPos + 44);
+          doc.fontSize(6).font('Helvetica').text('INSURER A:', contactBoxX + 3, yPos + 54);
+          doc.fontSize(6).text('INSURER B:', contactBoxX + 3, yPos + 64);
+          doc.fontSize(6).text('INSURER C:', contactBoxX + 3, yPos + 74);
+
+          yPos += 82;
+
+          // INSURED BOX
+          drawBox(margin, yPos, contentWidth * 0.6, 45);
+          doc.fontSize(6).font('Helvetica-Bold').text('INSURED', margin + 3, yPos + 3);
+          doc.fontSize(8).font('Helvetica').text('(Named Insured Name and Address)', margin + 3, yPos + 12);
+          doc.fontSize(7).text('(To be completed by broker)', margin + 3, yPos + 25);
+
+          yPos += 47;
+
+          // COVERAGES SECTION
+          doc.fontSize(7).font('Helvetica-Bold').text('COVERAGES', margin, yPos);
+          doc.fontSize(6).font('Helvetica').text('THIS IS TO CERTIFY THAT THE POLICIES OF INSURANCE LISTED BELOW HAVE BEEN ISSUED TO THE INSURED NAMED ABOVE FOR THE POLICY PERIOD INDICATED.', margin, yPos + 10, { width: contentWidth, align: 'justify' });
+
+          yPos += 30;
+
+          // Coverage Table Header
+          drawBox(margin, yPos, contentWidth, 20);
+          doc.fontSize(6).font('Helvetica-Bold');
+          doc.text('TYPE OF INSURANCE', margin + 3, yPos + 3);
+          doc.text('INSR', margin + 3, yPos + 12);
+          doc.text('LTR', margin + 3, yPos + 12);
+          doc.text('POLICY NUMBER', margin + 180, yPos + 8);
+          doc.text('POLICY EFF', margin + 300, yPos + 3);
+          doc.text('(MM/DD/YYYY)', margin + 300, yPos + 11);
+          doc.text('POLICY EXP', margin + 380, yPos + 3);
+          doc.text('(MM/DD/YYYY)', margin + 380, yPos + 11);
+          doc.text('LIMITS', margin + 460, yPos + 8);
+
+          yPos += 22;
+
+          // GENERAL LIABILITY ROW
+          drawBox(margin, yPos, contentWidth, 60);
+          doc.fontSize(7).font('Helvetica-Bold').text('COMMERCIAL GENERAL LIABILITY', margin + 25, yPos + 3);
+          doc.fontSize(6).font('Helvetica').text('☐ CLAIMS-MADE  ☒ OCCUR', margin + 25, yPos + 12);
+          doc.fontSize(6).text('☒ PER PROJECT', margin + 25, yPos + 20);
+          doc.fontSize(6).text('A', margin + 5, yPos + 3);
+          doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 8);
+          doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 8);
+          doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 8);
+          
+          // GL Limits
+          doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 460, yPos + 3);
+          const glLimit = tradeRequirements?.find(r => r.gl_each_occurrence)?.gl_each_occurrence || 1000000;
+          doc.text(`$ ${glLimit.toLocaleString()}`, margin + 460, yPos + 10);
+          doc.text('GENERAL AGGREGATE', margin + 460, yPos + 22);
+          const glAgg = tradeRequirements?.find(r => r.gl_general_aggregate)?.gl_general_aggregate || 2000000;
+          doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 29);
+          doc.text('PRODUCTS - COMP/OP AGG', margin + 460, yPos + 41);
+          doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 48);
+
+          yPos += 62;
+
+          // AUTOMOBILE LIABILITY ROW
+          drawBox(margin, yPos, contentWidth, 35);
+          doc.fontSize(7).font('Helvetica-Bold').text('AUTOMOBILE LIABILITY', margin + 25, yPos + 3);
+          doc.fontSize(6).font('Helvetica').text('☐ ANY AUTO  ☐ OWNED  ☐ SCHEDULED', margin + 25, yPos + 12);
+          doc.fontSize(6).text('☐ HIRED  ☐ NON-OWNED', margin + 25, yPos + 20);
+          doc.fontSize(6).text('B', margin + 5, yPos + 3);
+          doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
+          doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
+          doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
+          doc.text('COMBINED SINGLE LIMIT', margin + 460, yPos + 8);
+          const autoLimit = tradeRequirements?.find(r => r.auto_combined_single_limit)?.auto_combined_single_limit || 1000000;
+          doc.text(`$ ${autoLimit.toLocaleString()}`, margin + 460, yPos + 15);
+
+          yPos += 37;
+
+          // WORKERS COMPENSATION ROW
+          drawBox(margin, yPos, contentWidth, 35);
+          doc.fontSize(7).font('Helvetica-Bold').text('WORKERS COMPENSATION', margin + 25, yPos + 3);
+          doc.fontSize(6).font('Helvetica').text('AND EMPLOYERS\' LIABILITY', margin + 25, yPos + 11);
+          doc.fontSize(6).text('☒ STATUTORY LIMITS', margin + 25, yPos + 20);
+          doc.fontSize(6).text('C', margin + 5, yPos + 3);
+          doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
+          doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
+          doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
+          doc.text('E.L. EACH ACCIDENT', margin + 460, yPos + 3);
+          const wcLimit = tradeRequirements?.find(r => r.wc_each_accident)?.wc_each_accident || 1000000;
+          doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 10);
+          doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 460, yPos + 18);
+          doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 25);
+
+          yPos += 37;
+
+          // UMBRELLA ROW (if required)
+          if (hasUmbrellaRequirement) {
+            drawBox(margin, yPos, contentWidth, 35);
+            doc.fontSize(7).font('Helvetica-Bold').text('UMBRELLA LIAB', margin + 25, yPos + 3);
+            doc.fontSize(6).font('Helvetica').text('☐ OCCUR  ☐ CLAIMS-MADE', margin + 25, yPos + 12);
+            doc.fontSize(6).text('☒ FOLLOW FORM', margin + 25, yPos + 20);
+            doc.fontSize(6).text('D', margin + 5, yPos + 3);
+            doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
+            doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
+            doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
+            doc.text('EACH OCCURRENCE', margin + 460, yPos + 8);
+            const umbLimit = tradeRequirements?.find(r => r.umbrella_each_occurrence)?.umbrella_each_occurrence || 2000000;
+            doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 15);
+            doc.text('AGGREGATE', margin + 460, yPos + 23);
+            doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 30);
+            yPos += 37;
+          }
+
+          // DESCRIPTION OF OPERATIONS BOX
+          drawBox(margin, yPos, contentWidth * 0.6, 80);
+          doc.fontSize(6).font('Helvetica-Bold').text('DESCRIPTION OF OPERATIONS / LOCATIONS / VEHICLES', margin + 3, yPos + 3);
+          doc.fontSize(7).font('Helvetica');
+          const umbrellaText = hasUmbrellaRequirement ? ' & Umbrella' : '';
+          doc.text(
+            `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`,
+            margin + 3,
+            yPos + 13,
+            { width: contentWidth * 0.6 - 6, align: 'left' }
+          );
 
           // Additional Insureds
-          doc.font('Helvetica-Bold').text('ADDITIONAL INSURED(S):');
+          doc.fontSize(7).font('Helvetica-Bold').text('ADDITIONAL INSURED(S):', margin + 3, yPos + 50);
+          doc.fontSize(7).font('Helvetica');
           if (Array.isArray(data.additional_insureds) && data.additional_insureds.length > 0) {
-            data.additional_insureds.forEach(ai => doc.font('Helvetica').text(`• ${ai}`));
+            data.additional_insureds.slice(0, 3).forEach((ai, idx) => {
+              doc.text(`• ${ai}`, margin + 3, yPos + 58 + (idx * 8), { width: contentWidth * 0.6 - 6 });
+            });
           } else {
-            if (data.gc_owner) doc.font('Helvetica').text(`• ${data.gc_owner}`);
-            if (data.gc_name) doc.font('Helvetica').text(`• ${data.gc_name}`);
+            doc.text('• (See certificate holder below)', margin + 3, yPos + 58);
           }
-          doc.moveDown(0.3);
 
-          // Certificate Holder (explicit block)
-          doc.font('Helvetica-Bold').text('CERTIFICATE HOLDER:');
-          doc.font('Helvetica').text(data.gc_name || certHolder);
-          doc.moveDown(0.2);
+          // CERTIFICATE HOLDER BOX (Bottom right)
+          const certHolderX = margin + (contentWidth * 0.6) + 2;
+          drawBox(certHolderX, yPos, contentWidth * 0.4 - 2, 80);
+          doc.fontSize(6).font('Helvetica-Bold').text('CERTIFICATE HOLDER', certHolderX + 3, yPos + 3);
+          doc.fontSize(8).font('Helvetica');
+          const certHolder = data.gc_name || 'General Contractor';
+          doc.text(certHolder, certHolderX + 3, yPos + 15);
+          if (data.projectAddress) {
+            doc.fontSize(7).text(data.projectAddress, certHolderX + 3, yPos + 25, { width: contentWidth * 0.4 - 8 });
+          }
+          if (data.project_name) {
+            doc.fontSize(7).text(`Re: ${data.project_name}`, certHolderX + 3, yPos + 40, { width: contentWidth * 0.4 - 8 });
+          }
 
-          // Per Project and Occurrence markers
-          doc.font('Helvetica-Bold').text('PER PROJECT:');
-          doc.font('Helvetica').text('YES');
-          doc.font('Helvetica-Bold').text('OCCURRENCE:');
-          doc.font('Helvetica').text('YES');
-          doc.moveDown(0.4);
+          yPos += 82;
 
-          // Important placeholders required by spec
-          doc.fontSize(9).font('Helvetica-Bold').text('NAMED INSURED:');
-          doc.font('Helvetica').text('');
-          doc.moveDown(0.1);
-          doc.font('Helvetica-Bold').text('BROKER / ILBROKER:');
-          doc.font('Helvetica').text('');
-          doc.moveDown(0.3);
+          // CANCELLATION NOTICE
+          doc.fontSize(6).font('Helvetica-Bold').text('CANCELLATION', margin, yPos);
+          doc.fontSize(6).font('Helvetica').text('SHOULD ANY OF THE ABOVE DESCRIBED POLICIES BE CANCELLED BEFORE THE EXPIRATION DATE THEREOF, NOTICE WILL BE DELIVERED IN ACCORDANCE WITH THE POLICY PROVISIONS.', margin, yPos + 8, { width: contentWidth, align: 'justify' });
 
-          // Footer note
-          doc.fontSize(8).font('Helvetica').text('This is a SAMPLE certificate generated for review purposes only. All carriers, policy numbers and dates are placeholders.', { align: 'left' });
+          yPos += 25;
+
+          // AUTHORIZED REPRESENTATIVE
+          doc.fontSize(6).font('Helvetica-Bold').text('AUTHORIZED REPRESENTATIVE', margin, yPos);
+          doc.fontSize(7).font('Helvetica').text('(Signature)', margin, yPos + 15);
+
+          // Footer
+          doc.fontSize(5).font('Helvetica').text('© 1988-2015 ACORD CORPORATION. All rights reserved.', margin, pageHeight - margin - 15);
+          doc.text('ACORD 25 (2016/03)', pageWidth - margin - 80, pageHeight - margin - 15);
 
           doc.end();
         } catch (e) {
@@ -4135,65 +4252,173 @@ app.post('/admin/generate-coi', apiLimiter, authenticateToken, async (req, res) 
     const project = projectSub ? entities.Project.find(p => p.id === projectSub.project_id) : null;
     const subcontractor = projectSub ? entities.Contractor.find(c => c.id === projectSub.subcontractor_id) : null;
     
-    // Get insurance documents for this subcontractor
-    const insuranceDocs = entities.InsuranceDocument.filter(doc => 
-      doc.contractor_id === subcontractor?.id && doc.approval_status === 'approved'
-    );
-    
-    // Prepare coverage data
-    const coverages = insuranceDocs.map(doc => ({
-      type: doc.document_type || 'General Liability',
-      insurer: doc.insurance_carrier || 'N/A',
-      policyNumber: doc.policy_number || 'N/A',
-      effectiveDate: doc.effective_date || 'N/A',
-      expirationDate: doc.expiration_date || 'N/A',
-      limits: doc.coverage_amount ? `$${doc.coverage_amount.toLocaleString()}` : 'As per requirements'
-    }));
-    
-    // Prepare additional remarks for ACORD 25 schedule
-    const additionalRemarks = [];
-    if (project?.additional_insured_requirements) {
-      additionalRemarks.push(project.additional_insured_requirements);
-    }
-    if (coi.notes) {
-      additionalRemarks.push(coi.notes);
+    // Check for master insurance data (uploaded ACORD 25 and policies)
+    let masterData = null;
+    if (subcontractor?.master_insurance_data) {
+      try {
+        masterData = typeof subcontractor.master_insurance_data === 'string' 
+          ? JSON.parse(subcontractor.master_insurance_data) 
+          : subcontractor.master_insurance_data;
+      } catch (parseErr) {
+        console.warn('Could not parse master_insurance_data:', parseErr?.message);
+      }
     }
     
+    // Get insurance program requirements
+    let programRequirements = null;
+    if (project?.program_id) {
+      programRequirements = entities.ProgramRequirement?.filter(req => req.program_id === project.program_id) || null;
+    }
+    
+    // Prepare COI data using ACORD 25 format with uploaded data
     const coiData = {
       coiId: coi_id,
-      subcontractorName: subcontractor?.company_name || 'Subcontractor',
-      subcontractorAddress: subcontractor?.address || '',
-      projectName: project?.project_name || '',
-      projectAddress: project?.address || '',
-      broker: {
-        name: coi.broker_name || 'Insurance Broker',
-        email: coi.broker_email || '',
-        phone: coi.broker_phone || ''
+      
+      // Producer/Broker information (from uploaded ACORD 25 or broker record)
+      producer: masterData?.producer || {
+        name: subcontractor?.broker_name || coi.broker_name || 'Insurance Broker',
+        email: subcontractor?.broker_email || coi.broker_email || '',
+        phone: subcontractor?.broker_phone || coi.broker_phone || '',
+        address: masterData?.producer?.address || ''
       },
-      coverages: coverages.length > 0 ? coverages : null,
-      additionalInsured: project?.owner_entity || '',
-      certificateHolder: project?.gc_name || '',
-      certificateHolderAddress: project?.gc_address || '',
-      additionalRemarks: additionalRemarks.length > 0 ? additionalRemarks : null
+      
+      // Insured (Subcontractor) information
+      insured: masterData?.insured || {
+        name: subcontractor?.company_name || 'Subcontractor',
+        address: subcontractor?.address || '',
+        city: subcontractor?.city || '',
+        state: subcontractor?.state || '',
+        zip: subcontractor?.zip_code || ''
+      },
+      
+      // Certificate Holder (GC)
+      certificateHolder: {
+        name: project?.gc_name || '',
+        address: project?.project_address || project?.address || '',
+        projectName: project?.project_name || ''
+      },
+      
+      // Additional Insureds
+      additionalInsureds: (() => {
+        const insureds = [];
+        if (project?.gc_name) insureds.push(project.gc_name);
+        if (project?.owner_entity) insureds.push(project.owner_entity);
+        if (project?.additional_insured_entities) {
+          const extras = Array.isArray(project.additional_insured_entities) 
+            ? project.additional_insured_entities 
+            : project.additional_insured_entities.split(',').map(s => s.trim());
+          insureds.push(...extras);
+        }
+        return insureds;
+      })(),
+      
+      // Description of operations with endorsement language
+      descriptionOfOperations: (() => {
+        const hasUmbrella = programRequirements?.some(req => 
+          req.insurance_type === 'umbrella_policy' || req.umbrella_each_occurrence
+        );
+        const umbrellaText = hasUmbrella ? ' & Umbrella' : '';
+        return `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`;
+      })(),
+      
+      // Coverage information from uploaded policies/ACORD 25 or master data
+      coverages: {
+        generalLiability: masterData?.coverages?.generalLiability || {
+          insurer: coi.gl_insurer || 'Insurer A',
+          insurerLetter: 'A',
+          policyNumber: coi.gl_policy_number || 'GL-XXXXXX',
+          effectiveDate: coi.gl_effective_date || masterData?.effectiveDate,
+          expirationDate: coi.gl_expiration_date || masterData?.expirationDate,
+          eachOccurrence: coi.gl_each_occurrence || masterData?.gl_each_occurrence || 1000000,
+          damageToRentedPremises: coi.gl_damage_rented_premises || 300000,
+          medicalExpense: coi.gl_med_exp || 10000,
+          personalAdvInjury: coi.gl_personal_adv_injury || 1000000,
+          generalAggregate: coi.gl_general_aggregate || masterData?.gl_general_aggregate || 2000000,
+          productsCompletedOps: coi.gl_products_completed_ops || masterData?.gl_products_completed_ops || 2000000,
+          claimsOccurrence: 'OCCUR',
+          additionalInsured: true,
+          primaryNonContributory: true,
+          waiverOfSubrogation: true
+        },
+        
+        automobile: masterData?.coverages?.automobile || {
+          insurer: coi.auto_insurer || 'Insurer B',
+          insurerLetter: 'B',
+          policyNumber: coi.auto_policy_number || 'AUTO-XXXXXX',
+          effectiveDate: coi.auto_effective_date || masterData?.effectiveDate,
+          expirationDate: coi.auto_expiration_date || masterData?.expirationDate,
+          combinedSingleLimit: coi.auto_combined_single_limit || masterData?.auto_combined_single_limit || 1000000,
+          anyAuto: true,
+          hiredAuto: true,
+          nonOwnedAuto: true
+        },
+        
+        workersCompensation: masterData?.coverages?.workersCompensation || {
+          insurer: coi.wc_insurer || 'Insurer C',
+          insurerLetter: 'C',
+          policyNumber: coi.wc_policy_number || 'WC-XXXXXX',
+          effectiveDate: coi.wc_effective_date || masterData?.effectiveDate,
+          expirationDate: coi.wc_expiration_date || masterData?.expirationDate,
+          eachAccident: coi.wc_each_accident || masterData?.wc_each_accident || 1000000,
+          diseasePerEmployee: coi.wc_disease_each_employee || 1000000,
+          diseasePolicyLimit: coi.wc_disease_policy_limit || 1000000,
+          statutoryLimits: true,
+          waiverOfSubrogation: true
+        },
+        
+        umbrella: (masterData?.coverages?.umbrella || coi.umbrella_policy_number) ? {
+          insurer: coi.umbrella_insurer || 'Insurer D',
+          insurerLetter: 'D',
+          policyNumber: coi.umbrella_policy_number || 'UMB-XXXXXX',
+          effectiveDate: coi.umbrella_effective_date || masterData?.effectiveDate,
+          expirationDate: coi.umbrella_expiration_date || masterData?.expirationDate,
+          eachOccurrence: coi.umbrella_each_occurrence || masterData?.umbrella_each_occurrence || 2000000,
+          aggregate: coi.umbrella_aggregate || masterData?.umbrella_aggregate || 2000000,
+          followForm: true,
+          additionalInsured: true,
+          primaryNonContributory: true,
+          waiverOfSubrogation: true
+        } : null
+      },
+      
+      // Insurers list
+      insurers: masterData?.insurers || {
+        A: { name: coi.gl_insurer || 'General Liability Insurance Co.', naic: masterData?.insurers?.A?.naic || '' },
+        B: { name: coi.auto_insurer || 'Auto Insurance Co.', naic: masterData?.insurers?.B?.naic || '' },
+        C: { name: coi.wc_insurer || 'Workers Comp Insurance Co.', naic: masterData?.insurers?.C?.naic || '' },
+        D: coi.umbrella_insurer ? { name: coi.umbrella_insurer, naic: masterData?.insurers?.D?.naic || '' } : null
+      },
+      
+      // Project location
+      projectLocation: project?.project_address || project?.address || '',
+      
+      // Cancellation notice
+      cancellationNotice: 'SHOULD ANY OF THE ABOVE DESCRIBED POLICIES BE CANCELLED BEFORE THE EXPIRATION DATE THEREOF, NOTICE WILL BE DELIVERED IN ACCORDANCE WITH THE POLICY PROVISIONS.',
+      
+      // Additional remarks
+      remarks: coi.notes || masterData?.remarks || ''
     };
     
-    // Generate actual PDF
+    // Generate ACORD 25 PDF using the proper format
     const filename = await adobePDF.generateCOIPDF(coiData, UPLOADS_DIR);
     const generatedUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
     
+    // Update COI record with generated PDF
     entities.GeneratedCOI[coiIdx] = {
       ...entities.GeneratedCOI[coiIdx],
       first_coi_url: generatedUrl,
       first_coi_uploaded: true,
       uploaded_for_review_date: new Date().toISOString(),
-      status: 'pending',
-      coi_source: 'system_generated'
+      status: 'pending_broker_signature',
+      coi_source: 'system_generated',
+      generated_from_master_data: !!masterData
     };
+    
     debouncedSave();
     return res.json(entities.GeneratedCOI[coiIdx]);
   } catch (err) {
     console.error('admin generate-coi error:', err?.message || err);
-    return res.status(500).json({ error: 'Failed to generate COI' });
+    return res.status(500).json({ error: 'Failed to generate COI', details: err?.message });
   }
 });
 

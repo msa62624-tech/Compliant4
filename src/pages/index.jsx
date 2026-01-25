@@ -127,33 +127,50 @@ function Sidebar({ onLogout }) {
 }
 
 export default function Pages({ onLogout }) {
+  // Determine which portal to show based on CURRENT PATH and AUTHENTICATION
+  // Don't use sessionStorage flags that can conflict between tabs
+  
+  // Check if this is an admin portal request (has admin token)
+  const hasAdminToken = auth.getToken && auth.getToken();
+  const isAdminPath = !window.location.pathname.startsWith('/gc-') && 
+                      !window.location.pathname.startsWith('/broker-') && 
+                      !window.location.pathname.startsWith('/subcontractor-') &&
+                      !window.location.pathname.startsWith('/sub-');
+  
+  // Determine portal based on current path
+  const isOnGCPath = window.location.pathname.startsWith('/gc-');
+  const isOnBrokerPath = window.location.pathname.startsWith('/broker-');
+  const isOnSubPath = window.location.pathname.startsWith('/subcontractor-') || 
+                      window.location.pathname.startsWith('/sub-');
+  
+  // Each portal is independent - priority is current path, not shared sessionStorage
   const [isGCPublicSession, setIsGCPublicSession] = useState(() => {
     if (typeof window === 'undefined') return false
-    const isGC = window.location.pathname.startsWith('/gc-dashboard') || 
-                 window.location.pathname.startsWith('/gc-login') ||
-                 window.location.pathname.startsWith('/gc-project')
-    return isGC;
+    // Only use GC session if currently on GC path AND not authenticated as admin
+    return isOnGCPath && !hasAdminToken;
   })
 
   const [isBrokerPublicSession, setIsBrokerPublicSession] = useState(() => {
     if (typeof window === 'undefined') return false
+    // Only use broker session if currently on broker path AND not authenticated as admin
     const isBrokerPath = window.location.pathname.startsWith('/broker-dashboard') || 
                          window.location.pathname.startsWith('/broker-upload-coi') || 
                          window.location.pathname.startsWith('/broker-upload') ||
                          window.location.pathname.startsWith('/broker-login');
-    return isBrokerPath || sessionStorage.getItem('brokerPublicSession') === 'true'
+    return isBrokerPath && !hasAdminToken;
   })
 
   const [isSubPublicSession, setIsSubPublicSession] = useState(() => {
     if (typeof window === 'undefined') return false
+    // Only use sub session if currently on subcontractor path AND not authenticated as admin
     const path = window.location.pathname
-    return (
+    const isSubPath = (
       path.startsWith('/subcontractor-dashboard') ||
       path.startsWith('/sub-enter-broker-info') ||
       path.startsWith('/broker-verification') ||
-      path.startsWith('/subcontractor-login') ||
-      sessionStorage.getItem('subPublicSession') === 'true'
-    )
+      path.startsWith('/subcontractor-login')
+    );
+    return isSubPath && !hasAdminToken;
   })
 
   // Check broker routes FIRST (before sub routes)
@@ -248,14 +265,16 @@ export default function Pages({ onLogout }) {
   // If an admin token exists and we're not on a GC public route, disable GC public mode
   useEffect(() => {
     if (auth.getToken && auth.getToken()) {
-      if (!isGCRoute && isGCPublicSession) {
+      // Admin is authenticated - clear any GC public session
+      if (isGCPublicSession) {
+        console.log('🔐 Admin authenticated, disabling GC public session');
         sessionStorage.removeItem('gcPublicSession')
         sessionStorage.removeItem('gcPortalId')
         sessionStorage.removeItem('gcAuthenticated')
         setIsGCPublicSession(false)
       }
     }
-  }, [isGCRoute, isGCPublicSession])
+  }, [isGCPublicSession])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

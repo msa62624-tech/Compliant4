@@ -435,6 +435,14 @@ Please upload ONLY the policy documents listed above.` : '';
 
       await sendEmail({
         to: brokerEmail,
+        includeSampleCOI: true,
+        sampleCOIData: {
+          project_name: project.project_name,
+          gc_name: project.gc_name,
+          trade: subcontractor.trade_types?.join(', '),
+          program: project.program_name || project.program_id,
+          additional_insureds: additionalInsuredList
+        },
         subject: `Action Required: ${isFirstProject && !hasUploadedDocs ? 'Document Upload & COI for' : 'COI for'} ${subcontractor.company_name} - ${project.project_name}`,
         body: `Dear ${brokerName || 'Insurance Broker'},
 

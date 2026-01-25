@@ -137,6 +137,18 @@ export default function SubEnterBrokerInfo() {
       try {
         await sendEmail({
           to: form.broker_email,
+          includeSampleCOI: true,
+          sampleCOIData: {
+            project_name: coi.project_name,
+            gc_name: coi.gc_name,
+            projectAddress: coi.project_address,
+            trade: sub?.trade_types?.join(', '),
+            program: coi.program_name || coi.program_id,
+            additional_insureds: coi.additional_insured_entities ? 
+              (Array.isArray(coi.additional_insured_entities) ? coi.additional_insured_entities : 
+                coi.additional_insured_entities.split(',').map(s => s.trim())) : 
+              [coi.gc_name, coi.owner_entity].filter(Boolean)
+          },
           subject: `COI Request for ${coi.project_name || "Project"}`,
           body: `Hello ${form.broker_name || ""},\n\nA client needs a Certificate of Insurance for ${coi.project_name || "the project"}.\n\n${loginInfo}\n\nThis project upload link: ${brokerUploadLink}\n\nUse the dashboard to manage all requests or the upload link to go directly to this project's COI portal.\n\nThank you.`
         });
