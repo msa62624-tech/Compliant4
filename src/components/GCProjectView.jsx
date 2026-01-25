@@ -33,7 +33,15 @@ export default function GCProjectView() {
   const { data: project, isLoading: projectLoading, error: projectError } = useQuery({
     queryKey: ["gc-project", projectId],
     queryFn: async () => {
-      const allProjects = await apiClient.entities.Project.list();
+      const { protocol, host, origin } = window.location;
+      const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+      const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                         origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                         origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                         import.meta?.env?.VITE_API_BASE_URL || '';
+      const response = await fetch(`${backendBase}/public/projects`);
+      if (!response.ok) throw new Error('Failed to fetch projects');
+      const allProjects = await response.json();
       const found = allProjects.find((p) => p.id === projectId);
       if (!found) throw new Error("Project not found");
       if (gcId && found.gc_id !== gcId) throw new Error("This project is not assigned to your account");
@@ -46,7 +54,15 @@ export default function GCProjectView() {
   const { data: subs = [], isLoading: subsLoading } = useQuery({
     queryKey: ["gc-project-subs", projectId],
     queryFn: async () => {
-      const allSubs = await apiClient.entities.ProjectSubcontractor.list();
+      const { protocol, host, origin } = window.location;
+      const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+      const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                         origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                         origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                         import.meta?.env?.VITE_API_BASE_URL || '';
+      const response = await fetch(`${backendBase}/public/all-project-subcontractors`);
+      if (!response.ok) throw new Error('Failed to fetch subcontractors');
+      const allSubs = await response.json();
       return allSubs.filter((ps) => ps.project_id === projectId && ps.status !== 'archived');
     },
     enabled: !!projectId,
@@ -57,8 +73,8 @@ export default function GCProjectView() {
   const { data: projectCois = [] } = useQuery({
     queryKey: ["gc-project-cois", projectId],
     queryFn: async () => {
-      const allCois = await apiClient.entities.GeneratedCOI.list();
-      return allCois.filter((c) => c.project_id === projectId);
+      // COIs endpoint requires auth, skip for public GC portal
+      return [];
     },
     enabled: !!projectId,
     retry: 1,
@@ -68,8 +84,8 @@ export default function GCProjectView() {
   const { data: allSubcontractors = [] } = useQuery({
     queryKey: ["all-subs-for-typeahead"],
     queryFn: async () => {
-      const all = await apiClient.entities.Contractor.list();
-      return all.filter((c) => c.contractor_type === "subcontractor");
+      // Allow creation of new subs, no pre-loaded list needed for public portal
+      return [];
     },
     retry: 1,
   });
