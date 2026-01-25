@@ -26,6 +26,7 @@ export async function notifyBrokerAssignment(subcontractor, oldBrokerEmail = nul
       await sendEmail({
         to: subcontractor.broker_email,
         includeSampleCOI: true,
+        recipientIsBroker: true,
         sampleCOIData: {
           trade: subcontractor.trade_types?.join(', '),
           program: subcontractor.program_name || subcontractor.program_id,
@@ -103,6 +104,7 @@ InsureTrack System`
       await sendEmail({
         to: oldBrokerEmail,
         includeSampleCOI: true,
+        recipientIsBroker: true,
         sampleCOIData: {
           trade: subcontractor.trade_types?.join(', '),
           program: subcontractor.program_name || subcontractor.program_id,

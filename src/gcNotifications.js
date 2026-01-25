@@ -118,32 +118,34 @@ export async function sendGCWelcomeEmail(gc) {
   
   try {
     await sendEmail({
-      to: gc.email,
-      subject: `Welcome to InsureTrack - Your GC Portal is Ready`,
-      html: createEmailTemplate(
-        'Welcome to InsureTrack',
-        'Your General Contractor portal is ready',
-        emailContent
-      ),
+      to: project.gc_email,
+      subject: `✅ Insurance Approved - ${subcontractor.company_name} on ${project.project_name}`,
+      body: `Dear ${project.gc_name},
+
+Good news! Insurance has been approved for ${subcontractor.company_name}.
+
+📋 Approval Details:
+• Subcontractor: ${subcontractor.company_name}
+• Project: ${project.project_name}
+• Trade: ${coi.trade_type || 'N/A'}
+• Status: APPROVED
+• Approval Date: ${new Date().toLocaleDateString()}
+
+🔗 Open Project (GC Portal):
+${gcProjectLink}
+
+${coi.hold_harmless_status === 'pending_signature' ? `HOLD HARMLESS AGREEMENT:
+A Hold Harmless Agreement is required before work can proceed.
+This provides protection for all parties involved in the project.
+
+Timeline: Agreement should be obtained and signed before work begins.` : `The subcontractor is cleared to work on this project.
+Continue to monitor for any compliance issues or policy expirations.`}
+
+Best regards,
+InsureTrack System`,
+      // If a hold-harmless template URL is present on the COI, request it be attached
+      holdHarmlessTemplateUrl: coi.hold_harmless_template_url || null
     });
-    
-    // Create GC user account with the credentials sent in email
-    try {
-      const userCredentials = createUserCredentials(
-        username,
-        gc.contact_person || gc.company_name,
-        'gc',
-        { gc_id: gc.id }
-      );
-      userCredentials.password = tempPassword;
-      await apiClient.entities.User.create(userCredentials);
-    } catch (_userError) {
-      // User may already exist
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error sending GC welcome email:', error);
     return false;
   }
 }

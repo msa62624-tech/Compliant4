@@ -2342,7 +2342,7 @@ app.post('/integrations/nyc/property', authenticateToken, async (req, res) => {
 
 // Public email endpoint - no authentication required (for broker portal)
 app.post('/public/send-email', emailLimiter, async (req, res) => {
-  const { to, subject, body, html, cc, bcc, from, replyTo, attachments: incomingAttachments, includeSampleCOI, sampleCOIData } = req.body || {};
+  const { to, subject, body, html, cc, bcc, from, replyTo, attachments: incomingAttachments, includeSampleCOI, sampleCOIData, recipientIsBroker, holdHarmlessTemplateUrl } = req.body || {};
   if (!to || !subject || (!body && !html)) {
     return res.status(400).json({ error: 'Missing required fields: to, subject, body/html' });
   }
@@ -3183,16 +3183,49 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
         }
       }
 
-      // Optionally generate and attach a sample COI PDF for broker emails
+      // Optionally generate and attach a sample COI PDF — only attach when recipient is a broker
       if (includeSampleCOI) {
+        let shouldAttachSample = false;
         try {
-          console.log('🔄 Generating sample COI PDF with data:', Object.keys(sampleCOIData || {}));
-          const pdfBuffer = await generateSampleCOIPDF(sampleCOIData || {});
-          mailAttachments.push({ filename: 'sample_coi.pdf', content: pdfBuffer, contentType: 'application/pdf' });
-          console.log('✅ Sample COI PDF generated and attached:', pdfBuffer.length, 'bytes');
-        } catch (pdfErr) {
-          console.error('❌ Could not generate sample COI PDF:', pdfErr?.message || pdfErr);
-          console.error('Full error:', pdfErr);
+          if (recipientIsBroker === true || String(recipientIsBroker).toLowerCase() === 'true') {
+            shouldAttachSample = true;
+          } else if (typeof to === 'string') {
+            const brokerRecord = getBroker(to);
+            if (brokerRecord) shouldAttachSample = true;
+          }
+        } catch (detErr) {
+          console.warn('Could not determine broker status for sample COI attachment:', detErr?.message || detErr);
+        }
+
+        if (shouldAttachSample) {
+          try {
+            console.log('🔄 Generating sample COI PDF with data (broker detected):', Object.keys(sampleCOIData || {}));
+            const pdfBuffer = await generateSampleCOIPDF(sampleCOIData || {});
+            mailAttachments.push({ filename: 'sample_coi.pdf', content: pdfBuffer, contentType: 'application/pdf' });
+            console.log('✅ Sample COI PDF generated and attached:', pdfBuffer.length, 'bytes');
+          } catch (pdfErr) {
+            console.error('❌ Could not generate sample COI PDF for broker:', pdfErr?.message || pdfErr);
+          }
+        } else {
+          console.log('ℹ️ includeSampleCOI requested but recipient is not a broker — skipping sample attachment');
+        }
+      }
+
+      // Optionally attach a Hold Harmless template if a URL is provided — include as PDF attachment
+      if (holdHarmlessTemplateUrl) {
+        try {
+          console.log('🔗 Attaching Hold Harmless template from URL:', holdHarmlessTemplateUrl);
+          const fetchRes = await fetch(holdHarmlessTemplateUrl);
+          if (fetchRes.ok) {
+            const arrayBuf = await fetchRes.arrayBuffer();
+            const buf = Buffer.from(arrayBuf);
+            mailAttachments.push({ filename: 'hold_harmless.pdf', content: buf, contentType: 'application/pdf' });
+            console.log('✅ Hold Harmless attached, size:', buf.length);
+          } else {
+            console.warn('⚠️ Could not fetch hold harmless template, status:', fetchRes.status);
+          }
+        } catch (hhErr) {
+          console.warn('❌ Failed to attach hold-harmless template:', hhErr?.message || hhErr);
         }
       }
 
@@ -4494,20 +4527,26 @@ app.post('/public/regenerate-coi', uploadLimiter, async (req, res) => {
       const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
       
       // Update COI record with regenerated PDF and updated job info
+      const brokerSignLink = `${req.protocol}://${req.get('host').replace(/:3001$/, ':5175')}/broker-upload-coi?token=${coi.coi_token}&action=sign&step=3`;
+
       entities.GeneratedCOI[coiIdx] = {
         ...coi,
         regenerated_coi_url: fileUrl,
         regenerated_coi_filename: filename,
         regenerated_at: new Date().toISOString(),
-        
+
         // Update job-specific fields
         certificate_holder_name: certificate_holder_name || coi.certificate_holder_name || coi.gc_name || '',
         updated_project_address: project_address || coi.project_address || '',
         updated_project_name: project_name || coi.project_name || '',
-        
+
         // Add manually entered additional insureds to list
         additional_insureds: regenData.additional_insureds,
-        manually_entered_additional_insureds: regenData.manually_entered_additional_insureds || []
+        manually_entered_additional_insureds: regenData.manually_entered_additional_insureds || [],
+
+        // Mark as awaiting broker signature and provide sign link for online signing
+        status: 'pending_broker_signature',
+        broker_sign_url: brokerSignLink
       };
       
       debouncedSave();
@@ -4687,31 +4726,18 @@ app.post('/public/upload-endorsement', uploadLimiter, upload.single('file'), asy
           // Notify broker to review/sign the regenerated COI and attach the PDF
           try {
             if (coi.broker_email) {
-              // Read generated PDF and encode as base64 for attachment in the internal send-email
-              const generatedFilePath = path.join(UPLOADS_DIR, filename);
-              let attachmentBase64 = null;
-              try {
-                const fbuf = fs.readFileSync(generatedFilePath);
-                attachmentBase64 = fbuf.toString('base64');
-              } catch (readErr) {
-                console.warn('Could not read regenerated COI PDF for attachment:', readErr?.message || readErr);
-              }
-
               // Build sign link to front-end broker upload/sign route
+              // Note: regenerated COI PDF is stored in-system at coi.pdf_url and will NOT be attached to the email by default
               const frontendHost = req.get('host').replace(/:3001$/, ':5175');
               const signLink = `${req.protocol}://${frontendHost}/broker-upload-coi?token=${coi.coi_token}&action=sign&step=3`;
 
               const emailPayload = {
                 to: coi.broker_email,
                 subject: `🔔 COI Regenerated - Please Review & Sign: ${coi.subcontractor_name || 'Subcontractor'}`,
-                body: `A Certificate of Insurance has been regenerated with the uploaded endorsement changes. Please review and sign the new certificate:\n\nSign here: ${signLink}\n\nIf the link does not work, visit your broker dashboard and review pending COIs.`,
-                includeSampleCOI: false,
-                attachments: []
+                body: `A Certificate of Insurance has been regenerated with the uploaded endorsement changes. The regenerated certificate is available in your broker portal and stored in-system.
+\nView the regenerated certificate: ${coi.pdf_url || coi.regenerated_coi_url || '(not available)'}\n\nSign here: ${signLink}\n\nIf the link does not work, visit your broker dashboard and review pending COIs.`,
+                includeSampleCOI: false
               };
-
-              if (attachmentBase64) {
-                emailPayload.attachments.push({ filename: filename, content: attachmentBase64, encoding: 'base64', contentType: 'application/pdf' });
-              }
 
               // Send internal POST to our public send-email endpoint
               try {
