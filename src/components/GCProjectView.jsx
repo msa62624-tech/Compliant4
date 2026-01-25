@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, getApiBase } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { notifySubAddedToProject } from "@/brokerNotifications";
+import { getSubcontractorOnboardingEmail } from "@/emailTemplates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -211,84 +212,16 @@ export default function GCProjectView() {
         
         const contactEmail = form.contact_email.trim();
         
-        // Create formatted HTML email
-        let emailHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background-color: #1e40af; color: white; padding: 20px; border-radius: 5px; }
-    .section { margin: 20px 0; padding: 15px; background-color: #f5f5f5; border-left: 4px solid #1e40af; }
-    .section-title { font-weight: bold; font-size: 16px; margin-bottom: 10px; color: #1e40af; }
-    .field { margin: 8px 0; }
-    .label { font-weight: bold; color: #1e40af; }
-    .credentials { background-color: #fffbea; padding: 15px; border-radius: 5px; border: 1px solid #fbbf24; }
-    .button { background-color: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px; }
-    .footer { font-size: 12px; color: #666; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h2>Welcome to InsureTrack</h2>
-      <p>You've been added to a new project</p>
-    </div>
-
-    <p>Dear ${form.subcontractor_name},</p>
-
-    <p>You have been added to the following project:</p>
-
-    <div class="section">
-      <div class="section-title">📋 PROJECT DETAILS</div>
-      <div class="field"><span class="label">Project Name:</span> ${project?.project_name}</div>
-      <div class="field"><span class="label">Trade Type:</span> ${form.trade}</div>
-      <div class="field"><span class="label">Address:</span> ${project?.address || 'Address not provided'}</div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">🔐 PORTAL LOGIN INFORMATION</div>
-      <div class="credentials">`;
-
-        if (created.contractor_password) {
-          emailHtml += `
-        <div class="field"><span class="label">Username:</span> ${created.contractor_username}</div>
-        <div class="field"><span class="label">Password:</span> ${created.contractor_password}</div>`;
-        } else {
-          emailHtml += `
-        <div class="field"><span class="label">Username:</span> ${created.contractor_username}</div>
-        <div class="field"><span class="label">Password:</span> [You previously set this during registration]</div>`;
-        }
-
-        emailHtml += `
-        <a href="${portalUrl}" class="button">Login to Portal →</a>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">📝 NEXT STEPS</div>
-      <ol>
-        <li>Click the button above or visit the portal</li>
-        <li>Log in with your credentials</li>
-        <li>Add your broker information in your account settings</li>
-        <li>Submit your Certificate of Insurance (COI)</li>
-        <li>Once approved, you can start work on this project</li>
-      </ol>
-    </div>
-
-    <div class="section">
-      <div class="section-title">❓ QUESTIONS?</div>
-      <p>Contact your General Contractor: <strong>${project?.gc_name}</strong></p>
-    </div>
-
-    <div class="footer">
-      <p>Best regards,<br>InsureTrack Team</p>
-      <p>This is an automated message. Please do not reply to this email.</p>
-    </div>
-  </div>
-</body>
-</html>`;
+        // Use standardized email template
+        const emailHtml = getSubcontractorOnboardingEmail(
+          form.subcontractor_name,
+          project?.project_name,
+          project?.address,
+          form.trade,
+          created.contractor_username,
+          created.contractor_password,
+          portalUrl
+        );
 
         // Get backend base URL
         const backendBaseUrl = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
@@ -303,7 +236,7 @@ export default function GCProjectView() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to: contactEmail,
-            subject: `You've Been Added to ${project?.project_name} - Portal Access`,
+            subject: `Welcome to InsureTrack - ${project?.project_name}`,
             html: emailHtml
           })
         });

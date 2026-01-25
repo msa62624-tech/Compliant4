@@ -3136,7 +3136,7 @@ app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
     }
 
     // Generate temporary password
-    const tempPassword = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const tempPassword = generateTempPassword(12);
     const hashedPassword = bcrypt.hashSync(tempPassword, 10);
 
     const newContractor = {
@@ -3191,7 +3191,7 @@ app.post('/public/create-project-subcontractor', publicApiLimiter, (req, res) =>
     let tempPassword = '';
     if (!contractor) {
       // Generate temporary password
-      tempPassword = Math.random().toString(36).substring(2, 10).toUpperCase();
+      tempPassword = generateTempPassword(12);
       const hashedPassword = bcrypt.hashSync(tempPassword, 10);
       
       contractor = {
