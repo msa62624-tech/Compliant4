@@ -2609,6 +2609,40 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
       console.log('✅ SMTP transporter configured for public email');
     }
 
+    // Build attachments (incoming + optionally sample COI)
+    const mailAttachments = [];
+    
+    // Include any incoming attachments
+    if (Array.isArray(incomingAttachments) && incomingAttachments.length > 0) {
+      for (const a of incomingAttachments) {
+        if (a && a.filename) {
+          const att = { filename: a.filename };
+          if (a.content && a.encoding === 'base64') {
+            att.content = Buffer.from(a.content, 'base64');
+          } else if (a.content && a.encoding === 'utf8') {
+            att.content = Buffer.from(a.content, 'utf8');
+          } else if (a.content) {
+            att.content = a.content;
+          }
+          if (a.contentType) att.contentType = a.contentType;
+          mailAttachments.push(att);
+        }
+      }
+    }
+
+    // Optionally generate and attach a sample COI PDF for broker emails
+    if (includeSampleCOI) {
+      try {
+        console.log('🔄 Generating sample COI PDF with data:', Object.keys(sampleCOIData || {}));
+        const pdfBuffer = await generateSampleCOIPDF(sampleCOIData || {});
+        mailAttachments.push({ filename: 'sample_coi.pdf', content: pdfBuffer, contentType: 'application/pdf' });
+        console.log('✅ Sample COI PDF generated and attached:', pdfBuffer.length, 'bytes');
+      } catch (pdfErr) {
+        console.error('❌ Could not generate sample COI PDF:', pdfErr?.message || pdfErr);
+        console.error('Full error:', pdfErr);
+      }
+    }
+
     const mailOptions = {
       from: from || defaultFrom,
       to,
@@ -2616,10 +2650,11 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
       html: html || body
     };
     
-    // Only add optional fields if they exist
+    // Add optional fields if they exist
     if (cc) mailOptions.cc = cc;
     if (bcc) mailOptions.bcc = bcc;
     if (replyTo) mailOptions.replyTo = replyTo;
+    if (mailAttachments.length > 0) mailOptions.attachments = mailAttachments;
 
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Public email sent:', { to, subject, messageId: info.messageId, mockEmail });
