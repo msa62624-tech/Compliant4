@@ -265,8 +265,8 @@ export default function Pages({ onLogout }) {
   // If an admin token exists and we're not on a GC public route, disable GC public mode
   useEffect(() => {
     if (auth.getToken && auth.getToken()) {
-      // Admin is authenticated - clear any GC public session
-      if (isGCPublicSession) {
+      // Admin is authenticated - clear any GC public session ONLY if not on a GC route
+      if (isGCPublicSession && !isGCRoute) {
         console.log('🔐 Admin authenticated, disabling GC public session');
         sessionStorage.removeItem('gcPublicSession')
         sessionStorage.removeItem('gcPortalId')
@@ -274,7 +274,7 @@ export default function Pages({ onLogout }) {
         setIsGCPublicSession(false)
       }
     }
-  }, [isGCPublicSession])
+  }, [isGCPublicSession, isGCRoute])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
