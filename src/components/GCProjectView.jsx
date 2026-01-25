@@ -223,92 +223,145 @@ export default function GCProjectView() {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
       line-height: 1.6; 
       color: #333; 
-      background-color: #f9fafb;
+      background-color: #f3f4f6;
     }
     .container { 
       max-width: 600px; 
       margin: 0 auto; 
       padding: 0; 
-      background-color: white;
-      border-radius: 8px;
+      background-color: #fafafa;
+      border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
     .header { 
       background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
       color: white; 
-      padding: 30px 20px; 
+      padding: 40px 20px; 
       text-align: center;
     }
     .header h1 {
       margin: 0 0 10px 0;
-      font-size: 24px;
-      font-weight: 600;
+      font-size: 28px;
+      font-weight: 700;
     }
     .header p {
       margin: 0;
-      font-size: 14px;
+      font-size: 16px;
       opacity: 0.95;
+      font-weight: 500;
     }
     .content { 
-      padding: 30px 20px; 
+      padding: 35px 25px; 
+      background-color: #fafafa;
+    }
+    .intro-text {
+      font-size: 16px;
+      color: #111;
+      margin: 20px 0;
+      font-weight: 500;
     }
     .section { 
-      margin: 20px 0; 
-      padding: 15px; 
-      background-color: #f5f5f5; 
-      border-left: 4px solid #dc2626;
-      border-radius: 4px;
+      margin: 25px 0; 
+      padding: 20px; 
+      background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+      border-left: 5px solid #dc2626;
+      border-radius: 8px;
+      border: 1px solid #fecaca;
     }
     .section-title { 
-      font-weight: 600; 
-      font-size: 15px; 
-      margin: 0 0 12px 0;
-      color: #dc2626; 
+      font-weight: 700; 
+      font-size: 16px; 
+      margin: 0 0 15px 0;
+      color: #991b1b; 
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .field { 
-      margin: 8px 0; 
-      font-size: 14px;
+      margin: 12px 0; 
+      font-size: 15px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(220, 38, 38, 0.1);
+    }
+    .field:last-child {
+      border-bottom: none;
     }
     .label { 
-      font-weight: 600; 
-      color: #dc2626; 
+      font-weight: 700; 
+      color: #991b1b; 
       display: inline-block;
-      min-width: 120px;
+      min-width: 140px;
     }
     .credentials { 
-      background-color: #fef2f2; 
-      padding: 15px; 
-      border-radius: 6px; 
-      border-left: 4px solid #dc2626;
-      margin: 15px 0;
+      background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+      padding: 25px; 
+      border-radius: 8px; 
+      border: 2px solid #dc2626;
+      margin: 20px 0;
+      box-shadow: 0 2px 6px rgba(220, 38, 38, 0.1);
+    }
+    .cred-label {
+      font-weight: 700;
+      color: #991b1b;
+      display: inline-block;
+      min-width: 140px;
+      margin: 10px 0;
+    }
+    .cred-value {
+      font-family: 'Courier New', monospace;
+      background-color: white;
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid #dc2626;
+      font-weight: 600;
+      color: #1f2937;
+      word-break: break-all;
     }
     .button { 
       background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
       color: white; 
-      padding: 12px 28px; 
+      padding: 15px 35px; 
       text-decoration: none; 
-      border-radius: 6px; 
+      border-radius: 8px; 
       display: inline-block; 
-      margin-top: 15px;
-      font-weight: 600;
+      margin-top: 20px;
+      font-weight: 700;
       border: none;
       cursor: pointer;
+      font-size: 16px;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
     }
     .footer { 
-      font-size: 12px; 
+      font-size: 13px; 
       color: #666; 
       margin-top: 30px; 
-      padding-top: 20px; 
-      border-top: 1px solid #e5e7eb;
+      padding: 25px;
+      border-top: 2px solid #e5e7eb;
       text-align: center;
+      background-color: #f9fafb;
+    }
+    .footer strong {
+      color: #dc2626;
+      font-weight: 700;
     }
     ol, ul {
       margin: 15px 0;
-      padding-left: 20px;
+      padding-left: 25px;
     }
     li {
-      margin: 8px 0;
+      margin: 10px 0;
+      font-weight: 500;
+      color: #1f2937;
+    }
+    .warning-text {
+      color: #991b1b;
+      font-weight: 700;
+      background-color: #fff7ed;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 10px;
+      border-left: 4px solid #dc2626;
     }
   </style>
 </head>
@@ -334,12 +387,18 @@ export default function GCProjectView() {
       <div class="section">
         <div class="section-title">🔐 PORTAL LOGIN INFORMATION</div>
         <div class="credentials">
-          <div class="field"><span class="label">Username:</span> ${created.contractor_username}</div>
-          <div class="field"><span class="label">Password:</span> <strong>${created.contractor_password}</strong></div>
-          <p style="color: #dc2626; font-size: 13px; margin-top: 10px;">
-            ⚠️ <strong>Save your password</strong> - You'll need it to log in
-          </p>
-          <div style="text-align: center; margin-top: 15px;">
+          <div style="margin: 15px 0;">
+            <div class="cred-label">Username:</div>
+            <div class="cred-value">${created.contractor_username}</div>
+          </div>
+          <div style="margin: 15px 0;">
+            <div class="cred-label">Password:</div>
+            <div class="cred-value">${created.contractor_password}</div>
+          </div>
+          <div class="warning-text">
+            ⚠️ Save your password - You'll need it to log in
+          </div>
+          <div style="text-align: center;">
             <a href="${portalUrl}" class="button">Login to Portal →</a>
           </div>
         </div>
