@@ -185,6 +185,7 @@ export default function GCProjectView() {
       // Attach the password to the response so onSuccess can use it
       psData.contractor_password = contractorPassword;
       psData.contractor_username = contractorData.email || subcontractorId;
+      psData.subcontractor_id = subcontractorId;
       
       return psData;
     },
@@ -405,9 +406,19 @@ export default function GCProjectView() {
       </div>
 
       <div class="section">
+        <div class="section-title">� UPLOAD YOUR CERTIFICATE OF INSURANCE</div>
+        <p style="margin: 10px 0; font-size: 14px; color: #374151;">
+          We've attached a sample Certificate of Insurance (COI) for your reference. Please use your broker to prepare your actual insurance certificate.
+        </p>
+        <div style="text-align: center;">
+          <a href="${portalUrl.replace('/subcontractor-login', '/UploadDocuments')}?sub=${created.subcontractor_id}" class="button">Upload COI Now →</a>
+        </div>
+      </div>
+
+      <div class="section">
         <div class="section-title">📝 GETTING STARTED</div>
         <ol>
-          <li>Click the button above to access the portal</li>
+          <li>Click "Upload COI Now" above or log in to the portal</li>
           <li>Log in with your credentials</li>
           <li>Update your broker information in settings</li>
           <li>Submit your Certificate of Insurance (COI)</li>
