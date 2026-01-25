@@ -31,7 +31,7 @@ export default function SubcontractorLogin({ onLogin }) {
       // Find subcontractor by email
       const contractors = await compliant.entities.Contractor.list();
       const subcontractor = contractors.find(
-        c => c.email === email && c.contractor_type === 'subcontractor'
+        c => c.email?.toLowerCase() === email.toLowerCase() && c.contractor_type === 'subcontractor'
       );
 
       if (!subcontractor) {

@@ -39,7 +39,7 @@ export default function GCLogin({ onLogin }) {
       const response = await fetch(`${backendBase}/public/gc-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: email.toLowerCase(), password })
       });
 
       if (!response.ok) {
