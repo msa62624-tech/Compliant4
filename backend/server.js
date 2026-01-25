@@ -3135,6 +3135,10 @@ app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
       return res.status(400).json({ error: 'Company name and email are required' });
     }
 
+    // Generate temporary password
+    const tempPassword = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const hashedPassword = bcrypt.hashSync(tempPassword, 10);
+
     const newContractor = {
       id: `Contractor-${Date.now()}`,
       company_name,
@@ -3143,6 +3147,9 @@ app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
       contractor_type: contractor_type || 'subcontractor',
       trade_types: Array.isArray(trade_types) ? trade_types : [trade_types].filter(Boolean),
       status: status || 'active',
+      password: hashedPassword,
+      role: 'subcontractor',
+      portal_login: true,
       created_date: new Date().toISOString(),
       created_by: 'gc-portal'
     };
@@ -3152,7 +3159,12 @@ app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
     debouncedSave();
     
     console.log('✅ Created new contractor via GC portal:', newContractor.id);
-    return res.json(newContractor);
+    
+    // Return contractor with generated password
+    return res.json({
+      ...newContractor,
+      contractor_password: tempPassword
+    });
   } catch (err) {
     console.error('❌ Public contractor create error:', err?.message || err);
     return res.status(500).json({ error: 'Failed to create contractor' });
@@ -3180,7 +3192,7 @@ app.post('/public/create-project-subcontractor', publicApiLimiter, (req, res) =>
     if (!contractor) {
       // Generate temporary password
       tempPassword = Math.random().toString(36).substring(2, 10).toUpperCase();
-      const hashedPassword = bcryptjs.hashSync(tempPassword, 10);
+      const hashedPassword = bcrypt.hashSync(tempPassword, 10);
       
       contractor = {
         id: subcontractor_id,
@@ -3227,11 +3239,17 @@ app.post('/public/create-project-subcontractor', publicApiLimiter, (req, res) =>
     console.log('✅ Created ProjectSubcontractor via GC portal:', newProjectSub.id);
     
     // Return with contractor credentials info
-    return res.json({
+    const response = {
       ...newProjectSub,
-      contractor_username: contractor.email || contractor.id,
-      contractor_password: tempPassword || undefined // Only include if newly created
-    });
+      contractor_username: contractor.email || contractor.id
+    };
+    
+    // Only include password if it was just generated
+    if (tempPassword) {
+      response.contractor_password = tempPassword;
+    }
+    
+    return res.json(response);
   } catch (err) {
     console.error('❌ Public ProjectSubcontractor create error:', err?.message || err);
     return res.status(500).json({ error: 'Failed to create project subcontractor' });

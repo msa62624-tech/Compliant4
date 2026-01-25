@@ -158,8 +158,9 @@ export default function GCProjectView() {
         throw new Error(err.error || 'Failed to create contractor');
       }
 
-      const created = await createContractorResponse.json();
-      const subcontractorId = created.id;
+      const contractorData = await createContractorResponse.json();
+      const subcontractorId = contractorData.id;
+      const contractorPassword = contractorData.contractor_password; // Capture password from contractor creation
 
       // Now create the ProjectSubcontractor
       const psResponse = await fetch(`${backendBase}/public/create-project-subcontractor`, {
@@ -180,7 +181,12 @@ export default function GCProjectView() {
         throw new Error(err.error || 'Failed to create project subcontractor');
       }
 
-      return await psResponse.json();
+      const psData = await psResponse.json();
+      // Attach the password to the response so onSuccess can use it
+      psData.contractor_password = contractorPassword;
+      psData.contractor_username = contractorData.email || subcontractorId;
+      
+      return psData;
     },
     onSuccess: async (created) => {
       queryClient.invalidateQueries(["gc-project-subs", projectId]);
@@ -194,13 +200,13 @@ export default function GCProjectView() {
         let portalUrl;
         if (m) {
           // GitHub Codespaces format
-          portalUrl = `${protocol}//${m[1]}-5175${m[3]}/sub-login`;
+          portalUrl = `${protocol}//${m[1]}-5175${m[3]}/subcontractor-login`;
         } else if (origin.includes(':5175')) {
-          portalUrl = origin.replace(':5175', '') + '/sub-login';
+          portalUrl = origin.replace(':5175', '') + '/subcontractor-login';
         } else if (origin.includes(':5176')) {
-          portalUrl = origin.replace(':5176', '') + '/sub-login';
+          portalUrl = origin.replace(':5176', '') + '/subcontractor-login';
         } else {
-          portalUrl = origin + '/sub-login';
+          portalUrl = origin + '/subcontractor-login';
         }
         
         const contactEmail = form.contact_email.trim();
