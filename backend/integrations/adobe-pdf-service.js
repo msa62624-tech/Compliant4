@@ -205,24 +205,39 @@ INSURED: MPI Plumbing Corp
       let yPos = 70;
       doc.fontSize(7).font('Helvetica-Bold').text('PRODUCER', 30, yPos);
       yPos += 12;
-      doc.fontSize(9).font('Helvetica').text(coiData.broker?.name || 'Insurance Broker', 30, yPos);
-      if (coiData.broker?.email) {
+      const producerName = coiData.producer?.name || coiData.broker?.name || 'Insurance Broker';
+      const producerEmail = coiData.producer?.email || coiData.broker?.email;
+      const producerPhone = coiData.producer?.phone || coiData.broker?.phone;
+      
+      doc.fontSize(9).font('Helvetica').text(producerName, 30, yPos);
+      if (producerEmail) {
         yPos += 12;
-        doc.text(coiData.broker.email, 30, yPos);
+        doc.text(producerEmail, 30, yPos);
       }
-      if (coiData.broker?.phone) {
+      if (producerPhone) {
         yPos += 12;
-        doc.text(coiData.broker.phone, 30, yPos);
+        doc.text(producerPhone, 30, yPos);
       }
       
       // Insured Section
       yPos = 70;
+      const insuredName = coiData.insured?.name || coiData.subcontractorName || 'Subcontractor';
+      const insuredAddress = coiData.insured?.address || coiData.subcontractorAddress;
+      const insuredCity = coiData.insured?.city;
+      const insuredState = coiData.insured?.state;
+      const insuredZip = coiData.insured?.zip;
+      
       doc.fontSize(7).font('Helvetica-Bold').text('INSURED', 320, yPos);
       yPos += 12;
-      doc.fontSize(9).font('Helvetica').text(coiData.subcontractorName || 'Subcontractor', 320, yPos);
-      if (coiData.subcontractorAddress) {
+      doc.fontSize(9).font('Helvetica').text(insuredName, 320, yPos);
+      if (insuredAddress) {
         yPos += 12;
-        doc.text(coiData.subcontractorAddress, 320, yPos);
+        doc.text(insuredAddress, 320, yPos);
+      }
+      if (insuredCity || insuredState || insuredZip) {
+        yPos += 12;
+        const cityStateZip = [insuredCity, insuredState, insuredZip].filter(Boolean).join(' ');
+        doc.text(cityStateZip, 320, yPos);
       }
       
       yPos = 140;
@@ -254,35 +269,82 @@ INSURED: MPI Plumbing Corp
       doc.moveTo(30, yPos).lineTo(580, yPos).stroke();
       
       // Insurance Coverage Rows
-      if (coiData.coverages && coiData.coverages.length > 0) {
-        coiData.coverages.forEach(coverage => {
-          yPos += 5;
-          doc.fontSize(8).font('Helvetica')
-            .text(coverage.type || 'N/A', 30, yPos, { width: 140 })
-            .text(coverage.policyNumber || 'N/A', 180, yPos, { width: 90 })
-            .text(coverage.effectiveDate || 'N/A', 280, yPos, { width: 50 })
-            .text(coverage.expirationDate || 'N/A', 340, yPos, { width: 70 })
-            .text(coverage.limits || 'N/A', 420, yPos, { width: 150 });
-          yPos += COVERAGE_ROW_HEIGHT;
-          doc.moveTo(30, yPos).lineTo(580, yPos).stroke();
-        });
-      } else {
-        // Default coverage lines
-        const defaultCoverages = [
-          { type: 'GENERAL LIABILITY', limits: 'Per Project Requirements' },
-          { type: 'WORKERS COMPENSATION', limits: 'Statutory Limits' },
-          { type: 'AUTOMOBILE LIABILITY', limits: 'Per Project Requirements' }
-        ];
+      const renderCoverageRows = () => {
+        let currentY = yPos;
         
-        defaultCoverages.forEach(coverage => {
-          yPos += 5;
-          doc.fontSize(8).font('Helvetica')
-            .text(coverage.type, 30, yPos, { width: 140 })
-            .text(coverage.limits, 420, yPos, { width: 150 });
-          yPos += COVERAGE_ROW_HEIGHT;
-          doc.moveTo(30, yPos).lineTo(580, yPos).stroke();
-        });
-      }
+        // Handle both array and object formats
+        let coveragesToRender = [];
+        
+        if (Array.isArray(coiData.coverages)) {
+          coveragesToRender = coiData.coverages;
+        } else if (typeof coiData.coverages === 'object' && coiData.coverages !== null) {
+          // Convert object to array: {generalLiability: {...}, automobile: {...}, ...}
+          if (coiData.coverages.generalLiability) {
+            coveragesToRender.push({
+              type: 'GENERAL LIABILITY',
+              ...coiData.coverages.generalLiability
+            });
+          }
+          if (coiData.coverages.automobile) {
+            coveragesToRender.push({
+              type: 'AUTOMOBILE LIABILITY',
+              ...coiData.coverages.automobile
+            });
+          }
+          if (coiData.coverages.workersCompensation) {
+            coveragesToRender.push({
+              type: 'WORKERS COMPENSATION',
+              ...coiData.coverages.workersCompensation
+            });
+          }
+          if (coiData.coverages.umbrella) {
+            coveragesToRender.push({
+              type: 'UMBRELLA LIABILITY',
+              ...coiData.coverages.umbrella
+            });
+          }
+        }
+        
+        if (coveragesToRender.length > 0) {
+          coveragesToRender.forEach(coverage => {
+            currentY += 5;
+            const limits = coverage.eachOccurrence 
+              ? `$${Number(coverage.eachOccurrence).toLocaleString()}`
+              : (coverage.combinedSingleLimit 
+                ? `$${Number(coverage.combinedSingleLimit).toLocaleString()}`
+                : (coverage.limits || 'Per Requirements'));
+            
+            doc.fontSize(8).font('Helvetica')
+              .text(coverage.type || 'N/A', 30, currentY, { width: 140 })
+              .text(coverage.policyNumber || 'N/A', 180, currentY, { width: 90 })
+              .text(coverage.effectiveDate || 'N/A', 280, currentY, { width: 50 })
+              .text(coverage.expirationDate || 'N/A', 340, currentY, { width: 70 })
+              .text(limits, 420, currentY, { width: 150 });
+            currentY += COVERAGE_ROW_HEIGHT;
+            doc.moveTo(30, currentY).lineTo(580, currentY).stroke();
+          });
+        } else {
+          // Default coverage lines
+          const defaultCoverages = [
+            { type: 'GENERAL LIABILITY', limits: 'Per Project Requirements' },
+            { type: 'WORKERS COMPENSATION', limits: 'Statutory Limits' },
+            { type: 'AUTOMOBILE LIABILITY', limits: 'Per Project Requirements' }
+          ];
+          
+          defaultCoverages.forEach(coverage => {
+            currentY += 5;
+            doc.fontSize(8).font('Helvetica')
+              .text(coverage.type, 30, currentY, { width: 140 })
+              .text(coverage.limits, 420, currentY, { width: 150 });
+            currentY += COVERAGE_ROW_HEIGHT;
+            doc.moveTo(30, currentY).lineTo(580, currentY).stroke();
+          });
+        }
+        
+        return currentY;
+      };
+      
+      yPos = renderCoverageRows();
       
       // Description of Operations / Locations / Vehicles section
       yPos += 5;
@@ -325,12 +387,21 @@ INSURED: MPI Plumbing Corp
       doc.fontSize(7).font('Helvetica-Bold').text('CERTIFICATE HOLDER', 30, yPos);
       yPos += 12;
       doc.fontSize(9).font('Helvetica');
-      if (coiData.certificateHolder) {
-        doc.text(coiData.certificateHolder, 30, yPos);
+      
+      const certHolderName = coiData.certificateHolder?.name || coiData.certificateHolder || 'General Contractor';
+      const certHolderAddress = coiData.certificateHolder?.address || coiData.certificateHolderAddress;
+      const certHolderProject = coiData.certificateHolder?.projectName;
+      
+      if (certHolderName) {
+        doc.text(certHolderName, 30, yPos);
         yPos += 12;
       }
-      if (coiData.certificateHolderAddress) {
-        doc.text(coiData.certificateHolderAddress, 30, yPos);
+      if (certHolderAddress) {
+        doc.text(certHolderAddress, 30, yPos);
+        yPos += 12;
+      }
+      if (certHolderProject) {
+        doc.text(`RE: ${certHolderProject}`, 30, yPos);
         yPos += 12;
       }
       
