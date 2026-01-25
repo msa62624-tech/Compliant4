@@ -3856,6 +3856,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
         // Fetch program info and GC mailing address from project for sample COI
         let programName = undefined;
         let programId = undefined;
+        let programHoldHarmlessUrl = null;
         let gcMailingAddress = undefined;
         try {
           const proj = (entities.Project || []).find(p => p.id === project_id);
@@ -3863,6 +3864,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
             programId = proj.program_id;
             const prog = (entities.InsuranceProgram || []).find(p => p.id === programId);
             programName = prog?.name || prog?.program_name || undefined;
+            programHoldHarmlessUrl = prog?.hold_harmless_template_url || prog?.hold_harmless_template || null;
           }
           if (proj?.gc_id) {
             const gc = (entities.Contractor || []).find(c => c.id === proj.gc_id);
@@ -3883,7 +3885,8 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           program: programName,
           program_id: programId,
           additional_insureds: insureds || [],
-          additional_insured_entities: insureds || []
+          additional_insured_entities: insureds || [],
+          hold_harmless_template_url: programHoldHarmlessUrl
         };
         
         await fetch(internalUrl, {
@@ -3894,6 +3897,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
             cc: ccRecipients,
             includeSampleCOI: true,
             sampleCOIData,
+            holdHarmlessTemplateUrl: programHoldHarmlessUrl || null,
             subject: `📋 Certificate Ready for Upload & Signature: ${subcontractor_name}`,
             body: `A Certificate of Insurance request has been created for your client. Please upload policies first, then sign the prefilled COI.\n\nCLIENT:\n• Company: ${subcontractor_name}\n\nPROJECT:\n• Project: ${project_name}\n• Location: ${sampleCOIData.projectAddress}\n• General Contractor: ${gc_name}\n\nSTATUS:\n• Trade(s): ${trade_type || 'N/A'}\n• Status: Awaiting Upload & Signature\n• Created: ${new Date().toLocaleDateString()}\n\n📤 Upload Required Documents (Step 1):\n${uploadLink}\n\n✍️ Review & Sign COI (Step 3):\n${signLink}\n\n📊 Broker Dashboard:\n${brokerDashboardLink}\n\nOnce you upload and approve, the certificate will be submitted to the General Contractor.\n\nBest regards,\nInsureTrack System`
           })
@@ -4048,6 +4052,65 @@ app.patch('/public/coi-by-token', publicApiLimiter, (req, res) => {
       updatedAt: new Date().toISOString(),
       updatedBy: 'public-portal'
     };
+
+    // If this update represents an admin approval (COI activated), ensure a Hold Harmless
+    // document exists for the COI. If the COI doesn't already have a hold_harmless_template_url
+    // and the related program defines a template, generate a populated Hold Harmless file
+    // including project and subcontractor info and persist it to uploads.
+    try {
+      const applied = entities.GeneratedCOI[idx];
+      const becameActive = (updates.status === 'active') || (updates.admin_approved === true);
+      if (becameActive) {
+        // Only generate if no template URL present
+        if (!applied.hold_harmless_template_url) {
+          // Try to locate program-level template
+          const proj = (entities.Project || []).find(p => p.id === applied.project_id || p.project_name === applied.project_name);
+          const program = proj && proj.program_id ? (entities.InsuranceProgram || []).find(p => p.id === proj.program_id) : null;
+          const templateUrl = program?.hold_harmless_template_url || program?.hold_harmless_template || null;
+          if (templateUrl) {
+            try {
+              // Fetch template (could be HTML with placeholders like {{project_name}})
+              const fetchRes = await fetch(templateUrl);
+              if (fetchRes.ok) {
+                let templateText = await fetchRes.text();
+                // Replace common placeholders with COI/project/subcontractor values
+                const projectName = proj?.project_name || applied.project_name || '';
+                const projectAddress = proj?.project_address || proj?.address || applied.project_address || '';
+                const gcName = proj?.gc_name || applied.gc_name || '';
+                const subName = applied.subcontractor_name || '';
+                const trade = applied.trade_type || '';
+                templateText = templateText.replace(/{{\s*project_name\s*}}/gi, projectName)
+                  .replace(/{{\s*project_address\s*}}/gi, projectAddress)
+                  .replace(/{{\s*gc_name\s*}}/gi, gcName)
+                  .replace(/{{\s*subcontractor_name\s*}}/gi, subName)
+                  .replace(/{{\s*trade\s*}}/gi, trade)
+                  .replace(/{{\s*date\s*}}/gi, new Date().toLocaleDateString());
+
+                // Persist as an HTML file in uploads
+                const filename = `hold-harmless-${applied.id}-${Date.now()}.html`;
+                const filepath = path.join(UPLOADS_DIR, filename);
+                fs.writeFileSync(filepath, templateText, 'utf8');
+                const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+
+                entities.GeneratedCOI[idx] = {
+                  ...entities.GeneratedCOI[idx],
+                  hold_harmless_template_url: fileUrl,
+                  hold_harmless_template_filename: filename,
+                  hold_harmless_generated_at: new Date().toISOString()
+                };
+                console.log('✅ Generated Hold Harmless from program template for COI:', applied.id, fileUrl);
+              } else {
+                console.warn('Could not fetch program hold-harmless template, status:', fetchRes.status);
+              }
+            } catch (genErr) {
+              console.warn('Failed to generate Hold Harmless from template:', genErr?.message || genErr);
+            }
+          }
+        }
+      }
+    } catch (hhErr) {
+      console.warn('Error during hold-harmless generation on COI update:', hhErr?.message || hhErr);
+    }
 
     debouncedSave();
     return res.json(entities.GeneratedCOI[idx]);
@@ -4450,6 +4513,20 @@ app.post('/public/regenerate-coi', uploadLimiter, async (req, res) => {
     if (coiIdx === -1) return sendError(res, 404, 'COI not found for token');
     
     const coi = entities.GeneratedCOI[coiIdx];
+    // If program-level hold-harmless exists on the related project, ensure COI has it
+    try {
+      if (!coi.hold_harmless_template_url) {
+        const proj = (entities.Project || []).find(p => p.id === coi.project_id || p.project_name === coi.project_name);
+        if (proj && proj.program_id) {
+          const prog = (entities.InsuranceProgram || []).find(p => p.id === proj.program_id);
+          if (prog && (prog.hold_harmless_template_url || prog.hold_harmless_template)) {
+            coi.hold_harmless_template_url = prog.hold_harmless_template_url || prog.hold_harmless_template;
+          }
+        }
+      }
+    } catch (hhErr) {
+      console.warn('Could not populate COI hold_harmless_template_url from program:', hhErr?.message || hhErr);
+    }
     
     // Verify we have original COI data to work with
     if (!coi.first_coi_uploaded) {
@@ -6418,7 +6495,8 @@ app.post('/public/hold-harmless-sign-link', publicApiLimiter, async (req, res) =
       ...coi,
       hold_harmless_status: coi.hold_harmless_status && coi.hold_harmless_status.startsWith('signed') ? coi.hold_harmless_status : 'pending_signature',
       hold_harmless_sign_url: signUrl,
-      hold_harmless_template_url: null,
+      // Preserve any existing hold_harmless_template_url (do not clear it)
+      hold_harmless_template_url: coi.hold_harmless_template_url || coi.hold_harmless_template_url || null,
       hold_harmless_requested_date: new Date().toISOString()
     };
 
