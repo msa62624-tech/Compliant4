@@ -39,7 +39,7 @@ export default function ForgotPassword({ onBackToLogin, portalType = 'gc' }) {
       const backendBase = getBackendBase();
       const endpoint = portalType === 'gc' ? '/public/gc-forgot-password' :
                       portalType === 'broker' ? '/public/broker-forgot-password' :
-                      '/public/sub-forgot-password';
+                      '/public/subcontractor-forgot-password';
 
       const response = await fetch(`${backendBase}${endpoint}`, {
         method: 'POST',
@@ -81,7 +81,7 @@ export default function ForgotPassword({ onBackToLogin, portalType = 'gc' }) {
       const backendBase = getBackendBase();
       const endpoint = portalType === 'gc' ? '/public/gc-reset-password' :
                       portalType === 'broker' ? '/public/broker-reset-password' :
-                      '/public/sub-reset-password';
+                      '/public/subcontractor-reset-password';
 
       const response = await fetch(`${backendBase}${endpoint}`, {
         method: 'POST',

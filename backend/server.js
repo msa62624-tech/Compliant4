@@ -3122,6 +3122,81 @@ app.patch('/public/contractor/:id', publicApiLimiter, (req, res) => {
   }
 });
 
+// Public: Create a new contractor (subcontractor) - for GC portal
+app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
+  try {
+    const { company_name, contact_person, email, contractor_type, trade_types, status } = req.body || {};
+    
+    if (!company_name || !email) {
+      return res.status(400).json({ error: 'Company name and email are required' });
+    }
+
+    const newContractor = {
+      id: `Contractor-${Date.now()}`,
+      company_name,
+      contact_person: contact_person || company_name,
+      email: (email || '').toLowerCase(),
+      contractor_type: contractor_type || 'subcontractor',
+      trade_types: Array.isArray(trade_types) ? trade_types : [trade_types].filter(Boolean),
+      status: status || 'active',
+      created_date: new Date().toISOString(),
+      created_by: 'gc-portal'
+    };
+
+    if (!entities.Contractor) entities.Contractor = [];
+    entities.Contractor.push(newContractor);
+    debouncedSave();
+    
+    console.log('✅ Created new contractor via GC portal:', newContractor.id);
+    return res.json(newContractor);
+  } catch (err) {
+    console.error('❌ Public contractor create error:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to create contractor' });
+  }
+});
+
+// Public: Create ProjectSubcontractor - for GC portal
+app.post('/public/create-project-subcontractor', publicApiLimiter, (req, res) => {
+  try {
+    const { project_id, subcontractor_id, subcontractor_name, trade_type, contact_email, gc_id } = req.body || {};
+    
+    if (!project_id || !subcontractor_id) {
+      return res.status(400).json({ error: 'Project ID and Subcontractor ID are required' });
+    }
+
+    // Verify project belongs to this GC
+    const project = (entities.Project || []).find(p => p.id === project_id);
+    if (!project || (gc_id && project.gc_id !== gc_id)) {
+      return res.status(403).json({ error: 'Unauthorized: Project does not belong to this GC' });
+    }
+
+    const newProjectSub = {
+      id: `ProjectSub-${Date.now()}`,
+      project_id,
+      project_name: project.project_name,
+      gc_id: project.gc_id,
+      subcontractor_id,
+      subcontractor_name,
+      trade_type,
+      contact_email: (contact_email || '').toLowerCase(),
+      status: 'active',
+      compliance_status: 'pending_broker',
+      created_date: new Date().toISOString(),
+      created_by: 'gc-portal'
+    };
+
+    if (!entities.ProjectSubcontractor) entities.ProjectSubcontractor = [];
+    entities.ProjectSubcontractor.push(newProjectSub);
+    debouncedSave();
+    
+    console.log('✅ Created ProjectSubcontractor via GC portal:', newProjectSub.id);
+    return res.json(newProjectSub);
+  } catch (err) {
+    console.error('❌ Public ProjectSubcontractor create error:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to create project subcontractor' });
+  }
+});
+
 // Public: Get All ProjectSubcontractors
 app.get('/public/all-project-subcontractors', (req, res) => {
   try {
