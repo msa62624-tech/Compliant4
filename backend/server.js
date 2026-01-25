@@ -1141,6 +1141,15 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
     return null;
   }
 
+  // Check if contractor already has a stored password - if so, don't regenerate it
+  if (contractor.password && !forceCreate) {
+    console.log('✅ ensureGcLogin: contractor already has password stored, skipping regeneration', {
+      contractorId: contractor.id,
+      email: contractor.email
+    });
+    return null;
+  }
+
   // Check if this specific contractor already has a login
   const existingForThisContractor = users.find(u => u.gc_id === contractor.id);
   if (existingForThisContractor) {
