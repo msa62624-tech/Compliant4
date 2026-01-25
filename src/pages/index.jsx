@@ -286,8 +286,9 @@ export default function Pages({ onLogout }) {
       const hasValidPortalLink = !!gcId // Portal link with ID doesn't require authentication
       
       if (!isAuthenticated && !hasValidPortalLink && window.location.pathname !== '/gc-login') {
-        // Only redirect to login if no portal link ID and not authenticated
-        window.location.href = '/gc-login'
+        // Redirect to login but preserve the intended destination
+        const returnUrl = window.location.pathname + window.location.search
+        window.location.href = `/gc-login?returnUrl=${encodeURIComponent(returnUrl)}`
         return
       }
 
@@ -343,10 +344,11 @@ export default function Pages({ onLogout }) {
           <div className="min-h-screen bg-slate-50">
             <Routes>
               <Route path="/gc-login" element={<GCLogin onLogin={(gcData) => {
-                // Mark as authenticated and redirect to dashboard
+                // Mark as authenticated and redirect to original destination
                 sessionStorage.setItem('gcAuthenticated', 'true');
                 sessionStorage.setItem('gcPortalId', gcData.id);
-                window.location.href = `/gc-dashboard?id=${gcData.id}`;
+                const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
+                window.location.href = returnUrl || `/gc-dashboard?id=${gcData.id}`;
               }} />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/gc-dashboard" element={<GCDashboard />} />
