@@ -29,8 +29,6 @@ const timingSafeEqual = (a, b) => {
   }
 };
 
-// Load environment variables from .env
-dotenv.config();
 // Import AI and PDF integration services
 import AdobePDFService from './integrations/adobe-pdf-service.js';
 import AIAnalysisService from './integrations/ai-analysis-service.js';
@@ -38,6 +36,9 @@ import AIAnalysisService from './integrations/ai-analysis-service.js';
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Load environment variables from .env with explicit path
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
