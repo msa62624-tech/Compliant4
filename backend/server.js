@@ -3411,12 +3411,18 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
         const signLink = `${frontendUrl}/broker-upload-coi?token=${newCOI.coi_token}&action=sign&step=3`;
         const brokerDashboardLink = `${frontendUrl}/broker-dashboard?name=${encodeURIComponent(newCOI.broker_name || '')}&coiId=${newCOI.id}`;
         const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+        
+        // Build Sample COI data with project details for template
         const sampleCOIData = {
           project_name,
           gc_name,
+          projectAddress: project_location || `${req.body.project_location || 'Project Address'}`,
           trade: trade_type,
-          program: undefined
+          program: undefined,
+          additional_insureds: insureds || [],
+          additional_insured_entities: insureds || []
         };
+        
         await fetch(internalUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3425,7 +3431,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
             includeSampleCOI: true,
             sampleCOIData,
             subject: `📋 Certificate Ready for Review & Signature: ${subcontractor_name}`,
-            body: `A Certificate of Insurance is ready for your review and signature.\n\nCLIENT:\n• Company: ${subcontractor_name}\n\nPROJECT:\n• Project: ${project_name}\n• General Contractor: ${gc_name}\n\nCERTIFICATE STATUS:\n• Trade(s): ${trade_type || 'N/A'}\n• Status: Awaiting Your Signature\n• Created: ${new Date().toLocaleDateString()}\n\n✍️ Sign Certificate:\n${signLink}\n\n📊 Broker Dashboard:\n${brokerDashboardLink}\n\nOnce you approve, the certificate will be submitted to the General Contractor.\n\nBest regards,\nInsureTrack System`
+            body: `A Certificate of Insurance is ready for your review and signature.\n\nCLIENT:\n• Company: ${subcontractor_name}\n\nPROJECT:\n• Project: ${project_name}\n• Location: ${sampleCOIData.projectAddress}\n• General Contractor: ${gc_name}\n\nCERTIFICATE STATUS:\n• Trade(s): ${trade_type || 'N/A'}\n• Status: Awaiting Your Signature\n• Created: ${new Date().toLocaleDateString()}\n\n✍️ Sign Certificate:\n${signLink}\n\n📊 Broker Dashboard:\n${brokerDashboardLink}\n\nOnce you approve, the certificate will be submitted to the General Contractor.\n\nBest regards,\nInsureTrack System`
           })
         });
       }
