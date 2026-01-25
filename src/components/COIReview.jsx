@@ -93,14 +93,41 @@ export default function COIReview() {
     queryKey: ['project', coi?.project_id],
     queryFn: async () => {
       if (!coi?.project_id) {
-        console.warn('No project_id in COI');
+        console.warn('No project_id in COI', { coiId: coi?.id, coi });
         return null;
       }
+      
+      console.log('🔍 Looking for project with id:', coi.project_id);
       const projects = await apiClient.entities.Project.list();
+      console.log('📋 Total projects found:', projects.length);
+      console.log('📋 Project IDs:', projects.map(p => p.id));
+      
       const foundProject = projects.find(p => p.id === coi.project_id);
+      
       if (!foundProject) {
-        console.warn(`Project not found with id: ${coi.project_id}`);
+        console.warn(`❌ Project not found with id: ${coi.project_id}`);
+        console.warn('Available project IDs:', projects.map(p => ({ id: p.id, name: p.project_name })));
+        
+        // Try to get project data from COI itself as fallback
+        if (coi.project_name) {
+          console.log('Using project data from COI as fallback');
+          return {
+            id: coi.project_id,
+            project_name: coi.project_name,
+            project_address: coi.project_address,
+            gc_name: coi.gc_name,
+            gc_email: coi.gc_email,
+            owner_entity: coi.owner_entity,
+            program_id: coi.program_id,
+            program_name: coi.program_name,
+            additional_insureds: coi.additional_insureds,
+            _fallback: true
+          };
+        }
+      } else {
+        console.log('✅ Project found:', foundProject.project_name);
       }
+      
       return foundProject;
     },
     enabled: !!coi?.project_id,
