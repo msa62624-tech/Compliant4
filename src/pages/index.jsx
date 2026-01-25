@@ -281,11 +281,12 @@ export default function Pages({ onLogout }) {
     const params = new URLSearchParams(window.location.search)
     const gcId = params.get('id')
     if (isGCRoute) {
-      // Check if authenticated
+      // Check if authenticated OR if portal link has ID parameter
       const isAuthenticated = sessionStorage.getItem('gcAuthenticated') === 'true'
+      const hasValidPortalLink = !!gcId // Portal link with ID doesn't require authentication
       
-      if (!isAuthenticated && window.location.pathname !== '/gc-login') {
-        // Redirect to login
+      if (!isAuthenticated && !hasValidPortalLink && window.location.pathname !== '/gc-login') {
+        // Only redirect to login if no portal link ID and not authenticated
         window.location.href = '/gc-login'
         return
       }
