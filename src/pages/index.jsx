@@ -146,27 +146,27 @@ export default function Pages({ onLogout }) {
   // Each portal is independent - priority is current path, not shared sessionStorage
   const [isGCPublicSession, setIsGCPublicSession] = useState(() => {
     if (typeof window === 'undefined') return false
-    // Only use GC session if currently on GC path AND not authenticated as admin
-    // Include /gc-login in the GC routes check
+    // GC portal routes should always enable GC public session
+    // The admin token won't hijack GC routes - they're separate portals
     const onGCRoute = window.location.pathname.startsWith('/gc-dashboard') || 
                       window.location.pathname.startsWith('/gc-project') ||
                       window.location.pathname.startsWith('/gc-login');
-    return onGCRoute && !hasAdminToken;
+    return onGCRoute;
   })
 
   const [isBrokerPublicSession, setIsBrokerPublicSession] = useState(() => {
     if (typeof window === 'undefined') return false
-    // Only use broker session if currently on broker path AND not authenticated as admin
+    // Broker portal routes should always enable broker public session
     const isBrokerPath = window.location.pathname.startsWith('/broker-dashboard') || 
                          window.location.pathname.startsWith('/broker-upload-coi') || 
                          window.location.pathname.startsWith('/broker-upload') ||
                          window.location.pathname.startsWith('/broker-login');
-    return isBrokerPath && !hasAdminToken;
+    return isBrokerPath;
   })
 
   const [isSubPublicSession, setIsSubPublicSession] = useState(() => {
     if (typeof window === 'undefined') return false
-    // Only use sub session if currently on subcontractor path AND not authenticated as admin
+    // Subcontractor portal routes should always enable sub public session
     const path = window.location.pathname
     const isSubPath = (
       path.startsWith('/subcontractor-dashboard') ||
@@ -174,7 +174,7 @@ export default function Pages({ onLogout }) {
       path.startsWith('/broker-verification') ||
       path.startsWith('/subcontractor-login')
     );
-    return isSubPath && !hasAdminToken;
+    return isSubPath;
   })
 
   // Check broker routes FIRST (before sub routes)
