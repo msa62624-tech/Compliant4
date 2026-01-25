@@ -860,55 +860,59 @@ export default function BrokerUploadCOI() {
         data: finalUpdateData
       });
 
-      // Auto-trigger AI policy analysis
-      setUploadProgress('Running AI policy analysis...');
-      try {
-        const apiBase = backendBase || (import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001'));
-        const authToken = sessionStorage.getItem('token');
-        
-        const policyAnalysisRes = await fetch(`${apiBase}/integrations/analyze-policy`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': authToken ? `Bearer ${authToken}` : ''
-          },
-          body: JSON.stringify({
-            coi_id: coiRecord.id,
-            policy_documents: [
-              uploadedFiles.gl_policy,
-              uploadedFiles.wc_policy,
-              uploadedFiles.auto_policy,
-              uploadedFiles.umbrella_policy
-            ].filter(Boolean)
-          }),
-          credentials: 'include'
-        });
-        
-        // Validate response before parsing JSON
-        if (policyAnalysisRes.ok) {
-          const contentType = policyAnalysisRes.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const policyAnalysis = await policyAnalysisRes.json();
-            
-            // Update COI with analysis results
-            if (policyAnalysis && !policyAnalysis.error) {
-              await updateCOIMutation.mutateAsync({
-                id: coiRecord.id,
-                data: {
-                  policy_analysis: policyAnalysis,
-                  ai_analysis_date: new Date().toISOString()
-                }
-              });
+      // Auto-trigger AI policy analysis (only for authenticated users, not public broker uploads)
+      const authToken = sessionStorage.getItem('token');
+      const isPublicAccess = sessionStorage.getItem('public_access_enabled') === 'true';
+      
+      if (authToken && !isPublicAccess) {
+        setUploadProgress('Running AI policy analysis...');
+        try {
+          const apiBase = backendBase || (import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001'));
+          
+          const policyAnalysisRes = await fetch(`${apiBase}/integrations/analyze-policy`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+              coi_id: coiRecord.id,
+              policy_documents: [
+                uploadedFiles.gl_policy,
+                uploadedFiles.wc_policy,
+                uploadedFiles.auto_policy,
+                uploadedFiles.umbrella_policy
+              ].filter(Boolean)
+            }),
+            credentials: 'include'
+          });
+          
+          // Validate response before parsing JSON
+          if (policyAnalysisRes.ok) {
+            const contentType = policyAnalysisRes.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+              const policyAnalysis = await policyAnalysisRes.json();
+              
+              // Update COI with analysis results
+              if (policyAnalysis && !policyAnalysis.error) {
+                await updateCOIMutation.mutateAsync({
+                  id: coiRecord.id,
+                  data: {
+                    policy_analysis: policyAnalysis,
+                    ai_analysis_date: new Date().toISOString()
+                  }
+                });
+              }
+            } else {
+              console.warn('⚠️ AI analysis returned non-JSON response');
             }
           } else {
-            console.warn('⚠️ AI analysis returned non-JSON response');
+            console.warn('⚠️ AI analysis request failed:', policyAnalysisRes.status);
           }
-        } else {
-          console.warn('⚠️ AI analysis request failed:', policyAnalysisRes.status);
+        } catch (analysisError) {
+          console.warn('⚠️ AI analysis failed (continuing):', analysisError);
+          // Don't fail the whole submission if analysis fails
         }
-      } catch (analysisError) {
-        console.warn('⚠️ AI analysis failed (continuing):', analysisError);
-        // Don't fail the whole submission if analysis fails
       }
 
       setUploadProgress('Notifying admins...');
