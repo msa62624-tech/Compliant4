@@ -492,6 +492,8 @@ function COIDetailPanel({
   onClose,
 }) {
   const [complianceResult, setComplianceResult] = React.useState(null);
+  const queryClient = useQueryClient();
+  const [isGenerating, setIsGenerating] = React.useState(false);
 
   // Check compliance on mount
   React.useEffect(() => {
@@ -569,6 +571,58 @@ function COIDetailPanel({
           >
             Close
           </Button>
+        </div>
+
+        {/* Stored insurance and broker data (for reuse/regeneration) */}
+        <div className="pt-2 border-t mt-2">
+          <h5 className="font-semibold">Stored Insurance & Broker Data</h5>
+          <div className="text-sm text-gray-700 mt-2 space-y-1">
+            <div>Carrier (GL): <strong>{coi.insurance_carrier_gl || '—'}</strong></div>
+            <div>Policy # (GL): <strong>{coi.policy_number_gl || '—'}</strong></div>
+            <div>GL Each Occurrence: <strong>{coi.gl_each_occurrence ? `$${coi.gl_each_occurrence}` : '—'}</strong></div>
+            <div>Broker: <strong>{coi.broker_name || coi.broker_email || '—'}</strong></div>
+            <div>Broker Email: <strong>{coi.broker_email || '—'}</strong></div>
+            <div>Policy Expiration: <strong>{coi.policy_expiration_date ? new Date(coi.policy_expiration_date).toLocaleDateString() : '—'}</strong></div>
+          </div>
+
+          <div className="mt-3">
+            <Button
+              size="sm"
+              onClick={async () => {
+                // Generate a regenerated COI for this project using stored insurance and broker data
+                try {
+                  setIsGenerating(true);
+                  const body = {
+                    coi_token: coi.coi_token,
+                    certificate_holder_name: project?.gc_name || coi.certificate_holder_name || coi.certificate_holder || '',
+                    project_address: project?.project_address || project?.project_location || project?.address || '',
+                    project_name: project?.project_name || coi.project_name || ''
+                  };
+                  const res = await fetch(`/public/regenerate-coi`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                  });
+                  const result = await res.json();
+                  if (!res.ok) throw new Error(result?.error || result?.message || 'Regeneration failed');
+                  // Refresh COIs
+                  queryClient.invalidateQueries(['allCOIs']);
+                  // Open regenerated COI URL if present
+                  if (result?.regenerated_coi_url) {
+                    window.open(result.regenerated_coi_url, '_blank');
+                  }
+                } catch (err) {
+                  console.error('Generate COI error:', err?.message || err);
+                  alert('Failed to generate COI: ' + (err?.message || err));
+                } finally {
+                  setIsGenerating(false);
+                }
+              }}
+              disabled={isGenerating || !coi.first_coi_uploaded}
+            >
+              {isGenerating ? 'Generating…' : 'Generate COI for Project'}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

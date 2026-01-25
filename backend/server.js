@@ -148,6 +148,10 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 } // 20MB
 });
 
+// Renewal configuration
+const RENEWAL_LOOKAHEAD_DAYS = Number(process.env.RENEWAL_LOOKAHEAD_DAYS || 30);
+const BINDER_WINDOW_DAYS = Number(process.env.BINDER_WINDOW_DAYS || 30);
+
 // ========== Entities ==========
 // Start empty; persisted data in entities.json will be loaded at startup.
 const entities = {
@@ -328,6 +332,36 @@ function debouncedSave() {
       saveTimeout = null;
     }
   }, 1000); // Save 1 second after last change
+}
+
+/**
+ * Find a valid (non-expired, active) GeneratedCOI for a subcontractor.
+ * Returns the most recently created valid COI or null if none found.
+ */
+function findValidCOIForSub(subId) {
+  if (!subId) return null;
+  const now = Date.now();
+  const cois = (entities.GeneratedCOI || []).filter(c => {
+    if (!c) return false;
+    if (c.subcontractor_id !== subId && c.subcontractor_id !== String(subId)) return false;
+    // If policy_expiration_date is present, ensure it's in the future
+    if (c.policy_expiration_date) {
+      const exp = new Date(c.policy_expiration_date).getTime();
+      if (isNaN(exp) || exp <= now) return false;
+    }
+    // Exclude explicitly expired or revoked COIs
+    if (c.status === 'expired' || c.status === 'revoked') return false;
+    return true;
+  });
+
+  if (!cois || cois.length === 0) return null;
+  // Return the most recent by created_date or id timestamp
+  cois.sort((a, b) => {
+    const ta = a.created_date ? new Date(a.created_date).getTime() : 0;
+    const tb = b.created_date ? new Date(b.created_date).getTime() : 0;
+    return tb - ta;
+  });
+  return cois[0] || null;
 }
 
 // =======================
@@ -3778,6 +3812,27 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
       return res.status(400).json({ error: 'project_id and subcontractor_id are required' });
     }
 
+    // If caller explicitly requests a new COI, set forceNew
+    const forceNew = !!req.body.force_new || !!req.body.forceNew;
+
+    // Attempt to find an existing valid COI for this subcontractor to reuse
+    if (!forceNew) {
+      const reusable = findValidCOIForSub(subcontractor_id);
+      if (reusable) {
+        // Attach project to linked_projects for audit and reuse tracking
+        if (!reusable.linked_projects) reusable.linked_projects = [];
+        if (!reusable.linked_projects.includes(project_id)) reusable.linked_projects.push(project_id);
+        reusable.is_reused = true;
+        reusable.reused_for_project_id = project_id;
+        reusable.updatedAt = new Date().toISOString();
+        reusable.updatedBy = 'reuse-logic';
+        // Persist and return the existing COI (indicate reuse)
+        debouncedSave();
+        console.log('ℹ️ Reusing existing valid COI for subcontractor:', subcontractor_id, 'coi:', reusable.id);
+        return res.json({ reused: true, coi: reusable });
+      }
+    }
+
     // Check if COI already exists for this project/sub combo
     // Allow multiple COI requests for the same project/subcontractor.
     // Compute sequence number of COIs for this combination.
@@ -3837,7 +3892,12 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
       additional_insureds: insureds,
       project_location,
       created_by: 'public-portal',
-      sequence
+      sequence,
+      // Policy metadata for reuse logic
+      policy_expiration_date: null,
+      renewal_date: null,
+      is_reused: false,
+      linked_projects: []
     };
 
     if (!entities.GeneratedCOI) entities.GeneratedCOI = [];
@@ -4441,11 +4501,33 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
       manually_entered_additional_insureds: []
     };
 
+    // Determine a conservative policy expiration date (earliest expiration across coverages)
+    try {
+      const expDates = [];
+      const pushIfDate = v => {
+        if (!v) return;
+        const t = new Date(v).getTime();
+        if (!isNaN(t)) expDates.push(t);
+      };
+      pushIfDate(d.gl_expiration_date || d.gl_effective_date);
+      pushIfDate(d.auto_expiration_date || d.auto_effective_date);
+      pushIfDate(d.wc_expiration_date || d.wc_effective_date);
+      pushIfDate(d.umbrella_expiration_date || d.umbrella_effective_date);
+      if (expDates.length > 0) {
+        // Use earliest expiration to be conservative (policy no longer valid after earliest exp)
+        const earliest = new Date(Math.min(...expDates)).toISOString();
+        enhancedCOIData.policy_expiration_date = earliest;
+      }
+    } catch (expErr) {
+      // ignore and leave expiration null
+    }
+
     // Update COI record with enhanced data for regeneration
     entities.GeneratedCOI[coiIdx] = {
       ...coi,
       first_coi_url: fileUrl,
       first_coi_uploaded: true,
+      policy_expiration_date: enhancedCOIData.policy_expiration_date || coi.policy_expiration_date || null,
       first_coi_upload_date: new Date().toISOString(),
       status: 'awaiting_admin_review',
       uploaded_for_review_date: new Date().toISOString(),
@@ -4501,6 +4583,89 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
   } catch (error) {
     console.error('public upload-coi error:', error?.message || error);
     return sendError(res, 500, 'COI upload failed', { error: error.message });
+  }
+});
+// Public: Upload policy or binder for renewal flows
+app.post('/public/upload-policy', uploadLimiter, upload.single('file'), async (req, res) => {
+  try {
+    const { coi_token, type } = req.query || req.body || {};
+    if (!req.file) return sendError(res, 400, 'No file uploaded');
+    if (!coi_token) return sendError(res, 400, 'coi_token is required');
+
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+
+    const coiIdx = (entities.GeneratedCOI || []).findIndex(c => timingSafeEqual(c.coi_token, String(coi_token)));
+    if (coiIdx === -1) return sendError(res, 404, 'COI not found for token');
+
+    const coi = entities.GeneratedCOI[coiIdx];
+    const now = new Date().toISOString();
+
+    const uploadType = (type || req.body.type || 'policy').toString().toLowerCase();
+
+    if (uploadType === 'binder') {
+      entities.GeneratedCOI[coiIdx] = {
+        ...coi,
+        binder_uploaded_at: now,
+        binder_filename: req.file.filename,
+        binder_url: fileUrl,
+        binder_allowed_until: new Date(Date.now() + BINDER_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+        renewal_status: 'binder_uploaded',
+        updatedAt: now,
+        updatedBy: 'public-upload-policy'
+      };
+
+      try {
+        const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+        const payload = {
+          to: DEFAULT_ADMIN_EMAILS.join(','),
+          subject: `Binder uploaded for ${coi.subcontractor_name} (${coi.id})`,
+          body: `A binder has been uploaded for ${coi.subcontractor_name} on project ${coi.project_name}. Binder URL: ${fileUrl}`
+        };
+        await fetch(internalUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {});
+      } catch (e) {}
+
+      debouncedSave();
+      return res.json({ ok: true, type: 'binder', file_url: fileUrl, coi: entities.GeneratedCOI[coiIdx] });
+    }
+
+    // Treat as full policy
+    entities.GeneratedCOI[coiIdx] = {
+      ...coi,
+      policy_uploaded_at: now,
+      policy_filename: req.file.filename,
+      policy_url: fileUrl,
+      renewal_status: 'policy_uploaded',
+      updatedAt: now,
+      updatedBy: 'public-upload-policy'
+    };
+
+    try {
+      const binderAllowedUntil = coi.binder_allowed_until ? new Date(coi.binder_allowed_until).getTime() : null;
+      const uploadedAt = new Date(entities.GeneratedCOI[coiIdx].policy_uploaded_at).getTime();
+      let notifyAdmin = false;
+      if (binderAllowedUntil && uploadedAt > binderAllowedUntil) notifyAdmin = true;
+      if (!coi.binder_uploaded_at && coi.policy_expiration_date && new Date(coi.policy_expiration_date).getTime() <= Date.now()) notifyAdmin = true;
+
+      if (notifyAdmin) {
+        const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+        const payload = {
+          to: DEFAULT_ADMIN_EMAILS.join(','),
+          subject: `Policy uploaded for ${coi.subcontractor_name} requires admin review`,
+          body: `A policy has been uploaded for ${coi.subcontractor_name} on project ${coi.project_name}. Please review: ${fileUrl}`
+        };
+        await fetch(internalUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {});
+      }
+    } catch (notifyErr) {
+      console.warn('Policy upload admin notify failed:', notifyErr?.message || notifyErr);
+    }
+
+    debouncedSave();
+    return res.json({ ok: true, type: 'policy', file_url: fileUrl, coi: entities.GeneratedCOI[coiIdx] });
+  } catch (err) {
+    console.error('upload-policy error:', err?.message || err);
+    return sendError(res, 500, 'Policy upload failed', { error: err.message });
   }
 });
 
@@ -6637,6 +6802,100 @@ app.use((err, req, res, _next) => {
   sendError(res, 500, 'Internal server error');
 });
 
+// Renewal processing: scan for expiring policies and notify brokers/admins
+async function checkAndProcessRenewals() {
+  try {
+    const now = Date.now();
+    const lookaheadMs = RENEWAL_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000;
+
+    const soonExpiring = (entities.GeneratedCOI || []).filter(c => {
+      if (!c || !c.policy_expiration_date) return false;
+      try {
+        const exp = new Date(c.policy_expiration_date).getTime();
+        if (isNaN(exp)) return false;
+        // only consider those expiring within lookahead window and not already notified
+        const willExpireSoon = exp > now && exp <= (now + lookaheadMs);
+        const alreadyNotified = !!c.renewal_notified_at;
+        return willExpireSoon && !alreadyNotified;
+      } catch (e) {
+        return false;
+      }
+    });
+
+    for (const coi of soonExpiring) {
+      try {
+        // Create a PolicyRenewal task
+        const pr = {
+          id: `policy-renewal-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+          coi_id: coi.id,
+          subcontractor_id: coi.subcontractor_id,
+          project_id: coi.project_id,
+          created_at: new Date().toISOString(),
+          status: 'requested',
+          expires_at: new Date(Date.now() + lookaheadMs).toISOString()
+        };
+        if (!entities.PolicyRenewal) entities.PolicyRenewal = [];
+        entities.PolicyRenewal.push(pr);
+
+        // Mark coi as notified
+        const idx = entities.GeneratedCOI.findIndex(c => c.id === coi.id);
+        if (idx !== -1) {
+          entities.GeneratedCOI[idx].renewal_notified_at = new Date().toISOString();
+          entities.GeneratedCOI[idx].renewal_task_id = pr.id;
+          entities.GeneratedCOI[idx].updatedAt = new Date().toISOString();
+        }
+
+        // Notify broker with binder window instructions
+        try {
+          if (coi.broker_email) {
+            const frontendHost = process.env.FRONTEND_URL || `http://localhost:5175`;
+            const uploadBinderLink = `${frontendHost}/broker-upload-policy?token=${coi.coi_token}&type=binder`;
+            const uploadPolicyLink = `${frontendHost}/broker-upload-policy?token=${coi.coi_token}&type=policy`;
+            const internalUrl = `${process.env.BACKEND_URL || (process.env.BACKEND_HOST ? `http://${process.env.BACKEND_HOST}` : '')}${reqHostSuffix()}`;
+            const emailPayload = {
+              to: coi.broker_email,
+              subject: `Policy Renewal Requested: ${coi.subcontractor_name}`,
+              body: `Your policy for ${coi.subcontractor_name} is expiring on ${coi.policy_expiration_date}. You may upload a binder within the next ${BINDER_WINDOW_DAYS} days here: ${uploadBinderLink} . After binder upload you will have ${BINDER_WINDOW_DAYS} days to provide the full policy here: ${uploadPolicyLink}`
+            };
+            // Best-effort internal send
+            try {
+              const internalSend = `${reqProtocolHost()}/public/send-email`;
+              await fetch(internalSend, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(emailPayload) });
+            } catch (e) {
+              // ignore
+            }
+          }
+        } catch (notifyErr) {
+          console.warn('Failed to notify broker about renewal:', notifyErr?.message || notifyErr);
+        }
+      } catch (prErr) {
+        console.warn('Failed to create policy renewal task:', prErr?.message || prErr);
+      }
+    }
+
+    // Persist any changes
+    debouncedSave();
+  } catch (err) {
+    console.error('Renewal scan error:', err?.message || err);
+  }
+}
+
+function reqProtocolHost() {
+  // Best-effort host URL from env; fallback to localhost
+  return process.env.BACKEND_URL || `http://localhost:${process.env.PORT || PORT}`;
+}
+
+function reqHostSuffix() {
+  return '';
+}
+
+function startRenewalScheduler() {
+  const intervalMs = Number(process.env.RENEWAL_POLL_INTERVAL_MS || 24 * 60 * 60 * 1000);
+  // Run once immediately
+  checkAndProcessRenewals().catch(() => {});
+  setInterval(() => { checkAndProcessRenewals().catch(() => {}); }, intervalMs);
+}
+
 // Start server (skip if running in serverless environment like Vercel)
 if (!process.env.VERCEL) {
   // Debug endpoint to help diagnose routing/CORS issues
@@ -6694,6 +6953,14 @@ if (!process.env.VERCEL) {
 
         // Expose chosen port to environment for downstream processes
         process.env.PORT = String(p);
+
+        // Start renewal scheduler to monitor expiring policies
+        try {
+          startRenewalScheduler();
+          console.log('🔁 Renewal scheduler started');
+        } catch (schedErr) {
+          console.warn('Could not start renewal scheduler:', schedErr?.message || schedErr);
+        }
 
         server.on('error', (err) => {
           console.error('Server error:', err);
