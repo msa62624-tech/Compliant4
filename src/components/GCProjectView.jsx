@@ -183,7 +183,9 @@ If you have any questions, please contact ${project?.gc_name}.
 Best regards,
 InsureTrack System`;
 
-        await fetch(`${backendBase}/public/send-email`, {
+        console.log('📧 Sending email to:', contactEmail, 'via', `${backendBase}/public/send-email`);
+        
+        const emailResponse = await fetch(`${backendBase}/public/send-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -191,9 +193,17 @@ InsureTrack System`;
             subject: `You've Been Added to ${project?.project_name}`,
             body: emailBody
           })
-        }).catch(err => console.error('Failed to send notification email:', err));
+        });
+        
+        if (!emailResponse.ok) {
+          const errorData = await emailResponse.json().catch(() => ({}));
+          console.error('❌ Email send failed:', emailResponse.status, errorData);
+        } else {
+          const result = await emailResponse.json().catch(() => ({}));
+          console.log('✅ Email sent successfully:', result);
+        }
       } catch (err) {
-        console.error('Email notification error:', err);
+        console.error('❌ Email notification error:', err);
       }
       
       setForm({ subcontractor_name: "", trade: "", contact_email: "" });
