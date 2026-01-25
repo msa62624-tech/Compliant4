@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useState, useEffect } from "react";
 import { apiClient, getApiBase } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
+import { createEmailTemplate } from "@/emailTemplates";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notifySubCOIApproved } from "@/brokerNotifications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -162,8 +163,8 @@ export default function COIReview() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ to, subject, body }) => {
-      await sendEmail({ to, subject, body });
+    mutationFn: async ({ to, subject, body, html, includeSampleCOI, sampleCOIData }) => {
+      await sendEmail({ to, subject, body, html, includeSampleCOI, sampleCOIData });
     },
   });
 
@@ -841,10 +842,10 @@ InsureTrack Team`
       }
     });
 
-    // Build broker upload links
-    const brokerUploadLink = `${window.location.origin}${createPageUrl('broker-upload-coi')}?token=${coi.coi_token}`;
+    // Build broker upload links - direct to step 2 for endorsement upload
+    const brokerUploadLink = `${window.location.origin}${createPageUrl('broker-upload-coi')}?token=${coi.coi_token}&step=2&action=upload`;
     const endorsementUploadLink = includeEndorsementUpload
-      ? `${brokerUploadLink}&action=upload&step=2`
+      ? brokerUploadLink
       : null;
     const brokerDashboardLink = `${window.location.origin}${createPageUrl('broker-dashboard')}?email=${encodeURIComponent(coi.broker_email)}&coiId=${coi.id}`;
     // Helper function to build email sections
@@ -903,6 +904,17 @@ InsureTrack Team`
       await sendMessageMutation.mutateAsync({
         to: brokerRecipient,
         subject: emailSubject,
+        includeSampleCOI: true,
+        sampleCOIData: {
+          subcontractor_name: coi.subcontractor_name,
+          project_name: projectName,
+          project_address: projectAddress,
+          trade_type: coi.trade_type,
+          gc_name: gcName,
+          gc_owner: safeProject.owner_entity || safeProject.gc_owner,
+          program: safeProject.program_name || safeProject.program_id,
+          additional_insureds: safeProject.additional_insureds || [gcName]
+        },
         body: `The Certificate of Insurance you submitted for ${coi.subcontractor_name} requires corrections before approval.
 
 PROJECT:
