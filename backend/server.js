@@ -171,6 +171,7 @@ const entities = {
       contact_person: 'John Smith',
       status: 'active',
       admin_id: '1',
+      password: '$2b$10$wcB4VuBx3EQVWjMkN/TBVOMq2dO9RQKkEXpR4zFZzhTf2dMBuus0i',
       created_date: '2020-01-15T10:00:00Z'
     },
     {
@@ -187,6 +188,7 @@ const entities = {
       contact_person: 'Sarah Williams',
       status: 'active',
       admin_id: '1',
+      password: '$2b$10$wcB4VuBx3EQVWjMkN/TBVOMq2dO9RQKkEXpR4zFZzhTf2dMBuus0i',
       created_date: '2018-05-20T10:00:00Z'
     },
     {
@@ -203,6 +205,7 @@ const entities = {
       contact_person: 'David Chen',
       status: 'active',
       admin_id: '1',
+      password: '$2b$10$wcB4VuBx3EQVWjMkN/TBVOMq2dO9RQKkEXpR4zFZzhTf2dMBuus0i',
       created_date: '2019-03-10T10:00:00Z'
     },
     // Subcontractors
