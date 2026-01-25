@@ -4054,22 +4054,41 @@ app.post('/public/broker-login', publicApiLimiter, async (req, res) => {
 // Public: GC login with email and password
 app.post('/public/gc-login', publicApiLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body || {};
+    const { email, password, gcId } = req.body || {};
     
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Find GC contractor by email
-    const gc = (entities.Contractor || []).find(c => 
+    // Find all GC contractors by email
+    const matchingGCs = (entities.Contractor || []).filter(c => 
       c.contractor_type === 'general_contractor' && 
       c.email && 
       c.email.toLowerCase() === email.toLowerCase()
     );
 
+    // If gcId is specified, use that specific GC; otherwise if only one GC, use it; else ask user to choose
+    let gc;
+    if (gcId && matchingGCs.length > 0) {
+      gc = matchingGCs.find(c => c.id === gcId);
+    } else if (matchingGCs.length === 1) {
+      gc = matchingGCs[0];
+    } else if (matchingGCs.length > 1) {
+      // Multiple GCs with same email - return list for user to choose
+      return res.status(200).json({
+        requiresSelection: true,
+        gcs: matchingGCs.map(c => ({
+          id: c.id,
+          company_name: c.company_name,
+          address: c.address
+        }))
+      });
+    }
+
     console.log('🔐 GC Login attempt:', {
       emailSearched: email,
       gcFound: !!gc,
+      matchingGCCount: matchingGCs.length,
       gcHasPassword: !!gc?.password,
       passwordFieldExists: 'password' in (gc || {})
     });

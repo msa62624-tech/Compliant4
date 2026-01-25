@@ -9,9 +9,11 @@ import ForgotPassword from '@/components/ForgotPassword';
 export default function GCLogin({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [selectedGcId, setSelectedGcId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [multipleGCs, setMultipleGCs] = useState(null); // List of GCs with same email
 
   const submit = async (e) => {
     e.preventDefault();
@@ -39,7 +41,11 @@ export default function GCLogin({ onLogin }) {
       const response = await fetch(`${backendBase}/public/gc-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.toLowerCase(), password })
+        body: JSON.stringify({ 
+          email: email.toLowerCase(), 
+          password,
+          gcId: selectedGcId // Include selected GC ID if multiple GCs with same email
+        })
       });
 
       if (!response.ok) {
@@ -48,6 +54,13 @@ export default function GCLogin({ onLogin }) {
       }
 
       const gcData = await response.json();
+
+      // If multiple GCs with same email, show selection screen
+      if (gcData.requiresSelection && gcData.gcs) {
+        setMultipleGCs(gcData.gcs);
+        setSelectedGcId(null);
+        return;
+      }
 
       // Store GC session
       sessionStorage.setItem('gcPublicSession', 'true');
@@ -66,6 +79,52 @@ export default function GCLogin({ onLogin }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-600 via-rose-600 to-orange-700 p-4">
         <ForgotPassword onBackToLogin={() => setShowForgotPassword(false)} />
+      </div>
+    );
+  }
+
+  // Show GC selection if multiple GCs with same email
+  if (multipleGCs && multipleGCs.length > 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-600 via-rose-600 to-orange-700 p-4">
+        <div className="w-full max-w-md">
+          <Card className="shadow-2xl border-0">
+            <CardHeader className="bg-gradient-to-r from-red-50 to-rose-50 border-b">
+              <CardTitle className="text-2xl text-slate-900">Select Your Company</CardTitle>
+              <p className="text-sm text-slate-600 mt-2">Multiple companies found with this email</p>
+            </CardHeader>
+            <CardContent className="p-8">
+              <div className="space-y-3">
+                {multipleGCs.map(gc => (
+                  <button
+                    key={gc.id}
+                    onClick={() => {
+                      setSelectedGcId(gc.id);
+                      setMultipleGCs(null);
+                      submit({ preventDefault: () => {} });
+                    }}
+                    className="w-full p-4 border-2 border-slate-300 rounded-lg hover:border-red-500 hover:bg-red-50 transition-all text-left"
+                  >
+                    <div className="font-bold text-slate-900">{gc.company_name}</div>
+                    <div className="text-sm text-slate-600">{gc.address}</div>
+                  </button>
+                ))}
+              </div>
+              <Button
+                onClick={() => {
+                  setMultipleGCs(null);
+                  setEmail('');
+                  setPassword('');
+                  setSelectedGcId(null);
+                }}
+                variant="outline"
+                className="w-full mt-6"
+              >
+                Back to Login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
