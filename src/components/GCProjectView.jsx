@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient, getApiBase } from "@/api/apiClient";
-import { sendEmail } from "@/emailHelper";
-import { notifySubAddedToProject } from "@/brokerNotifications";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -610,14 +608,14 @@ export default function GCProjectView() {
                       certificate_holder: project?.gc_name,
                       project_name: project?.project_name,
                       projectAddress: project?.address ? `${project.address}, ${project.city}, ${project.state} ${project.zip_code || ''}` : undefined,
-                      description_of_operations: description,
-                      requires_umbrella: requiresUmbrella,
+                      description_of_operations: project?.description_of_operations || '',
+                      requires_umbrella: project?.requires_umbrella || false,
                       additional_insureds: Array.isArray(project?.additional_insured_entities) ? project.additional_insured_entities.map(e => e?.name || e).filter(Boolean) : [],
                       // Include any insurer names if present from source insurance data
-                      insurance_carrier_gl: insuranceData?.insurance_carrier_gl,
-                      insurance_carrier_auto: insuranceData?.insurance_carrier_auto,
-                      insurance_carrier_umbrella: insuranceData?.insurance_carrier_umbrella,
-                      insurance_carrier_wc: insuranceData?.insurance_carrier_wc
+                      insurance_carrier_gl: existingCOI?.insurance_carrier_gl,
+                      insurance_carrier_auto: existingCOI?.insurance_carrier_auto,
+                      insurance_carrier_umbrella: existingCOI?.insurance_carrier_umbrella,
+                      insurance_carrier_wc: existingCOI?.insurance_carrier_wc
                     }
                   })
                 });
@@ -662,7 +660,7 @@ export default function GCProjectView() {
 
   // Archive subcontractor from GC portal
   const archiveSubMutation = useMutation({
-    mutationFn: async ({ id, reason }) => {
+    mutationFn: async ({ id }) => {
       // For public GC portal, we skip actual archiving for now
       // In a full implementation, this would call a public endpoint
       return { id, archived: true };

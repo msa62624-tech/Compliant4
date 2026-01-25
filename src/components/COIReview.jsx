@@ -2,7 +2,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useState, useEffect } from "react";
 import { apiClient, getApiBase } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
-import { createEmailTemplate } from "@/emailTemplates";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notifySubCOIApproved } from "@/brokerNotifications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,8 +40,6 @@ export default function COIReview() {
   const [requireNewCOI, setRequireNewCOI] = useState(false);
   const [applyToAllProjects, setApplyToAllProjects] = useState(false);
   const [analyzingCompliance, setAnalyzingCompliance] = useState(false);
-  const [isGeneratingCOI, setIsGeneratingCOI] = useState(false);
-  const [isSigningCOI, setIsSigningCOI] = useState(false);
 
   // Mock user for admin context. In a real app, this would come from an auth context.
   const user = { email: 'admin@example.com', role: 'admin' };
@@ -404,37 +401,31 @@ Analyze for deficiencies - check all 12 items above. Remember: ONLY flag coverag
   };
 
 
-  const generateCOIFromSystem = async () => {
+  const _generateCOIFromSystem = async () => {
     if (!coi) return;
     try {
-      setIsGeneratingCOI(true);
       await apiClient.integrations.Admin.GenerateCOI({ coi_id: coi.id });
       queryClient.invalidateQueries(['coi', coi.id]);
       alert('COI generated from system data and set to Pending.');
     } catch (err) {
       console.error('Generate COI failed:', err);
       alert('Failed to generate COI from system data.');
-    } finally {
-      setIsGeneratingCOI(false);
     }
   };
 
-  const signCOIAsAdmin = async () => {
+  const _signCOIAsAdmin = async () => {
     if (!coi) return;
     if (!coi.first_coi_url) {
       alert('No COI PDF found to sign. Please generate first.');
       return;
     }
     try {
-      setIsSigningCOI(true);
       await apiClient.integrations.Admin.SignCOI({ coi_id: coi.id });
       queryClient.invalidateQueries(['coi', coi.id]);
       alert('Admin signature applied. Final COI URL updated.');
     } catch (err) {
       console.error('Sign COI failed:', err);
       alert('Failed to apply admin signature.');
-    } finally {
-      setIsSigningCOI(false);
     }
   };
 

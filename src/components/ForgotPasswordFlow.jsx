@@ -100,7 +100,7 @@ export default function ForgotPasswordFlow({
               </Button>
 
               <p className="text-xs text-slate-500 text-center">
-                We'll send a password reset link to your email. The link expires in 1 hour.
+                We&apos;ll send a password reset link to your email. The link expires in 1 hour.
               </p>
             </form>
           </CardContent>

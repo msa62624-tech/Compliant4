@@ -75,7 +75,7 @@ export default function SubEnterBrokerInfo() {
   });
 
   const updateCoiMutation = useMutation({
-    mutationFn: async ({ id, data }) => {
+    mutationFn: async ({ data }) => {
       const res = await fetch(`${getApiBase()}/public/coi-by-token`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

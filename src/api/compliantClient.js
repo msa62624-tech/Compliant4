@@ -53,6 +53,7 @@ const baseUrl = envUrl || computedCodespacesUrl || null;
 
 // Backend configuration error messages
 const BACKEND_NOT_CONFIGURED_ERROR = 'Backend not configured. For Vercel deployments: Add VITE_API_BASE_URL environment variable in your Vercel dashboard and redeploy. For local development: Configure VITE_API_BASE_URL in .env file.';
+const BACKEND_NOT_CONFIGURED_CONSOLE_MSG = BACKEND_NOT_CONFIGURED_ERROR;
 
 // Log backend configuration status on startup
 if (typeof window !== 'undefined') {

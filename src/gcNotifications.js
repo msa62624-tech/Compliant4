@@ -1,8 +1,6 @@
-import { apiClient } from "@/api/apiClient";
-import { generateSecurePassword, formatLoginCredentialsForEmail, createUserCredentials } from "@/passwordUtils";
+import { generateSecurePassword } from "@/passwordUtils";
 import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl } from "@/urlConfig";
-import { createEmailTemplate } from "@/emailTemplates";
 
 /**
  * Send welcome email when GC first joins the system
@@ -15,7 +13,6 @@ export async function sendGCWelcomeEmail(gc) {
 
   const baseUrl = getFrontendBaseUrl();
   const gcLoginLink = `${baseUrl}/gc-login`;
-  const gcDashboardLink = `${baseUrl}/gc-dashboard?id=${gc.id}`;
   
   // Always generate credentials if not provided
   const username = gc?.gcLogin?.username || gc?.email || gc?.loginUsername || gc.email;
@@ -28,13 +25,6 @@ export async function sendGCWelcomeEmail(gc) {
     gcLoginKeys: gc?.gcLogin ? Object.keys(gc.gcLogin) : [],
     passwordSource: gc?.gcLogin?.password ? 'from gcLogin' : (gc?.tempPassword ? 'from tempPassword' : 'generated new')
   });
-  
-  const loginInfo = formatLoginCredentialsForEmail(
-    username,
-    tempPassword,
-    gcLoginLink,
-    gcLoginLink
-  );
   
   const emailContent = `
     <div class="section">
@@ -118,34 +108,13 @@ export async function sendGCWelcomeEmail(gc) {
   
   try {
     await sendEmail({
-      to: project.gc_email,
-      subject: `✅ Insurance Approved - ${subcontractor.company_name} on ${project.project_name}`,
-      body: `Dear ${project.gc_name},
-
-Good news! Insurance has been approved for ${subcontractor.company_name}.
-
-📋 Approval Details:
-• Subcontractor: ${subcontractor.company_name}
-• Project: ${project.project_name}
-• Trade: ${coi.trade_type || 'N/A'}
-• Status: APPROVED
-• Approval Date: ${new Date().toLocaleDateString()}
-
-🔗 Open Project (GC Portal):
-${gcProjectLink}
-
-${coi.hold_harmless_status === 'pending_signature' ? `HOLD HARMLESS AGREEMENT:
-A Hold Harmless Agreement is required before work can proceed.
-This provides protection for all parties involved in the project.
-
-Timeline: Agreement should be obtained and signed before work begins.` : `The subcontractor is cleared to work on this project.
-Continue to monitor for any compliance issues or policy expirations.`}
-
-Best regards,
-InsureTrack System`,
-      // If a hold-harmless template URL is present on the COI, request it be attached
-      holdHarmlessTemplateUrl: coi.hold_harmless_template_url || null
+      to: gc.email,
+      subject: '🎉 Welcome to InsureTrack - Your Construction Insurance Management Portal',
+      html: emailContent
     });
+    return true;
+  } catch (error) {
+    console.error('Failed to send GC welcome email:', error);
     return false;
   }
 }

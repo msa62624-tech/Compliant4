@@ -1,7 +1,7 @@
 import { compliant } from "@/api/compliantClient";
 import { generateSecurePassword, formatLoginCredentialsForEmail, createUserCredentials } from "@/passwordUtils";
 import { sendEmail } from "@/emailHelper";
-import { getFrontendBaseUrl, createBrokerDashboardLink, createBrokerUploadLink, createSubcontractorDashboardLink } from "@/urlConfig";
+import { getFrontendBaseUrl, createBrokerDashboardLink, createSubcontractorDashboardLink } from "@/urlConfig";
 
 /**
  * Send notification emails when broker is assigned or changed for a subcontractor
@@ -15,7 +15,6 @@ export async function notifyBrokerAssignment(subcontractor, oldBrokerEmail = nul
     try {
       // Generate login credentials using centralized utility
       const password = generateSecurePassword();
-      const frontendBase = getFrontendBaseUrl();
       const loginInfo = formatLoginCredentialsForEmail(
         subcontractor.broker_email, 
         password, 
@@ -133,7 +132,6 @@ InsureTrack System`
     const isChange = !!oldBrokerEmail;
     
     // Generate login credentials for subcontractor
-    const baseUrl = getFrontendBaseUrl();
     const password = generateSecurePassword();
     const loginInfo = formatLoginCredentialsForEmail(
       subcontractor.email,

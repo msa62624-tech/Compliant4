@@ -131,16 +131,16 @@ export default function Pages({ onLogout }) {
   // Don't use sessionStorage flags that can conflict between tabs
   
   // Check if this is an admin portal request (has admin token)
-  const hasAdminToken = auth.getToken && auth.getToken();
-  const isAdminPath = !window.location.pathname.startsWith('/gc-') && 
+  const _hasAdminToken = auth.getToken && auth.getToken();
+  const _isAdminPath = !window.location.pathname.startsWith('/gc-') && 
                       !window.location.pathname.startsWith('/broker-') && 
                       !window.location.pathname.startsWith('/subcontractor-') &&
                       !window.location.pathname.startsWith('/sub-');
   
   // Determine portal based on current path
-  const isOnGCPath = window.location.pathname.startsWith('/gc-');
-  const isOnBrokerPath = window.location.pathname.startsWith('/broker-');
-  const isOnSubPath = window.location.pathname.startsWith('/subcontractor-') || 
+  const _isOnGCPath = window.location.pathname.startsWith('/gc-');
+  const _isOnBrokerPath = window.location.pathname.startsWith('/broker-');
+  const _isOnSubPath = window.location.pathname.startsWith('/subcontractor-') || 
                       window.location.pathname.startsWith('/sub-');
   
   // Each portal is independent - priority is current path, not shared sessionStorage
