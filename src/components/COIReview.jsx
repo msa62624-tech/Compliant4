@@ -434,13 +434,14 @@ Analyze for deficiencies - check all 12 items above. Remember: ONLY flag coverag
           status: 'awaiting_admin_review', // New status for AI review
           uploaded_for_review_date: new Date().toISOString(),
           // Merge extracted data with the update
-          ...extractedData
+          ...extractedData,
+          // Clear previous analysis to trigger re-analysis
+          policy_analysis: null
         }
       });
 
       setIsFileUploadOpen(false);
-      // Trigger analysis after file upload
-      setTimeout(() => analyzeCompliance(), 1000);
+      // Analysis will be triggered automatically by useEffect when COI data is updated
     } catch (error) {
       alert('File upload failed. Please try again.');
     } finally {
