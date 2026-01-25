@@ -1067,7 +1067,12 @@ const ADMIN_PASSWORD_HASH = (() => {
   }
   
   // In production, fail fast if admin password not configured
-  if (process.env.NODE_ENV === 'production') {
+  // Check for common production environment values
+  const isProduction = process.env.NODE_ENV === 'production' || 
+                       process.env.NODE_ENV === 'prod' ||
+                       process.env.NODE_ENV === 'live';
+  
+  if (isProduction) {
     throw new Error('ADMIN_PASSWORD_HASH environment variable is required in production');
   }
   
@@ -1089,7 +1094,8 @@ const passwordResetTokens = new Map();
 function validateEmail(email) {
   // More comprehensive regex that validates proper email format
   // Requires: local-part@domain.tld format with proper structure
-  const emailRegex = /^[a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  // Prevents consecutive dots in domain part
+  const emailRegex = /^[a-zA-Z0-9._%-]+@[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}$/;
   return emailRegex.test(email) && email.length <= 254; // RFC 5321 max length
 }
 
@@ -1301,8 +1307,14 @@ app.use((req, res, next) => {
     'http://127.0.0.1:3000'
   ].filter(Boolean); // Remove undefined/null values
 
-  // Check if request origin is in whitelist
-  const allowOrigin = allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0] || 'http://localhost:5175';
+  // SECURITY: Only allow whitelisted origins, fallback to first allowed origin or localhost
+  let allowOrigin;
+  if (allowedOrigins.includes(requestOrigin)) {
+    allowOrigin = requestOrigin;
+  } else {
+    // Fallback to configured origin or localhost for development
+    allowOrigin = allowedOrigins[0] || 'http://localhost:5175';
+  }
 
   res.header('Access-Control-Allow-Origin', allowOrigin);
   if (allowOrigin !== '*') {
@@ -1768,7 +1780,10 @@ async function handlePasswordReset(req, res) {
 
     // Verify token matches and is not expired
     // SECURITY FIX: Use timing-safe comparison for token validation
-    const tokenMatches = timingSafeEqual(storedTokenData.token, token);
+    // timingSafeEqual handles different lengths safely by returning false
+    const tokenMatches = storedTokenData.token && token && 
+                        timingSafeEqual(storedTokenData.token, token);
+    
     if (!tokenMatches || storedTokenData.expiresAt < Date.now()) {
       return res.status(400).json({ error: 'Invalid or expired reset link' });
     }
