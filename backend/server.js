@@ -4101,6 +4101,298 @@ app.post('/public/gc-login', publicApiLimiter, async (req, res) => {
   }
 });
 
+// Public: Request password reset for GC
+app.post('/public/gc-forgot-password', publicApiLimiter, async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Find GC by email
+    const gc = (entities.Contractor || []).find(c => 
+      c.contractor_type === 'general_contractor' && 
+      c.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!gc) {
+      // Don't reveal if email exists (security)
+      return res.json({ success: true, message: 'If email exists, reset link will be sent' });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + (60 * 60 * 1000); // 1 hour
+    
+    // Store token
+    if (!passwordResetTokens.has('gc')) {
+      passwordResetTokens.set('gc', new Map());
+    }
+    passwordResetTokens.get('gc').set(email.toLowerCase(), { token: resetToken, expiresAt });
+
+    // Send email with reset link
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5175'}/gc-reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || 'noreply@insuretrack.com',
+      to: email,
+      subject: 'Password Reset Request - CompliantTeam',
+      html: `
+        <p>You requested a password reset for your GC account.</p>
+        <p>Click the link below to reset your password (link expires in 1 hour):</p>
+        <p><a href="${resetLink}">Reset Password</a></p>
+        <p>If you didn't request this, please ignore this email.</p>
+      `
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log('📧 Password reset email sent to:', email);
+    } catch (emailErr) {
+      console.error('Error sending password reset email:', emailErr?.message);
+      // Still return success to user to prevent account enumeration
+    }
+
+    return res.json({ success: true, message: 'If email exists, reset link will be sent' });
+  } catch (err) {
+    console.error('gc-forgot-password error:', err?.message || err);
+    return res.status(500).json({ error: 'Request failed' });
+  }
+});
+
+// Public: Reset GC password with token
+app.post('/public/gc-reset-password', publicApiLimiter, async (req, res) => {
+  try {
+    const { email, token, newPassword } = req.body || {};
+    
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({ error: 'Email, token, and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    // Validate reset token
+    const gcTokens = passwordResetTokens.get('gc');
+    const storedToken = gcTokens?.get(email.toLowerCase());
+
+    if (!storedToken || storedToken.token !== token || storedToken.expiresAt < Date.now()) {
+      return res.status(400).json({ error: 'Invalid or expired reset link' });
+    }
+
+    // Find GC and update password
+    const gcIndex = (entities.Contractor || []).findIndex(c => 
+      c.contractor_type === 'general_contractor' && 
+      c.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (gcIndex === -1) {
+      return res.status(404).json({ error: 'GC not found' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    entities.Contractor[gcIndex].password = hashedPassword;
+
+    // Clear used token
+    gcTokens.delete(email.toLowerCase());
+
+    // Save data
+    saveEntities();
+
+    console.log('🔑 GC password reset successfully for:', email);
+    return res.json({ success: true, message: 'Password reset successful' });
+  } catch (err) {
+    console.error('gc-reset-password error:', err?.message || err);
+    return res.status(500).json({ error: 'Password reset failed' });
+  }
+});
+
+// Public: Request password reset for Broker
+app.post('/public/broker-forgot-password', publicApiLimiter, async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const broker = getBroker(email);
+    if (!broker) {
+      return res.json({ success: true, message: 'If email exists, reset link will be sent' });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + (60 * 60 * 1000);
+    
+    if (!passwordResetTokens.has('broker')) {
+      passwordResetTokens.set('broker', new Map());
+    }
+    passwordResetTokens.get('broker').set(email.toLowerCase(), { token: resetToken, expiresAt });
+
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5175'}/broker-reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || 'noreply@insuretrack.com',
+      to: email,
+      subject: 'Password Reset Request - CompliantTeam',
+      html: `
+        <p>You requested a password reset for your broker account.</p>
+        <p>Click the link below to reset your password (link expires in 1 hour):</p>
+        <p><a href="${resetLink}">Reset Password</a></p>
+        <p>If you didn't request this, please ignore this email.</p>
+      `
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log('📧 Broker password reset email sent to:', email);
+    } catch (emailErr) {
+      console.error('Error sending broker password reset email:', emailErr?.message);
+    }
+
+    return res.json({ success: true, message: 'If email exists, reset link will be sent' });
+  } catch (err) {
+    console.error('broker-forgot-password error:', err?.message || err);
+    return res.status(500).json({ error: 'Request failed' });
+  }
+});
+
+// Public: Reset Broker password with token
+app.post('/public/broker-reset-password', publicApiLimiter, async (req, res) => {
+  try {
+    const { email, token, newPassword } = req.body || {};
+    
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({ error: 'Email, token, and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const brokerTokens = passwordResetTokens.get('broker');
+    const storedToken = brokerTokens?.get(email.toLowerCase());
+
+    if (!storedToken || storedToken.token !== token || storedToken.expiresAt < Date.now()) {
+      return res.status(400).json({ error: 'Invalid or expired reset link' });
+    }
+
+    const brokerIndex = (entities.Broker || []).findIndex(b => 
+      b.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (brokerIndex === -1) {
+      return res.status(404).json({ error: 'Broker not found' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    entities.Broker[brokerIndex].password = hashedPassword;
+
+    brokerTokens.delete(email.toLowerCase());
+    debouncedSave();
+
+    console.log('🔑 Broker password reset successfully for:', email);
+    return res.json({ success: true, message: 'Password reset successful' });
+  } catch (err) {
+    console.error('broker-reset-password error:', err?.message || err);
+    return res.status(500).json({ error: 'Password reset failed' });
+  }
+});
+
+// Public: Request password reset for Subcontractor
+app.post('/public/subcontractor-forgot-password', publicApiLimiter, async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const sub = (entities.Contractor || []).find(c => 
+      c.contractor_type === 'subcontractor' && 
+      c.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!sub) {
+      return res.json({ success: true, message: 'If email exists, reset link will be sent' });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + (60 * 60 * 1000);
+    
+    if (!passwordResetTokens.has('subcontractor')) {
+      passwordResetTokens.set('subcontractor', new Map());
+    }
+    passwordResetTokens.get('subcontractor').set(email.toLowerCase(), { token: resetToken, expiresAt });
+
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5175'}/subcontractor-reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || 'noreply@insuretrack.com',
+      to: email,
+      subject: 'Password Reset Request - CompliantTeam',
+      html: `
+        <p>You requested a password reset for your subcontractor account.</p>
+        <p>Click the link below to reset your password (link expires in 1 hour):</p>
+        <p><a href="${resetLink}">Reset Password</a></p>
+        <p>If you didn't request this, please ignore this email.</p>
+      `
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log('📧 Subcontractor password reset email sent to:', email);
+    } catch (emailErr) {
+      console.error('Error sending subcontractor password reset email:', emailErr?.message);
+    }
+
+    return res.json({ success: true, message: 'If email exists, reset link will be sent' });
+  } catch (err) {
+    console.error('subcontractor-forgot-password error:', err?.message || err);
+    return res.status(500).json({ error: 'Request failed' });
+  }
+});
+
+// Public: Reset Subcontractor password with token
+app.post('/public/subcontractor-reset-password', publicApiLimiter, async (req, res) => {
+  try {
+    const { email, token, newPassword } = req.body || {};
+    
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({ error: 'Email, token, and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const subTokens = passwordResetTokens.get('subcontractor');
+    const storedToken = subTokens?.get(email.toLowerCase());
+
+    if (!storedToken || storedToken.token !== token || storedToken.expiresAt < Date.now()) {
+      return res.status(400).json({ error: 'Invalid or expired reset link' });
+    }
+
+    const subIndex = (entities.Contractor || []).findIndex(c => 
+      c.contractor_type === 'subcontractor' && 
+      c.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (subIndex === -1) {
+      return res.status(404).json({ error: 'Subcontractor not found' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    entities.Contractor[subIndex].password = hashedPassword;
+
+    subTokens.delete(email.toLowerCase());
+    saveEntities();
+
+    console.log('🔑 Subcontractor password reset successfully for:', email);
+    return res.json({ success: true, message: 'Password reset successful' });
+  } catch (err) {
+    console.error('subcontractor-reset-password error:', err?.message || err);
+    return res.status(500).json({ error: 'Password reset failed' });
+  }
+});
+
 // Admin: Set password for a broker (by email)
 app.post('/admin/set-broker-password', authLimiter, authenticateToken, async (req, res) => {
   try {
