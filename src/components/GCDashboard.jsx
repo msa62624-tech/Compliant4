@@ -150,20 +150,6 @@ export default function GCDashboard() {
     return latestCoi.status || sub.compliance_status || 'pending_broker';
   };
 
-  // Log COI data for debugging
-  useEffect(() => {
-    console.log('🔍 GC Dashboard Debug:', {
-      gcId,
-      projectsCount: projects.length,
-      coisCount: cois.length,
-      subsCount: projectSubs.length,
-      searchTerm,
-      searchType,
-      filteredProjectsCount: filteredProjects.length,
-      coisData: cois.slice(0, 3) // First 3 COIs
-    });
-  }, [cois, projects, projectSubs, gcId, searchTerm, searchType, filteredProjects]);
-
   // Filter projects and subs based on search
   const filteredProjects = projects.filter(project => {
     const searchLower = searchTerm.toLowerCase();
@@ -194,6 +180,20 @@ export default function GCDashboard() {
     
     return true;
   });
+
+  // Log COI data for debugging
+  useEffect(() => {
+    console.log('🔍 GC Dashboard Debug:', {
+      gcId,
+      projectsCount: projects.length,
+      coisCount: cois.length,
+      subsCount: projectSubs.length,
+      searchTerm,
+      searchType,
+      filteredProjectsCount: filteredProjects.length,
+      coisData: cois.slice(0, 3) // First 3 COIs
+    });
+  }, [cois, projects, projectSubs, gcId, searchTerm, searchType, filteredProjects]);
 
   if (!gcId) {
     console.warn('❌ No GC ID provided in URL');
