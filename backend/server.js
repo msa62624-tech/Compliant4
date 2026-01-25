@@ -4100,7 +4100,7 @@ app.post('/public/update-cois-for-contractor', publicApiLimiter, (req, res) => {
 });
 
 // Public: Update a GeneratedCOI by token (limited use for broker upload portal)
-app.patch('/public/coi-by-token', publicApiLimiter, (req, res) => {
+app.patch('/public/coi-by-token', publicApiLimiter, async (req, res) => {
   try {
     const { token } = req.query || {};
     if (!token) return res.status(400).json({ error: 'token is required' });
