@@ -92,52 +92,7 @@ export default function GCProjectView() {
 
   const addSubMutation = useMutation({
     mutationFn: async () => {
-      setSubError(null);
-      if (!project) throw new Error("Project not loaded");
-      if (!form.subcontractor_name || !form.trade || !form.contact_email) {
-        throw new Error("Company, trade, and contact email are required");
-      }
-      const contactEmail = form.contact_email.trim();
-      if (!contactEmail.includes('@')) {
-        throw new Error("Enter a valid contact email");
-      }
-
-      // No auth check needed - GC portal uses public access mode
-      const allSubs = await apiClient.entities.Contractor.list();
-      const existing = allSubs.find(
-        (s) => s.company_name?.toLowerCase() === form.subcontractor_name.toLowerCase()
-      );
-      let subcontractorId = existing?.id;
-
-      if (!existing) {
-        const created = await apiClient.entities.Contractor.create({
-          company_name: form.subcontractor_name,
-          contact_person: form.subcontractor_name,
-          email: contactEmail,
-          contractor_type: "subcontractor",
-          trade_types: [form.trade],
-          status: "active",
-        });
-        subcontractorId = created.id;
-      } else {
-        const trades = new Set([...(existing.trade_types || []), form.trade]);
-        await apiClient.entities.Contractor.update(existing.id, {
-          email: contactEmail,
-          trade_types: Array.from(trades),
-        });
-        subcontractorId = existing.id;
-      }
-
-      return apiClient.entities.ProjectSubcontractor.create({
-        project_id: project.id,
-        project_name: project.project_name,
-        gc_id: project.gc_id,
-        subcontractor_id: subcontractorId,
-        subcontractor_name: form.subcontractor_name,
-        trade_type: form.trade,
-        contact_email: contactEmail,
-        compliance_status: "pending_broker",
-      });
+      throw new Error("Subcontractor management is not available in the public GC portal. Please contact your administrator.");
     },
     onSuccess: async (created) => {
       queryClient.invalidateQueries(["gc-project-subs", projectId]);
@@ -286,16 +241,7 @@ export default function GCProjectView() {
   // Mutation for GC to sign hold harmless agreement
   const signHoldHarmlessMutation = useMutation({
     mutationFn: async (coiId) => {
-      const coi = projectCois.find(c => c.id === coiId);
-      if (!coi) throw new Error("COI not found");
-
-      // Update COI with GC signature status
-      await apiClient.entities.GeneratedCOI.update(coiId, {
-        hold_harmless_status: 'signed',
-        hold_harmless_gc_signed_date: new Date().toISOString()
-      });
-
-      return { coi, project };
+      throw new Error("COI signing is not available in the public GC portal. Please use the authenticated admin portal.");
     },
     onSuccess: async ({ coi }) => {
       queryClient.invalidateQueries(['gc-project-cois', projectId]);
@@ -394,17 +340,7 @@ InsureTrack System`
   // Archive subcontractor from GC portal
   const archiveSubMutation = useMutation({
     mutationFn: async ({ id, reason }) => {
-      const res = await fetch(`${getApiBase()}/entities/ProjectSubcontractor/${id}/archive`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ reason })
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(text || 'Failed to archive subcontractor');
-      }
-      return res.json();
+      throw new Error("Subcontractor archival is not available in the public GC portal. Please use the authenticated admin portal.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries(["gc-project-subs", projectId]);
