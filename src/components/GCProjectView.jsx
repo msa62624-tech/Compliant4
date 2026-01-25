@@ -110,15 +110,7 @@ export default function GCProjectView() {
                          origin.includes(':5176') ? origin.replace(':5176', ':3001') :
                          import.meta?.env?.VITE_API_BASE_URL || '';
 
-      // Fetch all contractors to check if subcontractor exists
-      const contractorResponse = await fetch(`${backendBase}/public/all-project-subcontractors`);
-      if (!contractorResponse.ok) throw new Error('Failed to fetch contractors');
-      const allSubs = await contractorResponse.json();
-      
-      let subcontractorId = null;
-      
-      // Check if subcontractor already exists (by company name is imperfect, ideally we'd have /public/contractors endpoint)
-      // For now, we'll just create a new one
+      // Create contractor
       const createContractorResponse = await fetch(`${backendBase}/public/create-contractor`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -138,7 +130,7 @@ export default function GCProjectView() {
       }
 
       const created = await createContractorResponse.json();
-      subcontractorId = created.id;
+      const subcontractorId = created.id;
 
       // Now create the ProjectSubcontractor
       const psResponse = await fetch(`${backendBase}/public/create-project-subcontractor`, {
