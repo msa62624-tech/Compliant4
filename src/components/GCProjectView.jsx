@@ -384,7 +384,15 @@ export default function GCProjectView() {
           body: JSON.stringify({
             to: contactEmail,
             subject: `Welcome to InsureTrack - ${project?.project_name}`,
-            html: emailHtml
+            html: emailHtml,
+            includeSampleCOI: true,
+            sampleCOIData: {
+              subcontractor_name: form.subcontractor_name,
+              project_name: project?.project_name,
+              project_address: project?.address,
+              trade_type: form.trade,
+              gc_name: project?.gc_name
+            }
           })
         });
         
