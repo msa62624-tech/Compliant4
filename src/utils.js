@@ -43,6 +43,8 @@ const PATH_ALIASES = {
   'resetpassword': '/reset-password',
   'reset-password': '/reset-password',
   'admin': '/admin',
+  'admindashboard': '/admin',
+  'admin-dashboard': '/admin',
   'coireview': '/COIReview',
   'contractor-dashboard': '/contractor-dashboard',
 };

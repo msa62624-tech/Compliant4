@@ -717,20 +717,24 @@ Thank you!`
     });
 
     // Send approval notification with hold harmless requirement
-    try {
-      const subPortalLink = `${window.location.origin}${createPageUrl('subcontractor-dashboard')}?id=${coi.subcontractor_id || ''}`;
-      const holdHarmlessInstructions = alreadySignedHoldHarmless
-        ? `We have a signed Hold Harmless Agreement on file. No further action is needed on that document.`
-        : `Please sign and return the Hold Harmless Agreement:
+    if (!project) {
+      console.error('Cannot send hold harmless email: project not found');
+      alert('COI approved, but notification email could not be sent (project not found).');
+    } else {
+      try {
+        const subPortalLink = `${window.location.origin}${createPageUrl('subcontractor-dashboard')}?id=${coi.subcontractor_id || ''}`;
+        const holdHarmlessInstructions = alreadySignedHoldHarmless
+          ? `We have a signed Hold Harmless Agreement on file. No further action is needed on that document.`
+          : `Please sign and return the Hold Harmless Agreement:
 - Download template: ${holdHarmlessTemplateUrl || 'Template generating...'}
 - Upload the signed copy: ${subPortalLink}
 
 Work cannot proceed until the signed agreement is uploaded.`;
 
-      await sendMessageMutation.mutateAsync({
-        to: coi.contact_email || coi.broker_email,
-        subject: `COI Approved ${alreadySignedHoldHarmless ? '- Hold Harmless On File' : '- Hold Harmless Required'} - ${project.project_name}`,
-        body: `Good news! Your Certificate of Insurance for ${project.project_name} has been approved.
+        await sendMessageMutation.mutateAsync({
+          to: coi.contact_email || coi.broker_email,
+          subject: `COI Approved ${alreadySignedHoldHarmless ? '- Hold Harmless On File' : '- Hold Harmless Required'} - ${project.project_name}`,
+          body: `Good news! Your Certificate of Insurance for ${project.project_name} has been approved.
 
 ${holdHarmlessInstructions}
 
@@ -739,9 +743,10 @@ Subcontractor: ${coi.subcontractor_name}
 Trade: ${coi.trade_type}
 
 Thank you!`
-      });
-    } catch (err) {
-      console.error('Failed to notify subcontractor:', err);
+        });
+      } catch (err) {
+        console.error('Failed to notify subcontractor:', err);
+      }
     }
 
     // Notify GC about approval and hold harmless requirement

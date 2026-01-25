@@ -131,7 +131,9 @@ export async function checkAndSendDeficiencyReminders() {
     // Process each pending deficiency
     for (const coi of pendingDeficiencies) {
       try {
-        const project = await compliant.entities.Project.retrieve(coi.project_id);
+        // Fetch projects and find the matching one
+        const projects = await compliant.entities.Project.list();
+        const project = projects.find(p => p.id === coi.project_id);
         if (!project) continue;
 
         // Get broker info

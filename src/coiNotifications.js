@@ -1,6 +1,7 @@
 import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl } from "@/urlConfig";
 import { apiClient } from "@/api/apiClient";
+import { createEmailTemplate } from "@/emailTemplates";
 
 /**
  * COI Upload & Approval Notification System
@@ -238,10 +239,79 @@ export async function notifyCOIDeficiencies(coi, subcontractor, project, deficie
 
   const baseUrl = getFrontendBaseUrl();
   const brokerPortalLink = `${baseUrl}/broker-dashboard?name=${encodeURIComponent(subcontractor.broker_name)}&coiId=${coi.id}`;
-  // Direct brokers to Policies step to fix deficiencies
+  // Direct brokers to step 2 (upload endorsement) to fix deficiencies
   const brokerUploadLink = `${baseUrl}/broker-upload-coi?token=${coi.coi_token}&step=2&action=upload`;
 
   try {
+    const deficienciesList = deficiencies
+      .map((def, idx) => {
+        return `<div style="margin: 10px 0; padding: 10px; background: #fef2f2; border-left: 3px solid #dc2626; border-radius: 4px;">
+          <strong style="color: #991b1b;">${idx + 1}. ${def.field || 'Issue'}</strong>
+          <ul style="margin: 5px 0 0 0; padding-left: 20px; color: #333;">
+            <li><strong>Issue:</strong> ${def.message}</li>
+            <li><strong>Required:</strong> ${def.required || 'N/A'}</li>
+            <li><strong>Provided:</strong> ${def.provided || 'N/A'}</li>
+          </ul>
+        </div>`;
+      })
+      .join('');
+
+    const emailContent = `
+      <div class="section">
+        <div class="section-title">Subcontractor</div>
+        <p><strong>Company:</strong> ${subcontractor.company_name}</p>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Project Information</div>
+        <p><strong>Project:</strong> ${project.project_name}</p>
+        <p><strong>Location:</strong> ${project.project_address}</p>
+        <p><strong>General Contractor:</strong> ${project.gc_name}</p>
+        <p><strong>Trade:</strong> ${coi.trade_type}</p>
+      </div>
+
+      <div class="section" style="background-color: #fef2f2; border-left-color: #dc2626;">
+        <div class="section-title" style="color: #991b1b;">⚠️ Deficiencies Found</div>
+        ${deficienciesList}
+      </div>
+
+      <div class="section">
+        <div class="section-title">Action Required</div>
+        <p>You have two options to correct this:</p>
+        
+        <div style="margin: 15px 0;">
+          <p style="font-weight: 600; color: #dc2626;">OPTION 1: Upload Updated Supporting Documents</p>
+          <p>If policy declarations or endorsements need updating:</p>
+          <p style="text-align: center; margin: 15px 0;">
+            <a href="${brokerUploadLink}" class="button">Upload Endorsement/Policy Documents</a>
+          </p>
+          <ul>
+            <li>Step 2: Policy Documents (attach updated GL, Umbrella, Auto, or WC policies)</li>
+            <li>Step 3: Broker signature</li>
+            <li>Resubmit for re-review</li>
+          </ul>
+        </div>
+
+        <div style="margin: 15px 0;">
+          <p style="font-weight: 600; color: #dc2626;">OPTION 2: Submit a New Certificate</p>
+          <p>If the certificate needs to be regenerated:</p>
+          <ul>
+            <li>Complete all three steps (new ACORD 25, policies, signature)</li>
+            <li>System will re-review and approve</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="alert">
+        <p><strong>⏱️ Timeline:</strong> Please submit corrections within 5 business days.</p>
+        <p>After this period, the subcontractor may be marked non-compliant.</p>
+      </div>
+
+      <p style="text-align: center; margin: 20px 0;">
+        <a href="${brokerPortalLink}" class="button" style="background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);">View Broker Dashboard</a>
+      </p>
+    `;
+
     // Notify broker of deficiencies with upload options
     await sendEmail({
       to: subcontractor.broker_email,
@@ -255,78 +325,51 @@ export async function notifyCOIDeficiencies(coi, subcontractor, project, deficie
         additional_insureds: project?.additional_insureds || [project?.gc_name]
       },
       subject: `⚠️ COI Corrections Needed - ${subcontractor.company_name} (${project.project_name})`,
-      body: `The Certificate of Insurance you submitted for ${subcontractor.company_name} requires corrections before approval.
-
-SUBCONTRACTOR:
-• Company: ${subcontractor.company_name}
-
-PROJECT:
-• Project: ${project.project_name}
-• Location: ${project.project_address}
-• General Contractor: ${project.gc_name}
-• Trade: ${coi.trade_type}
-
-DEFICIENCIES FOUND:
-${deficiencies
-  .map((def, idx) => {
-    return `${idx + 1}. ${def.field || 'Issue'}
-   • Issue: ${def.message}
-   • Required: ${def.required || 'N/A'}
-   • Provided: ${def.provided || 'N/A'}`;
-  })
-  .join('\n\n')}
-
-ACTION REQUIRED:
-You have two options to correct this:
-
-OPTION 1: Upload Updated Supporting Documents
-If policy declarations or endorsements need updating:
-✓ Upload corrected documents: ${brokerUploadLink}
-✓ Step 2: Policy Documents (attach updated GL, Umbrella, Auto, or WC policies)
-✓ Step 3: Broker signature
-✓ Resubmit for re-review
-
-OPTION 2: Submit a New Certificate
-If the certificate needs to be regenerated:
-✓ Access upload portal: ${brokerUploadLink}
-✓ Complete all three steps (new ACORD 25, policies, signature)
-✓ System will re-review and approve
-
-TIMELINE:
-Please submit corrections within 5 business days.
-After this period, the subcontractor may be marked non-compliant.
-
-BROKER DASHBOARD:
-${brokerPortalLink}
-
-Questions? Reply to this email.
-
-Best regards,
-InsureTrack System`,
+      html: createEmailTemplate(
+        '⚠️ COI Corrections Needed',
+        `Certificate requires updates before approval`,
+        emailContent
+      ),
     });
 
     // Notify subcontractor
     const baseUrl = getFrontendBaseUrl();
     const subDashboardLink = `${baseUrl}/subcontractor-dashboard?id=${subcontractor.id}`;
+    
+    const subEmailContent = `
+      <p>Your Certificate of Insurance needs updates before approval for <strong>${project.project_name}</strong>.</p>
+
+      <div class="section">
+        <p>Your insurance broker has been notified of the required corrections. Please contact them to:</p>
+        <ul>
+          <li>Discuss the specific issues identified</li>
+          <li>Provide supporting documents if needed</li>
+          <li>Resubmit a corrected or new certificate</li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <p><strong>Project:</strong> ${project.project_name}</p>
+        <p><strong>General Contractor:</strong> ${project.gc_name}</p>
+      </div>
+
+      <div class="alert">
+        <p><strong>⏱️ Timeline:</strong> Corrections needed within 5 business days</p>
+      </div>
+
+      <p style="text-align: center; margin: 20px 0;">
+        <a href="${subDashboardLink}" class="button">View Your Dashboard</a>
+      </p>
+    `;
+
     await sendEmail({
       to: subcontractor.email,
       subject: `⚠️ Certificate Update Needed - ${project.project_name}`,
-      body: `Your Certificate of Insurance needs updates before approval for ${project.project_name}.
-
-Your insurance broker has been notified of the required corrections. Please contact them to:
-• Discuss the specific issues identified
-• Provide supporting documents if needed
-• Resubmit a corrected or new certificate
-
-PROJECT: ${project.project_name}
-GENERAL CONTRACTOR: ${project.gc_name}
-
-Timeline: Corrections needed within 5 business days
-
-Dashboard: ${subDashboardLink}
-
-Best regards,
-InsureTrack System`,
+      html: createEmailTemplate(
+        '⚠️ Certificate Update Needed',
+        `Your insurance needs attention`,
+        subEmailContent
+      ),
     });
 
     // Create notification messages

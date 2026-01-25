@@ -211,7 +211,7 @@ export function getPasswordResetEmail(name, resetLink, type = 'general') {
     
     <p style="color: #666; font-size: 13px; text-align: center;">
       Or copy and paste this link into your browser:<br>
-      <span style="word-break: break-all; color: #1e40af;">${resetLink}</span>
+      <span style="word-break: break-all; color: #dc2626;">${resetLink}</span>
     </p>
     
     <div class="alert">

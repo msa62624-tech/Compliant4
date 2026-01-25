@@ -2,6 +2,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Bell } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import auth from '@/auth.js';
 
 /**
  * NotificationBadge - Shows unread notification count
@@ -16,13 +17,12 @@ export default function NotificationBadge({ recipientId, recipientType }) {
       try {
         const apiBase = import.meta.env.VITE_API_BASE_URL || 
                  window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001');
+        const token = auth.getToken();
         const response = await fetch(
           `${apiBase}/notifications?recipient_id=${recipientId}&recipient_type=${recipientType}&is_read=false`,
           {
             headers: {
-              'Authorization': sessionStorage.getItem('token') 
-                ? `Bearer ${sessionStorage.getItem('token')}` 
-                : ''
+              'Authorization': token ? `Bearer ${token}` : ''
             },
             credentials: 'include'
           }

@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Bell, MessageSquare, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import auth from '@/auth.js';
 
 /**
  * NotificationPanel - Displays and manages notifications for a user
@@ -25,13 +26,12 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['notifications', recipientId, recipientType],
     queryFn: async () => {
+      const token = auth.getToken();
       const response = await fetch(
         `${apiBase}/notifications?recipient_id=${recipientId}&recipient_type=${recipientType}`,
         {
           headers: {
-            'Authorization': sessionStorage.getItem('token') 
-              ? `Bearer ${sessionStorage.getItem('token')}` 
-              : ''
+            'Authorization': token ? `Bearer ${token}` : ''
           },
           credentials: 'include'
         }
@@ -44,13 +44,12 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
 
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationId) => {
+      const token = auth.getToken();
       const response = await fetch(`${apiBase}/notifications/${notificationId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': sessionStorage.getItem('token') 
-            ? `Bearer ${sessionStorage.getItem('token')}` 
-            : ''
+          'Authorization': token ? `Bearer ${token}` : ''
         },
         body: JSON.stringify({ is_read: true }),
         credentials: 'include'
@@ -64,13 +63,12 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
 
   const respondToNotificationMutation = useMutation({
     mutationFn: async ({ notificationId, response_text, response_type }) => {
+      const token = auth.getToken();
       const response = await fetch(`${apiBase}/notifications/${notificationId}/respond`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': sessionStorage.getItem('token') 
-            ? `Bearer ${sessionStorage.getItem('token')}` 
-            : ''
+          'Authorization': token ? `Bearer ${token}` : ''
         },
         body: JSON.stringify({ response_text, response_type }),
         credentials: 'include'

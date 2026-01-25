@@ -2,6 +2,7 @@ import { apiClient } from "@/api/apiClient";
 import { generateSecurePassword, formatLoginCredentialsForEmail, createUserCredentials } from "@/passwordUtils";
 import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl } from "@/urlConfig";
+import { createEmailTemplate } from "@/emailTemplates";
 
 /**
  * Send welcome email when GC first joins the system
@@ -35,63 +36,81 @@ export async function sendGCWelcomeEmail(gc) {
     gcLoginLink
   );
   
+  const emailContent = `
+    <div class="section">
+      <div class="section-title">🏢 Your Company Profile</div>
+      <p><strong>Company:</strong> ${gc.company_name}</p>
+      <p><strong>License:</strong> ${gc.license_number || 'N/A'}</p>
+      <p><strong>Contact:</strong> ${gc.contact_person || 'N/A'}</p>
+      <p><strong>Phone:</strong> ${gc.phone || 'N/A'}</p>
+      <p><strong>Email:</strong> ${gc.email}</p>
+    </div>
+
+    <div class="section" style="background-color: #fef2f2;">
+      <div class="section-title">🔐 Your Login Credentials</div>
+      ${loginInfo}
+    </div>
+
+    <p style="text-align: center; margin: 20px 0;">
+      <a href="${gcLoginLink}" class="button">Access Your Portal</a>
+    </p>
+
+    <div class="section">
+      <div class="section-title">📊 What You Can Do in Your Portal</div>
+      <ul>
+        <li>Create and manage construction projects</li>
+        <li>Add subcontractors to your projects</li>
+        <li>Track insurance compliance in real-time</li>
+        <li>Monitor Certificates of Insurance (COIs)</li>
+        <li>Receive alerts for policy expirations</li>
+        <li>Review subcontractor compliance status</li>
+        <li>Manage project requirements</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🚀 Getting Started</div>
+      <ol>
+        <li>Visit the portal link above using your credentials</li>
+        <li>Log in with your email and temporary password</li>
+        <li>Change your password on first login (recommended)</li>
+        <li>Complete your company profile</li>
+        <li>Create your first project</li>
+        <li>Add subcontractors to your project</li>
+        <li>Track their insurance compliance automatically</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📌 Key Features</div>
+      <ul>
+        <li>✅ Real-time COI tracking and approvals</li>
+        <li>✅ Automated expiration alerts</li>
+        <li>✅ Compliance monitoring dashboard</li>
+        <li>✅ Direct communication with subcontractors and brokers</li>
+        <li>✅ Document management and storage</li>
+        <li>✅ Custom insurance requirements per project</li>
+      </ul>
+    </div>
+
+    <div class="alert">
+      <p><strong>📌 Important:</strong> Bookmark the portal link above for easy access!</p>
+    </div>
+
+    <p style="color: #666; font-size: 14px; margin-top: 20px;">
+      Need help getting started? Reply to this email and our team will assist you.
+    </p>
+  `;
+  
   try {
     await sendEmail({
       to: gc.email,
       subject: `Welcome to InsureTrack - Your GC Portal is Ready`,
-      body: `Dear ${gc.contact_person || gc.company_name},
-
-Welcome to InsureTrack! Your General Contractor portal account has been created.
-
-🏢 Your Company Profile:
-• Company: ${gc.company_name}
-• License: ${gc.license_number || 'N/A'}
-• Contact: ${gc.contact_person || 'N/A'}
-• Phone: ${gc.phone || 'N/A'}
-• Email: ${gc.email}
-
-� YOUR LOGIN CREDENTIALS:
-${loginInfo}
-
-🔗 ACCESS YOUR PORTAL (Click to Open):
-${gcLoginLink}
-
-📊 What You Can Do in Your Portal:
-• Create and manage construction projects
-• Add subcontractors to your projects
-• Track insurance compliance in real-time
-• Monitor Certificates of Insurance (COIs)
-• Receive alerts for policy expirations
-• Review subcontractor compliance status
-• Manage project requirements
-
-🚀 Getting Started:
-1. Visit the portal link above using your credentials
-2. Log in with your email and temporary password
-3. Change your password on first login (recommended)
-4. Complete your company profile
-5. Create your first project
-6. Add subcontractors to your project
-7. Track their insurance compliance automatically
-
-📌 Key Features:
-✅ Real-time COI tracking and approvals
-✅ Automated expiration alerts
-✅ Compliance monitoring dashboard
-✅ Direct communication with subcontractors and brokers
-✅ Document management and storage
-✅ Custom insurance requirements per project
-
-📌 Important: Bookmark the portal link above for easy access!
-
-Need help getting started? Reply to this email and our team will assist you.
-
-Best regards,
-The InsureTrack Team
-
----
-InsureTrack - Simplifying Construction Insurance Management
-Support: support@insuretrack.com`
+      html: createEmailTemplate(
+        'Welcome to InsureTrack',
+        'Your General Contractor portal is ready',
+        emailContent
+      ),
     });
     
     // Create GC user account with the credentials sent in email

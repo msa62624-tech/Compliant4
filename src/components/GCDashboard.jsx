@@ -151,7 +151,7 @@ export default function GCDashboard() {
   };
 
   // Log COI data for debugging
-  React.useEffect(() => {
+  useEffect(() => {
     console.log('🔍 GC Dashboard Debug:', {
       gcId,
       projectsCount: projects.length,
