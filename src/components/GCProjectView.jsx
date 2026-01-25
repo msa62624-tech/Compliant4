@@ -191,8 +191,13 @@ export default function GCProjectView() {
     onSuccess: async (created) => {
       queryClient.invalidateQueries(["gc-project-subs", projectId]);
       
-      // Send notification email to subcontractor
-      try {
+      // ONLY send notification email if this is a NEW subcontractor (has password)
+      // If contractor already existed, no welcome email is sent
+      const isNewContractor = !!created.contractor_password;
+      
+      if (isNewContractor) {
+        // Send notification email to subcontractor ONLY for new contractors
+        try {
         const { protocol, host, origin } = window.location;
         const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
         
@@ -454,14 +459,7 @@ export default function GCProjectView() {
             to: contactEmail,
             subject: `Welcome to InsureTrack - ${project?.project_name}`,
             html: emailHtml,
-            includeSampleCOI: true,
-            sampleCOIData: {
-              subcontractor_name: form.subcontractor_name,
-              project_name: project?.project_name,
-              project_address: project?.address,
-              trade_type: form.trade,
-              gc_name: project?.gc_name
-            }
+            includeSampleCOI: false
           })
         });
         
@@ -474,6 +472,9 @@ export default function GCProjectView() {
         }
       } catch (err) {
         console.error('❌ Email notification error:', err);
+      }
+      } else {
+        console.log('ℹ️ Subcontractor already exists in system - no welcome email sent');
       }
       
       setForm({ subcontractor_name: "", trade: "", contact_email: "" });

@@ -68,6 +68,18 @@ export const EMAIL_STYLES = `
       border-radius: 6px; 
       border-left: 4px solid #dc2626;
       margin: 15px 0;
+      color: #333;
+      font-family: 'Courier New', monospace;
+    }
+    .credentials-item {
+      margin: 8px 0;
+      color: #333;
+    }
+    .credentials-label {
+      font-weight: 600;
+      color: #991b1b;
+      display: inline-block;
+      min-width: 140px;
     }
     .alert {
       background-color: #fee2e2;

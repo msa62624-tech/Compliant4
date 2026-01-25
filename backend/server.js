@@ -3181,7 +3181,25 @@ app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
       return res.status(400).json({ error: 'Company name and email are required' });
     }
 
-    // Generate temporary password
+    const normalizedEmail = (email || '').toLowerCase();
+    
+    // Check if contractor with this email already exists
+    const existingContractor = (entities.Contractor || []).find(c => 
+      c.email === normalizedEmail && 
+      c.contractor_type === (contractor_type || 'subcontractor')
+    );
+    
+    if (existingContractor) {
+      console.log('✅ Contractor already exists:', existingContractor.id);
+      // Return existing contractor WITHOUT generating a new password
+      return res.json({
+        ...existingContractor,
+        contractor_password: null, // Signal that no new password was generated
+        isExisting: true
+      });
+    }
+
+    // Generate temporary password only for new contractors
     const tempPassword = generateTempPassword(12);
     const hashedPassword = bcrypt.hashSync(tempPassword, 10);
 
@@ -3189,7 +3207,7 @@ app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
       id: `Contractor-${Date.now()}`,
       company_name,
       contact_person: contact_person || company_name,
-      email: (email || '').toLowerCase(),
+      email: normalizedEmail,
       contractor_type: contractor_type || 'subcontractor',
       trade_types: Array.isArray(trade_types) ? trade_types : [trade_types].filter(Boolean),
       status: status || 'active',
@@ -3209,7 +3227,8 @@ app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
     // Return contractor with generated password
     return res.json({
       ...newContractor,
-      contractor_password: tempPassword
+      contractor_password: tempPassword,
+      isNew: true
     });
   } catch (err) {
     console.error('❌ Public contractor create error:', err?.message || err);

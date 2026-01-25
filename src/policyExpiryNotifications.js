@@ -53,13 +53,6 @@ async function notifyBrokerPolicyExpiring(document, subcontractor, daysUntilExpi
   try {
     await sendEmail({
       to: subcontractor.broker_email,
-      includeSampleCOI: true,
-      sampleCOIData: {
-        trade: subcontractor.trade_types?.join(', '),
-        program: document.program_name || document.program_id,
-        project_name: document.project_name,
-        gc_name: document.gc_name
-      },
       subject: `${urgency}: Policy Expiring ${timeframe} - ${subcontractor.company_name}`,
       body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
 

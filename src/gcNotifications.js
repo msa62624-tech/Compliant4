@@ -46,9 +46,23 @@ export async function sendGCWelcomeEmail(gc) {
       <p><strong>Email:</strong> ${gc.email}</p>
     </div>
 
-    <div class="section" style="background-color: #fef2f2;">
+    <div class="section" style="background-color: #fef2f2; border-left-color: #dc2626;">
       <div class="section-title">🔐 Your Login Credentials</div>
-      ${loginInfo}
+      <div class="credentials-item">
+        <span class="credentials-label">Portal URL:</span>
+        <a href="${gcLoginLink}" style="color: #dc2626; text-decoration: none;">${gcLoginLink}</a>
+      </div>
+      <div class="credentials-item">
+        <span class="credentials-label">Username:</span>
+        <span style="color: #333; font-family: 'Courier New', monospace;">${username}</span>
+      </div>
+      <div class="credentials-item">
+        <span class="credentials-label">Temporary Password:</span>
+        <span style="color: #333; font-family: 'Courier New', monospace;">${tempPassword}</span>
+      </div>
+      <p style="color: #666; font-size: 13px; margin-top: 12px; margin-bottom: 0;">
+        ⚠️ For your account security, we recommend changing your password after your first login.
+      </p>
     </div>
 
     <p style="text-align: center; margin: 20px 0;">
