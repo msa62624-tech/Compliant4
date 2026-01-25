@@ -9,6 +9,67 @@ import { createEmailTemplate } from "@/emailTemplates";
  */
 
 /**
+ * Generate sample COI data from program requirements
+ * Shows brokers what the actual program requires
+ */
+async function generateSampleCOIFromProgram(project, coi) {
+  const sampleData = {
+    subcontractor_name: coi?.subcontractor_name || 'Your Company',
+    project_name: project?.project_name,
+    project_address: project?.project_address || project?.address,
+    gc_name: project?.gc_name,
+    gc_owner: project?.gc_owner || project?.gc_owner_name,
+    trade: coi?.trade_type || coi?.trade_types?.join(', '),
+    program: project?.program_name || project?.program_id,
+    additional_insureds: project?.additional_insureds || [project?.gc_name],
+    // Include program requirements so broker knows what's needed
+    program_id: project?.program_id,
+    program_requirements: []
+  };
+
+  // Fetch program requirements if available
+  if (project?.program_id) {
+    try {
+      const reqs = await apiClient.entities.SubInsuranceRequirement.filter({
+        program_id: project.program_id
+      });
+      
+      // Group by tier and insurance type to show summary
+      const tierMap = {};
+      for (const req of reqs) {
+        const tier = req.tier || 'standard';
+        if (!tierMap[tier]) tierMap[tier] = [];
+        tierMap[tier].push(req);
+      }
+
+      // Build summary of what's required
+      sampleData.tiers = Object.entries(tierMap).map(([tierName, tierReqs]) => ({
+        tier: tierName,
+        requirements: tierReqs.map(r => ({
+          insurance_type: r.insurance_type,
+          gl_each_occurrence: r.gl_each_occurrence,
+          gl_general_aggregate: r.gl_general_aggregate,
+          gl_products_completed_ops: r.gl_products_completed_ops,
+          umbrella_each_occurrence: r.umbrella_each_occurrence,
+          umbrella_aggregate: r.umbrella_aggregate,
+          auto_combined_single_limit: r.auto_combined_single_limit,
+          wc_each_accident: r.wc_each_accident,
+          wc_disease_policy_limit: r.wc_disease_policy_limit,
+          scope: r.scope,
+          applicable_trades: r.applicable_trades
+        }))
+      }));
+      
+      sampleData.program_requirements = sampleData.tiers;
+    } catch (error) {
+      console.warn('Could not fetch program requirements for sample COI:', error?.message);
+    }
+  }
+
+  return sampleData;
+}
+
+/**
  * Notify when subcontractor uploads a COI to the system
  * Triggers admin notification and creates approval task
  */
@@ -312,18 +373,14 @@ export async function notifyCOIDeficiencies(coi, subcontractor, project, deficie
       </p>
     `;
 
+    // Generate sample COI data from actual program requirements
+    const sampleCOIData = await generateSampleCOIFromProgram(project, coi);
+
     // Notify broker of deficiencies with upload options
     await sendEmail({
       to: subcontractor.broker_email,
       includeSampleCOI: true,
-      sampleCOIData: {
-        project_name: project?.project_name,
-        gc_name: project?.gc_name,
-        gc_owner: project?.gc_owner || project?.gc_owner_name,
-        trade: coi?.trade_types?.join(', ') || coi?.trade_type || subcontractor.trade_types?.join(', '),
-        program: project?.program_name || project?.program_id,
-        additional_insureds: project?.additional_insureds || [project?.gc_name]
-      },
+      sampleCOIData,
       subject: `⚠️ COI Corrections Needed - ${subcontractor.company_name} (${project.project_name})`,
       html: createEmailTemplate(
         '⚠️ COI Corrections Needed',
@@ -405,17 +462,13 @@ export async function notifyBrokerCOIReview(coi, subcontractor, project) {
   const signLink = `${baseUrl}/broker-upload-coi?token=${coi.coi_token}&action=sign&step=3`;
 
   try {
+    // Generate sample COI data from actual program requirements
+    const sampleCOIData = await generateSampleCOIFromProgram(project, coi);
+
     await sendEmail({
       to: subcontractor.broker_email,
       includeSampleCOI: true,
-      sampleCOIData: {
-        project_name: project?.project_name,
-        gc_name: project?.gc_name,
-        gc_owner: project?.gc_owner || project?.gc_owner_name,
-        trade: coi?.trade_types?.join(', ') || coi?.trade_type || subcontractor.trade_types?.join(', '),
-        program: project?.program_name || project?.program_id,
-        additional_insureds: project?.additional_insureds || [project?.gc_name]
-      },
+      sampleCOIData,
       subject: `📋 Certificate Ready for Review & Signature: ${subcontractor.company_name}`,
       body: `A Certificate of Insurance is ready for your review and signature.
 

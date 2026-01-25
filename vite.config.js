@@ -8,8 +8,8 @@ export default defineConfig({
   publicDir: 'public',
   server: {
     host: '0.0.0.0',
-    port: 5175,
-    strictPort: true,
+    port: 5173,
+    strictPort: false,
     allowedHosts: true
   },
   resolve: {

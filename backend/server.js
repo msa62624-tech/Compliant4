@@ -51,6 +51,12 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'entities.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 
+// Default admin email list for notifications (comma-separated)
+const DEFAULT_ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '')
+  .split(',')
+  .map(e => e.trim())
+  .filter(Boolean);
+
 // JWT_SECRET persistence: Load from env or generate and persist to file
 // This ensures tokens remain valid across server restarts in development
 const JWT_SECRET_FILE = path.join(DATA_DIR, '.jwt-secret');
@@ -120,318 +126,94 @@ try {
   console.warn('⚠️ Could not ensure uploads directory:', e?.message || e);
 }
 
-// Multer configuration for file uploads
+// Default storage engine for multer (file uploads)
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
-  filename: (_req, file, cb) => {
-    const timestamp = Date.now();
-    const safeOriginal = (file.originalname || 'file')
-      .replace(/[^a-zA-Z0-9._-]/g, '_')
-      .slice(0, 200);
-    cb(null, `${timestamp}-${safeOriginal}`);
+  destination: function (req, file, cb) {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+    const sanitized = validateAndSanitizeFilename(file.originalname);
+    cb(null, `${uniqueSuffix}-${sanitized}`);
   }
 });
 
+// Initialize multer with limits
 const upload = multer({
   storage,
   limits: { fileSize: 20 * 1024 * 1024 } // 20MB
 });
 
 // ========== Entities ==========
+// Start empty; persisted data in entities.json will be loaded at startup.
 const entities = {
   InsuranceDocument: [],
-  Project: [
-    {
-      id: 'project-001',
-      name: 'Downtown Plaza Renovation',
-      address: '123 Business Ave',
-      city: 'New York',
-      state: 'NY',
-      zip_code: '10002',
-      project_type: 'Commercial',
-      start_date: '2024-03-01',
-      estimated_completion: '2025-09-30',
-      status: 'active',
-      program_id: 'program-001',
-      owner_entity: 'Downtown Properties LLC',
-      additional_insured_entities: ['City Bank', 'Metro Management'],
-      needs_admin_setup: false,
-      created_date: '2024-02-01T10:00:00Z'
-    }
-  ],
-  Contractor: [
-    // General Contractors
-    {
-      id: 'gc-001',
-      company_name: 'BuildCorp Construction',
-      contractor_type: 'general_contractor',
-      license_number: 'NYC-GC-12345',
-      address: '100 Wall Street',
-      city: 'New York',
-      state: 'NY',
-      zip_code: '10005',
-      phone: '212-555-0100',
-      email: 'contact@buildcorp.com',
-      contact_person: 'John Smith',
-      status: 'active',
-      admin_id: '1',
-      password: '$2b$10$wcB4VuBx3EQVWjMkN/TBVOMq2dO9RQKkEXpR4zFZzhTf2dMBuus0i',
-      created_date: '2020-01-15T10:00:00Z'
-    },
-    {
-      id: 'gc-002',
-      company_name: 'Empire State Builders',
-      contractor_type: 'general_contractor',
-      license_number: 'NYC-GC-23456',
-      address: '350 5th Avenue',
-      city: 'New York',
-      state: 'NY',
-      zip_code: '10118',
-      phone: '212-555-0200',
-      email: 'info@empirebuilders.com',
-      contact_person: 'Sarah Williams',
-      status: 'active',
-      admin_id: '1',
-      password: '$2b$10$wcB4VuBx3EQVWjMkN/TBVOMq2dO9RQKkEXpR4zFZzhTf2dMBuus0i',
-      created_date: '2018-05-20T10:00:00Z'
-    },
-    {
-      id: 'gc-003',
-      company_name: 'Skyline Developers',
-      contractor_type: 'general_contractor',
-      license_number: 'NYC-GC-34567',
-      address: '200 Park Avenue',
-      city: 'New York',
-      state: 'NY',
-      zip_code: '10166',
-      phone: '212-555-0300',
-      email: 'projects@skylinedev.com',
-      contact_person: 'David Chen',
-      status: 'active',
-      admin_id: '1',
-      password: '$2b$10$wcB4VuBx3EQVWjMkN/TBVOMq2dO9RQKkEXpR4zFZzhTf2dMBuus0i',
-      created_date: '2019-03-10T10:00:00Z'
-    },
-    // Subcontractors
-    {
-      id: 'sub-001',
-      company_name: 'ABC Plumbing LLC',
-      contractor_type: 'subcontractor',
-      license_number: 'NYC-PL-45678',
-      address: '45 Water St',
-      city: 'Brooklyn',
-      state: 'NY',
-      zip_code: '11201',
-      phone: '718-555-0100',
-      email: 'service@abcplumbing.com',
-      contact_person: 'Mike Johnson',
-      status: 'active',
-      created_date: '2021-06-01T10:00:00Z'
-    },
-    {
-      id: 'sub-002',
-      company_name: 'XYZ Electrical Services',
-      contractor_type: 'subcontractor',
-      license_number: 'NYC-EL-56789',
-      address: '78 Electric Ave',
-      city: 'Queens',
-      state: 'NY',
-      zip_code: '11375',
-      phone: '718-555-0200',
-      email: 'info@xyzelectrical.com',
-      contact_person: 'Tom Rodriguez',
-      status: 'active',
-      created_date: '2020-09-15T10:00:00Z'
-    },
-    {
-      id: 'sub-003',
-      company_name: 'Superior HVAC Inc',
-      contractor_type: 'subcontractor',
-      license_number: 'NYC-HV-67890',
-      address: '123 Cool St',
-      city: 'Bronx',
-      state: 'NY',
-      zip_code: '10451',
-      phone: '718-555-0300',
-      email: 'contact@superiorhvac.com',
-      contact_person: 'Lisa Anderson',
-      status: 'active',
-      created_date: '2019-11-20T10:00:00Z'
-    },
-    {
-      id: 'sub-004',
-      company_name: 'Metro Concrete Works',
-      contractor_type: 'subcontractor',
-      license_number: 'NYC-CN-78901',
-      address: '456 Foundation Blvd',
-      city: 'Staten Island',
-      state: 'NY',
-      zip_code: '10301',
-      phone: '718-555-0400',
-      email: 'projects@metroconcrete.com',
-      contact_person: 'James Wilson',
-      status: 'active',
-      created_date: '2018-04-10T10:00:00Z'
-    },
-    {
-      id: 'sub-005',
-      company_name: 'Precision Drywall & Painting',
-      contractor_type: 'subcontractor',
-      license_number: 'NYC-DW-89012',
-      address: '789 Wall Board Ave',
-      city: 'Brooklyn',
-      state: 'NY',
-      zip_code: '11215',
-      phone: '718-555-0500',
-      email: 'info@precisiondrywall.com',
-      contact_person: 'Maria Garcia',
-      status: 'active',
-      created_date: '2020-02-14T10:00:00Z'
-    },
-    {
-      id: 'sub-006',
-      company_name: 'Apex Roofing Solutions',
-      contractor_type: 'subcontractor',
-      license_number: 'NYC-RF-90123',
-      address: '321 Shingle Road',
-      city: 'Queens',
-      state: 'NY',
-      zip_code: '11420',
-      phone: '718-555-0600',
-      email: 'service@apexroofing.com',
-      contact_person: 'Robert Lee',
-      status: 'active',
-      created_date: '2019-08-05T10:00:00Z'
-    }
-  ],
-  User: [
-    { 
-      id: '1', 
-      username: 'admin', 
-      email: 'miriamsabel@insuretrack.onmicrosoft.com', 
-      name: 'Miriam Sabel', 
-      role: 'super_admin',
-      created_date: '2023-01-01T10:00:00Z'
-    }
-  ],
+  Project: [],
+  Contractor: [],
+  User: [],
   ProjectSubcontractor: [],
-  SubInsuranceRequirement: [
-    {
-      id: 'req-001',
-      program_id: 'program-001',
-      trade_name: 'Plumbing',
-      insurance_type: 'general_liability',
-      tier: 'standard',
-      is_required: true,
-      gl_each_occurrence: 1000000,
-      gl_general_aggregate: 2000000,
-      gl_products_completed_ops: 2000000,
-      gl_personal_adv_injury: 1000000,
-      gl_damage_rented_premises: 300000,
-      gl_med_exp: 10000,
-      created_date: '2023-01-01T10:00:00Z'
-    },
-    {
-      id: 'req-002',
-      program_id: 'program-001',
-      trade_name: 'Plumbing',
-      insurance_type: 'workers_compensation',
-      tier: 'standard',
-      is_required: true,
-      wc_each_accident: 1000000,
-      wc_disease_policy_limit: 1000000,
-      wc_disease_each_employee: 1000000,
-      created_date: '2023-01-01T10:00:00Z'
-    },
-    {
-      id: 'req-003',
-      program_id: 'program-001',
-      trade_name: 'Plumbing',
-      insurance_type: 'auto_liability',
-      tier: 'standard',
-      is_required: true,
-      auto_combined_single_limit: 1000000,
-      created_date: '2023-01-01T10:00:00Z'
-    }
-  ],
-  StateRequirement: [
-    {
-      id: 'state-req-001',
-      state: 'NY',
-      insurance_type: 'workers_compensation',
-      minimum_coverage: 1000000,
-      is_required: true,
-      notes: 'New York State requires statutory workers compensation',
-      created_date: '2023-01-01T10:00:00Z'
-    }
-  ],
+  BrokerAssignment: [],
+  // Centralized broker records for authentication and password management
+  Broker: [],
+  BrokerLogin: [],
+  GCPortal: [],
+  gcLogin: [],
+  BrokerUpload: [],
+  BrokerLogin: [],
+  COIDeficiency: [],
+  EmailNotification: [],
+  HoldHarmlessAgreement: [],
+  ProgramWorkflow: [],
+  Program: [],
+  UserActivity: [],
+  PaymentHistory: [],
+  InsuranceRequirement: [],
+  Portal: [],
+  AdminUser: [],
+  SubInsuranceRequirement: [],
+  StateRequirement: [],
   GeneratedCOI: [],
-  Trade: [
-    { id: 'trade-001', trade_name: 'Carpentry', category: 'General', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-002', trade_name: 'Electrical', category: 'Electrical', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-003', trade_name: 'Plumbing', category: 'Mechanical', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-004', trade_name: 'HVAC', category: 'Mechanical', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-005', trade_name: 'Concrete', category: 'Structural', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-006', trade_name: 'Masonry', category: 'Structural', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-007', trade_name: 'Drywall', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-008', trade_name: 'Painting', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-009', trade_name: 'Flooring', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-010', trade_name: 'Siding', category: 'Exterior', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-011', trade_name: 'Roofing', category: 'Exterior', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-012', trade_name: 'Glazing', category: 'Exterior', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-013', trade_name: 'Windows & Doors', category: 'Exterior', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-014', trade_name: 'Insulation', category: 'Envelope', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-015', trade_name: 'Sheet Metal', category: 'Mechanical', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-016', trade_name: 'Tile', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-017', trade_name: 'Millwork', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-018', trade_name: 'Landscaping', category: 'Sitework', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-019', trade_name: 'Paving', category: 'Sitework', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-020', trade_name: 'Steel Erection', category: 'Structural', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-021', trade_name: 'Rebar', category: 'Structural', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-022', trade_name: 'Fire Protection', category: 'Mechanical', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-023', trade_name: 'Elevator', category: 'Specialty', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-024', trade_name: 'Waterproofing', category: 'Envelope', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-025', trade_name: 'Caulking', category: 'Envelope', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-026', trade_name: 'Acoustical Ceiling', category: 'Finishes', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-027', trade_name: 'Excavation', category: 'Sitework', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-028', trade_name: 'Demolition', category: 'Sitework', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-029', trade_name: 'Crane Operator', category: 'Specialty', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-030', trade_name: 'Scaffold', category: 'Specialty', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-031', trade_name: 'Any exterior work above 2 stories', category: 'Scope', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' },
-    { id: 'trade-032', trade_name: 'Any exterior work 2 stories or below', category: 'Scope', is_active: true, requires_professional_liability: false, requires_pollution_liability: false, created_date: '2023-01-01T10:00:00Z' }
-  ],
-  InsuranceProgram: [
-    {
-      id: 'program-001',
-      name: 'Standard Commercial Program',
-      description: 'Standard insurance requirements for commercial projects',
-      is_active: true,
-      hold_harmless_template_url: null,
-      hold_harmless_template_name: null,
-      created_date: '2023-01-01T10:00:00Z'
-    }
-  ],
-  Broker: [
-    {
-      id: 'broker-001',
-      company_name: 'NYC Insurance Brokers',
-      contact_person: 'Sarah Williams',
-      email: 'sarah@nycbrokers.com',
-      phone: '212-555-9000',
-      status: 'active',
-      password: null,
-      created_date: '2023-01-01T10:00:00Z'
-    }
-  ],
-  BrokerUploadRequest: [],
-  PolicyDocument: [],
-  COIDocument: [],
-  ComplianceCheck: [],
+  Trade: [],
+  InsuranceProgram: [],
+  InsuranceProgramTier: [],
+  CertificateHolder: [],
+  RequiredEndorsement: [],
+  Policy: [],
+  PolicyTemplate: [],
+  PolicyAnalysis: [],
+  EmailLog: [],
+  Notification: [],
+  Task: [],
+  AuditLog: [],
+  BrokerPortal: [],
+  AdminSettings: [],
+  FormTemplate: [],
+  GCPolicyRequirement: [],
+  AdditionalInsured: [],
+  Endorsement: [],
+  PolicyRequirement: [],
+  NYCDOBRecord: [],
+  NYCACRISRecord: [],
+  SiteSafetyPlan: [],
+  IncidentReport: [],
+  InsuranceClaim: [],
+  Payment: [],
+  StripeSession: [],
+  GCSubscription: [],
+  WebhookLog: [],
+  UploadLog: [],
+  SystemConfig: [],
+  AuthSession: [],
+  EmailTemplate: [],
+  GCProgram: [],
+  PolicyRenewal: [],
+  PolicyRenewalTask: [],
+  ComplianceAction: [],
+  ComplianceEvent: [],
+  PolicyQuote: [],
   Subscription: [],
   ProgramTemplate: [],
-  Portal: [],
-  Message: [],
-  Notification: []
+  Message: []
 };
 
 // ========== Persistent Storage Functions ==========
@@ -482,8 +264,8 @@ function loadEntities() {
       console.log('📊 Contractors loaded:', entities.Contractor?.length || 0);
       console.log('📊 Projects loaded:', entities.Project?.length || 0);
     } else {
-      console.log('ℹ️ No existing data file, starting with default sample data');
-      // Save initial default data
+      console.log('ℹ️ No existing data file, starting with empty data');
+      // Save initial empty data
       saveEntities();
     }
   } catch (error) {
@@ -717,8 +499,67 @@ function migrateBrokerPasswords() {
   }
 }
 
+/**
+ * Seed centralized Broker records from existing data
+ * - Contractor.brokers[] entries
+ * - GeneratedCOI.broker_email
+ * Ensures brokers can authenticate even if records didn't exist previously.
+ */
+function seedBrokersFromData() {
+  try {
+    if (!entities.Broker) entities.Broker = [];
+
+    const seenEmails = new Set((entities.Broker || []).map(b => (b.email || '').toLowerCase()));
+
+    // Seed from contractor broker lists
+    (entities.Contractor || []).forEach(c => {
+      if (Array.isArray(c.brokers)) {
+        c.brokers.forEach(b => {
+          const email = (b.email || '').toLowerCase();
+          if (!email || seenEmails.has(email)) return;
+          const broker = getOrCreateBroker(email, {
+            broker_name: b.name || b.company || email,
+            company_name: b.company || b.name || 'Unknown',
+            contact_person: b.name || b.company || email,
+            phone: b.phone || '',
+          });
+          if (broker) {
+            seenEmails.add(email);
+          }
+        });
+      }
+    });
+
+    // Seed from COI records
+    (entities.GeneratedCOI || []).forEach(coi => {
+      const email = (coi.broker_email || '').toLowerCase();
+      if (!email || seenEmails.has(email)) return;
+      const broker = getOrCreateBroker(email, {
+        broker_name: coi.broker_name || email,
+        company_name: coi.broker_name || 'Unknown',
+        contact_person: coi.broker_name || email,
+      });
+      if (broker) {
+        seenEmails.add(email);
+      }
+    });
+
+    if (seenEmails.size > 0) {
+      console.log(`✅ Seeded ${seenEmails.size} broker record(s) from existing data`);
+      debouncedSave();
+    } else {
+      console.log('ℹ️ No new broker records to seed');
+    }
+  } catch (err) {
+    console.warn('⚠️ Broker seeding error:', err?.message || err);
+  }
+}
+
 // Load data on startup
 loadEntities();
+
+// Ensure broker records exist for authentication
+seedBrokersFromData();
 
 // Run data migration after loading entities
 migrateBrokerPasswords();
@@ -1616,6 +1457,200 @@ app.post('/auth/change-password', authLimiter, authenticateToken, async (req, re
   }
 });
 
+// Unified password reset request handler
+async function handlePasswordResetRequest(email, userType, res) {
+  try {
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const emailLower = email.toLowerCase();
+    let user = null;
+
+    // Find user by type
+    if (userType === 'gc') {
+      const contractor = (entities.Contractor || []).find(c => 
+        c.contractor_type === 'general_contractor' && 
+        c.email?.toLowerCase() === emailLower
+      );
+      if (contractor) {
+        user = { email: contractor.email, name: contractor.contact_person || contractor.company_name, id: contractor.id };
+      }
+    } else if (userType === 'broker') {
+      const broker = (entities.Broker || []).find(b => b.email?.toLowerCase() === emailLower);
+      if (broker) {
+        user = { email: broker.email, name: broker.name || broker.company_name || 'Broker', id: broker.id };
+      }
+    } else if (userType === 'subcontractor') {
+      const contractor = (entities.Contractor || []).find(c => 
+        c.contractor_type === 'subcontractor' && 
+        c.email?.toLowerCase() === emailLower
+      );
+      if (contractor) {
+        user = { email: contractor.email, name: contractor.company_name || contractor.contact_person, id: contractor.id };
+      }
+    }
+
+    // Generate token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + (60 * 60 * 1000); // 1 hour
+    
+    // Store token using email as key (unified system)
+    passwordResetTokens.set(emailLower, {
+      token: resetToken,
+      expiresAt,
+      used: false,
+      userType
+    });
+
+    // Clean up expired tokens
+    for (const [key, value] of passwordResetTokens.entries()) {
+      if (value.expiresAt < Date.now()) {
+        passwordResetTokens.delete(key);
+      }
+    }
+
+    // Send email if user exists
+    if (user) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5175';
+      const resetLink = `${frontendUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
+      
+      const mailOptions = {
+        from: process.env.SMTP_USER || process.env.SMTP_FROM || 'noreply@insuretrack.com',
+        to: email,
+        subject: 'Password Reset Request - CompliantTeam',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">Password Reset Request</h2>
+            <p>Hello ${user.name || 'User'},</p>
+            <p>We received a request to reset your password for your CompliantTeam account.</p>
+            <p>Click the button below to reset your password:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetLink}" 
+                 style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                Reset Password
+              </a>
+            </div>
+            <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
+            <p style="color: #4F46E5; word-break: break-all; font-size: 12px;">${resetLink}</p>
+            <p style="color: #999; font-size: 12px; margin-top: 30px;">
+              This link will expire in 1 hour. If you didn't request a password reset, please ignore this email.
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="color: #999; font-size: 11px;">
+              This is an automated message from CompliantTeam. Please do not reply to this email.
+            </p>
+          </div>
+        `
+      };
+      
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Password reset email sent to: ${email}`);
+      } catch (emailErr) {
+        console.error('Failed to send password reset email:', emailErr?.message);
+      }
+    }
+    
+    // Always return success to prevent email enumeration
+    return res.json({ 
+      success: true, 
+      message: 'If an account exists with this email, a password reset link has been sent.' 
+    });
+  } catch (err) {
+    console.error('handlePasswordResetRequest error:', err?.message || err);
+    return res.status(500).json({ error: 'Request failed' });
+  }
+}
+
+// Unified password reset handler
+async function handlePasswordReset(req, res) {
+  try {
+    const { email, token, newPassword } = req.body || {};
+    
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({ error: 'Email, token, and new password are required' });
+    }
+
+    const emailLower = email.toLowerCase();
+    const storedTokenData = passwordResetTokens.get(emailLower);
+
+    if (!storedTokenData) {
+      return res.status(400).json({ error: 'Invalid or expired reset link' });
+    }
+
+    // Verify token matches and is not expired
+    if (storedTokenData.token !== token || storedTokenData.expiresAt < Date.now()) {
+      return res.status(400).json({ error: 'Invalid or expired reset link' });
+    }
+
+    if (storedTokenData.used) {
+      return res.status(400).json({ error: 'This reset link has already been used' });
+    }
+
+    // Validate password strength
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user based on type
+    const userType = storedTokenData.userType;
+    if (userType === 'gc') {
+      const gcIndex = (entities.Contractor || []).findIndex(c => 
+        c.contractor_type === 'general_contractor' && 
+        c.email?.toLowerCase() === emailLower
+      );
+      if (gcIndex !== -1) {
+        entities.Contractor[gcIndex].password = hashedPassword;
+        saveEntities();
+        console.log(`✅ GC password reset for: ${email}`);
+      } else {
+        return res.status(404).json({ error: 'GC not found' });
+      }
+    } else if (userType === 'broker') {
+      const brokerIndex = (entities.Broker || []).findIndex(b => 
+        b.email?.toLowerCase() === emailLower
+      );
+      if (brokerIndex !== -1) {
+        entities.Broker[brokerIndex].password = hashedPassword;
+        debouncedSave();
+        console.log(`✅ Broker password reset for: ${email}`);
+      } else {
+        return res.status(404).json({ error: 'Broker not found' });
+      }
+    } else if (userType === 'subcontractor') {
+      const subIndex = (entities.Contractor || []).findIndex(c => 
+        c.contractor_type === 'subcontractor' && 
+        c.email?.toLowerCase() === emailLower
+      );
+      if (subIndex !== -1) {
+        entities.Contractor[subIndex].password = hashedPassword;
+        saveEntities();
+        console.log(`✅ Subcontractor password reset for: ${email}`);
+      } else {
+        return res.status(404).json({ error: 'Subcontractor not found' });
+      }
+    }
+
+    // Mark token as used and remove after delay
+    storedTokenData.used = true;
+    setTimeout(() => {
+      passwordResetTokens.delete(emailLower);
+    }, 5000);
+
+    return res.json({ 
+      success: true, 
+      message: 'Password has been reset successfully. You can now log in with your new password.' 
+    });
+  } catch (err) {
+    console.error('handlePasswordReset error:', err?.message || err);
+    return res.status(500).json({ error: 'Password reset failed' });
+  }
+}
+
 // Password Reset Request - Generate and send reset token
 app.post('/auth/request-password-reset',
   authLimiter,
@@ -1624,127 +1659,9 @@ app.post('/auth/request-password-reset',
   ],
   handleValidationErrors,
   async (req, res) => {
-    try {
-      const { email } = req.body;
-      
-      // Find user by email (check both users array and contractors)
-      let user = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
-      let userType = 'user';
-      
-      // If not found in users, check contractors (GCs)
-      if (!user) {
-        const contractor = (entities.Contractor || []).find(c => 
-          c.contractor_type === 'general_contractor' && 
-          c.email && 
-          c.email.toLowerCase() === email.toLowerCase()
-        );
-        
-        if (contractor) {
-          user = { email: contractor.email, name: contractor.contact_person || contractor.company_name, id: contractor.id };
-          userType = 'gc';
-        }
-      }
-      
-      // If not found in contractors, check COIs for broker emails
-      if (!user) {
-        const coi = (entities.GeneratedCOI || []).find(c => 
-          c.broker_email && 
-          c.broker_email.toLowerCase() === email.toLowerCase()
-        );
-        
-        if (coi) {
-          user = { email: coi.broker_email, name: coi.broker_name || 'Broker', id: coi.id };
-          userType = 'broker';
-        }
-      }
-      
-      // Always return success to prevent email enumeration
-      // But only actually send email if user exists
-      if (user) {
-        // Generate secure random token
-        const resetToken = crypto.randomBytes(32).toString('hex');
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
-        
-        // Store token
-        passwordResetTokens.set(email.toLowerCase(), {
-          token: resetToken,
-          expiresAt,
-          used: false,
-          userType
-        });
-        
-        // Clean up expired tokens (simple cleanup)
-        for (const [key, value] of passwordResetTokens.entries()) {
-          if (value.expiresAt < new Date()) {
-            passwordResetTokens.delete(key);
-          }
-        }
-        
-        // Get frontend URL for reset link
-        const getFrontendUrl = (await import('./utils/getFrontendUrl.js')).default;
-        const frontendUrl = getFrontendUrl();
-        const resetLink = `${frontendUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
-        
-        // Send password reset email
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || 'smtp.office365.com',
-          port: parseInt(process.env.SMTP_PORT || '587'),
-          secure: false,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-          }
-        });
-        
-        const mailOptions = {
-          from: process.env.SMTP_USER,
-          to: email,
-          subject: 'Password Reset Request - compliant.team',
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #333;">Password Reset Request</h2>
-              <p>Hello ${user.name || 'User'},</p>
-              <p>We received a request to reset your password for your compliant.team account.</p>
-              <p>Click the button below to reset your password:</p>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${resetLink}" 
-                   style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                  Reset Password
-                </a>
-              </div>
-              <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
-              <p style="color: #4F46E5; word-break: break-all; font-size: 12px;">${resetLink}</p>
-              <p style="color: #999; font-size: 12px; margin-top: 30px;">
-                This link will expire in 1 hour. If you didn't request a password reset, please ignore this email.
-              </p>
-              <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-              <p style="color: #999; font-size: 11px;">
-                This is an automated message from compliant.team. Please do not reply to this email.
-              </p>
-            </div>
-          `
-        };
-        
-        try {
-          await transporter.sendMail(mailOptions);
-          console.log(`✅ Password reset email sent to: ${email}`);
-        } catch (emailErr) {
-          console.error('Failed to send password reset email:', emailErr);
-          // Don't reveal email sending failure to prevent information disclosure
-        }
-      }
-      
-      // Always return success (even if email doesn't exist)
-      res.json({ 
-        success: true, 
-        message: 'If an account exists with this email, a password reset link has been sent.' 
-      });
-      
-    } catch (err) {
-      console.error('Password reset request error:', err);
-      return sendError(res, 500, 'Failed to process password reset request');
-    }
-});
+    return handlePasswordResetRequest(req.body.email, 'user', res);
+  }
+);
 
 // Password Reset - Verify token and reset password
 app.post('/auth/reset-password',
@@ -1756,104 +1673,9 @@ app.post('/auth/reset-password',
   ],
   handleValidationErrors,
   async (req, res) => {
-    try {
-      const { email, token, newPassword } = req.body;
-      
-      // Explicit type validation for token parameter
-      if (typeof token !== 'string' || token.length === 0) {
-        return sendError(res, 400, 'Reset token must be a non-empty string');
-      }
-      
-      // Get stored token
-      const storedTokenData = passwordResetTokens.get(email.toLowerCase());
-      
-      if (!storedTokenData) {
-        return sendError(res, 400, 'Invalid or expired reset token');
-      }
-      
-      // Verify token using timing-safe comparison to prevent timing attacks
-      if (!timingSafeEqual(storedTokenData.token, token)) {
-        return sendError(res, 400, 'Invalid reset token');
-      }
-      
-      // Check if token is expired
-      if (storedTokenData.expiresAt < new Date()) {
-        passwordResetTokens.delete(email.toLowerCase());
-        return sendError(res, 400, 'Reset token has expired');
-      }
-      
-      // Check if token has been used
-      if (storedTokenData.used) {
-        return sendError(res, 400, 'Reset token has already been used');
-      }
-      
-      // Validate new password (12 characters minimum with complexity)
-      const minLength = 12;
-      const hasUppercase = /[A-Z]/.test(newPassword);
-      const hasLowercase = /[a-z]/.test(newPassword);
-      const hasNumber = /[0-9]/.test(newPassword);
-      const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
-      
-      if (newPassword.length < minLength || !hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
-        return sendError(res, 400, 'Password must be at least 12 characters and contain uppercase, lowercase, number, and special character');
-      }
-      
-      // Hash the new password
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      
-      // Update password based on user type
-      if (storedTokenData.userType === 'user') {
-        const userIndex = users.findIndex(u => u.email && u.email.toLowerCase() === email.toLowerCase());
-        if (userIndex !== -1) {
-          users[userIndex].password = hashedPassword;
-          users[userIndex].password_changed_at = new Date().toISOString();
-          console.log(`✅ Password reset for user: ${email}`);
-        }
-      } else if (storedTokenData.userType === 'gc') {
-        const gcIndex = (entities.Contractor || []).findIndex(c => 
-          c.contractor_type === 'general_contractor' && 
-          c.email && 
-          c.email.toLowerCase() === email.toLowerCase()
-        );
-        if (gcIndex !== -1) {
-          entities.Contractor[gcIndex].password = hashedPassword;
-          debouncedSave();
-          console.log(`✅ Password reset for GC: ${email}`);
-        }
-      } else if (storedTokenData.userType === 'broker') {
-        // Update broker password in centralized Broker table (read-only, does NOT create)
-        const broker = getBroker(email);
-        if (broker) {
-          const brokerIndex = entities.Broker.findIndex(b => b.id === broker.id);
-          if (brokerIndex !== -1) {
-            entities.Broker[brokerIndex].password = hashedPassword;
-            entities.Broker[brokerIndex].password_changed_at = new Date().toISOString();
-            debouncedSave();
-            console.log(`✅ Password reset for broker: ${email}`);
-          }
-        } else {
-          return sendError(res, 404, 'Broker account not found');
-        }
-      }
-      
-      // Mark token as used
-      storedTokenData.used = true;
-      
-      // Remove token after successful reset
-      setTimeout(() => {
-        passwordResetTokens.delete(email.toLowerCase());
-      }, 5000);
-      
-      res.json({ 
-        success: true, 
-        message: 'Password has been reset successfully. You can now log in with your new password.' 
-      });
-      
-    } catch (err) {
-      console.error('Password reset error:', err);
-      return sendError(res, 500, 'Failed to reset password');
-    }
-  });
+    return handlePasswordReset(req, res);
+  }
+);
 
 // Entity endpoints (clean rebuild)
 // Get archived entities (Admin only) - Must be before generic route
@@ -2292,6 +2114,129 @@ app.post('/integrations/invoke-llm', authenticateToken, (req, res) => {
   });
 });
 
+// NYC Property lookup endpoint (ACRIS + DOBNow via NYC Open Data / Geoclient)
+app.post('/integrations/nyc/property', authenticateToken, async (req, res) => {
+  try {
+    const address = (req.body && req.body.address || '').trim();
+    if (!address) return res.status(400).json({ error: 'Missing address' });
+
+    const geoclientAppId = process.env.NYC_GEOCLIENT_APP_ID;
+    const geoclientAppKey = process.env.NYC_GEOCLIENT_APP_KEY;
+    const socrataToken = process.env.SOCRATA_APP_TOKEN;
+
+    if (!geoclientAppId || !geoclientAppKey) {
+      return res.status(501).json({
+        error: 'NYC Geoclient not configured',
+        message: 'Set NYC_GEOCLIENT_APP_ID and NYC_GEOCLIENT_APP_KEY to enable address→BBL lookup.'
+      });
+    }
+
+    const u = new URL('https://api.cityofnewyork.us/geoclient/v2/search.json');
+    u.searchParams.set('input', address);
+    u.searchParams.set('app_id', geoclientAppId);
+    u.searchParams.set('app_key', geoclientAppKey);
+
+    const geoRes = await fetch(u.toString(), { headers: { 'Accept': 'application/json' } });
+    if (!geoRes.ok) {
+      const t = await geoRes.text().catch(()=> '');
+      return res.status(502).json({ error: 'Geoclient lookup failed', details: t });
+    }
+    const geo = await geoRes.json();
+    const best = Array.isArray(geo?.response?.results) ? geo.response.results[0]?.response : null;
+    const boro = best?.boroughName || best?.borough;
+    const block = best?.block && String(best.block).padStart(5, '0');
+    const lot = best?.lot && String(best.lot).padStart(4, '0');
+    const bin = best?.buildingIdentificationNumber || null;
+    const zip = best?.zipCode || null;
+    const city = (()=>{
+      if (!boro) return null;
+      const bb = String(boro).toLowerCase();
+      if (bb.includes('manhattan')) return 'New York';
+      if (bb.includes('brooklyn')) return 'Brooklyn';
+      if (bb.includes('queens')) return 'Queens';
+      if (bb.includes('bronx')) return 'Bronx';
+      if (bb.includes('staten')) return 'Staten Island';
+      return null;
+    })();
+
+    if (!block || !lot) {
+      return res.status(404).json({ error: 'No BBL found for address' });
+    }
+
+    // Attempt ACRIS owner lookup via Socrata (dataset requires token for higher limits but can work without)
+    let ownerEntity = null;
+    if (socrataToken) {
+      try {
+        // Recorded Document Index (DEEDS) by BBL – get latest grantee
+        const acrisUrl = new URL('https://data.cityofnewyork.us/resource/b8rk-rzvy.json');
+        acrisUrl.searchParams.set('$limit', '1');
+        acrisUrl.searchParams.set('$order', 'recorded_date DESC');
+        acrisUrl.searchParams.set('document_type', 'DEED');
+        // BBL in this dataset is borough, block, lot fields
+        acrisUrl.searchParams.set('borough', boro?.toUpperCase() || '');
+        acrisUrl.searchParams.set('block', String(Number(block)));
+        acrisUrl.searchParams.set('lot', String(Number(lot)));
+        const acrisRes = await fetch(acrisUrl.toString(), {
+          headers: { 'X-App-Token': socrataToken, 'Accept': 'application/json' }
+        });
+        if (acrisRes.ok) {
+          const rows = await acrisRes.json();
+          if (Array.isArray(rows) && rows.length > 0) {
+            ownerEntity = rows[0]?.grantee || rows[0]?.party2 || null;
+          }
+        }
+      } catch(_){}
+    }
+
+    // Attempt DOB jobs/permits via Socrata (BIS/DOB jobs) – for height, units
+    let unitCount = null, heightStories = null, projectType = null;
+    if (socrataToken) {
+      try {
+        // DOB Job Application Filings – ic3t-wcy2 (fields: job_type, job_description, units, stories)
+        const dobUrl = new URL('https://data.cityofnewyork.us/resource/ic3t-wcy2.json');
+        dobUrl.searchParams.set('$limit', '1');
+        dobUrl.searchParams.set('$order', 'filing_date DESC');
+        dobUrl.searchParams.set('house_no', String(best?.houseNumber || ''));
+        dobUrl.searchParams.set('street_name', String(best?.streetName || ''));
+        dobUrl.searchParams.set('borough', String(boro || ''));
+        const dobRes = await fetch(dobUrl.toString(), {
+          headers: { 'X-App-Token': socrataToken, 'Accept': 'application/json' }
+        });
+        if (dobRes.ok) {
+          const rows = await dobRes.json();
+          if (Array.isArray(rows) && rows.length > 0) {
+            const r = rows[0];
+            unitCount = r?.dwelling_units || r?.units || null;
+            heightStories = r?.stories || null;
+            projectType = r?.job_type || null;
+          }
+        }
+      } catch(_){}
+    }
+
+    const json = {
+      address,
+      city,
+      state: 'NY',
+      zip_code: zip || null,
+      block_number: block,
+      lot_number: lot,
+      bin,
+      height_stories: heightStories,
+      project_type: projectType,
+      unit_count: unitCount,
+      structure_type: null,
+      owner_entity: ownerEntity,
+      additional_insured_entities: []
+    };
+
+    res.json(json);
+  } catch (err) {
+    console.error('NYC property lookup error:', err);
+    res.status(500).json({ error: 'NYC property lookup failed' });
+  }
+});
+
 // Public email endpoint - no authentication required (for broker portal)
 app.post('/public/send-email', emailLimiter, async (req, res) => {
   const { to, subject, body, html, cc, bcc, from, replyTo, attachments: incomingAttachments, includeSampleCOI, sampleCOIData } = req.body || {};
@@ -2519,8 +2464,11 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
           // Additional Insureds
           doc.fontSize(7).font('Helvetica-Bold').text('ADDITIONAL INSURED(S):', margin + 3, yPos + 50);
           doc.fontSize(7).font('Helvetica');
-          if (Array.isArray(data.additional_insureds) && data.additional_insureds.length > 0) {
-            data.additional_insureds.slice(0, 3).forEach((ai, idx) => {
+          const addlInsuredList = Array.isArray(data.additional_insureds) && data.additional_insureds.length > 0
+            ? data.additional_insureds
+            : (Array.isArray(data.additional_insured_entities) ? data.additional_insured_entities.map(e => e?.name || e).filter(Boolean) : []);
+          if (addlInsuredList.length > 0) {
+            addlInsuredList.slice(0, 3).forEach((ai, idx) => {
               doc.text(`• ${ai}`, margin + 3, yPos + 58 + (idx * 8), { width: contentWidth * 0.6 - 6 });
             });
           } else {
@@ -3373,7 +3321,7 @@ app.post('/public/create-portal', publicApiLimiter, (req, res) => {
 });
 
 // Public: Create GeneratedCOI (certificate request)
-app.post('/public/create-coi-request', publicApiLimiter, (req, res) => {
+app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
   try {
     const { 
       project_id, project_name, gc_id, gc_name,
@@ -3389,13 +3337,42 @@ app.post('/public/create-coi-request', publicApiLimiter, (req, res) => {
     }
 
     // Check if COI already exists for this project/sub combo
-    const existing = (entities.GeneratedCOI || []).find(c => 
+    // Allow multiple COI requests for the same project/subcontractor.
+    // Compute sequence number of COIs for this combination.
+    const priorCOIs = (entities.GeneratedCOI || []).filter(c => 
       c.project_id === project_id && c.subcontractor_id === subcontractor_id
     );
-    if (existing) {
-      console.log('✅ COI request already exists:', existing.id);
-      return res.json(existing);
-    }
+    const sequence = priorCOIs.length + 1;
+
+    // Derive broker info from Contractor record if not provided
+    let resolvedBrokerEmail = broker_email || contact_email || undefined;
+    let resolvedBrokerName = broker_name || undefined;
+    try {
+      const contractor = (entities.Contractor || []).find(c => c.id === subcontractor_id);
+      if (!resolvedBrokerEmail && contractor && Array.isArray(contractor.brokers) && contractor.brokers.length > 0) {
+        resolvedBrokerEmail = contractor.brokers[0].email;
+        resolvedBrokerName = contractor.brokers[0].name || resolvedBrokerName;
+      }
+    } catch(_) {}
+
+    // Fill certificate holder and additional insureds from Project if missing
+    let holder = certificate_holder;
+    let holderAddress = certificate_holder_address;
+    let insureds = Array.isArray(additional_insureds) ? additional_insureds.slice() : [];
+    try {
+      const proj = (entities.Project || []).find(p => p.id === project_id);
+      if (proj) {
+        holder = holder || proj.gc_name || gc_name;
+        const addrParts = [proj.gc_address, proj.gc_city, proj.gc_state, proj.gc_zip].filter(Boolean);
+        holderAddress = holderAddress || (addrParts.length ? addrParts.join(', ') : undefined);
+        if (proj.owner_entity && !insureds.includes(proj.owner_entity)) insureds.push(proj.owner_entity);
+        if (Array.isArray(proj.additional_insured_entities)) {
+          for (const ai of proj.additional_insured_entities) {
+            if (!insureds.includes(ai)) insureds.push(ai);
+          }
+        }
+      }
+    } catch(_) {}
 
     const newCOI = {
       id: `COI-${Date.now()}`,
@@ -3408,25 +3385,55 @@ app.post('/public/create-coi-request', publicApiLimiter, (req, res) => {
       trade_type,
       project_sub_id,
       status: 'awaiting_broker_upload',
-      broker_email: broker_email || contact_email,
-      broker_name: broker_name || undefined,
-      contact_email: contact_email || broker_email,
+      broker_email: resolvedBrokerEmail,
+      broker_name: resolvedBrokerName,
+      contact_email: contact_email || broker_email || resolvedBrokerEmail,
       created_date: new Date().toISOString(),
       first_coi_uploaded: false,
       first_coi_url: null,
       coi_token: coi_token || `coi-${Date.now()}-${crypto.randomBytes(12).toString('hex')}`,
-      certificate_holder,
-      certificate_holder_address,
-      additional_insureds: additional_insureds || [],
+      certificate_holder: holder,
+      certificate_holder_address: holderAddress,
+      additional_insureds: insureds,
       project_location,
-      created_by: 'public-portal'
+      created_by: 'public-portal',
+      sequence
     };
 
     if (!entities.GeneratedCOI) entities.GeneratedCOI = [];
     entities.GeneratedCOI.push(newCOI);
     debouncedSave();
+
+    // Proactively notify broker if we have their email
+    try {
+      if (newCOI.broker_email) {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5175';
+        const signLink = `${frontendUrl}/broker-upload-coi?token=${newCOI.coi_token}&action=sign&step=3`;
+        const brokerDashboardLink = `${frontendUrl}/broker-dashboard?name=${encodeURIComponent(newCOI.broker_name || '')}&coiId=${newCOI.id}`;
+        const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+        const sampleCOIData = {
+          project_name,
+          gc_name,
+          trade: trade_type,
+          program: undefined
+        };
+        await fetch(internalUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: newCOI.broker_email,
+            includeSampleCOI: true,
+            sampleCOIData,
+            subject: `📋 Certificate Ready for Review & Signature: ${subcontractor_name}`,
+            body: `A Certificate of Insurance is ready for your review and signature.\n\nCLIENT:\n• Company: ${subcontractor_name}\n\nPROJECT:\n• Project: ${project_name}\n• General Contractor: ${gc_name}\n\nCERTIFICATE STATUS:\n• Trade(s): ${trade_type || 'N/A'}\n• Status: Awaiting Your Signature\n• Created: ${new Date().toLocaleDateString()}\n\n✍️ Sign Certificate:\n${signLink}\n\n📊 Broker Dashboard:\n${brokerDashboardLink}\n\nOnce you approve, the certificate will be submitted to the General Contractor.\n\nBest regards,\nInsureTrack System`
+          })
+        });
+      }
+    } catch (notifyErr) {
+      console.error('⚠️ Broker notification error (create-coi-request):', notifyErr?.message || notifyErr);
+    }
     
-    console.log('✅ Created COI request:', newCOI.id, subcontractor_name);
+    console.log('✅ Created COI request:', newCOI.id, subcontractor_name, 'sequence:', sequence);
     return res.json(newCOI);
   } catch (err) {
     console.error('❌ Public COI create error:', err?.message || err);
@@ -3659,6 +3666,270 @@ app.post('/public/upload-file', uploadLimiter, upload.single('file'), (req, res)
   }
 });
 
+// Public: Upload ACORD COI, extract fields, update COI record, and notify admins
+app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req, res) => {
+  try {
+    const { coi_token } = req.query || req.body || {};
+    if (!req.file) return sendError(res, 400, 'No file uploaded');
+    if (!coi_token) return sendError(res, 400, 'coi_token is required');
+
+    // Build file URL
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+
+    console.log('✅ COI uploaded:', { filename: req.file.filename, url: fileUrl, coi_token });
+
+    // Extract COI fields using existing performExtraction helper (regex/AI)
+    const schema = {
+      named_insured: 'string',
+      insurance_carrier_gl: 'string',
+      policy_number_gl: 'string',
+      gl_each_occurrence: 'number',
+      gl_general_aggregate: 'number',
+      gl_products_completed_ops: 'number',
+      gl_personal_adv_injury: 'number',
+      gl_damage_rented_premises: 'number',
+      gl_med_exp: 'number',
+      gl_effective_date: 'Date',
+      gl_expiration_date: 'Date',
+      gl_additional_insured: 'boolean',
+      gl_waiver_of_subrogation: 'boolean',
+      insurance_carrier_umbrella: 'string',
+      policy_number_umbrella: 'string',
+      umbrella_each_occurrence: 'number',
+      umbrella_aggregate: 'number',
+      umbrella_effective_date: 'Date',
+      umbrella_expiration_date: 'Date',
+      insurance_carrier_wc: 'string',
+      policy_number_wc: 'string',
+      wc_each_accident: 'number',
+      wc_disease_policy_limit: 'number',
+      wc_disease_each_employee: 'number',
+      wc_effective_date: 'Date',
+      wc_expiration_date: 'Date',
+      insurance_carrier_auto: 'string',
+      policy_number_auto: 'string',
+      auto_combined_single_limit: 'number',
+      auto_effective_date: 'Date',
+      auto_expiration_date: 'Date'
+    };
+
+    let extractionResult = { status: 'success', output: {} };
+    try {
+      extractionResult = await performExtraction({ file_url: fileUrl, json_schema: schema });
+    } catch (exErr) {
+      console.warn('COI extraction failed, continuing with minimal metadata:', exErr?.message || exErr);
+    }
+
+    // Find COI by token
+    const coiIdx = (entities.GeneratedCOI || []).findIndex(c => timingSafeEqual(c.coi_token, String(coi_token)));
+    if (coiIdx === -1) return sendError(res, 404, 'COI not found for token');
+    const coi = entities.GeneratedCOI[coiIdx];
+
+    // Get project and program requirements for dynamic comparison
+    const project = (entities.Project || []).find(p => p.id === coi.project_id);
+    const programId = project?.program_id || null;
+    const programRequirements = programId 
+      ? (entities.SubInsuranceRequirement || []).filter(r => r.program_id === programId)
+      : [];
+
+    // Minimal rule-based compliance check
+    const d = extractionResult.output || {};
+    const deficiencies = [];
+    let defCounter = 1;
+    const pushDef = (severity, field, title, description, currentValue, requiredValue) => {
+      deficiencies.push({
+        id: `def-${coi.id}-${defCounter++}`,
+        severity,
+        category: 'coverage',
+        field,
+        title,
+        description,
+        required_action: `Adjust ${field} to ${requiredValue}`,
+        current_value: currentValue,
+        required_value: requiredValue
+      });
+    };
+
+    // Get requirements for this subcontractor's trade from the program
+    const tradeReqs = coi.trade_type 
+      ? programRequirements.filter(r => 
+          r.applicable_trades && Array.isArray(r.applicable_trades) && 
+          r.applicable_trades.includes(coi.trade_type)
+        )
+      : programRequirements;
+
+    // Determine the highest tier requirement (if multiple tiers apply)
+    const tierPriority = { 'a': 4, 'b': 3, 'c': 2, 'd': 1, 'standard': 0 };
+    let highestTier = null;
+    let highestPriority = -1;
+    for (const req of tradeReqs) {
+      const priority = tierPriority[String(req.tier || '').toLowerCase()] || 0;
+      if (priority > highestPriority) {
+        highestPriority = priority;
+        highestTier = req.tier;
+      }
+    }
+
+    // Get all requirements for the highest tier
+    const tierRequirements = highestTier 
+      ? tradeReqs.filter(r => String(r.tier) === String(highestTier))
+      : tradeReqs;
+
+    // Validate GL coverage against program requirements
+    const glReq = tierRequirements.find(r => r.insurance_type === 'general_liability');
+    if (glReq) {
+      if (glReq.gl_general_aggregate && d.gl_general_aggregate && d.gl_general_aggregate < glReq.gl_general_aggregate) {
+        pushDef('high', 'gl_general_aggregate', 'GL Aggregate Below Program Minimum', 
+          `GL Aggregate is $${d.gl_general_aggregate.toLocaleString()}, requires ≥ $${glReq.gl_general_aggregate.toLocaleString()} (Program Tier ${highestTier})`, 
+          d.gl_general_aggregate, glReq.gl_general_aggregate);
+      }
+      if (glReq.gl_each_occurrence && d.gl_each_occurrence && d.gl_each_occurrence < glReq.gl_each_occurrence) {
+        pushDef('high', 'gl_each_occurrence', 'GL Per Occurrence Below Program Minimum', 
+          `GL Each Occurrence is $${d.gl_each_occurrence.toLocaleString()}, requires ≥ $${glReq.gl_each_occurrence.toLocaleString()} (Program Tier ${highestTier})`, 
+          d.gl_each_occurrence, glReq.gl_each_occurrence);
+      }
+      if (glReq.gl_products_completed_ops && d.gl_products_completed_ops && d.gl_products_completed_ops < glReq.gl_products_completed_ops) {
+        pushDef('medium', 'gl_products_completed_ops', 'GL Products/Completed Ops Below Program Minimum', 
+          `GL Products/Completed Ops is $${d.gl_products_completed_ops.toLocaleString()}, requires ≥ $${glReq.gl_products_completed_ops.toLocaleString()}`, 
+          d.gl_products_completed_ops, glReq.gl_products_completed_ops);
+      }
+    }
+
+    // Validate Auto coverage against program requirements
+    const autoReq = tierRequirements.find(r => r.insurance_type === 'auto_liability');
+    if (autoReq) {
+      if (autoReq.auto_combined_single_limit && d.auto_combined_single_limit && d.auto_combined_single_limit < autoReq.auto_combined_single_limit) {
+        pushDef('medium', 'auto_combined_single_limit', 'Auto CSL Below Program Minimum', 
+          `Auto Combined Single Limit is $${d.auto_combined_single_limit.toLocaleString()}, requires ≥ $${autoReq.auto_combined_single_limit.toLocaleString()}`, 
+          d.auto_combined_single_limit, autoReq.auto_combined_single_limit);
+      }
+    }
+
+    // Validate WC coverage against program requirements
+    const wcReq = tierRequirements.find(r => r.insurance_type === 'workers_compensation');
+    if (wcReq) {
+      if (wcReq.wc_each_accident && d.wc_each_accident && d.wc_each_accident < wcReq.wc_each_accident) {
+        pushDef('medium', 'wc_each_accident', 'WC Each Accident Below Program Minimum', 
+          `WC Each Accident is $${d.wc_each_accident.toLocaleString()}, requires ≥ $${wcReq.wc_each_accident.toLocaleString()}`, 
+          d.wc_each_accident, wcReq.wc_each_accident);
+      }
+    }
+
+    // Validate Umbrella coverage against program requirements
+    const umbReq = tierRequirements.find(r => r.insurance_type === 'umbrella_policy');
+    if (umbReq) {
+      if (umbReq.umbrella_each_occurrence && d.umbrella_each_occurrence && d.umbrella_each_occurrence < umbReq.umbrella_each_occurrence) {
+        pushDef('medium', 'umbrella_each_occurrence', 'Umbrella Each Occurrence Below Program Minimum', 
+          `Umbrella Each Occurrence is $${d.umbrella_each_occurrence.toLocaleString()}, requires ≥ $${umbReq.umbrella_each_occurrence.toLocaleString()}`, 
+          d.umbrella_each_occurrence, umbReq.umbrella_each_occurrence);
+      }
+    }
+
+    // Check for required endorsements based on program
+    if (glReq && d.gl_additional_insured === false) {
+      deficiencies.push({
+        id: `def-${coi.id}-${defCounter++}`,
+        severity: 'high',
+        category: 'additional_insured',
+        field: 'gl_additional_insured',
+        title: 'Additional Insured Not Confirmed',
+        description: 'Program requires Additional Insured endorsement on GL but certificate does not confirm it',
+        required_action: 'Add Additional Insured endorsement naming the GC',
+        current_value: false,
+        required_value: true
+      });
+    }
+    if (glReq && d.gl_waiver_of_subrogation === false) {
+      deficiencies.push({
+        id: `def-${coi.id}-${defCounter++}`,
+        severity: 'medium',
+        category: 'waiver',
+        field: 'gl_waiver_of_subrogation',
+        title: 'Waiver of Subrogation Not Confirmed',
+        description: 'Program requires Waiver of Subrogation but certificate does not confirm it',
+        required_action: 'Add Waiver of Subrogation in favor of the GC',
+        current_value: false,
+        required_value: true
+      });
+    }
+
+    const policyAnalysis = {
+      coi_id: coi.id,
+      analyzed_at: new Date().toISOString(),
+      total_deficiencies: deficiencies.length,
+      critical_count: deficiencies.filter(d => d.severity === 'critical').length,
+      high_count: deficiencies.filter(d => d.severity === 'high').length,
+      medium_count: deficiencies.filter(d => d.severity === 'medium').length,
+      status: deficiencies.length === 0 ? 'approved' : 'deficient',
+      deficiencies,
+      analysis_method: 'rules_minimums'
+    };
+
+    // Update COI record
+    entities.GeneratedCOI[coiIdx] = {
+      ...coi,
+      first_coi_url: fileUrl,
+      first_coi_uploaded: true,
+      first_coi_upload_date: new Date().toISOString(),
+      status: 'awaiting_admin_review',
+      uploaded_for_review_date: new Date().toISOString(),
+      ...d,
+      policy_analysis: policyAnalysis
+    };
+
+    // Create InsuranceDocument record for admin portal
+    const insuranceDoc = {
+      id: `doc-${Date.now()}`,
+      document_type: 'COI',
+      insurance_type: 'general_liability',
+      file_url: fileUrl,
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      subcontractor_name: coi.subcontractor_name,
+      subcontractor_id: coi.subcontractor_id,
+      project_id: coi.project_id,
+      project_name: coi.project_name,
+      approval_status: 'pending',
+      status: 'pending_review',
+      extracted: d,
+      created_date: new Date().toISOString()
+    };
+    if (!entities.InsuranceDocument) entities.InsuranceDocument = [];
+    entities.InsuranceDocument.push(insuranceDoc);
+
+    // Notify admins via email (best-effort)
+    const adminEmails = DEFAULT_ADMIN_EMAILS.length > 0 ? DEFAULT_ADMIN_EMAILS : [];
+    for (const adminEmail of adminEmails) {
+      try {
+        const emailPayload = {
+          to: adminEmail,
+          subject: `🔍 COI Uploaded - ${coi.subcontractor_name}`,
+          body: `A Certificate of Insurance has been uploaded and is ready for review.\n\nSubcontractor: ${coi.subcontractor_name}\nProject: ${coi.project_name}\nTrade: ${coi.trade_type || 'N/A'}\n\nCOI URL: ${fileUrl}\n\nStatus: Awaiting Admin Review\n\nBest regards,\nInsureTrack System`
+        };
+        // Use internal public email endpoint
+        const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+        await fetch(internalUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(emailPayload)
+        }).catch(() => {});
+      } catch (emailErr) {
+        console.warn('Could not send admin email:', emailErr?.message || emailErr);
+      }
+    }
+
+    debouncedSave();
+    return res.json({ ok: true, coi: entities.GeneratedCOI[coiIdx], document: insuranceDoc });
+  } catch (error) {
+    console.error('public upload-coi error:', error?.message || error);
+    return sendError(res, 500, 'COI upload failed', { error: error.message });
+  }
+});
+
 // Public: Upload endorsement and optionally regenerate COI
 app.post('/public/upload-endorsement', uploadLimiter, upload.single('file'), async (req, res) => {
   try {
@@ -3711,6 +3982,78 @@ app.post('/public/upload-endorsement', uploadLimiter, upload.single('file'), asy
     if (coi) {
       coi.gl_endorsements = coi.gl_endorsements || [];
       coi.gl_endorsements.push(endorsementRecord);
+
+      // Compare endorsement and exclusions against program & project info
+      try {
+        const project = (entities.Project || []).find(p => p.id === coi.project_id);
+        const programId = project?.program_id || null;
+        const requirements = (entities.SubInsuranceRequirement || []).filter(r => r.program_id === programId);
+        const text = (endorsementRecord.extracted?.endorsement_text || '').toLowerCase();
+
+        const updatedDeficiencies = Array.isArray(coi.policy_analysis?.deficiencies) ? [...coi.policy_analysis.deficiencies] : [];
+        let defCounter = updatedDeficiencies.length + 1;
+        const pushDef = (severity, category, field, title, description) => {
+          updatedDeficiencies.push({
+            id: `def-${coi.id}-${Date.now()}-${defCounter++}`,
+            severity,
+            category,
+            field,
+            title,
+            description,
+            required_action: 'Provide compliant endorsement or remove conflicting exclusion'
+          });
+        };
+
+        // Required endorsements based on program requirements
+        const requiresUmbrella = requirements.some(r => r.insurance_type === 'umbrella_policy');
+        const requiresGL = requirements.some(r => r.insurance_type === 'general_liability');
+        const requiresAuto = requirements.some(r => r.insurance_type === 'auto_liability');
+        const requiresWC = requirements.some(r => r.insurance_type === 'workers_compensation');
+
+        const hasAI = /additional\s+insured/i.test(endorsementRecord.extracted?.endorsement_name || '') || /additional\s+insured/i.test(text);
+        const hasWaiver = /waiver\s+of\s+subrogation/i.test(endorsementRecord.extracted?.endorsement_name || '') || /waiver\s+of\s+subrogation/i.test(text);
+        const hasPNC = /primary\s+and\s+non\s*-?\s*contributory/i.test(text);
+
+        if (requiresGL && !hasAI) {
+          pushDef('high', 'endorsement', 'gl_additional_insured', 'Additional Insured Endorsement Missing', 'Program requires Additional Insured endorsement on GL but endorsement text/name does not confirm it');
+        }
+        if (requiresGL && !hasWaiver) {
+          pushDef('medium', 'endorsement', 'gl_waiver_of_subrogation', 'Waiver of Subrogation Missing', 'Program requires Waiver of Subrogation on GL but endorsement text does not confirm it');
+        }
+        if (requiresGL && !hasPNC) {
+          pushDef('medium', 'endorsement', 'primary_non_contributory', 'Primary & Non-Contributory Not Confirmed', 'GL endorsement should confirm Primary & Non-Contributory status');
+        }
+
+        // Exclusions conflicting with project info
+        const isResidential = (project?.project_type || '').toLowerCase().includes('residential');
+        if (isResidential && /residential\s+exclusion|habitational\s+exclusion/i.test(text)) {
+          pushDef('critical', 'exclusion', 'residential_exclusion', 'Residential/Habitational Exclusion Present', 'Endorsement indicates Residential/Habitational exclusion which conflicts with project type');
+        }
+        const isNY = (project?.state || '').toUpperCase() === 'NY';
+        if (isNY && /labor\s+law/i.test(text) && /exclusion/i.test(text)) {
+          pushDef('high', 'exclusion', 'ny_labor_law', 'NY Labor Law Exclusion Present', 'Endorsement references Labor Law exclusion which may conflict with NY project requirements');
+        }
+
+        // Umbrella required but endorsement reduces limits below program
+        const umbReq = requirements.find(r => r.insurance_type === 'umbrella_policy' && r.umbrella_each_occurrence);
+        const umbLimitProgram = umbReq?.umbrella_each_occurrence || null;
+        if (requiresUmbrella && umbLimitProgram && coi.umbrella_each_occurrence && coi.umbrella_each_occurrence < umbLimitProgram) {
+          pushDef('high', 'coverage', 'umbrella_each_occurrence', 'Umbrella Limit Below Program Minimum', `Umbrella Each Occurrence is $${(coi.umbrella_each_occurrence || 0).toLocaleString()}, requires ≥ $${umbLimitProgram.toLocaleString()}`);
+        }
+
+        // Persist analysis on COI and mark for admin review
+        coi.policy_analysis = {
+          ...(coi.policy_analysis || {}),
+          analyzed_at: new Date().toISOString(),
+          analysis_method: 'program_project_comparison',
+          total_deficiencies: updatedDeficiencies.length,
+          deficiencies: updatedDeficiencies
+        };
+        coi.status = 'awaiting_admin_review';
+        coi.uploaded_for_review_date = new Date().toISOString();
+      } catch (cmpErr) {
+        console.warn('Endorsement comparison warning:', cmpErr?.message || cmpErr);
+      }
 
       // If regen flag is set, attempt to regenerate COI PDF using AdobePDFService
       if (regenFlag) {
@@ -4491,199 +4834,30 @@ app.post('/public/gc-login', publicApiLimiter, async (req, res) => {
 });
 
 // Public: Request password reset for GC
+// Public: Request password reset for GC - Proxy to unified handler
 app.post('/public/gc-forgot-password', publicApiLimiter, async (req, res) => {
   try {
     const { email } = req.body || {};
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
-
-    // Find GC by email
-    const gc = (entities.Contractor || []).find(c => 
-      c.contractor_type === 'general_contractor' && 
-      c.email?.toLowerCase() === email.toLowerCase()
-    );
-
-    if (!gc) {
-      // Don't reveal if email exists (security)
-      return res.json({ success: true, message: 'If email exists, reset link will be sent' });
-    }
-
-    // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const expiresAt = Date.now() + (60 * 60 * 1000); // 1 hour
-    
-    // Store token
-    if (!passwordResetTokens.has('gc')) {
-      passwordResetTokens.set('gc', new Map());
-    }
-    passwordResetTokens.get('gc').set(email.toLowerCase(), { token: resetToken, expiresAt });
-
-    // Send email with reset link
-    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5175'}/gc-reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || 'noreply@insuretrack.com',
-      to: email,
-      subject: 'Password Reset Request - CompliantTeam',
-      html: `
-        <p>You requested a password reset for your GC account.</p>
-        <p>Click the link below to reset your password (link expires in 1 hour):</p>
-        <p><a href="${resetLink}">Reset Password</a></p>
-        <p>If you didn't request this, please ignore this email.</p>
-      `
-    };
-
-    try {
-      await transporter.sendMail(mailOptions);
-      console.log('📧 Password reset email sent to:', email);
-    } catch (emailErr) {
-      console.error('Error sending password reset email:', emailErr?.message);
-      // Still return success to user to prevent account enumeration
-    }
-
-    return res.json({ success: true, message: 'If email exists, reset link will be sent' });
+    return handlePasswordResetRequest(email, 'gc', res);
   } catch (err) {
     console.error('gc-forgot-password error:', err?.message || err);
     return res.status(500).json({ error: 'Request failed' });
   }
 });
 
-// Public: Reset GC password with token
+// Public: Reset GC password - Proxy to unified handler
 app.post('/public/gc-reset-password', publicApiLimiter, async (req, res) => {
-  try {
-    const { email, token, newPassword } = req.body || {};
-    
-    if (!email || !token || !newPassword) {
-      return res.status(400).json({ error: 'Email, token, and new password are required' });
-    }
-
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    }
-
-    // Validate reset token
-    const gcTokens = passwordResetTokens.get('gc');
-    const storedToken = gcTokens?.get(email.toLowerCase());
-
-    if (!storedToken || storedToken.token !== token || storedToken.expiresAt < Date.now()) {
-      return res.status(400).json({ error: 'Invalid or expired reset link' });
-    }
-
-    // Find GC and update password
-    const gcIndex = (entities.Contractor || []).findIndex(c => 
-      c.contractor_type === 'general_contractor' && 
-      c.email?.toLowerCase() === email.toLowerCase()
-    );
-
-    if (gcIndex === -1) {
-      return res.status(404).json({ error: 'GC not found' });
-    }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    entities.Contractor[gcIndex].password = hashedPassword;
-
-    // Clear used token
-    gcTokens.delete(email.toLowerCase());
-
-    // Save data
-    saveEntities();
-
-    console.log('🔑 GC password reset successfully for:', email);
-    return res.json({ success: true, message: 'Password reset successful' });
-  } catch (err) {
-    console.error('gc-reset-password error:', err?.message || err);
-    return res.status(500).json({ error: 'Password reset failed' });
-  }
+  return handlePasswordReset(req, res);
 });
 
-// Public: Request password reset for Broker
+// Public: Request password reset for Broker - Proxy to unified handler
 app.post('/public/broker-forgot-password', publicApiLimiter, async (req, res) => {
   try {
     const { email } = req.body || {};
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
-
-    const broker = getBroker(email);
-    if (!broker) {
-      return res.json({ success: true, message: 'If email exists, reset link will be sent' });
-    }
-
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const expiresAt = Date.now() + (60 * 60 * 1000);
-    
-    if (!passwordResetTokens.has('broker')) {
-      passwordResetTokens.set('broker', new Map());
-    }
-    passwordResetTokens.get('broker').set(email.toLowerCase(), { token: resetToken, expiresAt });
-
-    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5175'}/broker-reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || 'noreply@insuretrack.com',
-      to: email,
-      subject: 'Password Reset Request - CompliantTeam',
-      html: `
-        <p>You requested a password reset for your broker account.</p>
-        <p>Click the link below to reset your password (link expires in 1 hour):</p>
-        <p><a href="${resetLink}">Reset Password</a></p>
-        <p>If you didn't request this, please ignore this email.</p>
-      `
-    };
-
-    try {
-      await transporter.sendMail(mailOptions);
-      console.log('📧 Broker password reset email sent to:', email);
-    } catch (emailErr) {
-      console.error('Error sending broker password reset email:', emailErr?.message);
-    }
-
-    return res.json({ success: true, message: 'If email exists, reset link will be sent' });
+    return handlePasswordResetRequest(email, 'broker', res);
   } catch (err) {
     console.error('broker-forgot-password error:', err?.message || err);
     return res.status(500).json({ error: 'Request failed' });
-  }
-});
-
-// Public: Reset Broker password with token
-app.post('/public/broker-reset-password', publicApiLimiter, async (req, res) => {
-  try {
-    const { email, token, newPassword } = req.body || {};
-    
-    if (!email || !token || !newPassword) {
-      return res.status(400).json({ error: 'Email, token, and new password are required' });
-    }
-
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    }
-
-    const brokerTokens = passwordResetTokens.get('broker');
-    const storedToken = brokerTokens?.get(email.toLowerCase());
-
-    if (!storedToken || storedToken.token !== token || storedToken.expiresAt < Date.now()) {
-      return res.status(400).json({ error: 'Invalid or expired reset link' });
-    }
-
-    const brokerIndex = (entities.Broker || []).findIndex(b => 
-      b.email?.toLowerCase() === email.toLowerCase()
-    );
-
-    if (brokerIndex === -1) {
-      return res.status(404).json({ error: 'Broker not found' });
-    }
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    entities.Broker[brokerIndex].password = hashedPassword;
-
-    brokerTokens.delete(email.toLowerCase());
-    debouncedSave();
-
-    console.log('🔑 Broker password reset successfully for:', email);
-    return res.json({ success: true, message: 'Password reset successful' });
-  } catch (err) {
-    console.error('broker-reset-password error:', err?.message || err);
-    return res.status(500).json({ error: 'Password reset failed' });
   }
 });
 
@@ -5577,6 +5751,37 @@ app.post('/integrations/adobe/agreement', authenticateToken, (req, res) => {
 app.get('/integrations/adobe/agreement/:agreementId/url', authenticateToken, (req, res) => {
   const { agreementId } = req.params;
   res.json({ url: `https://secure.adobesign.com/sign/${agreementId}` });
+});
+
+// Public: Generate Hold Harmless sign link (no download)
+app.post('/public/hold-harmless-sign-link', publicApiLimiter, async (req, res) => {
+  try {
+    const token = String(req.query.token || req.body?.token || req.body?.coi_token || '');
+    if (!token) return sendError(res, 400, 'token (coi_token) is required');
+
+    const coiIdx = (entities.GeneratedCOI || []).findIndex(c => timingSafeEqual(c.coi_token, token));
+    if (coiIdx === -1) return sendError(res, 404, 'COI not found for token');
+    const coi = entities.GeneratedCOI[coiIdx];
+
+    const project = (entities.Project || []).find(p => p.id === coi.project_id);
+    const agreementId = `agr-${Date.now()}`;
+    const signUrl = `https://secure.adobesign.com/sign/${agreementId}`;
+
+    entities.GeneratedCOI[coiIdx] = {
+      ...coi,
+      hold_harmless_status: coi.hold_harmless_status && coi.hold_harmless_status.startsWith('signed') ? coi.hold_harmless_status : 'pending_signature',
+      hold_harmless_sign_url: signUrl,
+      hold_harmless_template_url: null,
+      hold_harmless_requested_date: new Date().toISOString()
+    };
+
+    debouncedSave();
+
+    return res.json({ ok: true, coi_id: coi.id, project_id: project?.id || null, sign_url: signUrl });
+  } catch (err) {
+    console.error('hold-harmless-sign-link error:', err?.message || err);
+    return sendError(res, 500, 'Failed to create sign link');
+  }
 });
 
 // =======================

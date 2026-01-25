@@ -332,7 +332,13 @@ Return actual data only. If not found, return null.`,
         notes: project.notes || '',
       });
     } else {
+      // NEW PROJECT: Pre-populate with current GC data
       resetForm();
+      if (gc && gc.address) {
+        // Auto-trigger ACRIS lookup for NYC addresses
+        const gcAddress = `${gc.address}${gc.city ? ', ' + gc.city : ''}${gc.state ? ', ' + gc.state : ''}`;
+        handleAddressChange(gcAddress);
+      }
     }
     setIsDialogOpen(true);
   };
@@ -346,12 +352,16 @@ Return actual data only. If not found, return null.`,
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Always use latest GC data (fetched at component level)
     const data = {
       ...formData,
       gc_id: gcId,
-      gc_name: gc?.company_name,
+      gc_name: gc?.company_name || gc?.contact_person || 'General Contractor',
       gc_email: gc?.email,
-      gc_address: gc?.address,
+      gc_address: gc?.address || gc?.mailing_address,
+      gc_city: gc?.city || gc?.mailing_city,
+      gc_state: gc?.state || gc?.mailing_state,
+      gc_zip: gc?.zip_code || gc?.mailing_zip_code,
       building_height: formData.building_height ? Number(formData.building_height) : undefined,
       unit_count: formData.unit_count ? Number(formData.unit_count) : undefined,
       additional_insured_entities: formData.additional_insured_entities

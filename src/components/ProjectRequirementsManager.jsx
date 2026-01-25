@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { apiClient } from "@/api/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getTiersFromRequirements, getTierLabel } from "@/insuranceRequirements";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,38 @@ export default function ProjectRequirementsManager({ projectId, projectName: _pr
   const [documentDescription, setDocumentDescription] = useState('');
   const [uploadingFile, setUploadingFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+
+  // Fetch project to get program_id
+  const { data: project } = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: async () => {
+      if (!projectId) return null;
+      try {
+        return await apiClient.entities.Project.read(projectId);
+      } catch (err) {
+        console.error('Error fetching project:', err);
+        return null;
+      }
+    },
+    enabled: !!projectId,
+  });
+
+  // Fetch program requirements to determine available tiers
+  const { data: programRequirements = [] } = useQuery({
+    queryKey: ['programRequirements', project?.program_id],
+    queryFn: async () => {
+      if (!project?.program_id) return [];
+      try {
+        return await apiClient.entities.SubInsuranceRequirement.filter({
+          program_id: project.program_id,
+        });
+      } catch (err) {
+        console.error('Error fetching program requirements:', err);
+        return [];
+      }
+    },
+    enabled: !!project?.program_id,
+  });
 
   // Fetch project requirements
   const { data: requirements = [], isLoading: _isLoading } = useQuery({
@@ -129,25 +162,29 @@ export default function ProjectRequirementsManager({ projectId, projectName: _pr
     }
   };
 
-  // Group requirements by tier
-  const requirementsByTier = {
-    1: requirements.filter((r) => r.requirement_tier === 1),
-    2: requirements.filter((r) => r.requirement_tier === 2),
-    3: requirements.filter((r) => r.requirement_tier === 3),
-  };
+  // Get available tiers from program requirements
+  const availableTiers = getTiersFromRequirements(programRequirements);
+  const defaultTiers = ['1', '2', '3']; // Fallback if no program
+  const tiersToUse = availableTiers.length > 0 ? availableTiers : defaultTiers;
 
-  const getTierLabel = (tier) => {
-    const labels = {
-      1: 'Tier 1 - General Construction',
-      2: 'Tier 2 - Specialty Trades',
-      3: 'Tier 3 - High-Risk Trades',
-    };
-    return labels[tier] || `Tier ${tier}`;
-  };
+  // Group requirements by tier dynamically
+  const requirementsByTier = tiersToUse.reduce((acc, tier) => {
+    acc[tier] = requirements.filter((r) => String(r.requirement_tier) === String(tier));
+    return acc;
+  }, {});
 
   const getTierColor = (tier) => {
-    const colors = { 1: 'bg-red-50', 2: 'bg-amber-50', 3: 'bg-red-50' };
-    return colors[tier] || 'bg-gray-50';
+    const tierStr = String(tier).toUpperCase();
+    const colors = {
+      'A': 'bg-red-50',
+      'B': 'bg-orange-50',
+      'C': 'bg-yellow-50',
+      'D': 'bg-amber-50',
+      '1': 'bg-red-50',
+      '2': 'bg-amber-50',
+      '3': 'bg-red-50'
+    };
+    return colors[tierStr] || 'bg-gray-50';
   };
 
   return (
@@ -177,7 +214,7 @@ export default function ProjectRequirementsManager({ projectId, projectName: _pr
       </Alert>
 
       {/* Requirements by Tier */}
-      {[1, 2, 3].map((tier) => (
+      {tiersToUse.map((tier) => (
         <Card key={tier} className={getTierColor(tier)}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -221,14 +258,16 @@ export default function ProjectRequirementsManager({ projectId, projectName: _pr
             {/* Tier Selection */}
             <div>
               <Label htmlFor="tier">Requirement Tier *</Label>
-              <Select value={selectedTier?.toString()} onValueChange={(v) => setSelectedTier(parseInt(v))}>
+              <Select value={selectedTier?.toString() || ''} onValueChange={(v) => setSelectedTier(v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select trade tier..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">Tier 1 - General Construction (Carpentry, Electrical, Plumbing, HVAC)</SelectItem>
-                  <SelectItem value="2">Tier 2 - Specialty Trades (Roofing, Excavation)</SelectItem>
-                  <SelectItem value="3">Tier 3 - High-Risk (Crane Operators, Scaffolding)</SelectItem>
+                  {tiersToUse.map((tier) => (
+                    <SelectItem key={tier} value={tier.toString()}>
+                      {getTierLabel(tier)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -416,10 +455,22 @@ function RequirementCard({ requirement, onDelete, isDeleting }) {
  * Helper to get trades for a tier
  */
 function getTrades(tier) {
+  // Return unique applicable trades from program requirements for the selected tier
+  if (!tier) return [];
+  
+  // Get trades from programRequirements that match this tier
+  const tradesInTier = new Set();
+  
+  // This function is called in component scope but we can't access programRequirements here
+  // So we fall back to hardcoded mapping as a default
   const tradesByTier = {
+    'A': ['tower_crane_operations', 'heavy_equipment'],
+    'B': ['major_construction', 'structural_work'],
+    'C': ['general_construction', 'carpentry', 'electrical', 'plumbing', 'hvac'],
+    'D': ['all_other_trades', 'misc_services'],
     1: ['carpentry', 'electrical', 'plumbing', 'hvac'],
     2: ['roofing', 'excavation'],
     3: ['crane_operator', 'scaffold'],
   };
-  return tradesByTier[tier] || [];
+  return tradesByTier[String(tier)] || [];
 }

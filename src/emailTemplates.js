@@ -37,7 +37,9 @@ export const EMAIL_STYLES = `
       opacity: 0.95;
     }
     .content { 
-      padding: 30px 20px; 
+      padding: 30px 20px;
+      color: #333;
+      background-color: #fff;
     }
     .section { 
       margin: 20px 0; 
@@ -45,6 +47,7 @@ export const EMAIL_STYLES = `
       background-color: #f5f5f5; 
       border-left: 4px solid #dc2626;
       border-radius: 4px;
+      color: #333;
     }
     .section-title { 
       font-weight: 600; 
@@ -55,6 +58,7 @@ export const EMAIL_STYLES = `
     .field { 
       margin: 8px 0; 
       font-size: 14px;
+      color: #333;
     }
     .label { 
       font-weight: 600; 
@@ -87,6 +91,7 @@ export const EMAIL_STYLES = `
       padding: 15px;
       border-radius: 4px;
       margin: 15px 0;
+      color: #333;
     }
     .alert-title {
       font-weight: 600;
@@ -163,6 +168,7 @@ export const EMAIL_STYLES = `
     }
     li {
       margin: 8px 0;
+      color: #333;
     }
   </style>
 `;

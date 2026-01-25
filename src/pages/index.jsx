@@ -188,11 +188,21 @@ export default function Pages({ onLogout }) {
     if (isBrokerRoute) {
       // Check if authenticated (not required for login page)
       const isAuthenticated = sessionStorage.getItem('brokerAuthenticated') === 'true'
-      
+
+      // Allow token-based public access to broker upload flow without prior login
+      const params = new URLSearchParams(window.location.search)
+      const hasToken = !!params.get('token')
+      const isUploadFlow = window.location.pathname.startsWith('/broker-upload-coi') || window.location.pathname.startsWith('/broker-upload')
+
       if (!isAuthenticated && window.location.pathname !== '/broker-login') {
-        // Redirect to login
-        window.location.href = '/broker-login'
-        return
+        if (isUploadFlow && hasToken) {
+          // Skip login redirect for public token links; enable broker public session
+          sessionStorage.setItem('brokerPublicSession', 'true')
+        } else {
+          // Redirect to login for other broker routes
+          window.location.href = '/broker-login'
+          return
+        }
       }
       
       // SECURITY: Do NOT read broker email/name from URL parameters
@@ -355,6 +365,7 @@ export default function Pages({ onLogout }) {
                 window.location.href = returnUrl || `/gc-dashboard?id=${gcData.id}`;
               }} />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/gc-reset-password" element={<ResetPassword />} />
               <Route path="/gc-dashboard" element={<GCDashboard />} />
               <Route path="/gc-project" element={<GCProjectView />} />
               <Route path="*" element={
@@ -387,6 +398,7 @@ export default function Pages({ onLogout }) {
                 window.location.href = '/broker-dashboard';
               }} />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/broker-reset-password" element={<ResetPassword />} />
               <Route path="/broker-dashboard" element={<BrokerDashboard />} />
               <Route path="/broker-upload-coi" element={<BrokerUploadCOI />} />
               <Route path="/broker-upload" element={<BrokerUpload />} />
@@ -408,6 +420,7 @@ export default function Pages({ onLogout }) {
               <Route path="/broker-verification" element={<BrokerVerification />} />
               <Route path="/sub-enter-broker-info" element={<SubEnterBrokerInfo />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/subcontractor-reset-password" element={<ResetPassword />} />
               <Route path="/subcontractor-login" element={<SubcontractorLogin onLogin={(subId) => {
                 // Redirect to dashboard after login
                 window.location.href = `/subcontractor-dashboard?id=${subId}`;

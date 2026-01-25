@@ -517,6 +517,27 @@ const shim = {
           return await res.json();
         }
       }
+      ,
+      NYC: {
+        PropertyLookup: async (payload) => {
+          if (!baseUrl) {
+            console.error(BACKEND_NOT_CONFIGURED_CONSOLE_MSG);
+            throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
+          }
+          const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };
+          const res = await fetch(`${baseUrl}/integrations/nyc/property`, {
+            method: 'POST',
+            credentials: 'include',
+            headers,
+            body: JSON.stringify(payload || {})
+          });
+          if (!res.ok) {
+            const msg = await shim.integrations.Core._extractErrorMessage(res, 'NYC PropertyLookup failed');
+            throw new Error(msg);
+          }
+          return await res.json();
+        }
+      }
     }
   }
 };

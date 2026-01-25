@@ -602,7 +602,23 @@ export default function GCProjectView() {
                     subject: `Certificate of Insurance Request for ${form.subcontractor_name} - ${project.project_name}`,
                     html: brokerEmailHtml,
                     includeSampleCOI: true,
-                    sampleCOIData: newCOI
+                    // Provide complete data so sample COI reflects program requirements and project details
+                    sampleCOIData: {
+                      program: project?.program_name || project?.program_id,
+                      trade: form.trade_types?.join(', '),
+                      gc_name: project?.gc_name,
+                      certificate_holder: project?.gc_name,
+                      project_name: project?.project_name,
+                      projectAddress: project?.address ? `${project.address}, ${project.city}, ${project.state} ${project.zip_code || ''}` : undefined,
+                      description_of_operations: description,
+                      requires_umbrella: requiresUmbrella,
+                      additional_insureds: Array.isArray(project?.additional_insured_entities) ? project.additional_insured_entities.map(e => e?.name || e).filter(Boolean) : [],
+                      // Include any insurer names if present from source insurance data
+                      insurance_carrier_gl: insuranceData?.insurance_carrier_gl,
+                      insurance_carrier_auto: insuranceData?.insurance_carrier_auto,
+                      insurance_carrier_umbrella: insuranceData?.insurance_carrier_umbrella,
+                      insurance_carrier_wc: insuranceData?.insurance_carrier_wc
+                    }
                   })
                 });
                 

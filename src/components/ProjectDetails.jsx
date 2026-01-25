@@ -5,6 +5,7 @@ import { sendEmail } from "@/emailHelper";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notifySubAddedToProject } from "@/brokerNotifications";
 import { notifyGCProjectCreated, notifyGCSubcontractorAdded } from "@/gcNotifications";
+import { getTiersFromRequirements, getTierLabel } from "@/insuranceRequirements";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -570,11 +571,16 @@ export default function ProjectDetails() {
       }
 
       // Merge broker defaults from subcontractor if missing in source
+      // Prefer explicit broker assignment from subcontractor.brokers[] when present
+      const primaryAssignedBroker = Array.isArray(existingSub?.brokers) && existingSub.brokers.length > 0
+        ? existingSub.brokers[0]
+        : null;
+
       const brokerDefaults = {
-        broker_company: existingSub?.broker_company || existingSub?.company_name || '',
-        broker_name: existingSub?.broker_name || existingSub?.contact_person || '',
-        broker_email: existingSub?.broker_email || existingSub?.email || formData.contact_email || '',
-        broker_phone: existingSub?.broker_phone || existingSub?.contact_phone || existingSub?.phone || '',
+        broker_company: existingSub?.broker_company || primaryAssignedBroker?.company || existingSub?.company_name || '',
+        broker_name: existingSub?.broker_name || primaryAssignedBroker?.name || existingSub?.contact_person || '',
+        broker_email: existingSub?.broker_email || primaryAssignedBroker?.email || existingSub?.email || formData.contact_email || '',
+        broker_phone: existingSub?.broker_phone || primaryAssignedBroker?.phone || existingSub?.contact_phone || existingSub?.phone || '',
         broker_address: existingSub?.broker_address || '',
         broker_city: existingSub?.broker_city || '',
         broker_state: existingSub?.broker_state || '',
@@ -1825,20 +1831,41 @@ InsureTrack System`
               {(requirements.length === 0 && stateRequirements.length === 0) && (
                 <p className="text-slate-400 text-sm">No program or state requirements found for this project.</p>
               )}
-              {requirements.map((req) => (
-                <div key={req.id} className="text-slate-100 text-sm border border-slate-700 rounded-lg p-3">
-                  <div className="font-semibold">Trade: {req.trade_name || req.trade_types?.join(', ') || 'All Trades'}</div>
-                  <div className="text-slate-300">Tier: {req.tier || req.requirement_tier || 'standard'}</div>
-                  <div className="text-slate-300">Type: {req.insurance_type || 'general_liability'}</div>
+              {requirements.length > 0 && (
+                <div className="space-y-4">
+                  <p className="text-slate-300 text-sm font-medium">Program Tiers:</p>
+                  {getTiersFromRequirements(requirements).map((tier) => {
+                    const tierReqs = requirements.filter(r => r.tier === tier);
+                    return (
+                      <div key={`tier-${tier}`} className="border border-slate-600 rounded-lg p-4 bg-slate-900/50">
+                        <h4 className="font-semibold text-white mb-3">{getTierLabel(tier)}</h4>
+                        <div className="space-y-2">
+                          {tierReqs.map((req) => (
+                            <div key={req.id} className="text-slate-200 text-sm pl-3 border-l-2 border-teal-500">
+                              <div><span className="font-medium">{req.trade_name || 'All Trades'}</span></div>
+                              <div className="text-slate-400">{req.insurance_type?.replace(/_/g, ' ').toUpperCase()}</div>
+                              {req.gl_each_occurrence && <div className="text-slate-400">GL: ${req.gl_each_occurrence.toLocaleString()} / ${req.gl_general_aggregate?.toLocaleString()}</div>}
+                              {req.umbrella_each_occurrence && <div className="text-slate-400">Umbrella: ${req.umbrella_each_occurrence.toLocaleString()}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-              {stateRequirements.map((req) => (
-                <div key={`state-${req.id}`} className="text-slate-100 text-sm border border-amber-700/50 rounded-lg p-3 bg-amber-500/5">
-                  <div className="font-semibold">State Requirement ({req.state})</div>
-                  <div className="text-slate-300">Type: {req.insurance_type}</div>
-                  {req.minimum_coverage && <div className="text-slate-300">Minimum: ${req.minimum_coverage.toLocaleString()}</div>}
+              )}
+              {stateRequirements.length > 0 && (
+                <div className="space-y-2 pt-4 border-t border-slate-600">
+                  <p className="text-slate-300 text-sm font-medium">State Requirements:</p>
+                  {stateRequirements.map((req) => (
+                    <div key={`state-${req.id}`} className="text-slate-100 text-sm border border-amber-700/50 rounded-lg p-3 bg-amber-500/5">
+                      <div className="font-semibold">State Requirement ({req.state})</div>
+                      <div className="text-slate-300">Type: {req.insurance_type}</div>
+                      {req.minimum_coverage && <div className="text-slate-300">Minimum: ${req.minimum_coverage.toLocaleString()}</div>}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
         </div>

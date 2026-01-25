@@ -761,3 +761,55 @@ export function getTradesByTier(tier) {
       tier: req.tier,
     }));
 }
+
+/**
+ * Extract unique tiers from program requirements
+ * Returns tiers sorted (e.g., [A, B, C, D] or [1, 2, 3])
+ */
+export function getTiersFromRequirements(requirements = []) {
+  const tierSet = new Set(requirements.map(r => r.tier).filter(Boolean));
+  if (tierSet.size === 0) return [];
+  
+  // Sort tiers - handles both letter (A, B, C, D) and numeric (1, 2, 3) tiers
+  const tierArray = Array.from(tierSet);
+  return tierArray.sort((a, b) => {
+    // If both are single letters, sort alphabetically
+    if (/^[a-z]$/.test(a) && /^[a-z]$/.test(b)) {
+      return a.localeCompare(b);
+    }
+    // If both are numbers, sort numerically
+    if (!isNaN(a) && !isNaN(b)) {
+      return Number(a) - Number(b);
+    }
+    // Otherwise, sort as strings
+    return String(a).localeCompare(String(b));
+  });
+}
+
+/**
+ * Get tier label/description for display
+ * Handles both letter tiers (A, B, C, D) and numeric tiers (1, 2, 3)
+ */
+export function getTierLabel(tier) {
+  if (!tier) return 'Standard';
+  
+  const tierStr = String(tier).toUpperCase();
+  
+  // Letter-based tier descriptions
+  const letterTierLabels = {
+    'A': 'Tier A - Prime Contractor (Highest Risk)',
+    'B': 'Tier B - Major Subcontractor',
+    'C': 'Tier C - Standard Subcontractor',
+    'D': 'Tier D - All Other Trades',
+    'STANDARD': 'Standard Requirements'
+  };
+  
+  // Number-based tier descriptions (legacy)
+  const numberTierLabels = {
+    '1': 'Tier 1 - General Construction',
+    '2': 'Tier 2 - Specialty Trades',
+    '3': 'Tier 3 - High-Risk Trades'
+  };
+  
+  return letterTierLabels[tierStr] || numberTierLabels[tierStr] || `Tier ${tierStr}`;
+}

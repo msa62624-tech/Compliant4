@@ -774,14 +774,23 @@ Thank you!`
       alert('COI approved, but notification email could not be sent (project not found). Please notify the subcontractor manually.');
     } else {
       try {
-        const subPortalLink = `${window.location.origin}${createPageUrl('subcontractor-dashboard')}?id=${coi.subcontractor_id || ''}`;
+        const apiBase = getApiBase();
+        const holdHarmlessRes = await fetch(`${apiBase}/public/hold-harmless-sign-link`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: coi.coi_token })
+        });
+        let signLink = '';
+        if (holdHarmlessRes.ok) {
+          const data = await holdHarmlessRes.json();
+          signLink = data?.sign_url || '';
+        }
         const holdHarmlessInstructions = alreadySignedHoldHarmless
           ? `We have a signed Hold Harmless Agreement on file. No further action is needed on that document.`
-          : `Please sign and return the Hold Harmless Agreement:
-- Download template: ${holdHarmlessTemplateUrl || 'Template generating...'}
-- Upload the signed copy: ${subPortalLink}
+          : `Please sign the Hold Harmless Agreement now:
+- Sign here: ${signLink || '(link generating...)'}
 
-Work cannot proceed until the signed agreement is uploaded.`;
+Work cannot proceed until the agreement is signed.`;
 
         await sendMessageMutation.mutateAsync({
           to: coi.contact_email || coi.broker_email,
@@ -816,8 +825,7 @@ Trade: ${coi.trade_type}
 Status: APPROVED - ${alreadySignedHoldHarmless ? 'Hold Harmless on file' : 'Awaiting Hold Harmless Agreement Signature'}
 ${alreadySignedHoldHarmless ? 'Work may proceed from an indemnity standpoint.' : 'Work cannot proceed until the hold harmless agreement is signed.'}
 
-${alreadySignedHoldHarmless ? '' : `Template: ${holdHarmlessTemplateUrl || 'Generating...'}
-Subcontractor upload portal: ${window.location.origin}${createPageUrl('subcontractor-dashboard')}?id=${coi.subcontractor_id || ''}`}
+${alreadySignedHoldHarmless ? '' : `Sign Hold Harmless: ${coi.hold_harmless_sign_url || '(link generating...)'}`}
 
 View project: ${window.location.origin}${createPageUrl('ProjectDetails')}?id=${project.id}
 
@@ -925,8 +933,8 @@ InsureTrack Team`
     // Determine subject line
     const emailSubject = deficiencySubject.trim() || `⚠️ COI Corrections Needed - ${projectName} (${coi.subcontractor_name})`;
 
-    // Send deficiency notification to broker with all options
-    const brokerRecipient = coi.contact_email || coi.broker_email || gcEmail;
+    // Send deficiency notification to broker only (not subcontractor)
+    const brokerRecipient = coi.broker_email;
     if (brokerRecipient) {
       await sendMessageMutation.mutateAsync({
         to: brokerRecipient,
