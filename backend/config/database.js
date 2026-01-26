@@ -7,9 +7,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Core directories for data and uploads
-export const DATA_DIR = path.join(__dirname, '..', 'data');
-export const DATA_FILE = path.join(DATA_DIR, 'entities.json');
-export const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+const DATA_DIR = path.join(__dirname, '..', 'data');
+const DATA_FILE = path.join(DATA_DIR, 'entities.json');
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+
+// Export directories
+export { DATA_DIR, DATA_FILE, UPLOADS_DIR };
 
 // ========== Entities ==========
 // Start empty; persisted data in entities.json will be loaded at startup.

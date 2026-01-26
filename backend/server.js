@@ -23,8 +23,8 @@ import { sendError, sendSuccess, handleValidationErrors } from './middleware/val
 import { authenticateToken, requireAdmin, initializeAuthMiddleware } from './middleware/auth.js';
 
 // Import services
-import { timingSafeEqual, DUMMY_PASSWORD_HASH, hashPassword, comparePassword } from './services/authService.js';
-import { createEmailTransporter, sendPasswordResetEmail } from './services/emailService.js';
+import { timingSafeEqual, DUMMY_PASSWORD_HASH } from './services/authService.js';
+import { createEmailTransporter } from './services/emailService.js';
 
 // Import utilities
 import { validateAndSanitizeFilename, verifyPathWithinDirectory, validateEmail } from './utils/helpers.js';
