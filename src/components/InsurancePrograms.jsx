@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Settings, Upload, Sparkles, X, Search } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Pencil, Trash2, Settings, Upload, Sparkles, Search } from "lucide-react";
+
 import { getAvailableTrades } from "@/insuranceRequirements";
 
 export default function InsurancePrograms() {

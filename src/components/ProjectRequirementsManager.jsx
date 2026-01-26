@@ -459,7 +459,7 @@ function getTrades(tier) {
   if (!tier) return [];
   
   // Get trades from programRequirements that match this tier
-  const tradesInTier = new Set();
+  const _tradesInTier = new Set();
   
   // This function is called in component scope but we can't access programRequirements here
   // So we fall back to hardcoded mapping as a default

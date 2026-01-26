@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { createUserCredentials, generateSecurePassword } from "@/passwordUtils";
-import { getFrontendBaseUrl, createBrokerUploadLink, createBrokerDashboardLink } from "@/urlConfig";
+import { getFrontendBaseUrl, createBrokerDashboardLink } from "@/urlConfig";
 import { notifyAdminBrokerChanged } from "@/coiNotifications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, Trash2, Plus, Edit2 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function BrokerInfoForm({ subcontractor, subId, onBrokerChanged }) {
+export default function BrokerInfoForm({ subcontractor, subId }) {
   const queryClient = useQueryClient();
   const [brokers, setBrokers] = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);

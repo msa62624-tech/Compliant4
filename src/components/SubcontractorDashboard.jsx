@@ -1,4 +1,4 @@
-import { apiClient, getApiBase } from "@/api/apiClient";
+import { getApiBase } from "@/api/apiClient";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import BrokerInfoForm from "@/components/BrokerInfoForm";
 import { 
   AlertTriangle, 
-  Upload,
   Shield,
   FolderOpen,
   User

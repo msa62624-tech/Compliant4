@@ -182,7 +182,7 @@ INSURED: MPI Plumbing Corp
       const COVERAGE_ROW_HEIGHT = 25;
       const PAGE_HEIGHT = 792; // Letter size height in points
       const FOOTER_HEIGHT = 30;
-      const MAX_CONTENT_Y = PAGE_HEIGHT - FOOTER_HEIGHT - 30; // Leave space for footer
+      const _MAX_CONTENT_Y = PAGE_HEIGHT - FOOTER_HEIGHT - 30; // Leave space for footer
       
       // Create PDF document with ACORD 25 standard size
       const doc = new PDFDocument({ size: 'LETTER', margin: 30 });

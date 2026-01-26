@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { compliant } from "@/api/compliantClient";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FolderOpen, AlertTriangle, Search, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import UserProfile from "@/components/UserProfile.jsx";
-import NotificationBanner from "@/components/NotificationBanner.jsx";
 import {
   Select,
   SelectContent,
@@ -367,7 +365,7 @@ export default function GCDashboard() {
             <CardContent className="p-0">
               {filteredProjects.length === 0 ? (
                 <div className="p-6 text-center text-slate-500">
-                  No subcontractors found matching "{searchTerm}"
+                  No subcontractors found matching &quot;{searchTerm}&quot;
                 </div>
               ) : (
                 <Table>

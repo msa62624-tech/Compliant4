@@ -16,7 +16,7 @@ export default function ForgotPassword({ onBackToLogin, portalType = 'gc' }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [message, setMessage] = useState(null);
+  const [_message, setMessage] = useState(null);
 
   const getBackendBase = () => {
     const { protocol, host, origin } = window.location;
@@ -47,11 +47,12 @@ export default function ForgotPassword({ onBackToLogin, portalType = 'gc' }) {
         body: JSON.stringify({ email: email.toLowerCase() })
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to request password reset');
       }
 
-      setMessage('Reset token sent to your email');
       setStep('token');
     } catch (err) {
       setError(err.message || 'Failed to request reset');
