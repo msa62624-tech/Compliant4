@@ -56,3 +56,32 @@ export function requireAdmin(req, res, next) {
   
   next();
 }
+
+/**
+ * Optional authentication middleware - sets req.user if token is valid, but doesn't fail if not
+ * Useful for endpoints that provide different levels of detail based on authentication
+ */
+export const optionalAuthentication = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    // No token provided - continue without setting req.user
+    return next();
+  }
+
+  if (!authMiddleware) {
+    // Auth not initialized - continue without setting req.user
+    return next();
+  }
+
+  // Try to verify the token, but don't fail if it's invalid
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (!err) {
+      // Token is valid - set req.user
+      req.user = user;
+    }
+    // Continue regardless of token validity
+    next();
+  });
+};
