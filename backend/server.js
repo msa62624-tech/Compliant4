@@ -30,6 +30,7 @@ import { createEmailTransporter } from './services/emailService.js';
 import { validateAndSanitizeFilename, verifyPathWithinDirectory, validateEmail } from './utils/helpers.js';
 import { getBroker, getOrCreateBroker } from './utils/brokerHelpers.js';
 import { users, passwordResetTokens, findUser, findUserById } from './utils/users.js';
+import { getPasswordResetEmail, getDocumentReplacementNotificationEmail } from './utils/emailTemplates.js';
 
 // Stub implementations for optional services (not yet implemented)
 const adobePDF = {
@@ -1227,30 +1228,8 @@ async function handlePasswordResetRequest(email, userType, res) {
       const mailOptions = {
         from: process.env.SMTP_USER || process.env.SMTP_FROM || 'noreply@insuretrack.com',
         to: email,
-        subject: 'Password Reset Request - CompliantTeam',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #333;">Password Reset Request</h2>
-            <p>Hello ${user.name || 'User'},</p>
-            <p>We received a request to reset your password for your CompliantTeam account.</p>
-            <p>Click the button below to reset your password:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetLink}" 
-                 style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-                Reset Password
-              </a>
-            </div>
-            <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
-            <p style="color: #4F46E5; word-break: break-all; font-size: 12px;">${resetLink}</p>
-            <p style="color: #999; font-size: 12px; margin-top: 30px;">
-              This link will expire in 1 hour. If you didn't request a password reset, please ignore this email.
-            </p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-            <p style="color: #999; font-size: 11px;">
-              This is an automated message from CompliantTeam. Please do not reply to this email.
-            </p>
-          </div>
-        `
+        subject: 'Password Reset Request - compliant.team',
+        html: getPasswordResetEmail(user.name || 'User', resetLink, userType)
       };
       
       try {
@@ -5396,13 +5375,8 @@ app.post('/public/subcontractor-forgot-password', publicApiLimiter, async (req, 
     const mailOptions = {
       from: process.env.EMAIL_FROM || 'noreply@insuretrack.com',
       to: email,
-      subject: 'Password Reset Request - CompliantTeam',
-      html: `
-        <p>You requested a password reset for your subcontractor account.</p>
-        <p>Click the link below to reset your password (link expires in 1 hour):</p>
-        <p><a href="${resetLink}">Reset Password</a></p>
-        <p>If you didn't request this, please ignore this email.</p>
-      `
+      subject: 'Password Reset Request - compliant.team',
+      html: getPasswordResetEmail('User', resetLink, 'subcontractor')
     };
 
     try {
@@ -6240,32 +6214,19 @@ app.post('/api/documents/:documentId/replace', authenticateToken, async (req, re
 
         // Only send email if SMTP is configured
         if (smtpHost && smtpUser && smtpPass) {
+          const docType = originalDoc.document_type || originalDoc.insurance_type || 'Insurance Document';
+          
           const mailOptions = {
             from: process.env.SMTP_FROM || 'no-reply@insuretrack.com',
             to: gcEmail,
             subject: notification.subject,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #f97316;">⚠️ Document Re-Review Required</h2>
-                <p>A broker has replaced a previously approved insurance document. The subcontractor status has been updated to <strong>Pending Review</strong>.</p>
-                
-                <div style="background-color: #f3f4f6; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                  <h3 style="margin-top: 0;">Details:</h3>
-                  <ul style="list-style: none; padding: 0;">
-                    <li><strong>Subcontractor:</strong> ${subcontractorName}</li>
-                    <li><strong>Broker:</strong> ${authenticatedBrokerName} (${authenticatedBrokerEmail})</li>
-                    <li><strong>Document Type:</strong> ${originalDoc.document_type || originalDoc.insurance_type || 'Insurance Document'}</li>
-                    ${reason ? `<li><strong>Reason for Replacement:</strong> ${reason}</li>` : ''}
-                  </ul>
-                </div>
-
-                <p><strong>Action Required:</strong> Please review the new document and update the compliance status.</p>
-
-                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">
-                  <p>This is an automated notification from INsureTrack. Please do not reply to this email.</p>
-                </div>
-              </div>
-            `
+            html: getDocumentReplacementNotificationEmail(
+              subcontractorName,
+              authenticatedBrokerName,
+              authenticatedBrokerEmail,
+              docType,
+              reason
+            )
           };
 
           const transporter = nodemailer.createTransport({
