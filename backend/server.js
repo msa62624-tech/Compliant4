@@ -253,6 +253,56 @@ function cleanupPlaceholderGCs() {
 
 cleanupPlaceholderGCs();
 
+// Remove invalid program references and normalize program names
+function cleanupInvalidPrograms() {
+  try {
+    const programs = entities.InsuranceProgram || [];
+    const validProgramIds = new Set(programs.map(p => p.id));
+    if (validProgramIds.size === 0) return;
+
+    let changed = false;
+
+    if (Array.isArray(entities.SubInsuranceRequirement)) {
+      const before = entities.SubInsuranceRequirement.length;
+      entities.SubInsuranceRequirement = entities.SubInsuranceRequirement.filter(req =>
+        !req?.program_id || validProgramIds.has(req.program_id)
+      );
+      if (entities.SubInsuranceRequirement.length !== before) changed = true;
+    }
+
+    if (Array.isArray(entities.Project)) {
+      entities.Project = entities.Project.map(project => {
+        if (!project?.program_id) return project;
+        if (!validProgramIds.has(project.program_id)) {
+          changed = true;
+          return {
+            ...project,
+            program_id: '',
+            program_name: '',
+            needs_admin_setup: true
+          };
+        }
+        const program = programs.find(p => p.id === project.program_id);
+        const normalizedName = program?.name || program?.program_name || '';
+        if (normalizedName && project.program_name !== normalizedName) {
+          changed = true;
+          return { ...project, program_name: normalizedName };
+        }
+        return project;
+      });
+    }
+
+    if (changed) {
+      debouncedSave();
+      console.log('🧹 Cleaned invalid program references');
+    }
+  } catch (err) {
+    console.warn('⚠️ Program cleanup failed:', err?.message || err);
+  }
+}
+
+cleanupInvalidPrograms();
+
 // Ensure there is at least one GC account for portal login in empty datasets
 function ensureDefaultGC() {
   const contractors = entities.Contractor || [];

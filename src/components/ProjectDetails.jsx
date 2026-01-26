@@ -1025,7 +1025,7 @@ InsureTrack System`
       id: project.id,
       data: {
         program_id: setupFormData.program_id,
-        program_name: program?.program_name || '',
+        program_name: program?.name || program?.program_name || '',
         additional_insured_entities: setupFormData.additional_insured_entities,
         needs_admin_setup: false
       }
@@ -1238,7 +1238,7 @@ InsureTrack System`
                       <SelectContent>
                         {programs.map((program) => (
                           <SelectItem key={program.id} value={program.id}>
-                            {program.program_name}
+                            {program.name || program.program_name || program.id}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1409,7 +1409,7 @@ InsureTrack System`
                 <span className="text-slate-500">•</span>
                 <Badge className="bg-teal-500/30 text-teal-200 border-teal-400/50">
                   <Shield className="w-3 h-3 mr-1" />
-                  {project.program_name}
+                  {project.program_name || programs.find(p => p.id === project.program_id)?.name || project.program_id}
                 </Badge>
                 {project.state && (
                   <>
