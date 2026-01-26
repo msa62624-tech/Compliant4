@@ -3,6 +3,21 @@
  * Color scheme: #dc2626 (red-600), #991b1b (dark red) matching system pages
  */
 
+/**
+ * Escape HTML special characters to prevent XSS attacks
+ * @param {string} unsafe - String that may contain HTML special characters
+ * @returns {string} - HTML-safe string
+ */
+function escapeHtml(unsafe) {
+  if (unsafe == null) return '';
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 const EMAIL_STYLES = `
   <style>
     body { 
@@ -218,20 +233,23 @@ function getPasswordResetEmail(name, resetLink, type = 'general') {
                    type === 'broker' ? 'Broker Account' : 
                    type === 'subcontractor' ? 'Subcontractor Account' : 'Account';
   
+  const safeName = escapeHtml(name || 'User');
+  const safeResetLink = escapeHtml(resetLink);
+  
   const content = `
-    <p>Hello ${name || 'User'},</p>
+    <p>Hello ${safeName},</p>
     
     <p>We received a request to reset your password for your <strong>${userType}</strong> on compliant.team.</p>
     
     <p>Click the button below to reset your password:</p>
     
     <div style="text-align: center;">
-      <a href="${resetLink}" class="button">Reset Password</a>
+      <a href="${safeResetLink}" class="button">Reset Password</a>
     </div>
     
     <p style="color: #666; font-size: 13px; text-align: center;">
       Or copy and paste this link into your browser:<br>
-      <span style="word-break: break-all; color: #dc2626;">${resetLink}</span>
+      <span style="word-break: break-all; color: #dc2626;">${safeResetLink}</span>
     </p>
     
     <div class="alert">
@@ -256,6 +274,12 @@ function getPasswordResetEmail(name, resetLink, type = 'general') {
  * Document replacement notification for GC
  */
 function getDocumentReplacementNotificationEmail(subcontractorName, brokerName, brokerEmail, docType, reason = null) {
+  const safeSubcontractorName = escapeHtml(subcontractorName);
+  const safeBrokerName = escapeHtml(brokerName);
+  const safeBrokerEmail = escapeHtml(brokerEmail);
+  const safeDocType = escapeHtml(docType || 'Insurance Document');
+  const safeReason = escapeHtml(reason);
+  
   const content = `
     <p>A broker has replaced a previously approved insurance document for one of your subcontractors.</p>
     
@@ -266,10 +290,10 @@ function getDocumentReplacementNotificationEmail(subcontractorName, brokerName, 
     
     <div class="section">
       <div class="section-title">📄 REPLACEMENT DETAILS</div>
-      <div class="field"><span class="label">Subcontractor:</span> ${subcontractorName}</div>
-      <div class="field"><span class="label">Broker:</span> ${brokerName} (${brokerEmail})</div>
-      <div class="field"><span class="label">Document Type:</span> ${docType || 'Insurance Document'}</div>
-      ${reason ? `<div class="field"><span class="label">Reason:</span> ${reason}</div>` : ''}
+      <div class="field"><span class="label">Subcontractor:</span> ${safeSubcontractorName}</div>
+      <div class="field"><span class="label">Broker:</span> ${safeBrokerName} (${safeBrokerEmail})</div>
+      <div class="field"><span class="label">Document Type:</span> ${safeDocType}</div>
+      ${reason ? `<div class="field"><span class="label">Reason:</span> ${safeReason}</div>` : ''}
     </div>
     
     <div class="section">
@@ -293,5 +317,6 @@ export {
   EMAIL_STYLES,
   createEmailTemplate,
   getPasswordResetEmail,
-  getDocumentReplacementNotificationEmail
+  getDocumentReplacementNotificationEmail,
+  escapeHtml
 };
