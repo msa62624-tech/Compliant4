@@ -49,7 +49,7 @@ export function validateEnvironment() {
   
   // Validate PORT
   if (process.env.PORT) {
-    const port = parseInt(process.env.PORT);
+    const port = parseInt(process.env.PORT, 10);
     if (isNaN(port) || port < 1 || port > 65535) {
       errors.push('PORT must be a valid port number (1-65535)');
     }
@@ -57,7 +57,7 @@ export function validateEnvironment() {
   
   // Validate SMTP_PORT
   if (process.env.SMTP_PORT) {
-    const smtpPort = parseInt(process.env.SMTP_PORT);
+    const smtpPort = parseInt(process.env.SMTP_PORT, 10);
     if (isNaN(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
       errors.push('SMTP_PORT must be a valid port number (1-65535)');
     }
