@@ -32,7 +32,6 @@ import {
 import SendBrokerRequestDialog from "./SendBrokerRequest";
 import { format } from 'date-fns'; // Added import for date formatting
 import TradeSelectionComponent from "./TradeSelectionComponent";
-import ProjectRequirementsManager from "./ProjectRequirementsManager";
 
 export default function ProjectDetails() {
   const navigate = useNavigate();
@@ -1528,8 +1527,8 @@ InsureTrack System`
                       <div key={`tier-${tier}`} className="border border-slate-600 rounded-lg p-4 bg-slate-900/50">
                         <h4 className="font-semibold text-white mb-3">{getTierLabel(tier)}</h4>
                         <div className="space-y-2">
-                          {tierReqs.map((req) => (
-                            <div key={req.id} className="text-slate-200 text-sm pl-3 border-l-2 border-teal-500">
+                          {tierReqs.map((req, idx) => (
+                            <div key={`${req.id}-${req.insurance_type || 'req'}-${idx}`} className="text-slate-200 text-sm pl-3 border-l-2 border-teal-500">
                               <div><span className="font-medium">{req.trade_name || 'All Trades'}</span></div>
                               <div className="text-slate-400">{req.insurance_type?.replace(/_/g, ' ').toUpperCase()}</div>
                               {req.gl_each_occurrence && <div className="text-slate-400">GL: ${req.gl_each_occurrence.toLocaleString()} / ${req.gl_general_aggregate?.toLocaleString()}</div>}
@@ -1556,14 +1555,6 @@ InsureTrack System`
               )}
             </CardContent>
           </Card>
-        </div>
-
-        {/* Insurance Requirements Documents Section */}
-        <div className="animate-fade-in-delay-250">
-          <ProjectRequirementsManager 
-            projectId={project.id} 
-            projectName={project.project_name}
-          />
         </div>
 
         {/* Subcontractors Section */}

@@ -2053,17 +2053,13 @@ async function generateSampleCOIPDF(data = {}) {
               programId = programs[0].id;
             }
           }
-          const projectId = data.project_id || data.projectId;
           if (programId) {
-            const projectRequirements = projectId
-              ? (entities.ProjectInsuranceRequirement?.filter(req => req.project_id === projectId) || [])
-              : [];
             const programLevel = [
               ...(entities.SubInsuranceRequirement?.filter(req => req.program_id === programId) || []),
               ...(entities.ProgramRequirement?.filter(req => req.program_id === programId) || [])
             ];
-            programRequirements = projectRequirements.length > 0 ? projectRequirements : programLevel;
-            console.log(`📋 Found ${programRequirements.length} requirements for program ${programId}${projectRequirements.length > 0 ? ' (project-specific)' : ''}`);
+            programRequirements = programLevel;
+            console.log(`📋 Found ${programRequirements.length} program requirements for ${programId}`);
           }
         } catch (err) {
           console.warn('Could not fetch program requirements:', err?.message);
@@ -2128,19 +2124,33 @@ async function generateSampleCOIPDF(data = {}) {
       }
 
       const tierPriority = { a: 4, b: 3, c: 2, d: 1, standard: 0 };
-      let highestTier = null;
-      let highestPriority = -1;
       const reqsForTiering = Array.isArray(tradeRequirements) ? tradeRequirements : [];
+
+      const normalizedTradesForTier = String(data.trade || '')
+        .split(',')
+        .map(t => t.trim().toLowerCase())
+        .filter(Boolean);
+      const isAllTradesSelection = normalizedTradesForTier.length === 0 ||
+        normalizedTradesForTier.some(t => t.includes('all trades') || t.includes('all other'));
+
+      let selectedTier = null;
+      let selectedPriority = isAllTradesSelection ? Number.POSITIVE_INFINITY : -1;
+
       for (const req of reqsForTiering) {
         const priority = tierPriority[String(req.tier || '').toLowerCase()] || 0;
-        if (priority > highestPriority) {
-          highestPriority = priority;
-          highestTier = req.tier;
+        if (isAllTradesSelection) {
+          if (priority < selectedPriority) {
+            selectedPriority = priority;
+            selectedTier = req.tier;
+          }
+        } else if (priority > selectedPriority) {
+          selectedPriority = priority;
+          selectedTier = req.tier;
         }
       }
 
-      const tierRequirements = highestTier
-        ? reqsForTiering.filter(r => String(r.tier) === String(highestTier))
+      const tierRequirements = selectedTier
+        ? reqsForTiering.filter(r => String(r.tier) === String(selectedTier))
         : reqsForTiering;
 
       // Determine if umbrella is required
@@ -3965,6 +3975,21 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
 
         if (!entities.GeneratedCOI) entities.GeneratedCOI = [];
         entities.GeneratedCOI.push(newCOI);
+
+        if (Array.isArray(entities.BrokerUploadRequest) && entities.BrokerUploadRequest.length > 0) {
+          const beforeCount = entities.BrokerUploadRequest.length;
+          entities.BrokerUploadRequest = entities.BrokerUploadRequest.filter(r => {
+            if (!r) return false;
+            const sameSub = r.subcontractor_id === subcontractor_id;
+            const sameProject = r.project_id === project_id;
+            const sameBroker = newCOI.broker_email && (r.broker_email || '').toLowerCase().trim() === String(newCOI.broker_email).toLowerCase().trim();
+            return !(sameSub && sameProject && sameBroker);
+          });
+          if (entities.BrokerUploadRequest.length !== beforeCount) {
+            console.log('🧹 Removed broker upload request(s) for reused COI:', subcontractor_id, project_id);
+          }
+        }
+
         debouncedSave();
         console.log('ℹ️ Auto-generated reused COI for subcontractor:', subcontractor_id, 'coi:', newCOI.id);
 
@@ -3992,6 +4017,8 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
               hold_harmless_template_url: program?.hold_harmless_template_url || program?.hold_harmless_template || null
             };
 
+            const previewUrl = regeneratedUrl || newCOI.regenerated_coi_url || newCOI.first_coi_url || null;
+
             await fetch(internalUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -4004,6 +4031,9 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
 
 Project: ${project_name}
 Trade: ${trade_type || 'N/A'}
+
+Generated COI (review):
+${previewUrl || 'Available in broker portal'}
 
 Please review and sign:
 ${brokerSignUrl}

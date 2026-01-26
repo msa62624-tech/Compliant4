@@ -155,10 +155,26 @@ export default function COIReview() {
       const allReqs = await apiClient.entities.SubInsuranceRequirement.filter({
         program_id: project.program_id
       });
-      // Filter for this specific trade
-      return allReqs.filter(r =>
-        r.trade_types && Array.isArray(r.trade_types) && r.trade_types.includes(coi.trade_type)
-      );
+      const normalize = (list) => (Array.isArray(list) ? list : [])
+        .map(t => String(t).trim().toLowerCase())
+        .filter(Boolean);
+      const trades = String(coi.trade_type || '')
+        .split(',')
+        .map(t => t.trim().toLowerCase())
+        .filter(Boolean);
+
+      return allReqs.filter((req) => {
+        const applicable = normalize(req.applicable_trades || req.trade_types || req.trades);
+        const tradeName = String(req.trade_name || '').toLowerCase();
+        const scope = String(req.scope || '').toLowerCase();
+
+        if (applicable.some(t => t === 'all trades') || tradeName === 'all trades') return true;
+        if (req.is_all_other_trades || tradeName.includes('all other') || scope.includes('all other')) return true;
+        if (trades.length === 0) return true;
+
+        return applicable.some(t => trades.includes(t)) ||
+          trades.some(t => tradeName.includes(t) || t.includes(tradeName) || scope.includes(t));
+      });
     },
     enabled: !!project?.program_id && !!coi?.trade_type,
   });

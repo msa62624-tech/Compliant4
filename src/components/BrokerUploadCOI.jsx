@@ -1653,7 +1653,7 @@ export default function BrokerUploadCOI() {
         )}
 
         {/* COI Preview - Show before signatures */}
-        {currentStep === 3 && (coiRecord.first_coi_url || coiRecord.first_coi_uploaded) && (
+        {currentStep === 3 && (coiRecord.first_coi_url || coiRecord.regenerated_coi_url || coiRecord.first_coi_uploaded) && (
           <Card className="border-slate-200 shadow-lg mb-6">
             <CardHeader className="border-b bg-gradient-to-r from-red-50 to-cyan-50">
               <CardTitle className="text-xl font-bold flex items-center gap-2">
@@ -1663,16 +1663,20 @@ export default function BrokerUploadCOI() {
               <p className="text-sm text-slate-600 mt-1">Review your generated certificate before signing</p>
             </CardHeader>
             <CardContent className="p-6">
-              {coiRecord.first_coi_url ? (
+              {coiRecord.regenerated_coi_url || coiRecord.first_coi_url ? (
                 <div className="space-y-3">
+                  {(() => {
+                    const previewUrl = coiRecord.regenerated_coi_url || coiRecord.first_coi_url;
+                    return (
+                      <>
                   <iframe
-                    src={coiRecord.first_coi_url}
+                    src={previewUrl}
                     className="w-full h-[600px] border-2 border-slate-200 rounded-lg"
                     title="Certificate of Insurance Preview"
                   />
                   <div className="flex gap-2">
                     <Button
-                      onClick={() => window.open(coiRecord.first_coi_url, '_blank')}
+                      onClick={() => window.open(previewUrl, '_blank')}
                       variant="outline"
                       className="flex-1"
                     >
@@ -1682,7 +1686,7 @@ export default function BrokerUploadCOI() {
                     <Button
                       onClick={() => {
                         const link = document.createElement('a');
-                        link.href = coiRecord.first_coi_url;
+                        link.href = previewUrl;
                         link.download = `COI_${coiRecord.subcontractor_name}_${coiRecord.project_name}.pdf`;
                         link.click();
                       }}
@@ -1693,6 +1697,9 @@ export default function BrokerUploadCOI() {
                       Download PDF
                     </Button>
                   </div>
+                      </>
+                    );
+                  })()}
                 </div>
               ) : (
                 <Alert className="bg-red-50 border-red-200">

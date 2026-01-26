@@ -619,7 +619,7 @@ InsureTrack System`
 
                                 {requirements.length > 0 && (
                                   <div className="mt-4 p-4 bg-white rounded-lg border">
-                                    <p className="font-semibold text-slate-900 mb-2">Insurance Requirements:</p>
+                                    <p className="font-semibold text-slate-900 mb-2">Program Requirements:</p>
                                     <div className="space-y-2 text-sm">
                                       {requirements.map((req, idx) => (
                                         <div key={idx} className="flex items-start gap-2">

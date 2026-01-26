@@ -220,14 +220,6 @@ function TradeGroup({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Insurance Requirements Info */}
-        <div className="bg-white/50 p-3 rounded border border-gray-200">
-          <p className="text-xs font-semibold text-gray-700 mb-1">
-            Base Insurance Requirements:
-          </p>
-          <p className="text-xs text-gray-600">{requirements}</p>
-        </div>
-
         {/* Trade Checkboxes */}
         <div className="space-y-3">
           {trades.map((trade) => (
