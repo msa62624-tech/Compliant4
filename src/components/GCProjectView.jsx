@@ -542,10 +542,10 @@ export default function GCProjectView() {
               );
               
               if (newCOI) {
-                // Send COI upload request email to the broker
-                const uploadLink = m ? 
-                  `${protocol}//${m[1]}-5175${m[3]}/broker-upload-coi?token=${newCOI.coi_token}&step=1&action=upload` :
-                  `${origin}/broker-upload-coi?token=${newCOI.coi_token}&step=1&action=upload`;
+                // Send COI sign/generate request email to the broker (reuse path)
+                const signLink = m ? 
+                  `${protocol}//${m[1]}-5175${m[3]}/broker-upload-coi?token=${newCOI.coi_token}&step=3&action=sign` :
+                  `${origin}/broker-upload-coi?token=${newCOI.coi_token}&step=3&action=sign`;
                 
                 const brokerEmailHtml = `
 <!DOCTYPE html>
@@ -581,10 +581,10 @@ export default function GCProjectView() {
         <strong>Trade:</strong> ${form.trade}
       </div>
       
-      <p>Please upload the Certificate of Insurance using the button below:</p>
+      <p>Please review and sign the generated Certificate of Insurance using the button below:</p>
       
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${uploadLink}" class="button">Upload COI →</a>
+        <a href="${signLink}" class="button">Review & Sign COI →</a>
       </div>
       
       <p style="color: #666; font-size: 14px;">
@@ -612,14 +612,22 @@ export default function GCProjectView() {
                     // Provide complete data so sample COI reflects program requirements and project details
                     sampleCOIData: {
                       program: project?.program_name || project?.program_id,
-                      trade: form.trade_types?.join(', '),
+                      program_id: project?.program_id,
+                      trade: form.trade,
                       gc_name: project?.gc_name,
                       certificate_holder: project?.gc_name,
                       project_name: project?.project_name,
                       projectAddress: project?.address ? `${project.address}, ${project.city}, ${project.state} ${project.zip_code || ''}` : undefined,
                       description_of_operations: project?.description_of_operations || '',
                       requires_umbrella: project?.requires_umbrella || false,
-                      additional_insureds: Array.isArray(project?.additional_insured_entities) ? project.additional_insured_entities.map(e => e?.name || e).filter(Boolean) : [],
+                      owner_entity: project?.owner_entity || null,
+                      additional_insureds: [
+                        project?.owner_entity,
+                        ...(Array.isArray(project?.additional_insured_entities)
+                          ? project.additional_insured_entities.map(e => e?.name || e)
+                          : [])
+                      ].filter(Boolean),
+                      additional_insured_entities: Array.isArray(project?.additional_insured_entities) ? project.additional_insured_entities.map(e => e?.name || e).filter(Boolean) : [],
                       // Include any insurer names if present from source insurance data
                       insurance_carrier_gl: existingCOI?.insurance_carrier_gl,
                       insurance_carrier_auto: existingCOI?.insurance_carrier_auto,

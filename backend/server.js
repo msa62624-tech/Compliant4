@@ -3403,6 +3403,15 @@ app.get('/public/broker-requests', (req, res) => {
     // Also include BrokerUploadRequest records for this broker (email match)
     const uploadRequests = (entities.BrokerUploadRequest || [])
       .filter(r => lowerEmail && (r.broker_email || '').toLowerCase().trim() === lowerEmail)
+      .filter(r => {
+        const hasGenerated = (entities.GeneratedCOI || []).some(c => {
+          const sameSub = c.subcontractor_id === r.subcontractor_id;
+          const sameProject = c.project_id === r.project_id;
+          const sameBroker = lowerEmail && (c.broker_email || '').toLowerCase().trim() === lowerEmail;
+          return sameSub && sameProject && sameBroker;
+        });
+        return !hasGenerated;
+      })
       .map(r => ({
         id: r.id,
         broker_email: r.broker_email,
@@ -4000,6 +4009,12 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
             const program = programId
               ? (entities.InsuranceProgram || []).find(p => p.id === programId)
               : null;
+            const projectInsureds = [];
+            if (sourceProject?.owner_entity) projectInsureds.push(sourceProject.owner_entity);
+            if (Array.isArray(sourceProject?.additional_insured_entities)) {
+              sourceProject.additional_insured_entities.forEach(ai => projectInsureds.push(ai));
+            }
+
             const sampleCOIData = {
               project_id: project_id,
               project_name,
@@ -4011,8 +4026,8 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
               trade: trade_type || reusable.trade_type,
               program: program?.name || program?.program_name,
               program_id: programId,
-              additional_insureds: reusable.additional_insureds || [],
-              additional_insured_entities: reusable.additional_insureds || [],
+              additional_insureds: Array.from(new Set([...(reusable.additional_insureds || []), ...projectInsureds].filter(Boolean))),
+              additional_insured_entities: Array.from(new Set([...(reusable.additional_insureds || []), ...projectInsureds].filter(Boolean))),
               owner_entity: sourceProject?.owner_entity || null,
               hold_harmless_template_url: program?.hold_harmless_template_url || program?.hold_harmless_template || null
             };
