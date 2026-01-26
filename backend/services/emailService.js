@@ -41,6 +41,22 @@ export function createEmailTransporter() {
 }
 
 /**
+ * Simple HTML escape function to prevent XSS
+ * @param {string} text - Text to escape
+ * @returns {string} HTML-safe text
+ */
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+/**
  * Send password reset email
  * @param {string} email - Recipient email
  * @param {string} resetLink - Password reset URL
@@ -48,6 +64,7 @@ export function createEmailTransporter() {
  */
 export async function sendPasswordResetEmail(email, resetLink, user = {}) {
   const transporter = createEmailTransporter();
+  const userName = escapeHtml(user.name || 'User');
   
   const mailOptions = {
     from: process.env.SMTP_USER || process.env.SMTP_FROM || 'noreply@insuretrack.com',
@@ -56,7 +73,7 @@ export async function sendPasswordResetEmail(email, resetLink, user = {}) {
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">Password Reset Request</h2>
-        <p>Hello ${user.name || 'User'},</p>
+        <p>Hello ${userName},</p>
         <p>We received a request to reset your password for your CompliantTeam account.</p>
         <p>Click the button below to reset your password:</p>
         <div style="text-align: center; margin: 30px 0;">

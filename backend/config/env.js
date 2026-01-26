@@ -3,18 +3,17 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { DATA_DIR } from './database.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Core directories for data and uploads
-export const DATA_DIR = path.join(__dirname, '..', 'data');
-export const DATA_FILE = path.join(DATA_DIR, 'entities.json');
-export const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
-
 // Load environment variables from .env with explicit path
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
+// Re-export directories from database.js for convenience
+export { DATA_DIR, DATA_FILE, UPLOADS_DIR } from './database.js';
 
 // Default admin email list for notifications (comma-separated)
 export const DEFAULT_ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '')

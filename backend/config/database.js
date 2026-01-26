@@ -6,12 +6,12 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Core directories for data and uploads
+// Core directories (defined here to avoid circular deps with env.js)
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'entities.json');
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 
-// Export directories
+// Export directories for use in other modules
 export { DATA_DIR, DATA_FILE, UPLOADS_DIR };
 
 // ========== Entities ==========
