@@ -93,11 +93,16 @@ export function auditMiddleware(eventType) {
  * Helper function to log user authentication events
  */
 export function logAuth(eventType, username, success, details = {}) {
+  // Don't log full username to reduce PII exposure
+  // Hash or truncate username for privacy while maintaining audit trail
+  const usernameHash = username ? username.substring(0, 3) + '***' : 'unknown';
+  
   return logAudit(eventType, {
-    username,
+    usernameHash,
     success,
     ip: details.ip,
     userAgent: details.userAgent,
+    userId: details.userId, // Use userId for tracking, not username
     ...details,
   });
 }

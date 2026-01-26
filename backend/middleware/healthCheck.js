@@ -87,9 +87,13 @@ export async function healthCheckHandler(req, res) {
       uptime: process.uptime(),
     };
     
-    if (detailed) {
+    // Detailed metrics only for authenticated requests (security consideration)
+    // Public endpoint shows basic health only
+    if (detailed && req.user) {
       health.system = getSystemMetrics();
       health.application = getApplicationHealth();
+    } else if (detailed) {
+      health.message = 'Detailed metrics require authentication';
     }
     
     res.status(200).json(health);

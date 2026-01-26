@@ -1029,7 +1029,7 @@ app.post('/auth/login',
       if (!user || !isPasswordValid) {
         // Audit failed login attempt
         logAuth(AuditEventType.LOGIN_FAILURE, username, false, {
-          ip: req.ip || req.connection.remoteAddress,
+          ip: req.ip || req.socket.remoteAddress,
           userAgent: req.headers['user-agent'],
           correlationId: req.correlationId,
         });
@@ -1052,7 +1052,7 @@ app.post('/auth/login',
       logAuth(AuditEventType.LOGIN_SUCCESS, username, true, {
         userId: user.id,
         role: user.role,
-        ip: req.ip || req.connection.remoteAddress,
+        ip: req.ip || req.socket.remoteAddress,
         userAgent: req.headers['user-agent'],
         correlationId: req.correlationId,
       });

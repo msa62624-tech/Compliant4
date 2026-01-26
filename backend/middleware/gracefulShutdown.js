@@ -51,7 +51,7 @@ export async function gracefulShutdown(signal) {
   logger.info('Stopping new connections...');
   
   // Wait for active connections to finish
-  const timeout = parseInt(process.env.SHUTDOWN_TIMEOUT || '30000'); // 30 seconds default
+  const timeout = parseInt(process.env.SHUTDOWN_TIMEOUT || '30000', 10); // 30 seconds default
   const checkInterval = 100; // Check every 100ms
   const maxWait = timeout;
   let waited = 0;
