@@ -3,6 +3,24 @@
  * Color scheme: #dc2626 (destructive red), #991b1b (dark red)
  */
 
+/**
+ * Escape HTML to prevent XSS attacks
+ * @param {string} text - The text to escape
+ * @returns {string} - The escaped text safe for HTML insertion
+ */
+function escapeHtml(text) {
+  if (text == null) return '';
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;',
+  };
+  return String(text).replace(/[&<>"'/]/g, (char) => map[char]);
+}
+
 export const EMAIL_STYLES = `
   <style>
     body { 
@@ -175,6 +193,8 @@ export const EMAIL_STYLES = `
 
 /**
  * Create a formatted email template
+ * NOTE: Title and subtitle are escaped for XSS protection.
+ * Content is assumed to be pre-formatted HTML from trusted template functions.
  */
 export function createEmailTemplate(title, subtitle, content, footer = null) {
   const defaultFooter = `
@@ -195,8 +215,8 @@ export function createEmailTemplate(title, subtitle, content, footer = null) {
 <body>
   <div class="container">
     <div class="header">
-      <h1>${title}</h1>
-      ${subtitle ? `<p>${subtitle}</p>` : ''}
+      <h1>${escapeHtml(title)}</h1>
+      ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}
     </div>
     
     <div class="content">
@@ -216,10 +236,14 @@ export function createEmailTemplate(title, subtitle, content, footer = null) {
 export function getPasswordResetEmail(name, resetLink, type = 'general') {
   const userType = type === 'gc' ? 'GC Account' : type === 'broker' ? 'Broker Account' : type === 'subcontractor' ? 'Subcontractor Account' : 'Account';
   
+  // Escape user-provided data but NOT the URL
+  const safeName = escapeHtml(name || 'User');
+  const safeUserType = escapeHtml(userType);
+  
   const content = `
-    <p>Hello ${name || 'User'},</p>
+    <p>Hello ${safeName},</p>
     
-    <p>We received a request to reset your password for your <strong>${userType}</strong> on compliant.team.</p>
+    <p>We received a request to reset your password for your <strong>${safeUserType}</strong> on compliant.team.</p>
     
     <p>Click the button below to reset your password:</p>
     
@@ -254,14 +278,19 @@ export function getPasswordResetEmail(name, resetLink, type = 'general') {
  * Broker COI submission confirmation
  */
 export function getBrokerCOIConfirmationEmail(subcontractorName, projectName, tradeType) {
+  // Escape all user-provided data
+  const safeName = escapeHtml(subcontractorName);
+  const safeProject = escapeHtml(projectName);
+  const safeTrade = escapeHtml(tradeType);
+  
   const content = `
     <p>Thank you for submitting your Certificate of Insurance!</p>
     
     <div class="section">
       <div class="section-title">📋 SUBMISSION DETAILS</div>
-      <div class="field"><span class="label">Subcontractor:</span> ${subcontractorName}</div>
-      <div class="field"><span class="label">Project:</span> ${projectName}</div>
-      <div class="field"><span class="label">Trade:</span> ${tradeType}</div>
+      <div class="field"><span class="label">Subcontractor:</span> ${safeName}</div>
+      <div class="field"><span class="label">Project:</span> ${safeProject}</div>
+      <div class="field"><span class="label">Trade:</span> ${safeTrade}</div>
       <div class="field"><span class="label">Submitted:</span> ${new Date().toLocaleDateString()}</div>
     </div>
     
@@ -291,6 +320,13 @@ export function getBrokerCOIConfirmationEmail(subcontractorName, projectName, tr
  * Document replacement notification for GC
  */
 export function getDocumentReplacementNotificationEmail(subcontractorName, brokerName, brokerEmail, docType, reason = null) {
+  // Escape all user-provided data
+  const safeName = escapeHtml(subcontractorName);
+  const safeBrokerName = escapeHtml(brokerName);
+  const safeBrokerEmail = escapeHtml(brokerEmail);
+  const safeDocType = escapeHtml(docType || 'Insurance Document');
+  const safeReason = escapeHtml(reason);
+  
   const content = `
     <p>A broker has replaced a previously approved insurance document for one of your subcontractors.</p>
     
@@ -301,10 +337,10 @@ export function getDocumentReplacementNotificationEmail(subcontractorName, broke
     
     <div class="section">
       <div class="section-title">📄 REPLACEMENT DETAILS</div>
-      <div class="field"><span class="label">Subcontractor:</span> ${subcontractorName}</div>
-      <div class="field"><span class="label">Broker:</span> ${brokerName} (${brokerEmail})</div>
-      <div class="field"><span class="label">Document Type:</span> ${docType || 'Insurance Document'}</div>
-      ${reason ? `<div class="field"><span class="label">Reason:</span> ${reason}</div>` : ''}
+      <div class="field"><span class="label">Subcontractor:</span> ${safeName}</div>
+      <div class="field"><span class="label">Broker:</span> ${safeBrokerName} (${safeBrokerEmail})</div>
+      <div class="field"><span class="label">Document Type:</span> ${safeDocType}</div>
+      ${reason ? `<div class="field"><span class="label">Reason:</span> ${safeReason}</div>` : ''}
     </div>
     
     <div class="section">
@@ -328,23 +364,31 @@ export function getDocumentReplacementNotificationEmail(subcontractorName, broke
  * New subcontractor onboarding email (for GC portal)
  */
 export function getSubcontractorOnboardingEmail(subcontractorName, projectName, address, tradeType, username, password, portalUrl) {
+  // Escape all user-provided data but NOT the URL
+  const safeName = escapeHtml(subcontractorName);
+  const safeProject = escapeHtml(projectName);
+  const safeAddress = escapeHtml(address || 'Address not provided');
+  const safeTrade = escapeHtml(tradeType);
+  const safeUsername = escapeHtml(username);
+  const safePassword = escapeHtml(password);
+  
   const content = `
-    <p>Dear ${subcontractorName},</p>
+    <p>Dear ${safeName},</p>
     
     <p>You have been added to a new project in InsureTrack!</p>
     
     <div class="section">
       <div class="section-title">📋 PROJECT DETAILS</div>
-      <div class="field"><span class="label">Project:</span> ${projectName}</div>
-      <div class="field"><span class="label">Trade:</span> ${tradeType}</div>
-      <div class="field"><span class="label">Location:</span> ${address || 'Address not provided'}</div>
+      <div class="field"><span class="label">Project:</span> ${safeProject}</div>
+      <div class="field"><span class="label">Trade:</span> ${safeTrade}</div>
+      <div class="field"><span class="label">Location:</span> ${safeAddress}</div>
     </div>
     
     <div class="section">
       <div class="section-title">🔐 PORTAL LOGIN INFORMATION</div>
       <div class="credentials">
-        <div class="field"><span class="label">Username:</span> ${username}</div>
-        <div class="field"><span class="label">Password:</span> <strong>${password}</strong></div>
+        <div class="field"><span class="label">Username:</span> ${safeUsername}</div>
+        <div class="field"><span class="label">Password:</span> <strong>${safePassword}</strong></div>
         <p style="color: #dc2626; font-size: 13px; margin-top: 10px;">
           ⚠️ <strong>Save your password</strong> - You'll need it to log in
         </p>
@@ -372,7 +416,7 @@ export function getSubcontractorOnboardingEmail(subcontractorName, projectName, 
   
   return createEmailTemplate(
     '👋 Welcome to compliant.team',
-    `You've been added to ${projectName}`,
+    `You've been added to ${safeProject}`,
     content
   );
 }

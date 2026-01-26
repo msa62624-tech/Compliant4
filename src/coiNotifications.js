@@ -9,6 +9,24 @@ import { createEmailTemplate } from "@/emailTemplates";
  */
 
 /**
+ * Escape HTML to prevent XSS attacks
+ * @param {string} text - The text to escape
+ * @returns {string} - The escaped text safe for HTML insertion
+ */
+function escapeHtml(text) {
+  if (text == null) return '';
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;',
+  };
+  return String(text).replace(/[&<>"'/]/g, (char) => map[char]);
+}
+
+/**
  * Generate sample COI data from program requirements
  * Shows brokers what the actual program requires
  */
@@ -306,29 +324,42 @@ export async function notifyCOIDeficiencies(coi, subcontractor, project, deficie
   try {
     const deficienciesList = deficiencies
       .map((def, idx) => {
+        // Escape all deficiency data
+        const safeField = escapeHtml(def.field || 'Issue');
+        const safeMessage = escapeHtml(def.message);
+        const safeRequired = escapeHtml(def.required || 'N/A');
+        const safeProvided = escapeHtml(def.provided || 'N/A');
+        
         return `<div style="margin: 10px 0; padding: 10px; background: #fef2f2; border-left: 3px solid #dc2626; border-radius: 4px;">
-          <strong style="color: #991b1b;">${idx + 1}. ${def.field || 'Issue'}</strong>
+          <strong style="color: #991b1b;">${idx + 1}. ${safeField}</strong>
           <ul style="margin: 5px 0 0 0; padding-left: 20px; color: #333;">
-            <li><strong>Issue:</strong> ${def.message}</li>
-            <li><strong>Required:</strong> ${def.required || 'N/A'}</li>
-            <li><strong>Provided:</strong> ${def.provided || 'N/A'}</li>
+            <li><strong>Issue:</strong> ${safeMessage}</li>
+            <li><strong>Required:</strong> ${safeRequired}</li>
+            <li><strong>Provided:</strong> ${safeProvided}</li>
           </ul>
         </div>`;
       })
       .join('');
 
+    // Escape all user-provided data in email content
+    const safeCompanyName = escapeHtml(subcontractor.company_name);
+    const safeProjectName = escapeHtml(project.project_name);
+    const safeProjectAddress = escapeHtml(project.project_address);
+    const safeGcName = escapeHtml(project.gc_name);
+    const safeTradeType = escapeHtml(coi.trade_type);
+
     const emailContent = `
       <div class="section">
         <div class="section-title">Subcontractor</div>
-        <p><strong>Company:</strong> ${subcontractor.company_name}</p>
+        <p><strong>Company:</strong> ${safeCompanyName}</p>
       </div>
 
       <div class="section">
         <div class="section-title">Project Information</div>
-        <p><strong>Project:</strong> ${project.project_name}</p>
-        <p><strong>Location:</strong> ${project.project_address}</p>
-        <p><strong>General Contractor:</strong> ${project.gc_name}</p>
-        <p><strong>Trade:</strong> ${coi.trade_type}</p>
+        <p><strong>Project:</strong> ${safeProjectName}</p>
+        <p><strong>Location:</strong> ${safeProjectAddress}</p>
+        <p><strong>General Contractor:</strong> ${safeGcName}</p>
+        <p><strong>Trade:</strong> ${safeTradeType}</p>
       </div>
 
       <div class="section" style="background-color: #fef2f2; border-left-color: #dc2626;">
@@ -390,11 +421,10 @@ export async function notifyCOIDeficiencies(coi, subcontractor, project, deficie
     });
 
     // Notify subcontractor
-    const baseUrl = getFrontendBaseUrl();
     const subDashboardLink = `${baseUrl}/subcontractor-dashboard?id=${subcontractor.id}`;
     
     const subEmailContent = `
-      <p>Your Certificate of Insurance needs updates before approval for <strong>${project.project_name}</strong>.</p>
+      <p>Your Certificate of Insurance needs updates before approval for <strong>${safeProjectName}</strong>.</p>
 
       <div class="section">
         <p>Your insurance broker has been notified of the required corrections. Please contact them to:</p>
@@ -406,8 +436,8 @@ export async function notifyCOIDeficiencies(coi, subcontractor, project, deficie
       </div>
 
       <div class="section">
-        <p><strong>Project:</strong> ${project.project_name}</p>
-        <p><strong>General Contractor:</strong> ${project.gc_name}</p>
+        <p><strong>Project:</strong> ${safeProjectName}</p>
+        <p><strong>General Contractor:</strong> ${safeGcName}</p>
       </div>
 
       <div class="alert">
