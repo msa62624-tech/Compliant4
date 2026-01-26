@@ -78,7 +78,7 @@ export async function sendPasswordResetEmail(email, resetLink, user = {}) {
         <p>We received a request to reset your password for your CompliantTeam account.</p>
         <p>Click the button below to reset your password:</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetLink}" 
+          <a href="${safeResetLink}" 
              style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
             Reset Password
           </a>
