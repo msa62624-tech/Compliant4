@@ -8,11 +8,14 @@ import fs from 'fs';
  */
 export function validateAndSanitizeFilename(name) {
   if (!name || typeof name !== 'string') throw new Error('Invalid filename');
+  // Check for path traversal patterns before sanitization
+  if (name.includes('..') || name.includes('/') || name.includes('\\')) {
+    throw new Error('Invalid filename - path traversal detected');
+  }
   // Only allow letters, numbers, dot, underscore, hyphen
   const safe = name.replace(/[^a-zA-Z0-9._-]/g, '');
-  // Check for empty result or path traversal patterns
-  if (!safe || safe.includes('..')) {
-    throw new Error('Invalid filename');
+  if (!safe) {
+    throw new Error('Invalid filename - no valid characters');
   }
   return safe;
 }

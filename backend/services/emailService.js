@@ -65,6 +65,7 @@ function escapeHtml(text) {
 export async function sendPasswordResetEmail(email, resetLink, user = {}) {
   const transporter = createEmailTransporter();
   const userName = escapeHtml(user.name || 'User');
+  const safeResetLink = escapeHtml(resetLink);
   
   const mailOptions = {
     from: process.env.SMTP_USER || process.env.SMTP_FROM || 'noreply@insuretrack.com',
@@ -83,7 +84,7 @@ export async function sendPasswordResetEmail(email, resetLink, user = {}) {
           </a>
         </div>
         <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
-        <p style="color: #4F46E5; word-break: break-all; font-size: 12px;">${resetLink}</p>
+        <p style="color: #4F46E5; word-break: break-all; font-size: 12px;">${safeResetLink}</p>
         <p style="color: #999; font-size: 12px; margin-top: 30px;">
           This link will expire in 1 hour. If you didn't request a password reset, please ignore this email.
         </p>
