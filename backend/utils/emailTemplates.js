@@ -289,7 +289,7 @@ function getDocumentReplacementNotificationEmail(subcontractorName, brokerName, 
   );
 }
 
-module.exports = {
+export {
   EMAIL_STYLES,
   createEmailTemplate,
   getPasswordResetEmail,
