@@ -1,9 +1,15 @@
 import jwt from 'jsonwebtoken';
 import { sendError } from './validation.js';
 
-// Auth middleware
-export function authenticateToken(jwtSecret) {
-  return (req, res, next) => {
+// Create auth middleware that will be initialized with JWT_SECRET
+let authMiddleware = null;
+
+/**
+ * Initialize authenticateToken middleware with JWT secret
+ * @param {string} jwtSecret - JWT secret key
+ */
+export function initializeAuthMiddleware(jwtSecret) {
+  authMiddleware = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
@@ -29,6 +35,14 @@ export function authenticateToken(jwtSecret) {
     });
   };
 }
+
+// Export the middleware function itself
+export const authenticateToken = (req, res, next) => {
+  if (!authMiddleware) {
+    throw new Error('Auth middleware not initialized. Call initializeAuthMiddleware(jwtSecret) first.');
+  }
+  return authMiddleware(req, res, next);
+};
 
 // Admin-only middleware
 export function requireAdmin(req, res, next) {

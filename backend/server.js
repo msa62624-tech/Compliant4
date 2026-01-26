@@ -4,30 +4,32 @@ import jwt from 'jsonwebtoken';
 import pdfParse from 'pdf-parse';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
-import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import multer from 'multer';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
-// Safe, timing-attack-resistant string comparison used for token checks
-const timingSafeEqual = (a, b) => {
-  if (a === undefined || b === undefined) return false;
-  const bufA = Buffer.from(String(a));
-  const bufB = Buffer.from(String(b));
-  if (bufA.length !== bufB.length) return false;
-  try {
-    return crypto.timingSafeEqual(bufA, bufB);
-  } catch (err) {
-    console.warn('timingSafeEqual comparison failed:', err?.message || err);
-    return false;
-  }
-};
+// Import configuration
+import { JWT_SECRET, ADMIN_PASSWORD_HASH, PORT, FRONTEND_URL, DEFAULT_ADMIN_EMAILS, RENEWAL_LOOKAHEAD_DAYS, BINDER_WINDOW_DAYS } from './config/env.js';
+import { entities, loadEntities, saveEntities, debouncedSave, findValidCOIForSub, DATA_DIR, DATA_FILE, UPLOADS_DIR } from './config/database.js';
+import { upload } from './config/upload.js';
+
+// Import middleware
+import { apiLimiter, authLimiter, uploadLimiter, emailLimiter, publicApiLimiter } from './middleware/rateLimiting.js';
+import { sendError, sendSuccess, handleValidationErrors } from './middleware/validation.js';
+import { authenticateToken, requireAdmin, initializeAuthMiddleware } from './middleware/auth.js';
+
+// Import services
+import { timingSafeEqual, DUMMY_PASSWORD_HASH, hashPassword, comparePassword } from './services/authService.js';
+import { createEmailTransporter, sendPasswordResetEmail } from './services/emailService.js';
+
+// Import utilities
+import { validateAndSanitizeFilename, verifyPathWithinDirectory, validateEmail } from './utils/helpers.js';
+import { getBroker, getOrCreateBroker } from './utils/brokerHelpers.js';
+import { users, passwordResetTokens, findUser, findUserById } from './utils/users.js';
 
 // Stub implementations for optional services (not yet implemented)
 const adobePDF = {
@@ -47,410 +49,17 @@ const aiAnalysis = {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from .env with explicit path
-dotenv.config({ path: path.join(__dirname, '.env') });
-
 const app = express();
-const PORT = process.env.PORT || 3001;
+
+// Initialize auth middleware with JWT_SECRET
+initializeAuthMiddleware(JWT_SECRET);
 
 // Trust proxy for rate limiting with X-Forwarded-For header
 app.set('trust proxy', 1);
 
-// Core directories for data and uploads
-const DATA_DIR = path.join(__dirname, 'data');
-const DATA_FILE = path.join(DATA_DIR, 'entities.json');
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-
-// Default admin email list for notifications (comma-separated)
-const DEFAULT_ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '')
-  .split(',')
-  .map(e => e.trim())
-  .filter(Boolean);
-
-// JWT_SECRET persistence: Load from env or generate and persist to file
-// This ensures tokens remain valid across server restarts in development
-const JWT_SECRET_FILE = path.join(DATA_DIR, '.jwt-secret');
-const JWT_SECRET = (() => {
-  // Priority 1: Use environment variable if set
-  if (process.env.JWT_SECRET) {
-    console.log('✅ Using JWT_SECRET from environment variable');
-    return process.env.JWT_SECRET;
-  }
-  
-  // Priority 2: Require JWT_SECRET in production
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET environment variable is required in production');
-  }
-  
-  // Priority 3: Load or generate persistent secret for development
-  try {
-    // Ensure data directory exists
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-
-    if (fs.existsSync(JWT_SECRET_FILE)) {
-      const secretFromDisk = fs.readFileSync(JWT_SECRET_FILE, 'utf8').trim();
-      if (secretFromDisk) {
-        console.log('🔐 Loaded JWT secret from disk');
-        return secretFromDisk;
-      }
-    }
-
-    const newSecret = crypto.randomBytes(32).toString('hex');
-    fs.writeFileSync(JWT_SECRET_FILE, newSecret, 'utf8');
-    console.log('🔐 Generated and persisted new JWT secret');
-    return newSecret;
-  } catch (e) {
-    console.warn('⚠️ Failed to persist JWT secret, using ephemeral secret in memory');
-    return crypto.randomBytes(32).toString('hex');
-  }
-})();
-
-// Dummy password hash for timing attack prevention in login endpoints
-// Used when user not found or has no password to ensure bcrypt comparison takes consistent time
-const DUMMY_PASSWORD_HASH = '$2a$10$dummyhashdummyhashdummyhashdummyhashdummyhashdummyhashdummy';
-
-// Basic file path helpers used by upload/extraction flows
-function validateAndSanitizeFilename(name) {
-  if (!name || typeof name !== 'string') throw new Error('Invalid filename');
-  // Disallow path separators and traversal characters to prevent directory escapes
-  // Only allow letters, numbers, dot, underscore, hyphen
-  const safe = name.replace(/[^a-zA-Z0-9._-]/g, '');
-  if (!safe || safe.includes('..') || safe.includes('/') || safe.includes('\\')) {
-    throw new Error('Invalid filename');
-  }
-  return safe;
-}
-
-function verifyPathWithinDirectory(resolvedPath, baseDir) {
-  const normalizedBase = path.resolve(baseDir) + path.sep;
-  const normalizedPath = path.resolve(resolvedPath);
-  if (!normalizedPath.startsWith(normalizedBase)) {
-    throw new Error('Path traversal detected');
-  }
-}
-
-// Ensure uploads directory exists
-try {
-  if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-  }
-} catch (e) {
-  console.warn('⚠️ Could not ensure uploads directory:', e?.message || e);
-}
-
-// Default storage engine for multer (file uploads)
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, UPLOADS_DIR);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-    const sanitized = validateAndSanitizeFilename(file.originalname);
-    cb(null, `${uniqueSuffix}-${sanitized}`);
-  }
-});
-
-// Initialize multer with limits and file type validation
-// SECURITY FIX: Added file type validation to only allow PDF files for insurance documents
-const upload = multer({
-  storage,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
-  fileFilter: function (req, file, cb) {
-    // Only allow PDF files for insurance/policy documents
-    const allowedMimeTypes = ['application/pdf'];
-    const allowedExtensions = ['.pdf'];
-    
-    const mimeTypeValid = allowedMimeTypes.includes(file.mimetype);
-    const extValid = allowedExtensions.some(ext => 
-      file.originalname.toLowerCase().endsWith(ext)
-    );
-    
-    if (mimeTypeValid && extValid) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PDF files are allowed for insurance documents'));
-    }
-  }
-});
-
-// Renewal configuration
-const RENEWAL_LOOKAHEAD_DAYS = Number(process.env.RENEWAL_LOOKAHEAD_DAYS || 30);
-const BINDER_WINDOW_DAYS = Number(process.env.BINDER_WINDOW_DAYS || 30);
-
-// ========== Entities ==========
-// Start empty; persisted data in entities.json will be loaded at startup.
-const entities = {
-  InsuranceDocument: [],
-  Project: [],
-  Contractor: [],
-  User: [],
-  ProjectSubcontractor: [],
-  BrokerAssignment: [],
-  // Centralized broker records for authentication and password management
-  Broker: [],
-  BrokerLogin: [],
-  GCPortal: [],
-  gcLogin: [],
-  BrokerUpload: [],
-  COIDeficiency: [],
-  EmailNotification: [],
-  HoldHarmlessAgreement: [],
-  ProgramWorkflow: [],
-  Program: [],
-  UserActivity: [],
-  PaymentHistory: [],
-  InsuranceRequirement: [],
-  Portal: [],
-  AdminUser: [],
-  SubInsuranceRequirement: [],
-  StateRequirement: [],
-  GeneratedCOI: [],
-  Trade: [],
-  InsuranceProgram: [],
-  InsuranceProgramTier: [],
-  CertificateHolder: [],
-  RequiredEndorsement: [],
-  Policy: [],
-  PolicyTemplate: [],
-  PolicyAnalysis: [],
-  EmailLog: [],
-  Notification: [],
-  Task: [],
-  AuditLog: [],
-  BrokerPortal: [],
-  AdminSettings: [],
-  FormTemplate: [],
-  GCPolicyRequirement: [],
-  AdditionalInsured: [],
-  Endorsement: [],
-  PolicyRequirement: [],
-  NYCDOBRecord: [],
-  NYCACRISRecord: [],
-  SiteSafetyPlan: [],
-  IncidentReport: [],
-  InsuranceClaim: [],
-  Payment: [],
-  StripeSession: [],
-  GCSubscription: [],
-  WebhookLog: [],
-  UploadLog: [],
-  SystemConfig: [],
-  AuthSession: [],
-  EmailTemplate: [],
-  GCProgram: [],
-  PolicyRenewal: [],
-  PolicyRenewalTask: [],
-  ComplianceAction: [],
-  ComplianceEvent: [],
-  PolicyQuote: [],
-  Subscription: [],
-  ProgramTemplate: [],
-  Message: []
-};
-
-// ========== Persistent Storage Functions ==========
-
-/**
- * Load entities from disk on server start
- * Note: Uses synchronous file operations for simplicity during startup. For production
- * optimization, consider using fs.promises.readFile with async/await.
- */
-function loadEntities() {
-  try {
-    // Ensure data directory exists
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-      console.log('📁 Created data directory:', DATA_DIR);
-    }
-
-    // Load existing data if file exists
-    if (fs.existsSync(DATA_FILE)) {
-      const data = fs.readFileSync(DATA_FILE, 'utf8');
-      
-      // Parse JSON with error handling
-      let loadedEntities;
-      try {
-        loadedEntities = JSON.parse(data);
-      } catch (parseError) {
-        console.error('❌ Failed to parse entities.json:', parseError.message);
-        console.log('⚠️ File may be corrupted. Starting with default data.');
-        saveEntities(); // Overwrite corrupted file
-        return;
-      }
-      
-      // Merge loaded data with default entities structure
-      Object.keys(entities).forEach(key => {
-        if (loadedEntities[key]) {
-          entities[key] = loadedEntities[key];
-        }
-      });
-      
-      // Warn about unknown entity types in loaded data
-      Object.keys(loadedEntities).forEach(key => {
-        if (!(key in entities)) {
-          console.warn(`⚠️ Unknown entity type "${key}" found in data file (ignored)`);
-        }
-      });
-      
-      console.log('✅ Loaded persisted data from:', DATA_FILE);
-      console.log('📊 Contractors loaded:', entities.Contractor?.length || 0);
-      console.log('📊 Projects loaded:', entities.Project?.length || 0);
-    } else {
-      console.log('ℹ️ No existing data file, starting with empty data');
-      // Save initial empty data
-      saveEntities();
-    }
-  } catch (error) {
-    console.error('❌ Error loading entities:', error.message);
-    console.log('⚠️ Starting with default in-memory data');
-  }
-}
-
-/**
- * Save entities to disk
- * Note: Uses synchronous file operations for simplicity. For high-traffic production
- * environments, consider using fs.promises.writeFile with async/await for better performance.
- * 
- * IMPORTANT: On cloud platforms like Render, Vercel, or Heroku with ephemeral storage,
- * data saved to disk will be lost on restart/redeploy. For production, use a database.
- */
-function saveEntities() {
-  try {
-    // Ensure data directory exists
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-
-    // Write data to file
-    fs.writeFileSync(DATA_FILE, JSON.stringify(entities, null, 2), 'utf8');
-    
-    // More informative logging based on environment
-    const isEphemeralPlatform = !!process.env.RENDER || !!process.env.VERCEL || !!process.env.DYNO;
-    if (isEphemeralPlatform) {
-      console.log('💾 Data saved (ephemeral - will reset on restart/redeploy)');
-    } else {
-      console.log('💾 Data persisted to disk');
-    }
-  } catch (error) {
-    console.error('❌ Error saving entities:', error.message);
-  }
-}
-
-/**
- * Debounced save to avoid too frequent writes
- * Uses a single timeout to prevent race conditions
- */
-let saveTimeout = null;
-function debouncedSave() {
-  // Clear existing timeout if any
-  if (saveTimeout) {
-    clearTimeout(saveTimeout);
-  }
-  
-  // Schedule new save
-  saveTimeout = setTimeout(() => {
-    try {
-      saveEntities();
-    } catch (error) {
-      console.error('❌ Error in debounced save:', error.message);
-    } finally {
-      saveTimeout = null;
-    }
-  }, 1000); // Save 1 second after last change
-}
-
-/**
- * Find a valid (non-expired, active) GeneratedCOI for a subcontractor.
- * Returns the most recently created valid COI or null if none found.
- */
-function findValidCOIForSub(subId) {
-  if (!subId) return null;
-  const now = Date.now();
-  const cois = (entities.GeneratedCOI || []).filter(c => {
-    if (!c) return false;
-    if (c.subcontractor_id !== subId && c.subcontractor_id !== String(subId)) return false;
-    // If policy_expiration_date is present, ensure it's in the future
-    if (c.policy_expiration_date) {
-      const exp = new Date(c.policy_expiration_date).getTime();
-      if (isNaN(exp) || exp <= now) return false;
-    }
-    // Exclude explicitly expired or revoked COIs
-    if (c.status === 'expired' || c.status === 'revoked') return false;
-    return true;
-  });
-
-  if (!cois || cois.length === 0) return null;
-  // Return the most recent by created_date or id timestamp
-  cois.sort((a, b) => {
-    const ta = a.created_date ? new Date(a.created_date).getTime() : 0;
-    const tb = b.created_date ? new Date(b.created_date).getTime() : 0;
-    return tb - ta;
-  });
-  return cois[0] || null;
-}
-
 // =======================
-// BROKER MANAGEMENT HELPERS
+// DATA MIGRATION AND SEEDING
 // =======================
-/**
- * Get an existing broker record by email (read-only, does NOT create)
- * Use this for authentication/login flows to prevent account enumeration
- * @param {string} email - Broker email address
- * @returns {object|null} - Broker record from entities.Broker or null if not found
- */
-function getBroker(email) {
-  if (!email) return null;
-  
-  const normalizedEmail = email.toLowerCase();
-  
-  // Find existing broker (read-only)
-  const broker = (entities.Broker || []).find(b => 
-    b.email && b.email.toLowerCase() === normalizedEmail
-  );
-  
-  return broker || null;
-}
-
-/**
- * Get or create a broker record by email
- * Ensures centralized broker storage for password management
- * Use this ONLY when auto-creation is intentional (e.g., admin setup, migration)
- * @param {string} email - Broker email address
- * @param {object} additionalInfo - Optional broker info (name, company_name, etc.)
- * @returns {object} - Broker record from entities.Broker
- */
-function getOrCreateBroker(email, additionalInfo = {}) {
-  if (!email) return null;
-  
-  const normalizedEmail = email.toLowerCase();
-  
-  // Find existing broker
-  let broker = (entities.Broker || []).find(b => 
-    b.email && b.email.toLowerCase() === normalizedEmail
-  );
-  
-  if (!broker) {
-    // Create new broker record
-    const brokerId = `broker-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-    broker = {
-      id: brokerId,
-      email: email,
-      company_name: additionalInfo.company_name || additionalInfo.broker_name || 'Unknown',
-      contact_person: additionalInfo.contact_person || additionalInfo.broker_name || email,
-      phone: additionalInfo.phone || '',
-      status: 'active',
-      password: null, // Will be set when broker sets password
-      created_date: new Date().toISOString(),
-      ...additionalInfo
-    };
-    entities.Broker.push(broker);
-    console.log(`✅ Created new broker record for: ${email}`);
-  }
-  
-  return broker;
-}
 
 /**
  * Data migration: Move broker passwords from COI records to centralized Broker table
@@ -1069,45 +678,7 @@ function buildProgramFromText(text, pdfName = 'Program') {
 }
 
 // Passwords are hashed using bcrypt with salt rounds = 10
-// Admin password loaded from environment variable for security
-// SECURITY FIX: Require ADMIN_PASSWORD_HASH in production, no default fallback
-const ADMIN_PASSWORD_HASH = (() => {
-  if (process.env.ADMIN_PASSWORD_HASH) {
-    return process.env.ADMIN_PASSWORD_HASH;
-  }
-  
-  // In production, fail fast if admin password not configured
-  // Check for common production environment values
-  const isProduction = process.env.NODE_ENV === 'production' || 
-                       process.env.NODE_ENV === 'prod' ||
-                       process.env.NODE_ENV === 'live';
-  
-  if (isProduction) {
-    throw new Error('ADMIN_PASSWORD_HASH environment variable is required in production');
-  }
-  
-  // Development fallback with warning
-  console.warn('⚠️ WARNING: Using default admin password hash for development. Set ADMIN_PASSWORD_HASH in production!');
-  return '$2b$10$SdlYpKRtZWyeRtelxZazJ.E34HJK70pJCuAy4qXely62Z/LAvAzBO';
-})();
-
-let users = [
-  { id: '1', username: 'admin', password: ADMIN_PASSWORD_HASH, email: 'miriamsabel@insuretrack.onmicrosoft.com', name: 'Miriam Sabel', role: 'super_admin' }
-];
-
-// Password reset tokens storage (in production, use a database with TTL)
-// Format: { email: { token, expiresAt, used } }
-const passwordResetTokens = new Map();
-
-// Email validation helper
-// SECURITY FIX: Improved email validation regex to be more strict
-function validateEmail(email) {
-  // More comprehensive regex that validates proper email format
-  // Requires: local-part@domain.tld format with proper structure
-  // Prevents consecutive dots in domain part
-  const emailRegex = /^[a-zA-Z0-9._%-]+@[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}$/;
-  return emailRegex.test(email) && email.length <= 254; // RFC 5321 max length
-}
+// (Password hashing and authentication functions now in services/authService.js and utils/users.js)
 
 function generateTempPassword(length = 12) {
   // Use cryptographically secure random generation without modulo bias
@@ -1388,49 +959,10 @@ app.use(express.json({ limit: '10mb' }));
 // RATE LIMITING MIDDLEWARE
 // =======================
 
-// Rate limiting with different strategies
-// SECURITY FIX: Removed development mode skip - rate limiting should always be active
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: { error: 'Too many requests from this IP, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 login attempts per windowMs
-  message: { error: 'Too many login attempts, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: true // Don't count successful logins
-});
-
-const uploadLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 50, // Limit file uploads to 50 per hour per IP
-  message: { error: 'Too many file uploads, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
-const emailLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // Limit email sending to 5 per hour per IP to prevent spam/abuse
-  message: { error: 'Too many email requests, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
-// General rate limiter for public API endpoints
-const publicApiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30, // Limit public API requests to 30 per 15 minutes per IP
-  message: { error: 'Too many requests from this IP, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false
-});
+// =======================
+// RATE LIMITING AND MIDDLEWARE
+// =======================
+// (Rate limiters now imported from middleware/rateLimiting.js)
 
 // Apply rate limiting to routes
 app.use('/api/', apiLimiter);
@@ -1444,75 +976,8 @@ console.log('✅ Serving uploads from:', UPLOADS_DIR);
 // =======================
 // UTILITY MIDDLEWARE
 // =======================
-
-// Standard error response formatter
-const sendError = (res, statusCode, message, details = null) => {
-  const response = {
-    success: false,
-    error: message,
-    timestamp: new Date().toISOString()
-  };
-  if (details) response.details = details;
-  return res.status(statusCode).json(response);
-};
-
-// Standard success response formatter
-const sendSuccess = (res, data, statusCode = 200) => {
-  return res.status(statusCode).json({
-    success: true,
-    data,
-    timestamp: new Date().toISOString()
-  });
-};
-
-// Validation error handler middleware
-const handleValidationErrors = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return sendError(res, 400, 'Validation failed', errors.array());
-  }
-  next();
-};
-
-// Auth middleware
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  console.log('🔐 Auth check:', {
-    hasAuthHeader: !!authHeader,
-    hasToken: !!token,
-    path: req.path
-  });
-
-  if (!token) {
-    console.log('❌ No token provided');
-    return sendError(res, 401, 'Authentication token required');
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      console.log('❌ Token verification failed:', err.message);
-      return sendError(res, 403, 'Invalid or expired token');
-    }
-    console.log('✅ Token verified for user:', user.username);
-    req.user = user;
-    next();
-  });
-}
-
-// Admin-only middleware
-function requireAdmin(req, res, next) {
-  if (!req.user) {
-    return sendError(res, 401, 'Authentication required');
-  }
-  
-  if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
-    return sendError(res, 403, 'Admin access required');
-  }
-  
-  next();
-}
+// (Response formatters and validation now imported from middleware/validation.js)
+// (Auth middleware now imported from middleware/auth.js)
 
 // Health check
 app.get('/health', (req, res) => {
