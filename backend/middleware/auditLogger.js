@@ -76,7 +76,7 @@ export function auditMiddleware(eventType) {
           username: req.user?.username,
           method: req.method,
           url: req.url,
-          ip: req.ip || req.connection.remoteAddress,
+          ip: req.ip || req.socket.remoteAddress,
           userAgent: req.headers['user-agent'],
           statusCode: res.statusCode,
         });

@@ -21,7 +21,7 @@ import { upload } from './config/upload.js';
 // Import middleware
 import { apiLimiter, authLimiter, uploadLimiter, emailLimiter, publicApiLimiter } from './middleware/rateLimiting.js';
 import { sendError, sendSuccess, handleValidationErrors } from './middleware/validation.js';
-import { authenticateToken, requireAdmin, initializeAuthMiddleware } from './middleware/auth.js';
+import { authenticateToken, requireAdmin, initializeAuthMiddleware, optionalAuthentication } from './middleware/auth.js';
 import logger from './config/logger.js';
 import { correlationId, requestLogger, errorLogger } from './middleware/requestLogger.js';
 import { logAuth, AuditEventType } from './middleware/auditLogger.js';
@@ -1005,7 +1005,8 @@ console.log('✅ Serving uploads from:', UPLOADS_DIR);
 // (Auth middleware now imported from middleware/auth.js)
 
 // Enhanced health check endpoints
-app.get('/health', healthCheckHandler);
+// Health endpoint with optional authentication for detailed metrics
+app.get('/health', optionalAuthentication, healthCheckHandler);
 app.get('/health/readiness', readinessCheckHandler);
 app.get('/health/liveness', livenessCheckHandler);
 
