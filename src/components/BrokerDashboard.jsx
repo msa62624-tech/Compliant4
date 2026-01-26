@@ -320,14 +320,28 @@ export default function BrokerDashboard() {
                               </Button>
                             )}
                             
-                            {coi.coi_token && (coi.status === 'awaiting_broker_upload' || coi.status === 'awaiting_broker_signature' || coi.status === 'deficiency_pending') && (
+                            {coi.coi_token && (coi.status === 'awaiting_broker_upload' || coi.status === 'awaiting_broker_signature' || coi.status === 'deficiency_pending' || coi.status === 'pending_broker_signature') && (
                               <Button
                                 size="sm"
-                                onClick={() => window.location.href = `${window.location.origin}${createPageUrl('broker-upload-coi')}?token=${coi.coi_token}&step=1`}
+                                onClick={() => {
+                                  const isSignOnly = coi.status === 'awaiting_broker_signature' || coi.status === 'pending_broker_signature' || coi.is_reused;
+                                  const step = isSignOnly ? 3 : 1;
+                                  const action = isSignOnly ? 'sign' : 'upload';
+                                  window.location.href = `${window.location.origin}${createPageUrl('broker-upload-coi')}?token=${coi.coi_token}&step=${step}&action=${action}`;
+                                }}
                                 className="bg-red-600 hover:bg-red-700 text-white"
                               >
-                                <Upload className="w-4 h-4 mr-2" />
-                                Upload
+                                {coi.status === 'awaiting_broker_signature' || coi.status === 'pending_broker_signature' || coi.is_reused ? (
+                                  <>
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Sign
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    Upload
+                                  </>
+                                )}
                               </Button>
                             )}
 

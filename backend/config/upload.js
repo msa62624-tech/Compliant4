@@ -23,19 +23,28 @@ export const upload = multer({
   storage,
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
   fileFilter: function (req, file, cb) {
+    const lowerName = String(file.originalname || '').toLowerCase();
+
+    // Allow signature images (png/jpg) by filename hint
+    const isSignature = lowerName.startsWith('signature-') || lowerName.includes('signature');
+    const imageMimeTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+    const imageExts = ['.png', '.jpg', '.jpeg'];
+    const isImage = imageMimeTypes.includes(file.mimetype) && imageExts.some(ext => lowerName.endsWith(ext));
+    if (isSignature && isImage) {
+      return cb(null, true);
+    }
+
     // Only allow PDF files for insurance/policy documents
     const allowedMimeTypes = ['application/pdf'];
     const allowedExtensions = ['.pdf'];
-    
+
     const mimeTypeValid = allowedMimeTypes.includes(file.mimetype);
-    const extValid = allowedExtensions.some(ext => 
-      file.originalname.toLowerCase().endsWith(ext)
-    );
-    
+    const extValid = allowedExtensions.some(ext => lowerName.endsWith(ext));
+
     if (mimeTypeValid && extValid) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PDF files are allowed for insurance documents'));
+      return cb(null, true);
     }
+
+    return cb(new Error('Only PDF files are allowed for insurance documents'));
   }
 });

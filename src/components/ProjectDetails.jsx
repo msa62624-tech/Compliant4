@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { compliant } from "@/api/compliantClient";
+import { getApiBase, getAuthHeader } from "@/api/apiClient";
 import * as auth from "@/auth";
 import { sendEmail } from "@/emailHelper";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -611,373 +612,43 @@ export default function ProjectDetails() {
       const wcReq = allReqs.find(r => r.insurance_type === 'workers_compensation');
       const autoReq = allReqs.find(r => r.insurance_type === 'auto_liability');
 
-      // Generate sample COI - ALWAYS show all standard ACORD 25 sections
+      // Generate sample COI in backend (PDF for broker reference)
       let sampleCoiUrl = null;
       try {
-        const hasGL = !!(insuranceData?.insurance_carrier_gl); // Check if GL carrier exists
-        const _hasAuto = !!(insuranceData?.insurance_carrier_auto); // Check if Auto carrier exists
-        const hasUmbrella = !!(insuranceData?.insurance_carrier_umbrella); // Check if Umbrella carrier exists
-        const hasWC = !!(insuranceData?.insurance_carrier_wc); // Check if WC carrier exists
+        const apiBase = getApiBase();
+        const response = await fetch(`${apiBase}/integrations/generate-sample-coi`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader()
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            project_id: project.id,
+            project_name: project.project_name,
+            projectAddress: `${project.address}, ${project.city}, ${project.state} ${project.zip_code}`,
+            gc_name: project.gc_name,
+            gc_mailing_address: project.gc_address || project.gc_mailing_address || project.gc_address_line || '',
+            certificate_holder: project.gc_name,
+            program_id: project.program_id,
+            program: project.program_name || project.program_id,
+            trade: tradesText,
+            description_of_operations: description,
+            additional_insureds: project.additional_insured_entities || [],
+            owner_entity: project.owner_entity || '',
+            requires_umbrella: requiresUmbrella
+          })
+        });
 
-        const sampleCoiContent = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>${hasReusableInsurance ? 'Certificate' : 'SAMPLE'} - Certificate of Liability Insurance</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { 
-  font-family: 'Arial', sans-serif; 
-  font-size: 7pt; 
-  line-height: 1.2;
-  padding: 10px;
-  position: relative;
-}
-${!hasReusableInsurance ? `.watermark { 
-  position: fixed; 
-  top: 50%; 
-  left: 50%; 
-  transform: translate(-50%, -50%) rotate(-45deg);
-  font-size: 120pt; 
-  color: rgba(255,0,0,0.08); 
-  font-weight: bold;
-  z-index: 1000;
-  pointer-events: none;
-  white-space: nowrap;
-}` : ''}
-table { width: 100%; border-collapse: collapse; }
-td { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-size: 7pt; }
-.section-header { font-weight: bold; font-size: 6pt; background: #fff; }
-.small { font-size: 5pt; }
-.checkbox { display: inline-block; width: 10px; height: 10px; border: 1px solid #000; margin-right: 3px; vertical-align: middle; position: relative; }
-.checkbox.checked::after { content: 'X'; position: absolute; top: -2px; left: 2px; font-weight: bold; font-size: 9pt; }
-.acord-header { text-align: center; font-weight: bold; font-size: 14pt; margin-bottom: 5px; }
-.acord-subheader { text-align: right; font-size: 6pt; margin-bottom: 10px; }
-</style>
-</head>
-<body>
-
-${!hasReusableInsurance ? '<div class="watermark">SAMPLE<br/>BROKER REFERENCE</div>' : ''}
-
-<div class="acord-header">CERTIFICATE OF LIABILITY INSURANCE</div>
-<div class="acord-subheader">DATE (MM/DD/YYYY): ${format(new Date(), 'MM/dd/yyyy')}</div>
-
-<!-- Producer Section -->
-<table style="margin-bottom: 2px;">
-  <tr>
-    <td style="width: 50%; padding: 5px;">
-      <div class="section-header">PRODUCER</div>
-      <div style="margin-top: 8px; line-height: 1.4;">
-        <strong>${insuranceData?.broker_company || '[BROKER/AGENCY NAME]'}</strong><br/>
-        ${insuranceData?.broker_name ? insuranceData.broker_name + '<br/>' : '[Contact Name]<br/>'}
-        ${insuranceData?.broker_address || '[Address Line 1]'}<br/>
-        ${insuranceData?.broker_city && insuranceData?.broker_state ? insuranceData.broker_city + ', ' + insuranceData.broker_state + ' ' + (insuranceData?.broker_zip || '') + '<br/>' : '[City, State ZIP]<br/>'}
-        PHONE: ${insuranceData?.broker_phone || '[___] ___-____'}<br/>
-        E-MAIL: ${insuranceData?.broker_email || '[broker@agency.com]'}
-      </div>
-    </td>
-    <td style="width: 25%; padding: 5px;">
-      <div class="section-header">CONTACT NAME:</div>
-      <div style="margin-top: 8px;">${insuranceData?.broker_name || '[Broker Contact Name]'}</div>
-      <div class="section-header" style="margin-top: 10px;">PHONE: ${insuranceData?.broker_phone || '[___] ___-____'}</div>
-      <div class="section-header" style="margin-top: 5px;">E-MAIL ADDRESS:</div>
-      <div>${insuranceData?.broker_email || '[contact@agency.com]'}</div>
-    </td>
-    <td style="width: 25%; padding: 5px;">
-      <div class="section-header">INSURER(S) AFFORDING COVERAGE</div>
-      <div class="section-header" style="margin-top: 8px;">NAIC #</div>
-      <div style="margin-top: 3px;">
-        <strong>INSURER A:</strong> ${insuranceData?.insurance_carrier_gl || '_____________'} ${insuranceData?.gl_naic || '_____'}<br/>
-        <strong>INSURER B:</strong> ${insuranceData?.insurance_carrier_auto || '_____________'} ${insuranceData?.auto_naic || '_____'}<br/>
-        <strong>INSURER C:</strong> ${insuranceData?.insurance_carrier_umbrella || '_____________'} ${insuranceData?.umbrella_naic || '_____'}<br/>
-        <strong>INSURER D:</strong> ${insuranceData?.insurance_carrier_wc || '_____________'} ${insuranceData?.wc_naic || '_____'}
-      </div>
-    </td>
-  </tr>
-</table>
-
-<!-- Insured Section -->
-<table style="margin-bottom: 2px;">
-  <tr>
-    <td style="width: 50%; padding: 5px;">
-      <div class="section-header">INSURED</div>
-      <div style="margin-top: 8px; line-height: 1.4;">
-        <strong>${formData.subcontractor_name}</strong><br/>
-        ${existingSub?.address || '[Subcontractor Address]'}<br/>
-        ${existingSub?.city && existingSub?.state ? existingSub.city + ', ' + existingSub.state + ' ' + (existingSub?.zip_code || '') : '[City, State ZIP]'}
-      </div>
-    </td>
-    <td style="width: 50%; padding: 5px;">
-      <div class="section-header">CERTIFICATE NUMBER:</div>
-      <div>${hasReusableInsurance ? 'COI-' + Date.now() : 'SAMPLE-' + Date.now()}</div>
-      <div class="section-header" style="margin-top: 5px;">REVISION NUMBER:</div>
-      <div>___</div>
-    </td>
-  </tr>
-</table>
-
-<!-- THIS IS TO CERTIFY Section -->
-<table style="margin-bottom: 2px;">
-  <tr>
-    <td style="padding: 3px; font-size: 6pt;">
-      THIS IS TO CERTIFY THAT THE POLICIES OF INSURANCE LISTED BELOW HAVE BEEN ISSUED TO THE INSURED NAMED ABOVE FOR THE POLICY PERIOD
-      INDICATED. NOTWITHSTANDING ANY REQUIREMENT, TERM OR CONDITION OF ANY CONTRACT OR OTHER DOCUMENT WITH RESPECT TO WHICH THIS
-      CERTIFICATE MAY BE ISSUED OR MAY PERTAIN, THE INSURANCE AFFORDED BY THE POLICIES DESCRIBED HEREIN IS SUBJECT TO ALL THE TERMS,
-      EXCLUSIONS AND CONDITIONS OF SUCH POLICIES. LIMITS SHOWN MAY HAVE BEEN REDUCED BY PAID CLAIMS.
-    </td>
-  </tr>
-</table>
-
-<!-- Coverage Table - ALWAYS SHOW ALL SECTIONS -->
-<table style="margin-bottom: 2px;">
-  <tr style="background: #fff;">
-    <td style="width: 3%; text-align: center; font-weight: bold; font-size: 6pt;">INSR LTR</td>
-    <td style="width: 15%; font-weight: bold; font-size: 6pt;">TYPE OF INSURANCE</td>
-    <td style="width: 5%; text-align: center; font-weight: bold; font-size: 6pt;">ADDL INSD</td>
-    <td style="width: 5%; text-align: center; font-weight: bold; font-size: 6pt;">SUBR WVD</td>
-    <td style="width: 15%; font-weight: bold; font-size: 6pt;">POLICY NUMBER</td>
-    <td style="width: 10%; text-align: center; font-weight: bold; font-size: 6pt;">POLICY EFF (MM/DD/YYYY)</td>
-    <td style="width: 10%; text-align: center; font-weight: bold; font-size: 6pt;">POLICY EXP (MM/DD/YYYY)</td>
-    <td style="width: 37%; font-weight: bold; font-size: 6pt;">LIMITS</td>
-  </tr>
-  
-  <!-- GENERAL LIABILITY - ALWAYS SHOW -->
-  <tr>
-    <td style="text-align: center;">A</td>
-    <td>
-      <div><span class="checkbox ${hasGL ? 'checked' : ''}"></span> COMMERCIAL GENERAL LIABILITY</div>
-      <div style="margin-left: 15px;"><span class="checkbox"></span> CLAIMS-MADE <span class="checkbox ${hasGL ? 'checked' : ''}"></span> OCCUR</div>
-      <div style="margin-left: 5px; margin-top: 3px; font-size: 5pt;">
-        ${insuranceData?.gl_per_project_aggregate ? '<span class="checkbox checked"></span> Per Project Aggregate' : '<span class="checkbox"></span> General Aggregate applies per:'}
-      </div>
-    </td>
-    <td style="text-align: center;">${insuranceData?.gl_additional_insured ? 'X' : ''}</td>
-    <td style="text-align: center;">${insuranceData?.gl_waiver_of_subrogation ? 'X' : ''}</td>
-    <td>${insuranceData?.policy_number_gl || ''}</td>
-    <td style="text-align: center;">${insuranceData?.gl_effective_date ? format(new Date(insuranceData.gl_effective_date), 'MM/dd/yyyy') : ''}</td>
-    <td style="text-align: center;">${insuranceData?.gl_expiration_date ? format(new Date(insuranceData.gl_expiration_date), 'MM/dd/yyyy') : ''}</td>
-    <td>
-      <div>EACH OCCURRENCE: $${insuranceData?.gl_each_occurrence?.toLocaleString() || (glReq?.minimum_coverage?.toLocaleString() || '________')}</div>
-      <div>DAMAGE TO RENTED PREMISES: $${insuranceData?.gl_damage_rented_premises?.toLocaleString() || '________'}</div>
-      <div>MED EXP (Any one person): $${insuranceData?.gl_med_exp?.toLocaleString() || '________'}</div>
-      <div>PERSONAL & ADV INJURY: $${insuranceData?.gl_personal_adv_injury?.toLocaleString() || (glReq?.minimum_coverage?.toLocaleString() || '________')}</div>
-      <div>GENERAL AGGREGATE: $${insuranceData?.gl_general_aggregate?.toLocaleString() || (glReq?.gl_general_aggregate?.toLocaleString() || '________')}</div>
-      <div>PRODUCTS - COMP/OP AGG: $${insuranceData?.gl_products_completed_ops?.toLocaleString() || (glReq?.gl_products_completed_ops?.toLocaleString() || '________')}</div>
-    </td>
-  </tr>
-
-  <!-- AUTOMOBILE LIABILITY - ALWAYS SHOW -->
-  <tr>
-    <td style="text-align: center;">B</td>
-    <td>
-      <div>AUTOMOBILE LIABILITY</div>
-      <div style="margin-left: 5px;"><span class="checkbox ${insuranceData?.auto_any_auto ? 'checked' : ''}"></span> ANY AUTO</div>
-      <div style="margin-left: 5px;"><span class="checkbox ${insuranceData?.auto_owned_autos ? 'checked' : ''}"></span> ALL OWNED AUTOS</div>
-      <div style="margin-left: 5px;"><span class="checkbox ${insuranceData?.auto_scheduled_autos ? 'checked' : ''}"></span> SCHEDULED AUTOS</div>
-      <div style="margin-left: 5px;"><span class="checkbox ${insuranceData?.auto_hired_autos ? 'checked' : ''}"></span> HIRED AUTOS</div>
-      <div style="margin-left: 5px;"><span class="checkbox ${insuranceData?.auto_non_owned_autos ? 'checked' : ''}"></span> NON-OWNED AUTOS</div>
-    </td>
-    <td style="text-align: center;">${insuranceData?.auto_additional_insured ? 'X' : ''}</td>
-    <td style="text-align: center;">${insuranceData?.auto_waiver_of_subrogation ? 'X' : ''}</td>
-    <td>${insuranceData?.policy_number_auto || ''}</td>
-    <td style="text-align: center;">${insuranceData?.auto_effective_date ? format(new Date(insuranceData.auto_effective_date), 'MM/dd/yyyy') : ''}</td>
-    <td style="text-align: center;">${insuranceData?.auto_expiration_date ? format(new Date(insuranceData.auto_expiration_date), 'MM/dd/yyyy') : ''}</td>
-    <td>
-      <div>COMBINED SINGLE LIMIT: $${insuranceData?.auto_combined_single_limit?.toLocaleString() || (autoReq?.auto_combined_single_limit?.toLocaleString() || '________')}</div>
-      <div>BODILY INJURY (Per person): $${insuranceData?.auto_bi_per_person?.toLocaleString() || '________'}</div>
-      <div>BODILY INJURY (Per accident): $${insuranceData?.auto_bi_per_accident?.toLocaleString() || '________'}</div>
-      <div>PROPERTY DAMAGE: $${insuranceData?.auto_property_damage?.toLocaleString() || '________'}</div>
-    </td>
-  </tr>
-
-  <!-- UMBRELLA LIABILITY - ALWAYS SHOW -->
-  <tr>
-    <td style="text-align: center;">C</td>
-    <td>
-      <div><span class="checkbox ${hasUmbrella ? 'checked' : ''}"></span> UMBRELLA LIAB</div>
-      <div><span class="checkbox"></span> EXCESS LIAB</div>
-      <div style="margin-left: 15px;"><span class="checkbox"></span> CLAIMS-MADE</div>
-      <div style="margin-left: 15px;"><span class="checkbox ${hasUmbrella ? 'checked' : ''}"></span> OCCUR</div>
-    </td>
-    <td style="text-align: center;">${insuranceData?.umbrella_additional_insured ? 'X' : ''}</td>
-    <td style="text-align: center;">${insuranceData?.umbrella_waiver_of_subrogation ? 'X' : ''}</td>
-    <td>${insuranceData?.policy_number_umbrella || ''}</td>
-    <td style="text-align: center;">${insuranceData?.umbrella_effective_date ? format(new Date(insuranceData.umbrella_effective_date), 'MM/dd/yyyy') : ''}</td>
-    <td style="text-align: center;">${insuranceData?.umbrella_expiration_date ? format(new Date(insuranceData.umbrella_expiration_date), 'MM/dd/yyyy') : ''}</td>
-    <td>
-      <div>EACH OCCURRENCE: $${insuranceData?.umbrella_each_occurrence?.toLocaleString() || (umbReq?.umbrella_each_occurrence?.toLocaleString() || '________')}</div>
-      <div>AGGREGATE: $${insuranceData?.umbrella_aggregate?.toLocaleString() || (umbReq?.umbrella_aggregate?.toLocaleString() || '________')}</div>
-    </td>
-  </tr>
-
-  <!-- WORKERS COMPENSATION - ALWAYS SHOW -->
-  <tr>
-    <td style="text-align: center;">D</td>
-    <td>
-      <div>WORKERS COMPENSATION AND EMPLOYERS' LIABILITY</div>
-      <div style="margin-left: 5px;">ANY PROPRIETOR/PARTNER/EXECUTIVE OFFICER/MEMBER EXCLUDED? <span class="checkbox"></span> N/A</div>
-      <div style="font-size: 5pt; margin-top: 2px;">State: ${project.state}</div>
-    </td>
-    <td style="text-align: center;"></td>
-    <td style="text-align: center;">${insuranceData?.wc_waiver_of_subrogation ? 'X' : ''}</td>
-    <td>${insuranceData?.policy_number_wc || ''}</td>
-    <td style="text-align: center;">${insuranceData?.wc_effective_date ? format(new Date(insuranceData.wc_effective_date), 'MM/dd/yyyy') : ''}</td>
-    <td style="text-align: center;">${insuranceData?.wc_expiration_date ? format(new Date(insuranceData.wc_expiration_date), 'MM/dd/yyyy') : ''}</td>
-    <td>
-      <div>PER STATUTE: <span class="checkbox ${hasWC ? 'checked' : ''}"></span> OTHER</div>
-      <div>E.L. EACH ACCIDENT: $${insuranceData?.wc_each_accident?.toLocaleString() || (wcReq?.wc_each_accident?.toLocaleString() || '________')}</div>
-      <div>E.L. DISEASE - EA EMPLOYEE: $${insuranceData?.wc_disease_each_employee?.toLocaleString() || (wcReq?.wc_disease_each_employee?.toLocaleString() || '________')}</div>
-      <div>E.L. DISEASE - POLICY LIMIT: $${insuranceData?.wc_disease_policy_limit?.toLocaleString() || (wcReq?.wc_disease_policy_limit?.toLocaleString() || '________')}</div>
-    </td>
-  </tr>
-</table>
-
-<!-- DESCRIPTION OF OPERATIONS -->
-<table style="margin-bottom: 2px;">
-  <tr>
-    <td style="padding: 5px;">
-      <div class="section-header" style="margin-bottom: 5px;">DESCRIPTION OF OPERATIONS / LOCATIONS / VEHICLES</div>
-      <div style="line-height: 1.4; font-size: 6.5pt;">
-        <strong>PROJECT:</strong> ${project.project_name}<br/>
-        <strong>LOCATION:</strong> ${project.address}, ${project.city}, ${project.state} ${project.zip_code}<br/><br/>
-        
-        <strong>REQUIRED ENDORSEMENTS:</strong><br/>
-        ${description}<br/><br/>
-        
-        ${project.additional_insured_entities && project.additional_insured_entities.length > 0 ? 
-          `<strong>ADDITIONAL INSURED ENTITIES:</strong><br/>${project.owner_entity}<br/>${project.additional_insured_entities.join('<br/>')}` : 
-          ''}
-      </div>
-    </td>
-  </tr>
-</table>
-
-<!-- CERTIFICATE HOLDER -->
-<table style="margin-bottom: 2px;">
-  <tr>
-    <td style="width: 50%; padding: 5px;">
-      <div class="section-header">CERTIFICATE HOLDER</div>
-      <div style="margin-top: 8px; line-height: 1.4;">
-        <strong>${project.gc_name}</strong><br/>
-        ${project.gc_address || '[GC Address]'}
-      </div>
-    </td>
-    <td style="width: 50%; padding: 5px;">
-      <div class="section-header">CANCELLATION</div>
-      <div class="small" style="margin-top: 5px; line-height: 1.3;">
-        SHOULD ANY OF THE ABOVE DESCRIBED POLICIES BE CANCELLED BEFORE
-        THE EXPIRATION DATE THEREOF, NOTICE WILL BE DELIVERED IN
-        ACCORDANCE WITH THE POLICY PROVISIONS.
-      </div>
-      <div style="margin-top: 15px;">
-        <div class="section-header">AUTHORIZED REPRESENTATIVE</div>
-        <div style="margin-top: 20px; border-top: 1px solid #000; padding-top: 2px;">
-          ${insuranceData?.broker_signature_url ? `<img src="${insuranceData.broker_signature_url}" style="max-height: 30px;"/>` : '[Broker Signature Required]'}
-        </div>
-      </div>
-    </td>
-  </tr>
-</table>
-
-<!-- Footer -->
-<div style="margin-top: 5px; padding: 5px; border: 2px solid #000; text-align: center; background: ${hasReusableInsurance ? '#fff' : '#f0f0f0'};">
-  ${hasReusableInsurance ? '<div style="font-weight: bold; font-size: 8pt;">CERTIFICATE OF INSURANCE - PAGE 1 OF 2</div>' : '<div style="font-weight: bold; font-size: 8pt; color: #d00;">** SAMPLE CERTIFICATE - PAGE 1 OF 2 **</div>'}
-  <div class="small" style="margin-top: 3px;">
-    ${hasReusableInsurance ? 'Valid insurance certificate' : 'Broker to complete all coverage details and limits based on actual policies'}<br/>
-    ACORD 25 (2016/03) | © 1988-2015 ACORD CORPORATION. All rights reserved.
-  </div>
-</div>
-
-<!-- PAGE BREAK -->
-<div style="page-break-after: always;"></div>
-
-<!-- PAGE 2 - ADDITIONAL INSURED ENTITIES -->
-<div style="margin-top: 20px;">
-  <div class="acord-header" style="margin-bottom: 10px;">ADDITIONAL INSURED ENTITIES</div>
-  <div style="text-align: right; font-size: 6pt; margin-bottom: 10px;">PAGE 2 OF 2</div>
-
-  <table style="margin-bottom: 10px;">
-    <tr>
-      <td style="padding: 5px; background: #f0f0f0;">
-        <div style="font-weight: bold; margin-bottom: 5px;">Project Information</div>
-        <div style="font-size: 7pt;">
-          <strong>Project:</strong> ${project.project_name}<br/>
-          <strong>Location:</strong> ${project.address}, ${project.city}, ${project.state} ${project.zip_code}<br/>
-          <strong>Named Insured:</strong> ${formData.subcontractor_name}
-        </div>
-      </td>
-    </tr>
-  </table>
-
-  <table>
-    <tr style="background: #fff;">
-      <td style="padding: 8px; border: 2px solid #000;">
-        <div style="font-weight: bold; font-size: 8pt; margin-bottom: 10px; text-decoration: underline;">
-          THE FOLLOWING ENTITIES MUST BE LISTED AS ADDITIONAL INSURED:
-        </div>
-
-        <div style="margin-bottom: 15px;">
-          <div style="font-weight: bold; font-size: 7pt; color: #333; margin-bottom: 5px;">CERTIFICATE HOLDER:</div>
-          <div style="font-size: 8pt; padding: 5px; background: #f9f9f9; border-left: 3px solid #2563eb;">
-            <strong>${project.gc_name}</strong><br/>
-            ${project.gc_address || '[GC Address]'}
-          </div>
-        </div>
-
-        ${project.owner_entity ? `
-        <div style="margin-bottom: 15px;">
-          <div style="font-weight: bold; font-size: 7pt; color: #333; margin-bottom: 5px;">OWNER/DEVELOPER:</div>
-          <div style="font-size: 8pt; padding: 5px; background: #f9f9f9; border-left: 3px solid #10b981;">
-            ${project.owner_entity}
-          </div>
-        </div>
-        ` : ''}
-
-        ${project.additional_insured_entities && project.additional_insured_entities.length > 0 ? `
-        <div style="margin-bottom: 10px;">
-          <div style="font-weight: bold; font-size: 7pt; color: #333; margin-bottom: 5px;">ADDITIONAL INSURED ENTITIES:</div>
-          ${project.additional_insured_entities.map((entity, idx) => `
-            <div style="font-size: 8pt; padding: 5px; background: #f9f9f9; border-left: 3px solid #f59e0b; margin-bottom: 5px;">
-              ${idx + 1}. ${entity}
-            </div>
-          `).join('')}
-        </div>
-        ` : ''}
-
-        <div style="margin-top: 20px; padding: 10px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 4px;">
-          <div style="font-weight: bold; font-size: 7pt; color: #92400e; margin-bottom: 5px;">⚠️ IMPORTANT NOTICE TO BROKER:</div>
-          <div style="font-size: 6pt; color: #92400e; line-height: 1.4;">
-            All entities listed above MUST be included as Additional Insured on the General Liability${project.additional_insured_entities && project.additional_insured_entities.length > 0 ? ' and Umbrella' : ''} policies. 
-            Policies must include endorsements for ongoing and completed operations on a primary and non-contributory basis.
-            Blanket Additional Insured language with privity requirements is NOT acceptable.
-          </div>
-        </div>
-      </td>
-    </tr>
-  </table>
-
-  <!-- Page 2 Footer -->
-  <div style="margin-top: 10px; padding: 5px; border: 2px solid #000; text-align: center; background: ${hasReusableInsurance ? '#fff' : '#f0f0f0'};">
-    ${hasReusableInsurance ? '<div style="font-weight: bold; font-size: 8pt;">CERTIFICATE OF INSURANCE - PAGE 2 OF 2</div>' : '<div style="font-weight: bold; font-size: 8pt; color: #d00;">** SAMPLE CERTIFICATE - PAGE 2 OF 2 **</div>'}
-    <div class="small" style="margin-top: 3px;">
-      Additional Insured Requirements | ACORD 25 (2016/03)
-    </div>
-  </div>
-</div>
-
-</body>
-</html>`;
-
-        // Upload the HTML as a file
-        const htmlBlob = new Blob([sampleCoiContent], { type: 'text/html' });
-        const htmlFile = new File([htmlBlob], `${hasReusableInsurance ? 'coi' : 'sample'}-acord25-${coiToken}.html`, { type: 'text/html' });
-
-        const uploadResult = await compliant.integrations.Core.UploadFile({ file: htmlFile });
-        sampleCoiUrl = uploadResult.file_url;
-
+        if (response.ok) {
+          const result = await response.json();
+          sampleCoiUrl = result.file_url || result.url || null;
+        } else {
+          const errText = await response.text();
+          console.error('Failed to generate sample COI (backend):', response.status, errText);
+        }
       } catch (error) {
         console.error('Failed to generate sample COI:', error);
-        // Continue without sample COI if generation or upload fails
       }
 
       // Get all admin emails from the User entity

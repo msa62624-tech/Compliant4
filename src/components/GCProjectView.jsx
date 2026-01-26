@@ -222,8 +222,7 @@ export default function GCProjectView() {
             subcontractor_id: created.subcontractor_id || created.id,
             subcontractor_name: form.subcontractor_name,
             trade_type: form.trade,
-            project_sub_id: created.id,
-            contact_email: form.contact_email.trim()
+            project_sub_id: created.id
           })
         });
         

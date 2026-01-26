@@ -1,9 +1,9 @@
+import { getFrontendBaseUrl, getBackendBaseUrl, createBrokerUploadLink, createBrokerDashboardLink } from "@/urlConfig";
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { createUserCredentials, generateSecurePassword } from "@/passwordUtils";
-import { getFrontendBaseUrl, createBrokerDashboardLink } from "@/urlConfig";
 import { notifyAdminBrokerChanged } from "@/coiNotifications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -148,6 +148,26 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
       return;
     }
 
+    // Load projects for this subcontractor to include GC + job location
+    let projects = [];
+    try {
+      const projectsResponse = await apiClient.api.get(`/public/projects-for-sub/${subcontractor.id}`);
+      projects = Array.isArray(projectsResponse) ? projectsResponse : [];
+    } catch (_projErr) {
+      projects = [];
+    }
+    const primaryProject = projects
+      .slice()
+      .sort((a, b) => new Date(b.createdAt || b.created_date || 0) - new Date(a.createdAt || a.created_date || 0))
+      [0] || null;
+    const projectLocation = primaryProject
+      ? `${primaryProject.address || ''}, ${primaryProject.city || ''}, ${primaryProject.state || ''} ${primaryProject.zip_code || ''}`.replace(/\s+,/g, ',').replace(/,\s*,/g, ',').trim()
+      : (subcontractor.address || subcontractor.city || subcontractor.company_name);
+    const gcName = primaryProject?.gc_name || subcontractor.gc_name || subcontractor.company_name;
+    const gcMailingAddress = primaryProject
+      ? `${primaryProject.gc_address || ''}, ${primaryProject.gc_city || ''}, ${primaryProject.gc_state || ''} ${primaryProject.gc_zip || ''}`.replace(/\s+,/g, ',').replace(/,\s*,/g, ',').trim()
+      : '';
+
     // Detect if brokers changed by comparing with existing
     const existingBrokers = Array.isArray(subcontractor.brokers) ? subcontractor.brokers : [];
     const brokersChanged = JSON.stringify(existingBrokers) !== JSON.stringify(brokers);
@@ -161,10 +181,6 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
     // If brokers were changed, notify admin and generate new COI/policy requests
     if (brokersChanged) {
       try {
-        // Fetch projects for this subcontractor
-        const projectsResponse = await apiClient.get(`/public/projects-for-sub/${subcontractor.id}`);
-        const projects = projectsResponse.data || [];
-        
         // Notify admin of broker change
         await notifyAdminBrokerChanged(subcontractor, brokers, existingBrokers, projects);
         toast.success("Admin notified of broker change");
@@ -178,6 +194,7 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
     // BUT: Only for newly added brokers, not existing ones
     try {
       const baseUrl = getFrontendBaseUrl();
+      const backendBase = getBackendBaseUrl();
       const brokerLoginLink = `${baseUrl}/broker-login`;
       const existingBrokerEmails = new Set(existingBrokers.map(b => b.email?.toLowerCase()));
 
@@ -193,10 +210,9 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
         // ONLY generate password for NEW brokers on first assignment
         const password = generateSecurePassword();
         const brokerDashboardLink = createBrokerDashboardLink(broker.name, broker.email);
-
         // Generate a token up front so email link, upload request, and GeneratedCOI all align
         const uploadToken = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 10);
-        const brokerUploadLink = `${baseUrl}/broker-upload-coi?token=${uploadToken}&step=1`;
+        const brokerUploadLink = createBrokerUploadLink(uploadToken, 1);
         const assignedPolicies = Object.entries(broker.policies)
           .filter(([_, selected]) => selected)
           .map(([policy]) => {
@@ -204,7 +220,7 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
             return labels[policy];
           })
           .join(", ") || (subcontractor.trade_types?.join(', ') || 'General Construction');
-        const projectLocation = subcontractor.address || subcontractor.city || subcontractor.company_name;
+        const projectName = primaryProject?.project_name || subcontractor.company_name;
 
         try {
           await sendEmail({
@@ -212,14 +228,17 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
             subject: `Insurance Broker Account Setup - ${subcontractor.company_name}`,
             body: `Hello ${broker.name || ""},\n\nYou have been designated as the insurance broker for ${subcontractor.company_name}.\n\nAssigned Policies: ${assignedPolicies}\n\nLOGIN CREDENTIALS:\nEmail: ${broker.email}\nPassword: ${password}\n\nQuick Actions:\n- Upload insurance for this subcontractor: ${brokerUploadLink}\n- Access your broker dashboard: ${brokerDashboardLink}\n- Login page (same credentials): ${brokerLoginLink}\n\nYou can manage all COI requests through your dashboard. Change your password in account settings after logging in.\n\nThank you.`,
             includeSampleCOI: true,
+            recipientIsBroker: true,
             sampleCOIData: {
               trade: assignedPolicies || 'General Construction',
-              program: subcontractor.program_name || subcontractor.program_id || 'Standard Program',
-              gc_name: subcontractor.company_name,
-              project_name: subcontractor.company_name,
+              program: primaryProject?.program_name || primaryProject?.program_id || subcontractor.program_name || subcontractor.program_id || 'Standard Program',
+              program_id: primaryProject?.program_id,
+              gc_name: gcName,
+              gc_mailing_address: gcMailingAddress,
+              project_name: projectName,
               projectAddress: projectLocation,
-              certificate_holder: subcontractor.company_name,
-              additional_insureds: [subcontractor.company_name].filter(Boolean),
+              certificate_holder: gcName,
+              additional_insureds: [gcName].filter(Boolean),
               insured_name: subcontractor.company_name,
             }
           });
@@ -249,8 +268,8 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
             broker_company: broker.company,
             subcontractor_id: subId,
             subcontractor_name: subcontractor.company_name,
-            project_id: null,
-            project_name: null,
+            project_id: primaryProject?.id || null,
+            project_name: primaryProject?.project_name || null,
             status: 'pending',
             sent_date: new Date().toISOString(),
             upload_token: uploadToken,
@@ -265,9 +284,12 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
             broker_company: broker.company,
             subcontractor_id: subId,
             subcontractor_name: subcontractor.company_name,
-            project_id: null,
-            project_name: subcontractor.company_name,
+            project_id: primaryProject?.id || null,
+            project_name: primaryProject?.project_name || projectName,
             project_address: projectLocation,
+            gc_name: gcName,
+            certificate_holder: gcName,
+            certificate_holder_address: gcMailingAddress || null,
             trade_type: assignedPolicies,
             created_date: new Date().toISOString(),
           });
@@ -284,6 +306,49 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
         } catch (passwordErr) {
           console.error(`Failed to set password for broker ${broker.email}:`, passwordErr);
           toast.warning(`Password for ${broker.email} may not be set - they may need password reset`);
+        }
+      }
+
+      // Always create a fresh COI request for the current project so brokers (including existing) receive a sample COI
+      if (primaryProject?.id) {
+        for (const broker of brokers) {
+          if (!broker.email) continue;
+          const assignedPolicies = Object.entries(broker.policies)
+            .filter(([_, selected]) => selected)
+            .map(([policy]) => {
+              const labels = { gl: "General Liability", auto: "Auto Liability", wc: "Workers Compensation", umbrella: "Umbrella" };
+              return labels[policy];
+            })
+            .join(", ") || (subcontractor.trade_types?.join(', ') || 'General Construction');
+          const tradeForRequirements = Array.isArray(subcontractor.trade_types) && subcontractor.trade_types.length > 0
+            ? subcontractor.trade_types.join(', ')
+            : (primaryProject?.trade_type || subcontractor.trade_type || 'General Construction');
+
+          try {
+            await fetch(`${backendBase}/public/create-coi-request`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                project_id: primaryProject.id,
+                project_name: primaryProject.project_name,
+                gc_id: primaryProject.gc_id,
+                gc_name: primaryProject.gc_name,
+                subcontractor_id: subcontractor.id,
+                subcontractor_name: subcontractor.company_name,
+                trade_type: tradeForRequirements,
+                project_sub_id: primaryProject.project_sub_id || undefined,
+                broker_email: broker.email,
+                broker_name: broker.name,
+                contact_email: broker.email,
+                certificate_holder: primaryProject.gc_name,
+                certificate_holder_address: gcMailingAddress || undefined,
+                additional_insureds: [primaryProject.gc_name].filter(Boolean),
+                project_location: projectLocation
+              })
+            });
+          } catch (reqErr) {
+            console.error(`Failed to create COI request for ${broker.email}:`, reqErr);
+          }
         }
       }
       

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { apiClient } from "@/api/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getApiBase } from "@/api/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -598,7 +599,8 @@ function COIDetailPanel({
                     project_address: project?.project_address || project?.project_location || project?.address || '',
                     project_name: project?.project_name || coi.project_name || ''
                   };
-                  const res = await fetch(`/public/regenerate-coi`, {
+                  const apiBase = getApiBase();
+                  const res = await fetch(`${apiBase}/public/regenerate-coi`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
@@ -609,7 +611,10 @@ function COIDetailPanel({
                   queryClient.invalidateQueries(['allCOIs']);
                   // Open regenerated COI URL if present
                   if (result?.regenerated_coi_url) {
-                    window.open(result.regenerated_coi_url, '_blank');
+                    const normalized = result.regenerated_coi_url
+                      .replace(/^https?:\/\/localhost:\d+/, apiBase)
+                      .replace(/^https?:\/\/127\.0\.0\.1:\d+/, apiBase);
+                    window.open(normalized, '_blank');
                   }
                 } catch (err) {
                   console.error('Generate COI error:', err?.message || err);

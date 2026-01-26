@@ -6,22 +6,70 @@
 echo "🚀 Starting InsureTrack..."
 echo ""
 
+# Detect Codespaces/public URLs when available
+if [ -n "$CODESPACE_NAME" ] && [ -n "$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN" ]; then
+    FRONTEND_URL_DEFAULT="https://${CODESPACE_NAME}-5175.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
+    BACKEND_URL_DEFAULT="https://${CODESPACE_NAME}-3001.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
+else
+    FRONTEND_URL_DEFAULT="http://localhost:5175"
+    BACKEND_URL_DEFAULT="http://localhost:3001"
+fi
+
 # Check if .env files exist
 if [ ! -f ".env" ]; then
     echo "⚠️  Frontend .env file missing - creating..."
-    cat > .env << 'EOF'
-VITE_API_BASE_URL=http://localhost:3001
+    if [ -n "$CODESPACE_NAME" ] && [ -n "$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN" ]; then
+        cat > .env << EOF
+VITE_API_BASE_URL=${FRONTEND_URL_DEFAULT}
+VITE_FRONTEND_URL=${FRONTEND_URL_DEFAULT}
+VITE_PROXY_TARGET=http://localhost:3001
 EOF
+    else
+        cat > .env << EOF
+VITE_API_BASE_URL=${BACKEND_URL_DEFAULT}
+VITE_FRONTEND_URL=${FRONTEND_URL_DEFAULT}
+VITE_PROXY_TARGET=http://localhost:3001
+EOF
+    fi
     echo "✅ Frontend .env created"
+else
+    if [ -n "$CODESPACE_NAME" ] && [ -n "$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN" ]; then
+        if grep -q "^VITE_API_BASE_URL=" .env; then
+            sed -i "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${FRONTEND_URL_DEFAULT}|" .env
+        else
+            echo "VITE_API_BASE_URL=${FRONTEND_URL_DEFAULT}" >> .env
+        fi
+    else
+        if grep -q "^VITE_API_BASE_URL=" .env; then
+            sed -i "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${BACKEND_URL_DEFAULT}|" .env
+        else
+            echo "VITE_API_BASE_URL=${BACKEND_URL_DEFAULT}" >> .env
+        fi
+    fi
+
+    if grep -q "^VITE_FRONTEND_URL=" .env; then
+        if [ "$FRONTEND_URL_DEFAULT" != "http://localhost:5175" ]; then
+            sed -i "s|^VITE_FRONTEND_URL=.*|VITE_FRONTEND_URL=${FRONTEND_URL_DEFAULT}|" .env
+        fi
+    else
+        echo "VITE_FRONTEND_URL=${FRONTEND_URL_DEFAULT}" >> .env
+    fi
+
+    if grep -q "^VITE_PROXY_TARGET=" .env; then
+        sed -i "s|^VITE_PROXY_TARGET=.*|VITE_PROXY_TARGET=http://localhost:3001|" .env
+    else
+        echo "VITE_PROXY_TARGET=http://localhost:3001" >> .env
+    fi
 fi
 
 if [ ! -f "backend/.env" ]; then
     echo "⚠️  Backend .env file missing - creating with default settings..."
-    cat > backend/.env << 'EOF'
+    cat > backend/.env << EOF
 PORT=3001
 NODE_ENV=development
 JWT_SECRET=insuretrack-secret-2026-change-in-production
-FRONTEND_URL=http://localhost:5175
+FRONTEND_URL=${FRONTEND_URL_DEFAULT}
+BACKEND_URL=${BACKEND_URL_DEFAULT}
 SMTP_HOST=smtp.office365.com
 SMTP_PORT=587
 SMTP_USER=miriamsabel@insuretrack.onmicrosoft.com
@@ -32,12 +80,28 @@ SMTP_REQUIRE_TLS=true
 ADMIN_EMAILS=miriamsabel@insuretrack.onmicrosoft.com
 EOF
     echo "✅ Backend .env created"
+else
+    if grep -q "^FRONTEND_URL=" backend/.env; then
+        if [ "$FRONTEND_URL_DEFAULT" != "http://localhost:5175" ]; then
+            sed -i "s|^FRONTEND_URL=.*|FRONTEND_URL=${FRONTEND_URL_DEFAULT}|" backend/.env
+        fi
+    else
+        echo "FRONTEND_URL=${FRONTEND_URL_DEFAULT}" >> backend/.env
+    fi
+
+    if grep -q "^BACKEND_URL=" backend/.env; then
+        if [ "$BACKEND_URL_DEFAULT" != "http://localhost:3001" ]; then
+            sed -i "s|^BACKEND_URL=.*|BACKEND_URL=${BACKEND_URL_DEFAULT}|" backend/.env
+        fi
+    else
+        echo "BACKEND_URL=${BACKEND_URL_DEFAULT}" >> backend/.env
+    fi
 fi
 
 echo ""
 echo "📋 Configuration Summary:"
-echo "  Frontend: http://localhost:5175"
-echo "  Backend:  http://localhost:3001"
+echo "  Frontend: ${FRONTEND_URL_DEFAULT}"
+echo "  Backend:  ${BACKEND_URL_DEFAULT}"
 echo "  Email:    miriamsabel@insuretrack.onmicrosoft.com"
 echo ""
 

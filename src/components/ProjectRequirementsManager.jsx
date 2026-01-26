@@ -230,9 +230,9 @@ export default function ProjectRequirementsManager({ projectId, projectName: _pr
               </div>
             ) : (
               <div className="space-y-4">
-                {requirementsByTier[tier].map((req) => (
+                {requirementsByTier[tier].map((req, idx) => (
                   <RequirementCard
-                    key={req.id}
+                    key={`${req.id}-${idx}`}
                     requirement={req}
                     onDelete={() => deleteMutation.mutate(req.id)}
                     isDeleting={deleteMutation.isPending}

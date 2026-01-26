@@ -77,15 +77,12 @@ app.set('trust proxy', 1);
 function migrateBrokerPasswords() {
   let migratedCount = 0;
   let cleanupSuccessful = false;
-  
+
   try {
-    const brokerPasswordMap = new Map(); // email -> {password, count, sources}
-    
-    // Collect all broker passwords from COI records, tracking conflicts
+    const brokerPasswordMap = new Map();
     (entities.GeneratedCOI || []).forEach((coi, index) => {
       if (coi.broker_email && coi.broker_password) {
-        const email = coi.broker_email.toLowerCase();
-        
+        const email = String(coi.broker_email).toLowerCase();
         if (!brokerPasswordMap.has(email)) {
           brokerPasswordMap.set(email, {
             password: coi.broker_password,
@@ -98,20 +95,15 @@ function migrateBrokerPasswords() {
           existing.count++;
           existing.sources.push(index);
           existing.uniquePasswords.add(coi.broker_password);
-          
-          // Log conflict if multiple different passwords exist
-          // Note: Email addresses are partially masked to reduce exposure in logs
-          // while still allowing administrators to identify accounts with conflicts
+
           if (existing.uniquePasswords.size > 1 && !existing.conflictLogged) {
-            // Mask email for logging (keep first 3 chars and domain)
-            // Handle malformed emails safely to prevent runtime errors
             let maskedEmail = email || 'unknown';
             if (email && email.includes('@')) {
               const parts = email.split('@');
               const localPart = parts[0] || '';
               const domain = parts[1] || 'unknown';
-              maskedEmail = localPart.length > 3 
-                ? `${localPart.substring(0, 3)}***@${domain}` 
+              maskedEmail = localPart.length > 3
+                ? `${localPart.substring(0, 3)}***@${domain}`
                 : `***@${domain}`;
             }
             console.warn(`⚠️ Password conflict detected for broker: ${maskedEmail} (found ${existing.uniquePasswords.size} different passwords across ${existing.count} COI records, keeping first)`);
@@ -120,8 +112,7 @@ function migrateBrokerPasswords() {
         }
       }
     });
-    
-    // Migrate passwords to Broker table
+
     brokerPasswordMap.forEach((data, email) => {
       const broker = getOrCreateBroker(email);
       if (broker && !broker.password) {
@@ -129,18 +120,15 @@ function migrateBrokerPasswords() {
         if (brokerIndex !== -1) {
           entities.Broker[brokerIndex].password = data.password;
           migratedCount++;
-          
-          // Log if multiple passwords were found
+
           if (data.count > 1) {
-            // Mask email for logging (keep first 3 chars and domain)
-            // Handle malformed emails safely to prevent runtime errors
             let maskedEmail = email || 'unknown';
             if (email && email.includes('@')) {
               const parts = email.split('@');
               const localPart = parts[0] || '';
               const domain = parts[1] || 'unknown';
-              maskedEmail = localPart.length > 3 
-                ? `${localPart.substring(0, 3)}***@${domain}` 
+              maskedEmail = localPart.length > 3
+                ? `${localPart.substring(0, 3)}***@${domain}`
                 : `***@${domain}`;
             }
             console.log(`  ℹ️ Migrated password for ${maskedEmail} (consolidated from ${data.count} COI records)`);
@@ -148,19 +136,15 @@ function migrateBrokerPasswords() {
         }
       }
     });
-    
-    // Mark migration as successful before cleanup
+
     cleanupSuccessful = true;
-    
   } catch (error) {
     console.error('❌ Error migrating broker passwords:', error.message);
     cleanupSuccessful = false;
   }
-  
-  // Only perform cleanup if migration was successful
+
   if (cleanupSuccessful) {
     try {
-      // Remove broker_password fields from COI records (cleanup)
       entities.GeneratedCOI = (entities.GeneratedCOI || []).map(coi => {
         if (coi.broker_password) {
           // eslint-disable-next-line no-unused-vars
@@ -169,14 +153,13 @@ function migrateBrokerPasswords() {
         }
         return coi;
       });
-      
+
       if (migratedCount > 0) {
         console.log(`✅ Migrated ${migratedCount} broker password(s) to centralized Broker table`);
         debouncedSave();
       }
     } catch (cleanupError) {
       console.error('❌ Error during migration cleanup:', cleanupError.message);
-      // Migration succeeded but cleanup failed - this is not critical
     }
   }
 }
@@ -193,7 +176,6 @@ function seedBrokersFromData() {
 
     const seenEmails = new Set((entities.Broker || []).map(b => (b.email || '').toLowerCase()));
 
-    // Seed from contractor broker lists
     (entities.Contractor || []).forEach(c => {
       if (Array.isArray(c.brokers)) {
         c.brokers.forEach(b => {
@@ -205,14 +187,11 @@ function seedBrokersFromData() {
             contact_person: b.name || b.company || email,
             phone: b.phone || '',
           });
-          if (broker) {
-            seenEmails.add(email);
-          }
+          if (broker) seenEmails.add(email);
         });
       }
     });
 
-    // Seed from COI records
     (entities.GeneratedCOI || []).forEach(coi => {
       const email = (coi.broker_email || '').toLowerCase();
       if (!email || seenEmails.has(email)) return;
@@ -221,9 +200,7 @@ function seedBrokersFromData() {
         company_name: coi.broker_name || 'Unknown',
         contact_person: coi.broker_name || email,
       });
-      if (broker) {
-        seenEmails.add(email);
-      }
+      if (broker) seenEmails.add(email);
     });
 
     if (seenEmails.size > 0) {
@@ -255,17 +232,13 @@ function cleanupPlaceholderGCs() {
     if (!placeholders.length) return;
 
     const realGCs = contractors.filter(c => c.contractor_type === 'general_contractor' && !isPlaceholder(c));
-    // Keep the placeholder if it's the only GC available
     if (!realGCs.length) return;
 
     placeholders.forEach(ph => {
-      // Remove contractor
       entities.Contractor = entities.Contractor.filter(c => c.id !== ph.id);
-      // Remove associated GC user accounts
       if (entities.User) {
         entities.User = entities.User.filter(u => u.gc_id !== ph.id);
       }
-      // Remove associated GC portals
       if (entities.Portal) {
         entities.Portal = entities.Portal.filter(p => p.user_id !== ph.id);
       }
@@ -1995,6 +1968,30 @@ app.post('/integrations/nyc/property', authenticateToken, async (req, res) => {
 async function generateSampleCOIPDF(data = {}) {
   return new Promise((resolve, reject) => {
     try {
+      // Normalize project-derived fields if missing
+      try {
+        const projectId = data.project_id || data.projectId;
+        const projectName = data.project_name || data.projectName;
+        const proj = (entities.Project || []).find(p => p.id === projectId || p.project_name === projectName);
+        if (proj) {
+          if (!data.gc_name) data.gc_name = proj.gc_name;
+          if (!data.projectAddress && (proj.address || proj.city || proj.state || proj.zip_code)) {
+            data.projectAddress = `${proj.address || ''}, ${proj.city || ''}, ${proj.state || ''} ${proj.zip_code || ''}`
+              .replace(/\s+,/g, ',')
+              .replace(/,\s*,/g, ',')
+              .trim();
+          }
+          if (!data.gc_mailing_address) {
+            const addrLine = proj.gc_address || proj.gc_mailing_address || proj.gc_address_line || '';
+            const city = proj.gc_city || '';
+            const state = proj.gc_state || '';
+            const zip = proj.gc_zip || '';
+            const assembled = `${addrLine}${addrLine && (city || state || zip) ? ', ' : ''}${city}${city && (state || zip) ? ', ' : ''}${state}${state && zip ? ' ' : ''}${zip}`.trim();
+            data.gc_mailing_address = assembled || null;
+          }
+        }
+      } catch (_) {}
+
       // Fetch program requirements if program is specified
       let programRequirements = null;
       if (data.program || data.program_id) {
@@ -2006,13 +2003,17 @@ async function generateSampleCOIPDF(data = {}) {
               programId = programs[0].id;
             }
           }
+          const projectId = data.project_id || data.projectId;
           if (programId) {
-            // Check both SubInsuranceRequirement and ProgramRequirement
-            programRequirements = [
+            const projectRequirements = projectId
+              ? (entities.ProjectInsuranceRequirement?.filter(req => req.project_id === projectId) || [])
+              : [];
+            const programLevel = [
               ...(entities.SubInsuranceRequirement?.filter(req => req.program_id === programId) || []),
               ...(entities.ProgramRequirement?.filter(req => req.program_id === programId) || [])
             ];
-            console.log(`📋 Found ${programRequirements.length} program requirements for program ${programId}`);
+            programRequirements = projectRequirements.length > 0 ? projectRequirements : programLevel;
+            console.log(`📋 Found ${programRequirements.length} requirements for program ${programId}${projectRequirements.length > 0 ? ' (project-specific)' : ''}`);
           }
         } catch (err) {
           console.warn('Could not fetch program requirements:', err?.message);
@@ -2021,36 +2022,79 @@ async function generateSampleCOIPDF(data = {}) {
 
       // Determine trade tier and requirements
       let tradeRequirements = null;
-      if (data.trade && programRequirements && programRequirements.length > 0) {
-        const tradesList = data.trade.split(',').map(t => t.trim().toLowerCase());
+      if (programRequirements && programRequirements.length > 0) {
+        const normalizeTrades = (list) => (Array.isArray(list) ? list : [])
+          .map(t => String(t).trim().toLowerCase())
+          .filter(Boolean);
+        const tradesList = data.trade ? data.trade.split(',').map(t => t.trim().toLowerCase()) : [];
+
         tradeRequirements = programRequirements.filter(req => {
-          const applicableTrades = req.applicable_trades || [];
-          // Also check trade_name for direct match
-          const tradeName = (req.trade_name || '').toLowerCase();
-          const scope = (req.scope || '').toLowerCase();
-          
-          // Check if requirement applies to "All Trades"
-          if (applicableTrades.some(t => t.toLowerCase() === 'all trades') || 
-              tradeName === 'all trades') {
+          const applicableTrades = normalizeTrades(req.applicable_trades || req.trade_types || req.trades);
+          const tradeName = String(req.trade_name || '').toLowerCase();
+          const scope = String(req.scope || '').toLowerCase();
+
+          if (applicableTrades.some(t => t === 'all trades') || tradeName === 'all trades') {
             return true;
           }
-          
-          // Check if requirement is marked as "all other trades" or tier D fallback
-          if (req.is_all_other_trades || 
-              tradeName.includes('all other') || 
-              scope.includes('all other')) {
+
+          if (req.is_all_other_trades || tradeName.includes('all other') || scope.includes('all other')) {
             return true;
           }
-          
-          // Check for exact or partial trade match
-          return applicableTrades.some(t => tradesList.includes(t.toLowerCase())) ||
+
+          if (tradesList.length === 0) {
+            return true;
+          }
+
+          return applicableTrades.some(t => tradesList.includes(t)) ||
                  tradesList.some(t => tradeName.includes(t) || t.includes(tradeName) || scope.includes(t));
         });
-        console.log(`📋 Matched ${tradeRequirements.length} requirements for trade(s): ${data.trade}`);
+
+        console.log(`📋 Matched ${tradeRequirements.length} requirements for trade(s): ${data.trade || 'all'}`);
       }
 
+      // If no trade requirements matched, fall back to "all other trades" tier or program-wide requirements
+      if (!tradeRequirements || tradeRequirements.length === 0) {
+        const allOtherReqs = Array.isArray(programRequirements)
+          ? programRequirements.filter(req => {
+              const tradeName = String(req.trade_name || '').toLowerCase();
+              const scope = String(req.scope || '').toLowerCase();
+              const applicableTrades = Array.isArray(req.applicable_trades) ? req.applicable_trades : [];
+              return (
+                req.is_all_other_trades === true ||
+                tradeName.includes('all other') ||
+                scope.includes('all other') ||
+                applicableTrades.some(t => String(t).toLowerCase().includes('all other'))
+              );
+            })
+          : [];
+
+        if (allOtherReqs.length > 0) {
+          tradeRequirements = allOtherReqs;
+          console.warn('⚠️ No trade match; using "all other trades" requirements');
+        } else {
+          tradeRequirements = Array.isArray(programRequirements) ? programRequirements.slice() : [];
+          console.warn('⚠️ No trade match; using program defaults');
+        }
+      }
+
+      const tierPriority = { a: 4, b: 3, c: 2, d: 1, standard: 0 };
+      let highestTier = null;
+      let highestPriority = -1;
+      const reqsForTiering = Array.isArray(tradeRequirements) ? tradeRequirements : [];
+      for (const req of reqsForTiering) {
+        const priority = tierPriority[String(req.tier || '').toLowerCase()] || 0;
+        if (priority > highestPriority) {
+          highestPriority = priority;
+          highestTier = req.tier;
+        }
+      }
+
+      const tierRequirements = highestTier
+        ? reqsForTiering.filter(r => String(r.tier) === String(highestTier))
+        : reqsForTiering;
+
       // Determine if umbrella is required
-      const hasUmbrellaRequirement = tradeRequirements && tradeRequirements.some(req => 
+      const hasUmbrellaRequirement = tierRequirements.length > 0 && tierRequirements.some(req => 
         req.insurance_type === 'umbrella_policy' || req.umbrella_each_occurrence
       );
       
@@ -2147,10 +2191,12 @@ async function generateSampleCOIPDF(data = {}) {
       
       // GL Limits
       doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 460, yPos + 3);
-      const glLimit = tradeRequirements?.find(r => r.gl_each_occurrence)?.gl_each_occurrence || 1000000;
+      const glLimit = tierRequirements.find(r => r.insurance_type === 'general_liability' && r.gl_each_occurrence)?.gl_each_occurrence ||
+        tierRequirements.find(r => r.gl_each_occurrence)?.gl_each_occurrence || 1000000;
       doc.text(`$ ${glLimit.toLocaleString()}`, margin + 460, yPos + 10);
       doc.text('GENERAL AGGREGATE', margin + 460, yPos + 22);
-      const glAgg = tradeRequirements?.find(r => r.gl_general_aggregate)?.gl_general_aggregate || 2000000;
+      const glAgg = tierRequirements.find(r => r.insurance_type === 'general_liability' && r.gl_general_aggregate)?.gl_general_aggregate ||
+        tierRequirements.find(r => r.gl_general_aggregate)?.gl_general_aggregate || 2000000;
       doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 29);
       doc.text('PRODUCTS - COMP/OP AGG', margin + 460, yPos + 41);
       doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 48);
@@ -2167,7 +2213,8 @@ async function generateSampleCOIPDF(data = {}) {
       doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
       doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
       doc.text('COMBINED SINGLE LIMIT', margin + 460, yPos + 8);
-      const autoLimit = tradeRequirements?.find(r => r.auto_combined_single_limit)?.auto_combined_single_limit || 1000000;
+      const autoLimit = tierRequirements.find(r => r.insurance_type === 'auto_liability' && r.auto_combined_single_limit)?.auto_combined_single_limit ||
+        tierRequirements.find(r => r.auto_combined_single_limit)?.auto_combined_single_limit || 1000000;
       doc.text(`$ ${autoLimit.toLocaleString()}`, margin + 460, yPos + 15);
 
       yPos += 37;
@@ -2182,7 +2229,8 @@ async function generateSampleCOIPDF(data = {}) {
       doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
       doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
       doc.text('E.L. EACH ACCIDENT', margin + 460, yPos + 3);
-      const wcLimit = tradeRequirements?.find(r => r.wc_each_accident)?.wc_each_accident || 1000000;
+      const wcLimit = tierRequirements.find(r => r.insurance_type === 'workers_compensation' && r.wc_each_accident)?.wc_each_accident ||
+        tierRequirements.find(r => r.wc_each_accident)?.wc_each_accident || 1000000;
       doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 10);
       doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 460, yPos + 18);
       doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 25);
@@ -2200,7 +2248,8 @@ async function generateSampleCOIPDF(data = {}) {
         doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
         doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
         doc.text('EACH OCCURRENCE', margin + 460, yPos + 8);
-        const umbLimit = tradeRequirements?.find(r => r.umbrella_each_occurrence)?.umbrella_each_occurrence || 2000000;
+        const umbLimit = tierRequirements.find(r => r.insurance_type === 'umbrella_policy' && r.umbrella_each_occurrence)?.umbrella_each_occurrence ||
+          tierRequirements.find(r => r.umbrella_each_occurrence)?.umbrella_each_occurrence || 2000000;
         doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 15);
         doc.text('AGGREGATE', margin + 460, yPos + 23);
         doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 30);
@@ -2213,8 +2262,21 @@ async function generateSampleCOIPDF(data = {}) {
       doc.fontSize(7).font('Helvetica');
       const umbrellaText = hasUmbrellaRequirement ? ' & Umbrella' : '';
       const jobLocationText = data.projectAddress ? `\n\nJob Location: ${data.projectAddress}` : '';
+      const ownerEntity = data.owner_entity || data.ownerEntity || data.owner_entity_name;
+      const rawAdditionalInsureds = Array.isArray(data.additional_insureds) ? data.additional_insureds : [];
+      const rawAdditionalEntities = Array.isArray(data.additional_insured_entities)
+        ? data.additional_insured_entities.map(e => e?.name || e).filter(Boolean)
+        : [];
+      const addlInsuredList = Array.from(new Set([
+        ownerEntity,
+        ...rawAdditionalInsureds,
+        ...rawAdditionalEntities
+      ].filter(Boolean)));
+      const additionalInsuredText = addlInsuredList.length > 0
+        ? `\nAdditional Insureds: ${addlInsuredList.join(', ')}`
+        : '';
       doc.text(
-        `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.${jobLocationText}`,
+        `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.${jobLocationText}${additionalInsuredText}`,
         margin + 3,
         yPos + 13,
         { width: contentWidth * 0.6 - 6, align: 'left' }
@@ -2223,11 +2285,9 @@ async function generateSampleCOIPDF(data = {}) {
       // Additional Insureds
       doc.fontSize(7).font('Helvetica-Bold').text('ADDITIONAL INSURED(S):', margin + 3, yPos + 50);
       doc.fontSize(7).font('Helvetica');
-      const addlInsuredList = Array.isArray(data.additional_insureds) && data.additional_insureds.length > 0
-        ? data.additional_insureds
-        : (Array.isArray(data.additional_insured_entities) ? data.additional_insured_entities.map(e => e?.name || e).filter(Boolean) : []);
-      if (addlInsuredList.length > 0) {
-        addlInsuredList.slice(0, 3).forEach((ai, idx) => {
+      const addlInsuredListToRender = addlInsuredList;
+      if (addlInsuredListToRender.length > 0) {
+        addlInsuredListToRender.slice(0, 3).forEach((ai, idx) => {
           doc.text(`• ${ai}`, margin + 3, yPos + 58 + (idx * 8), { width: contentWidth * 0.6 - 6 });
         });
       } else {
@@ -2246,6 +2306,254 @@ async function generateSampleCOIPDF(data = {}) {
       }
       if (data.project_name) {
         doc.fontSize(7).text(`Re: ${data.project_name}`, certHolderX + 3, yPos + 40, { width: contentWidth * 0.4 - 8 });
+      }
+
+      yPos += 82;
+
+      // CANCELLATION NOTICE
+      doc.fontSize(6).font('Helvetica-Bold').text('CANCELLATION', margin, yPos);
+      doc.fontSize(6).font('Helvetica').text('SHOULD ANY OF THE ABOVE DESCRIBED POLICIES BE CANCELLED BEFORE THE EXPIRATION DATE THEREOF, NOTICE WILL BE DELIVERED IN ACCORDANCE WITH THE POLICY PROVISIONS.', margin, yPos + 8, { width: contentWidth, align: 'justify' });
+
+      yPos += 25;
+
+      // AUTHORIZED REPRESENTATIVE
+      doc.fontSize(6).font('Helvetica-Bold').text('AUTHORIZED REPRESENTATIVE', margin, yPos);
+      doc.fontSize(7).font('Helvetica').text('(Signature)', margin, yPos + 15);
+
+      // Footer
+      doc.fontSize(5).font('Helvetica').text('© 1988-2015 ACORD CORPORATION. All rights reserved.', margin, pageHeight - margin - 15);
+      doc.text('ACORD 25 (2016/03)', pageWidth - margin - 80, pageHeight - margin - 15);
+
+      doc.end();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+// Helper: generate a COI PDF using stored policy data and updated job fields
+async function generateGeneratedCOIPDF(coiRecord = {}) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: 'LETTER', margin: 40 });
+      const chunks = [];
+      doc.on('data', (c) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+
+      const pageWidth = 612; // Letter size width in points
+      const pageHeight = 792; // Letter size height in points
+      const margin = 40;
+      const contentWidth = pageWidth - (margin * 2);
+
+      const drawBox = (x, y, width, height) => {
+        doc.rect(x, y, width, height).stroke();
+      };
+
+      // ACORD 25 FORM HEADER
+      doc.fontSize(7).font('Helvetica').text('ACORD', margin, margin);
+      doc.fontSize(6).text('CERTIFICATE OF LIABILITY INSURANCE', margin, margin + 8);
+      doc.fontSize(6).text('DATE (MM/DD/YYYY)', pageWidth - margin - 100, margin);
+      doc.fontSize(8).text(new Date().toLocaleDateString('en-US'), pageWidth - margin - 100, margin + 10);
+
+      let yPos = margin + 30;
+
+      // PRODUCER BOX (Left side)
+      drawBox(margin, yPos, contentWidth * 0.6, 80);
+      doc.fontSize(6).font('Helvetica-Bold').text('PRODUCER', margin + 3, yPos + 3);
+      doc.fontSize(8).font('Helvetica').text(coiRecord.broker_name || '(Broker/Producer Name)', margin + 3, yPos + 12);
+      if (coiRecord.broker_address) {
+        doc.fontSize(7).text(coiRecord.broker_address, margin + 3, yPos + 25);
+      }
+
+      // CONTACT INFO BOX (Right side)
+      const contactBoxX = margin + (contentWidth * 0.6) + 2;
+      drawBox(contactBoxX, yPos, contentWidth * 0.4 - 2, 40);
+      doc.fontSize(6).font('Helvetica-Bold').text('CONTACT', contactBoxX + 3, yPos + 3);
+      doc.fontSize(6).font('Helvetica').text('NAME:', contactBoxX + 3, yPos + 12);
+      if (coiRecord.broker_contact) {
+        doc.fontSize(6).text(coiRecord.broker_contact, contactBoxX + 50, yPos + 12);
+      }
+      doc.fontSize(6).text('PHONE: ', contactBoxX + 3, yPos + 22);
+      if (coiRecord.broker_phone) {
+        doc.fontSize(6).text(coiRecord.broker_phone, contactBoxX + 50, yPos + 22);
+      }
+      doc.fontSize(6).text('E-MAIL:', contactBoxX + 3, yPos + 32);
+      if (coiRecord.broker_email) {
+        doc.fontSize(6).text(coiRecord.broker_email, contactBoxX + 50, yPos + 32);
+      }
+
+      // INSURER INFO BOX (Right side, bottom)
+      drawBox(contactBoxX, yPos + 42, contentWidth * 0.4 - 2, 38);
+      doc.fontSize(6).font('Helvetica-Bold').text('INSURER(S) AFFORDING COVERAGE', contactBoxX + 3, yPos + 44);
+      doc.fontSize(6).font('Helvetica').text('INSURER A:', contactBoxX + 3, yPos + 54);
+      doc.fontSize(6).text(coiRecord.insurance_carrier_gl || '', contactBoxX + 50, yPos + 54);
+      doc.fontSize(6).text('INSURER B:', contactBoxX + 3, yPos + 64);
+      doc.fontSize(6).text(coiRecord.insurance_carrier_umbrella || '', contactBoxX + 50, yPos + 64);
+      doc.fontSize(6).text('INSURER C:', contactBoxX + 3, yPos + 74);
+      doc.fontSize(6).text(coiRecord.insurance_carrier_wc || '', contactBoxX + 50, yPos + 74);
+
+      yPos += 82;
+
+      // INSURED BOX
+      drawBox(margin, yPos, contentWidth * 0.6, 45);
+      doc.fontSize(6).font('Helvetica-Bold').text('INSURED', margin + 3, yPos + 3);
+      doc.fontSize(8).font('Helvetica').text(coiRecord.subcontractor_name || coiRecord.named_insured || '(Named Insured)', margin + 3, yPos + 12);
+      if (coiRecord.subcontractor_address) {
+        doc.fontSize(7).text(coiRecord.subcontractor_address, margin + 3, yPos + 25);
+      }
+
+      yPos += 47;
+
+      // COVERAGES SECTION
+      doc.fontSize(7).font('Helvetica-Bold').text('COVERAGES', margin, yPos);
+      doc.fontSize(6).font('Helvetica').text('THIS IS TO CERTIFY THAT THE POLICIES OF INSURANCE LISTED BELOW HAVE BEEN ISSUED TO THE INSURED NAMED ABOVE FOR THE POLICY PERIOD INDICATED.', margin, yPos + 10, { width: contentWidth, align: 'justify' });
+
+      yPos += 30;
+
+      // Coverage Table Header
+      drawBox(margin, yPos, contentWidth, 20);
+      doc.fontSize(6).font('Helvetica-Bold');
+      doc.text('TYPE OF INSURANCE', margin + 3, yPos + 3);
+      doc.text('INSR', margin + 3, yPos + 12);
+      doc.text('LTR', margin + 3, yPos + 12);
+      doc.text('POLICY NUMBER', margin + 180, yPos + 8);
+      doc.text('POLICY EFF', margin + 300, yPos + 3);
+      doc.text('(MM/DD/YYYY)', margin + 300, yPos + 11);
+      doc.text('POLICY EXP', margin + 380, yPos + 3);
+      doc.text('(MM/DD/YYYY)', margin + 380, yPos + 11);
+      doc.text('LIMITS', margin + 460, yPos + 8);
+
+      yPos += 22;
+
+      // GENERAL LIABILITY ROW
+      drawBox(margin, yPos, contentWidth, 60);
+      doc.fontSize(7).font('Helvetica-Bold').text('COMMERCIAL GENERAL LIABILITY', margin + 25, yPos + 3);
+      const glFormType = coiRecord.gl_form_type || 'OCCUR';
+      const glBasis = coiRecord.gl_basis || 'PER OCCURRENCE';
+      doc.fontSize(6).font('Helvetica').text(
+        glFormType === 'CLAIMS-MADE' ? '☒ CLAIMS-MADE  ☐ OCCUR' : '☐ CLAIMS-MADE  ☒ OCCUR',
+        margin + 25,
+        yPos + 12
+      );
+      doc.fontSize(6).text(
+        glBasis === 'PER PROJECT' ? '☒ PER PROJECT  ☐ PER OCCURRENCE' : '☐ PER PROJECT  ☒ PER OCCURRENCE',
+        margin + 25,
+        yPos + 20
+      );
+      doc.fontSize(6).text('A', margin + 5, yPos + 3);
+      doc.fontSize(6).text(coiRecord.policy_number_gl || '(Policy #)', margin + 180, yPos + 8);
+      doc.fontSize(6).text(coiRecord.gl_effective_date ? new Date(coiRecord.gl_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 8);
+      doc.fontSize(6).text(coiRecord.gl_expiration_date ? new Date(coiRecord.gl_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 8);
+      doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 460, yPos + 3);
+      doc.text(`$ ${(coiRecord.gl_each_occurrence || 1000000).toLocaleString()}`, margin + 460, yPos + 10);
+      doc.text('GENERAL AGGREGATE', margin + 460, yPos + 22);
+      doc.text(`$ ${(coiRecord.gl_general_aggregate || 2000000).toLocaleString()}`, margin + 460, yPos + 29);
+      doc.text('PRODUCTS - COMP/OP AGG', margin + 460, yPos + 41);
+      doc.text(`$ ${(coiRecord.gl_products_completed_ops || 2000000).toLocaleString()}`, margin + 460, yPos + 48);
+
+      yPos += 62;
+
+      // AUTOMOBILE LIABILITY ROW
+      if (coiRecord.policy_number_auto || coiRecord.insurance_carrier_auto) {
+        drawBox(margin, yPos, contentWidth, 35);
+        doc.fontSize(7).font('Helvetica-Bold').text('AUTOMOBILE LIABILITY', margin + 25, yPos + 3);
+        const autoFormType = coiRecord.auto_form_type || 'ANY AUTO';
+        doc.fontSize(6).font('Helvetica').text(
+          autoFormType === 'ANY AUTO' ? '☒ ANY AUTO  ☐ OWNED  ☐ SCHEDULED' : '☐ ANY AUTO  ☐ OWNED  ☐ SCHEDULED',
+          margin + 25,
+          yPos + 12
+        );
+        doc.fontSize(6).text('☐ HIRED  ☐ NON-OWNED', margin + 25, yPos + 20);
+        doc.fontSize(6).text('B', margin + 5, yPos + 3);
+        doc.fontSize(6).text(coiRecord.policy_number_auto || '(Policy #)', margin + 180, yPos + 12);
+        doc.fontSize(6).text(coiRecord.auto_effective_date ? new Date(coiRecord.auto_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
+        doc.fontSize(6).text(coiRecord.auto_expiration_date ? new Date(coiRecord.auto_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
+        doc.text('COMBINED SINGLE LIMIT', margin + 460, yPos + 8);
+        doc.text(`$ ${(coiRecord.auto_combined_single_limit || 1000000).toLocaleString()}`, margin + 460, yPos + 15);
+        yPos += 37;
+      }
+
+      // WORKERS COMPENSATION ROW
+      drawBox(margin, yPos, contentWidth, 35);
+      doc.fontSize(7).font('Helvetica-Bold').text('WORKERS COMPENSATION', margin + 25, yPos + 3);
+      doc.fontSize(6).font('Helvetica').text('AND EMPLOYERS\' LIABILITY', margin + 25, yPos + 11);
+      const wcType = coiRecord.wc_form_type || 'STATUTORY LIMITS';
+      doc.fontSize(6).text(wcType === 'STATUTORY LIMITS' ? '☒ STATUTORY LIMITS' : '☐ STATUTORY LIMITS', margin + 25, yPos + 20);
+      doc.fontSize(6).text('C', margin + 5, yPos + 3);
+      doc.fontSize(6).text(coiRecord.policy_number_wc || '(Policy #)', margin + 180, yPos + 12);
+      doc.fontSize(6).text(coiRecord.wc_effective_date ? new Date(coiRecord.wc_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
+      doc.fontSize(6).text(coiRecord.wc_expiration_date ? new Date(coiRecord.wc_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
+      doc.text('E.L. EACH ACCIDENT', margin + 460, yPos + 3);
+      doc.text(`$ ${(coiRecord.wc_each_accident || 1000000).toLocaleString()}`, margin + 460, yPos + 10);
+      doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 460, yPos + 18);
+      doc.text(`$ ${(coiRecord.wc_disease_each_employee || 1000000).toLocaleString()}`, margin + 460, yPos + 25);
+
+      yPos += 37;
+
+      // UMBRELLA ROW
+      if (coiRecord.policy_number_umbrella || coiRecord.insurance_carrier_umbrella) {
+        drawBox(margin, yPos, contentWidth, 35);
+        doc.fontSize(7).font('Helvetica-Bold').text('UMBRELLA LIAB', margin + 25, yPos + 3);
+        const umbFormType = coiRecord.umbrella_form_type || 'OCCUR';
+        doc.fontSize(6).font('Helvetica').text(
+          umbFormType === 'CLAIMS-MADE' ? '☒ CLAIMS-MADE  ☐ OCCUR' : '☐ CLAIMS-MADE  ☒ OCCUR',
+          margin + 25,
+          yPos + 12
+        );
+        doc.fontSize(6).text('☒ FOLLOW FORM', margin + 25, yPos + 20);
+        doc.fontSize(6).text('D', margin + 5, yPos + 3);
+        doc.fontSize(6).text(coiRecord.policy_number_umbrella || '(Policy #)', margin + 180, yPos + 12);
+        doc.fontSize(6).text(coiRecord.umbrella_effective_date ? new Date(coiRecord.umbrella_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
+        doc.fontSize(6).text(coiRecord.umbrella_expiration_date ? new Date(coiRecord.umbrella_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
+        doc.text('EACH OCCURRENCE', margin + 460, yPos + 8);
+        doc.text(`$ ${(coiRecord.umbrella_each_occurrence || 2000000).toLocaleString()}`, margin + 460, yPos + 15);
+        doc.text('AGGREGATE', margin + 460, yPos + 23);
+        doc.text(`$ ${(coiRecord.umbrella_aggregate || 2000000).toLocaleString()}`, margin + 460, yPos + 30);
+        yPos += 37;
+      }
+
+      // DESCRIPTION OF OPERATIONS BOX
+      drawBox(margin, yPos, contentWidth * 0.6, 80);
+      doc.fontSize(6).font('Helvetica-Bold').text('DESCRIPTION OF OPERATIONS / LOCATIONS / VEHICLES', margin + 3, yPos + 3);
+      doc.fontSize(7).font('Helvetica');
+      const umbrellaText = (coiRecord.policy_number_umbrella || coiRecord.insurance_carrier_umbrella) ? ' & Umbrella' : '';
+      const descriptionText = coiRecord.description_of_operations ||
+        `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`;
+      doc.text(descriptionText, margin + 3, yPos + 13, { width: contentWidth * 0.6 - 6, align: 'left' });
+
+      // Additional Insureds
+      doc.fontSize(7).font('Helvetica-Bold').text('ADDITIONAL INSURED(S):', margin + 3, yPos + 50);
+      doc.fontSize(7).font('Helvetica');
+      let allAddlInsured = [];
+      if (Array.isArray(coiRecord.additional_insureds)) {
+        allAddlInsured = [...coiRecord.additional_insureds];
+      }
+      if (Array.isArray(coiRecord.manually_entered_additional_insureds)) {
+        allAddlInsured = [...allAddlInsured, ...coiRecord.manually_entered_additional_insureds];
+      }
+      allAddlInsured = [...new Set(allAddlInsured)];
+      if (allAddlInsured.length > 0) {
+        allAddlInsured.slice(0, 3).forEach((ai, idx) => {
+          doc.text(`• ${ai}`, margin + 3, yPos + 58 + (idx * 8), { width: contentWidth * 0.6 - 6 });
+        });
+      } else {
+        doc.text('• (See certificate holder below)', margin + 3, yPos + 58);
+      }
+
+      // CERTIFICATE HOLDER BOX
+      const certHolderX = margin + (contentWidth * 0.6) + 2;
+      drawBox(certHolderX, yPos, contentWidth * 0.4 - 2, 80);
+      doc.fontSize(6).font('Helvetica-Bold').text('CERTIFICATE HOLDER', certHolderX + 3, yPos + 3);
+      doc.fontSize(8).font('Helvetica');
+      const certHolder = coiRecord.certificate_holder_name || coiRecord.gc_name || 'General Contractor';
+      doc.text(certHolder, certHolderX + 3, yPos + 15);
+      if (coiRecord.updated_project_address || coiRecord.project_address) {
+        const projectAddr = coiRecord.updated_project_address || coiRecord.project_address;
+        doc.fontSize(7).text(projectAddr, certHolderX + 3, yPos + 25, { width: contentWidth * 0.4 - 8 });
+      }
+      if (coiRecord.updated_project_name || coiRecord.project_name) {
+        const projName = coiRecord.updated_project_name || coiRecord.project_name;
+        doc.fontSize(7).text(`Re: ${projName}`, certHolderX + 3, yPos + 40, { width: contentWidth * 0.4 - 8 });
       }
 
       yPos += 82;
@@ -2655,11 +2963,30 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
       }
     }
 
+    const escapeHtml = (value) => String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    const formatBodyAsHtml = (text, title) => {
+      const safe = escapeHtml(text || '').replace(/\r\n/g, '\n');
+      const paragraphs = safe
+        .split(/\n\s*\n/)
+        .map(p => p.replace(/\n/g, '<br>'))
+        .map(p => `<p>${p}</p>`)
+        .join('');
+      return createEmailTemplate(title || 'Notification', '', paragraphs);
+    };
+
+    const finalHtml = html || (body ? formatBodyAsHtml(body, subject) : undefined);
+
     const mailOptions = {
       from: from || defaultFrom,
       to,
       subject,
-      html: html || body
+      html: finalHtml
     };
     
     // Add optional fields if they exist
@@ -2706,7 +3033,7 @@ app.get('/public/users', (req, res) => {
 
 app.post('/integrations/send-email', authenticateToken, async (req, res) => {
   // Align with public endpoint: support attachments and optional sample COI
-  const { to, subject, body, html, cc, bcc, from, replyTo, attachments: incomingAttachments, includeSampleCOI, sampleCOIData: _sampleCOIData } = req.body || {};
+  const { to, subject, body, html, cc, bcc, from, replyTo, attachments: incomingAttachments, includeSampleCOI, sampleCOIData: _sampleCOIData, recipientIsBroker } = req.body || {};
   if (!to || !subject || (!body && !html)) {
     return res.status(400).json({ error: 'Missing required fields: to, subject, body/html' });
   }
@@ -2720,7 +3047,7 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
   const smtpSecureEnv = process.env.SMTP_SECURE; // 'true' | 'false'
   const requireTLSEnv = process.env.SMTP_REQUIRE_TLS; // 'true' | 'false'
   const rejectUnauthorizedEnv = process.env.SMTP_TLS_REJECT_UNAUTHORIZED; // 'true' | 'false'
-  const defaultFrom = process.env.SMTP_FROM || process.env.FROM_EMAIL || 'no-reply@compliant.team';
+  const defaultFrom = process.env.SMTP_FROM || process.env.FROM_EMAIL || 'no-reply@insuretrack.local';
 
   console.log('📧 Email send request:', {
     to,
@@ -2837,31 +3164,14 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
         }
       }
 
-      // Optionally generate and attach a sample COI PDF — only attach when recipient is a broker
+      // Optionally generate and attach a sample COI PDF
       if (includeSampleCOI) {
-        let shouldAttachSample = false;
         try {
-          // eslint-disable-next-line no-undef
-          if (recipientIsBroker === true || String(recipientIsBroker).toLowerCase() === 'true') {
-            shouldAttachSample = true;
-          } else if (typeof to === 'string') {
-            const brokerRecord = getBroker(to);
-            if (brokerRecord) shouldAttachSample = true;
-          }
-        } catch (detErr) {
-          console.warn('Could not determine broker status for sample COI attachment:', detErr?.message || detErr);
-        }
-
-        if (shouldAttachSample) {
-          try {
-            const pdfBuffer = await generateSampleCOIPDF(_sampleCOIData || {});
-            mailAttachments.push({ filename: 'sample_coi.pdf', content: pdfBuffer, contentType: 'application/pdf' });
-            console.log('✅ Sample COI PDF generated and attached (auth handler):', pdfBuffer.length, 'bytes');
-          } catch (pdfErr) {
-            console.error('❌ Could not generate sample COI PDF for broker:', pdfErr?.message || pdfErr);
-          }
-        } else {
-          console.log('ℹ️ includeSampleCOI requested but recipient is not a broker — skipping sample attachment');
+          const pdfBuffer = await generateSampleCOIPDF(_sampleCOIData || {});
+          mailAttachments.push({ filename: 'sample_coi.pdf', content: pdfBuffer, contentType: 'application/pdf' });
+          console.log('✅ Sample COI PDF generated and attached (auth handler):', pdfBuffer.length, 'bytes');
+        } catch (pdfErr) {
+          console.error('❌ Could not generate sample COI PDF:', pdfErr?.message || pdfErr);
         }
       }
 
@@ -2886,6 +3196,25 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
         }
       }
 
+      const escapeHtml = (value) => String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+      const formatBodyAsHtml = (text, title) => {
+        const safe = escapeHtml(text || '').replace(/\r\n/g, '\n');
+        const paragraphs = safe
+          .split(/\n\s*\n/)
+          .map(p => p.replace(/\n/g, '<br>'))
+          .map(p => `<p>${p}</p>`)
+          .join('');
+        return createEmailTemplate(title || 'Notification', '', paragraphs);
+      };
+
+      const finalHtml = html || (body ? formatBodyAsHtml(body, subject) : undefined);
+
       info = await transporter.sendMail({
         from: from || defaultFrom,
         to,
@@ -2894,7 +3223,7 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
         replyTo,
         subject,
         text: body || undefined,
-        html: html || undefined,
+        html: finalHtml,
         attachments: mailAttachments.length > 0 ? mailAttachments : undefined,
       });
 
@@ -3085,9 +3414,59 @@ app.get('/public/coi-by-token', (req, res) => {
   try {
     const { token } = req.query || {};
     if (!token) return res.status(400).json({ error: 'token is required' });
-    const coi = (entities.GeneratedCOI || []).find(c => timingSafeEqual(c.coi_token, String(token)));
+    const tokenStr = String(token);
+    let coi = (entities.GeneratedCOI || []).find(c => timingSafeEqual(c.coi_token, tokenStr));
+    if (!coi) {
+      const reqRecord = (entities.BrokerUploadRequest || []).find(r => String(r.upload_token || '') === tokenStr);
+      if (reqRecord) {
+        const proj = reqRecord.project_id
+          ? (entities.Project || []).find(p => p.id === reqRecord.project_id)
+          : null;
+        const newCoi = {
+          id: `COI-${Date.now()}`,
+          coi_token: tokenStr,
+          status: 'awaiting_broker_upload',
+          broker_email: reqRecord.broker_email,
+          broker_name: reqRecord.broker_name,
+          broker_company: reqRecord.broker_company,
+          subcontractor_id: reqRecord.subcontractor_id,
+          subcontractor_name: reqRecord.subcontractor_name,
+          project_id: reqRecord.project_id || proj?.id || null,
+          project_name: reqRecord.project_name || proj?.project_name || null,
+          project_location: proj ? `${proj.address || ''}, ${proj.city || ''}, ${proj.state || ''} ${proj.zip_code || ''}`.replace(/\s+,/g, ',').replace(/,\s*,/g, ',').trim() : null,
+          gc_name: proj?.gc_name || null,
+          certificate_holder: proj?.gc_name || null,
+          certificate_holder_address: proj?.gc_address || null,
+          created_date: new Date().toISOString(),
+          created_by: 'broker-upload-request'
+        };
+        if (!entities.GeneratedCOI) entities.GeneratedCOI = [];
+        entities.GeneratedCOI.push(newCoi);
+        debouncedSave();
+        coi = newCoi;
+      }
+    }
     if (!coi) return res.status(404).json({ error: 'COI not found' });
-    return res.json(coi);
+
+    const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+    const frontendBase = process.env.FRONTEND_URL || backendBase.replace(/:3001$/, ':5175');
+    const normalizeUrl = (value) => {
+      if (!value || typeof value !== 'string') return value;
+      if (value.startsWith('/uploads/')) return `${backendBase}${value}`;
+      return value
+        .replace(/^https?:\/\/(localhost|127\.0\.0\.1):3001/i, backendBase)
+        .replace(/^https?:\/\/(localhost|127\.0\.0\.1):5175/i, frontendBase);
+    };
+
+    const normalized = {
+      ...coi,
+      pdf_url: normalizeUrl(coi.pdf_url),
+      regenerated_coi_url: normalizeUrl(coi.regenerated_coi_url),
+      broker_sign_url: normalizeUrl(coi.broker_sign_url),
+      hold_harmless_template_url: normalizeUrl(coi.hold_harmless_template_url)
+    };
+
+    return res.json(normalized);
   } catch (err) {
     console.error('Public coi-by-token error:', err?.message || err);
     return res.status(500).json({ error: 'Failed to load COI' });
@@ -3439,17 +3818,156 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
     if (!forceNew) {
       const reusable = findValidCOIForSub(subcontractor_id);
       if (reusable) {
-        // Attach project to linked_projects for audit and reuse tracking
-        if (!reusable.linked_projects) reusable.linked_projects = [];
-        if (!reusable.linked_projects.includes(project_id)) reusable.linked_projects.push(project_id);
-        reusable.is_reused = true;
-        reusable.reused_for_project_id = project_id;
-        reusable.updatedAt = new Date().toISOString();
-        reusable.updatedBy = 'reuse-logic';
-        // Persist and return the existing COI (indicate reuse)
+        const now = new Date().toISOString();
+        const sourceProject = (entities.Project || []).find(p => p.id === project_id) || null;
+        const projectAddress = sourceProject
+          ? `${sourceProject.address || ''}, ${sourceProject.city || ''}, ${sourceProject.state || ''} ${sourceProject.zip_code || ''}`.replace(/\s+,/g, ',').replace(/,\s*,/g, ',').trim()
+          : project_location;
+
+        const regenData = {
+          broker_name: reusable.broker_name || '',
+          broker_email: reusable.broker_email || '',
+          broker_phone: reusable.broker_phone || '',
+          broker_address: reusable.broker_address || '',
+          broker_contact: reusable.broker_contact || '',
+          subcontractor_name: reusable.subcontractor_name || subcontractor_name || '',
+          subcontractor_address: reusable.subcontractor_address || '',
+          named_insured: reusable.named_insured || reusable.subcontractor_name || subcontractor_name || '',
+          insurance_carrier_gl: reusable.insurance_carrier_gl || '',
+          policy_number_gl: reusable.policy_number_gl || '',
+          gl_each_occurrence: reusable.gl_each_occurrence,
+          gl_general_aggregate: reusable.gl_general_aggregate,
+          gl_products_completed_ops: reusable.gl_products_completed_ops,
+          gl_effective_date: reusable.gl_effective_date,
+          gl_expiration_date: reusable.gl_expiration_date,
+          gl_form_type: reusable.gl_form_type || 'OCCUR',
+          gl_basis: reusable.gl_basis || 'PER OCCURRENCE',
+          insurance_carrier_auto: reusable.insurance_carrier_auto || '',
+          policy_number_auto: reusable.policy_number_auto || '',
+          auto_combined_single_limit: reusable.auto_combined_single_limit,
+          auto_effective_date: reusable.auto_effective_date,
+          auto_expiration_date: reusable.auto_expiration_date,
+          auto_form_type: reusable.auto_form_type || 'ANY AUTO',
+          insurance_carrier_wc: reusable.insurance_carrier_wc || '',
+          policy_number_wc: reusable.policy_number_wc || '',
+          wc_each_accident: reusable.wc_each_accident,
+          wc_disease_each_employee: reusable.wc_disease_each_employee,
+          wc_effective_date: reusable.wc_effective_date,
+          wc_expiration_date: reusable.wc_expiration_date,
+          wc_form_type: reusable.wc_form_type || 'STATUTORY LIMITS',
+          insurance_carrier_umbrella: reusable.insurance_carrier_umbrella || '',
+          policy_number_umbrella: reusable.policy_number_umbrella || '',
+          umbrella_each_occurrence: reusable.umbrella_each_occurrence,
+          umbrella_aggregate: reusable.umbrella_aggregate,
+          umbrella_effective_date: reusable.umbrella_effective_date,
+          umbrella_expiration_date: reusable.umbrella_expiration_date,
+          umbrella_form_type: reusable.umbrella_form_type || 'OCCUR',
+          description_of_operations: reusable.description_of_operations || '',
+          additional_insureds: reusable.additional_insureds || [],
+          updated_project_address: projectAddress || '',
+          updated_project_name: project_name || '',
+          certificate_holder_name: reusable.certificate_holder_name || reusable.gc_name || gc_name || '',
+          manually_entered_additional_insureds: []
+        };
+
+        let regeneratedUrl = null;
+        try {
+          const pdfBuffer = await generateGeneratedCOIPDF(regenData);
+          const filename = `gen-coi-${reusable.id}-${Date.now()}.pdf`;
+          const filepath = path.join(UPLOADS_DIR, filename);
+          fs.writeFileSync(filepath, pdfBuffer);
+          const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+          regeneratedUrl = `${backendBase}/uploads/${filename}`;
+        } catch (pdfErr) {
+          console.warn('COI reuse PDF generation failed:', pdfErr?.message || pdfErr);
+        }
+
+        const frontendBase = process.env.FRONTEND_URL || `${req.protocol}://${req.get('host').replace(/:3001$/, ':5175')}`;
+        const newToken = `coi-${Date.now()}-${crypto.randomBytes(12).toString('hex')}`;
+        const brokerSignUrl = `${frontendBase}/broker-upload-coi?token=${newToken}&action=sign&step=3`;
+        const newCOI = {
+          ...reusable,
+          id: `COI-${Date.now()}`,
+          coi_token: newToken,
+          project_id,
+          project_name,
+          project_sub_id,
+          project_location,
+          project_address: projectAddress || reusable.project_address || '',
+          gc_id,
+          gc_name,
+          certificate_holder: gc_name || reusable.certificate_holder,
+          certificate_holder_address: reusable.certificate_holder_address || '',
+          trade_type,
+          status: 'pending_broker_signature',
+          admin_approved: true,
+          review_date: now,
+          uploaded_for_review_date: now,
+          first_coi_uploaded: true,
+          first_coi_url: reusable.first_coi_url || null,
+          regenerated_coi_url: regeneratedUrl || reusable.regenerated_coi_url || null,
+          regenerated_at: regeneratedUrl ? now : reusable.regenerated_at || null,
+          broker_sign_url: brokerSignUrl,
+          is_reused: true,
+          reused_for_project_id: project_id,
+          linked_projects: Array.from(new Set([...(reusable.linked_projects || []), project_id]))
+        };
+
+        if (!entities.GeneratedCOI) entities.GeneratedCOI = [];
+        entities.GeneratedCOI.push(newCOI);
         debouncedSave();
-        console.log('ℹ️ Reusing existing valid COI for subcontractor:', subcontractor_id, 'coi:', reusable.id);
-        return res.json({ reused: true, coi: reusable });
+        console.log('ℹ️ Auto-generated reused COI for subcontractor:', subcontractor_id, 'coi:', newCOI.id);
+
+        try {
+          if (newCOI.broker_email) {
+            const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+            const programId = sourceProject?.program_id || null;
+            const program = programId
+              ? (entities.InsuranceProgram || []).find(p => p.id === programId)
+              : null;
+            const sampleCOIData = {
+              project_id: project_id,
+              project_name,
+              gc_name,
+              gc_mailing_address: sourceProject
+                ? `${sourceProject.gc_address || ''}, ${sourceProject.gc_city || ''}, ${sourceProject.gc_state || ''} ${sourceProject.gc_zip || ''}`.replace(/\s+,/g, ',').replace(/,\s*,/g, ',').trim()
+                : undefined,
+              projectAddress: projectAddress || project_location,
+              trade: trade_type || reusable.trade_type,
+              program: program?.name || program?.program_name,
+              program_id: programId,
+              additional_insureds: reusable.additional_insureds || [],
+              additional_insured_entities: reusable.additional_insureds || [],
+              owner_entity: sourceProject?.owner_entity || null,
+              hold_harmless_template_url: program?.hold_harmless_template_url || program?.hold_harmless_template || null
+            };
+
+            await fetch(internalUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: newCOI.broker_email,
+                includeSampleCOI: true,
+                sampleCOIData,
+                subject: `📋 COI Ready for Signature (Reuse) - ${subcontractor_name}`,
+                body: `A reused COI has been generated based on the previously approved coverage for ${subcontractor_name}.
+
+Project: ${project_name}
+Trade: ${trade_type || 'N/A'}
+
+Please review and sign:
+${brokerSignUrl}
+
+Best regards,
+InsureTrack System`
+              })
+            });
+          }
+        } catch (notifyErr) {
+          console.warn('Reuse broker notification failed:', notifyErr?.message || notifyErr);
+        }
+
+        return res.json({ reused: true, generated: true, coi: newCOI });
       }
     }
 
@@ -3560,6 +4078,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
         
         // Build Sample COI data with project details for template
         const sampleCOIData = {
+          project_id: project_id,
           project_name,
           gc_name,
           gc_mailing_address: gcMailingAddress,
@@ -3569,6 +4088,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           program_id: programId,
           additional_insureds: insureds || [],
           additional_insured_entities: insureds || [],
+          owner_entity: proj?.owner_entity || null,
           hold_harmless_template_url: programHoldHarmlessUrl
         };
         
@@ -3728,10 +4248,72 @@ app.patch('/public/coi-by-token', publicApiLimiter, async (req, res) => {
     if (idx === -1) return res.status(404).json({ error: 'COI not found' });
 
     const updates = req.body || {};
+    const policySchemas = {
+      gl_policy: {
+        insurance_carrier_gl: 'string',
+        policy_number_gl: 'string',
+        gl_each_occurrence: 'number',
+        gl_general_aggregate: 'number',
+        gl_products_completed_ops: 'number',
+        gl_effective_date: 'Date',
+        gl_expiration_date: 'Date'
+      },
+      wc_policy: {
+        insurance_carrier_wc: 'string',
+        policy_number_wc: 'string',
+        wc_each_accident: 'number',
+        wc_disease_policy_limit: 'number',
+        wc_disease_each_employee: 'number',
+        wc_effective_date: 'Date',
+        wc_expiration_date: 'Date'
+      },
+      auto_policy: {
+        insurance_carrier_auto: 'string',
+        policy_number_auto: 'string',
+        auto_combined_single_limit: 'number',
+        auto_effective_date: 'Date',
+        auto_expiration_date: 'Date'
+      },
+      umbrella_policy: {
+        insurance_carrier_umbrella: 'string',
+        policy_number_umbrella: 'string',
+        umbrella_each_occurrence: 'number',
+        umbrella_aggregate: 'number',
+        umbrella_effective_date: 'Date',
+        umbrella_expiration_date: 'Date'
+      }
+    };
+
+    const extractIfNeeded = async (policyType, url) => {
+      if (!url || !policySchemas[policyType]) return {};
+      try {
+        const result = await performExtraction({ file_url: url, json_schema: policySchemas[policyType] });
+        if (result?.status === 'success' && result.output) return result.output;
+      } catch (err) {
+        console.warn(`Policy extraction failed for ${policyType}:`, err?.message || err);
+      }
+      return {};
+    };
+
+    const extracted = {};
+    const policyUrlFields = {
+      gl_policy: updates.gl_policy_url,
+      wc_policy: updates.wc_policy_url,
+      auto_policy: updates.auto_policy_url,
+      umbrella_policy: updates.umbrella_policy_url
+    };
+
+    for (const [policyType, url] of Object.entries(policyUrlFields)) {
+      if (url) {
+        Object.assign(extracted, await extractIfNeeded(policyType, url));
+      }
+    }
+
     // Apply updates and track timestamp
     entities.GeneratedCOI[idx] = {
       ...entities.GeneratedCOI[idx],
       ...updates,
+      ...extracted,
       updatedAt: new Date().toISOString(),
       updatedBy: 'public-portal'
     };
@@ -3882,6 +4464,27 @@ app.post('/public/upload-file', uploadLimiter, upload.single('file'), (req, res)
   }
 });
 
+// Authenticated: Generate a sample COI PDF and store in uploads
+app.post('/integrations/generate-sample-coi', authenticateToken, async (req, res) => {
+  try {
+    const data = req.body || {};
+    const pdfBuffer = await generateSampleCOIPDF(data);
+
+    const rawFilename = `sample-coi-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.pdf`;
+    const filename = validateAndSanitizeFilename(rawFilename);
+    const filePath = path.join(UPLOADS_DIR, filename);
+    verifyPathWithinDirectory(filePath, UPLOADS_DIR);
+
+    fs.writeFileSync(filePath, pdfBuffer);
+
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+    return res.json({ success: true, url: fileUrl, file_url: fileUrl, filename });
+  } catch (error) {
+    console.error('❌ Sample COI generation error:', error);
+    return sendError(res, 500, 'Sample COI generation failed', { error: error.message });
+  }
+});
+
 // Public: Upload ACORD COI, extract fields, update COI record, and notify admins
 app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req, res) => {
   try {
@@ -3899,6 +4502,13 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
     // Extract COI fields using existing performExtraction helper (regex/AI)
     const schema = {
       named_insured: 'string',
+      description_of_operations: 'string',
+      certificate_holder_name: 'string',
+      certificate_holder_address: 'string',
+      additional_insureds: 'array',
+      broker_name: 'string',
+      broker_email: 'string',
+      broker_phone: 'string',
       insurance_carrier_gl: 'string',
       policy_number_gl: 'string',
       gl_each_occurrence: 'number',
@@ -4112,9 +4722,14 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
       
       // Store original certificate holder if provided
       certificate_holder_name: d.certificate_holder_name || '',
+      certificate_holder_address: d.certificate_holder_address || '',
       
       // Store additional insureds for regeneration
-      additional_insureds: Array.isArray(d.additional_insureds) ? d.additional_insureds : [],
+      additional_insureds: Array.isArray(d.additional_insureds)
+        ? d.additional_insureds
+        : (typeof d.additional_insureds === 'string'
+        ? d.additional_insureds.split(/\n|,|;|\|/).map(s => s.trim()).filter(Boolean)
+        : []),
       
       // Will be used to store manually entered policies
       manually_entered_policies: [],
@@ -4384,18 +4999,17 @@ app.post('/public/regenerate-coi', uploadLimiter, async (req, res) => {
     
     // Generate new PDF with updated job fields
     try {
-      console.log('⚠️ COI regeneration not available - generateGeneratedCOIPDF not in scope');
-      // Note: generateGeneratedCOIPDF is defined in /public/send-email handler only
-      // const pdfBuffer = await generateGeneratedCOIPDF(regenData);
-      const pdfBuffer = Buffer.from('PDF generation not available');
+      const pdfBuffer = await generateGeneratedCOIPDF(regenData);
       const filename = `gen-coi-${coi.id}-${Date.now()}.pdf`;
       const filepath = path.join(UPLOADS_DIR, filename);
       fs.writeFileSync(filepath, pdfBuffer);
       
-      const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+      const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+      const frontendBase = process.env.FRONTEND_URL || backendBase.replace(/:3001$/, ':5175');
+      const fileUrl = `${backendBase}/uploads/${filename}`;
       
       // Update COI record with regenerated PDF and updated job info
-      const brokerSignLink = `${req.protocol}://${req.get('host').replace(/:3001$/, ':5175')}/broker-upload-coi?token=${coi.coi_token}&action=sign&step=3`;
+      const brokerSignLink = `${frontendBase}/broker-upload-coi?token=${coi.coi_token}&action=sign&step=3`;
 
       entities.GeneratedCOI[coiIdx] = {
         ...coi,
@@ -4788,6 +5402,38 @@ function extractFieldsWithRegex(text, schema) {
     return m && m[1] ? m[1].trim() : null;
   };
 
+  const getBlockAfterLabel = (label, stopLabels = []) => {
+    const upperText = (text || '').toUpperCase();
+    const labelUpper = label.toUpperCase();
+    const startIdx = upperText.indexOf(labelUpper);
+    if (startIdx === -1) return null;
+    let block = text.substring(startIdx + label.length);
+    if (!block) return null;
+
+    // Trim to first ~800 chars to avoid runaway blocks
+    block = block.substring(0, 800);
+
+    // Stop at the next known label
+    const stops = stopLabels.map(l => l.toUpperCase());
+    let endIdx = block.length;
+    for (const stop of stops) {
+      const i = block.toUpperCase().indexOf(stop);
+      if (i !== -1 && i < endIdx) endIdx = i;
+    }
+    block = block.substring(0, endIdx);
+
+    // Clean and normalize whitespace
+    return block.replace(/\s{2,}/g, ' ').replace(/\n{2,}/g, '\n').trim();
+  };
+
+  const splitList = (value) => {
+    if (!value) return [];
+    return value
+      .split(/\n|,|;|\|/)
+      .map(v => v.trim())
+      .filter(Boolean);
+  };
+
   if ('gl_each_occurrence' in schema && extracted.gl_each_occurrence == null) {
     const v = getAmountAfter('EACH\\s+OCCURRENCE');
     if (v) extracted.gl_each_occurrence = v;
@@ -4830,6 +5476,47 @@ function extractFieldsWithRegex(text, schema) {
   if ('policy_number_gl' in schema && !extracted.policy_number_gl) {
     const v = getValueAfter('POLICY\\s+NUMBER');
     if (v) extracted.policy_number_gl = v.replace(/^(POLICY\s+NUMBER\s*[:#]\s*)/i, '').trim();
+  }
+
+  // ACORD 25 - Description of Operations / Locations / Vehicles
+  if ('description_of_operations' in schema && !extracted.description_of_operations) {
+    const block = getBlockAfterLabel('DESCRIPTION OF OPERATIONS', [
+      'CERTIFICATE HOLDER',
+      'CANCELLATION',
+      'AUTHORIZED REPRESENTATIVE'
+    ]);
+    if (block) extracted.description_of_operations = block;
+  }
+
+  // ACORD 25 - Certificate Holder
+  if (('certificate_holder_name' in schema || 'certificate_holder_address' in schema) &&
+      (!extracted.certificate_holder_name || !extracted.certificate_holder_address)) {
+    const holderBlock = getBlockAfterLabel('CERTIFICATE HOLDER', [
+      'CANCELLATION',
+      'AUTHORIZED REPRESENTATIVE'
+    ]);
+    if (holderBlock) {
+      const lines = holderBlock.split(/\n/).map(l => l.trim()).filter(Boolean);
+      if (!extracted.certificate_holder_name && lines[0]) extracted.certificate_holder_name = lines[0];
+      if (!extracted.certificate_holder_address && lines.length > 1) {
+        extracted.certificate_holder_address = lines.slice(1).join(', ');
+      }
+    }
+  }
+
+  // Additional Insureds (often listed in description block)
+  if ('additional_insureds' in schema && !extracted.additional_insureds) {
+    const aiMatch = text.match(/ADDITIONAL\s+INSURED(?:S)?\s*[:\-]\s*([A-Za-z0-9 &.,'\-\n]{2,300})/i);
+    if (aiMatch && aiMatch[1]) {
+      const list = splitList(aiMatch[1]);
+      if (list.length) extracted.additional_insureds = list;
+    } else if (extracted.description_of_operations) {
+      const fromDesc = extracted.description_of_operations.match(/ADDITIONAL\s+INSURED(?:S)?\s*[:\-]\s*([A-Za-z0-9 &.,'\-\n]{2,300})/i);
+      if (fromDesc && fromDesc[1]) {
+        const list = splitList(fromDesc[1]);
+        if (list.length) extracted.additional_insureds = list;
+      }
+    }
   }
 
   return extracted;
@@ -4992,6 +5679,173 @@ app.post('/public/extract-data', publicApiLimiter, async (req, res) => {
   }
 });
 
+function buildPolicyAnalysisFromCOI({ coi, project, requirements = [] }) {
+  const deficiencies = [];
+  let defCounter = 1;
+
+  const pushDef = (severity, field, title, description, currentValue, requiredValue) => {
+    deficiencies.push({
+      id: `def-${coi.id}-${defCounter++}`,
+      severity,
+      category: 'coverage',
+      field,
+      title,
+      description,
+      required_action: requiredValue ? `Adjust ${field} to ${requiredValue}` : `Resolve ${field}`,
+      current_value: currentValue,
+      required_value: requiredValue
+    });
+  };
+
+  const normalizeTrades = (t) =>
+    (Array.isArray(t) ? t : typeof t === 'string' ? t.split(',') : [])
+      .map(v => String(v).trim().toLowerCase())
+      .filter(Boolean);
+
+  const subTrades = normalizeTrades(coi.trade_type);
+  const tradeReqs = subTrades.length
+    ? requirements.filter(r => {
+        const tradeList = normalizeTrades(r.applicable_trades || r.trade_types || r.trades || []);
+        if (tradeList.length === 0) return true;
+        return tradeList.some(t => subTrades.includes(t));
+      })
+    : requirements;
+
+  const tierPriority = { a: 4, b: 3, c: 2, d: 1, standard: 0 };
+  let highestTier = null;
+  let highestPriority = -1;
+  for (const req of tradeReqs) {
+    const priority = tierPriority[String(req.tier || '').toLowerCase()] ?? 0;
+    if (priority > highestPriority) {
+      highestPriority = priority;
+      highestTier = req.tier;
+    }
+  }
+
+  const tierRequirements = highestTier
+    ? tradeReqs.filter(r => String(r.tier) === String(highestTier))
+    : tradeReqs;
+
+  const d = coi || {};
+  const now = new Date();
+
+  const requireMin = (field, requiredValue, title) => {
+    if (requiredValue == null) return;
+    const currentValue = d[field];
+    if (currentValue == null) {
+      pushDef('high', field, `${title} Missing`, `${title} is required but missing.`, currentValue, requiredValue);
+    } else if (currentValue < requiredValue) {
+      pushDef('high', field, `${title} Below Program Minimum`, `${title} is $${Number(currentValue).toLocaleString()}, requires ≥ $${Number(requiredValue).toLocaleString()}`, currentValue, requiredValue);
+    }
+  };
+
+  const glReq = tierRequirements.find(r => r.insurance_type === 'general_liability');
+  if (glReq) {
+    requireMin('gl_general_aggregate', glReq.gl_general_aggregate, 'GL Aggregate');
+    requireMin('gl_each_occurrence', glReq.gl_each_occurrence, 'GL Each Occurrence');
+    requireMin('gl_products_completed_ops', glReq.gl_products_completed_ops, 'GL Products/Completed Ops');
+    if (glReq.blanket_additional_insured || glReq.gl_additional_insured_required) {
+      if (d.gl_additional_insured !== true) {
+        pushDef('high', 'gl_additional_insured', 'Additional Insured Not Confirmed', 'Program requires Additional Insured endorsement on GL but certificate does not confirm it', d.gl_additional_insured, true);
+      }
+    }
+    if (glReq.waiver_of_subrogation_required || glReq.gl_waiver_of_subrogation_required) {
+      if (d.gl_waiver_of_subrogation !== true) {
+        pushDef('medium', 'gl_waiver_of_subrogation', 'Waiver of Subrogation Not Confirmed', 'Program requires Waiver of Subrogation but certificate does not confirm it', d.gl_waiver_of_subrogation, true);
+      }
+    }
+  }
+
+  const autoReq = tierRequirements.find(r => r.insurance_type === 'auto_liability');
+  if (autoReq) {
+    requireMin('auto_combined_single_limit', autoReq.auto_combined_single_limit, 'Auto Combined Single Limit');
+  }
+
+  const wcReq = tierRequirements.find(r => r.insurance_type === 'workers_compensation');
+  if (wcReq) {
+    requireMin('wc_each_accident', wcReq.wc_each_accident, 'WC Each Accident');
+    requireMin('wc_disease_policy_limit', wcReq.wc_disease_policy_limit, 'WC Disease Policy Limit');
+    requireMin('wc_disease_each_employee', wcReq.wc_disease_each_employee, 'WC Disease Each Employee');
+  }
+
+  const umbReq = tierRequirements.find(r => r.insurance_type === 'umbrella_policy');
+  if (umbReq) {
+    requireMin('umbrella_each_occurrence', umbReq.umbrella_each_occurrence, 'Umbrella Each Occurrence');
+    requireMin('umbrella_aggregate', umbReq.umbrella_aggregate, 'Umbrella Aggregate');
+  }
+
+  if (d.named_insured && d.subcontractor_name && String(d.named_insured).trim().toLowerCase() !== String(d.subcontractor_name).trim().toLowerCase()) {
+    pushDef('critical', 'named_insured', 'Named Insured Mismatch', 'Named insured does not match subcontractor name.', d.named_insured, d.subcontractor_name);
+  }
+
+  if (project?.gc_name && d.certificate_holder_name &&
+      !String(d.certificate_holder_name).toLowerCase().includes(String(project.gc_name).toLowerCase())) {
+    pushDef('medium', 'certificate_holder_name', 'Certificate Holder Mismatch', 'Certificate holder should be the GC.', d.certificate_holder_name, project.gc_name);
+  }
+
+  const dateFields = [
+    { field: 'gl_expiration_date', label: 'GL Expiration Date' },
+    { field: 'auto_expiration_date', label: 'Auto Expiration Date' },
+    { field: 'wc_expiration_date', label: 'WC Expiration Date' },
+    { field: 'umbrella_expiration_date', label: 'Umbrella Expiration Date' }
+  ];
+  for (const { field, label } of dateFields) {
+    if (d[field]) {
+      const dt = new Date(d[field]);
+      if (!isNaN(dt.getTime()) && dt < now) {
+        pushDef('critical', field, `${label} Expired`, `${label} is expired.`, d[field], 'Future date');
+      }
+    }
+  }
+
+  const policyAnalysis = {
+    coi_id: coi.id,
+    analyzed_at: new Date().toISOString(),
+    total_deficiencies: deficiencies.length,
+    critical_count: deficiencies.filter(d => d.severity === 'critical').length,
+    high_count: deficiencies.filter(d => d.severity === 'high').length,
+    medium_count: deficiencies.filter(d => d.severity === 'medium').length,
+    status: deficiencies.length === 0 ? 'approved' : 'deficient',
+    deficiencies,
+    analysis_method: 'backend_requirements_comparison',
+    tier: highestTier || null
+  };
+
+  return policyAnalysis;
+}
+
+// Authenticated: Analyze COI against program requirements and persist policy_analysis
+app.post('/integrations/analyze-coi-compliance', authenticateToken, async (req, res) => {
+  try {
+    const { coi_id, coiId, project_id, projectId } = req.body || {};
+    const targetId = coi_id || coiId;
+    if (!targetId) return res.status(400).json({ error: 'coi_id is required' });
+
+    const coi = (entities.GeneratedCOI || []).find(c => c.id === targetId);
+    if (!coi) return res.status(404).json({ error: 'COI not found' });
+
+    const projId = project_id || projectId || coi.project_id;
+    const project = (entities.Project || []).find(p => p.id === projId) || null;
+    const programId = project?.program_id || coi?.program_id || null;
+
+    const requirements = programId
+      ? (entities.SubInsuranceRequirement || []).filter(r => r.program_id === programId)
+      : [];
+
+    const policyAnalysis = buildPolicyAnalysisFromCOI({ coi, project, requirements });
+
+    coi.policy_analysis = policyAnalysis;
+    coi.updatedAt = new Date().toISOString();
+    coi.updatedBy = 'backend-compliance-analysis';
+    debouncedSave();
+
+    return res.json({ success: true, policy_analysis: policyAnalysis });
+  } catch (err) {
+    console.error('analyze-coi-compliance error:', err?.message || err);
+    return res.status(500).json({ error: 'Compliance analysis failed' });
+  }
+});
+
 // AI Policy Analysis - Analyze COI/Policy for deficiencies
 app.post('/integrations/analyze-policy', authenticateToken, async (req, res) => {
   try {
@@ -5144,8 +5998,50 @@ app.post('/public/extract-coi-fields', publicApiLimiter, async (req, res) => {
     const { file_url } = req.body || {};
     if (!file_url) return res.status(400).json({ error: 'file_url is required' });
 
-    const data = await adobePDF.extractCOIFields(file_url);
-    return res.json({ status: 'success', data });
+    const schema = {
+      named_insured: 'string',
+      description_of_operations: 'string',
+      certificate_holder_name: 'string',
+      certificate_holder_address: 'string',
+      additional_insureds: 'array',
+      broker_name: 'string',
+      broker_email: 'string',
+      broker_phone: 'string',
+      insurance_carrier_gl: 'string',
+      policy_number_gl: 'string',
+      gl_each_occurrence: 'number',
+      gl_general_aggregate: 'number',
+      gl_products_completed_ops: 'number',
+      gl_personal_adv_injury: 'number',
+      gl_damage_rented_premises: 'number',
+      gl_med_exp: 'number',
+      gl_effective_date: 'Date',
+      gl_expiration_date: 'Date',
+      gl_additional_insured: 'boolean',
+      gl_waiver_of_subrogation: 'boolean',
+      insurance_carrier_umbrella: 'string',
+      policy_number_umbrella: 'string',
+      umbrella_each_occurrence: 'number',
+      umbrella_aggregate: 'number',
+      umbrella_effective_date: 'Date',
+      umbrella_expiration_date: 'Date',
+      insurance_carrier_wc: 'string',
+      policy_number_wc: 'string',
+      wc_each_accident: 'number',
+      wc_disease_policy_limit: 'number',
+      wc_disease_each_employee: 'number',
+      wc_effective_date: 'Date',
+      wc_expiration_date: 'Date',
+      insurance_carrier_auto: 'string',
+      policy_number_auto: 'string',
+      auto_combined_single_limit: 'number',
+      auto_effective_date: 'Date',
+      auto_expiration_date: 'Date'
+    };
+
+    const extraction = await performExtraction({ file_url, json_schema: schema });
+    const output = extraction?.output || {};
+    return res.json({ status: 'success', data: output, extraction });
   } catch (err) {
     console.error('public extract-coi-fields error:', err?.message || err);
     return res.status(500).json({ error: 'Extraction failed' });

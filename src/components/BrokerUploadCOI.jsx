@@ -108,6 +108,11 @@ export default function BrokerUploadCOI() {
         if (!coiRecord.broker_signature_url) {
           setCurrentSignatureType('broker');
         }
+      } else if (coiRecord?.is_reused || coiRecord?.status === 'pending_broker_signature') {
+        setCurrentStep(3);
+        if (!coiRecord?.broker_signature_url) {
+          setCurrentSignatureType('broker');
+        }
       } else if (action === 'upload') {
         // Respect explicit step override for endorsement/policy uploads
         if (normalizedStep === 2) {
@@ -478,6 +483,20 @@ export default function BrokerUploadCOI() {
         }
       }
 
+      if (adminEmails.length === 0) {
+        try {
+          const res = await fetch(`${backendBase}/public/admin-emails`, { method: 'GET' });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.emails) && data.emails.length > 0) {
+              adminEmails = data.emails;
+            }
+          }
+        } catch (fallbackErr) {
+          console.warn('⚠️ Fallback admin emails fetch failed:', fallbackErr);
+        }
+      }
+
       let _emailsSent = 0;
       for (const adminEmail of adminEmails) {
         try {
@@ -517,6 +536,8 @@ export default function BrokerUploadCOI() {
   const handlePolicyUpload = async (policyType) => {
     const file = uploadedFiles[policyType];
     if (!file) return;
+
+    const isPublicAccess = sessionStorage.getItem('public_access_enabled') === 'true';
 
     if (!coiRecord.first_coi_uploaded && !coiRecord.first_coi_url) {
       setError('Please upload the ACORD COI in Step 1 before uploading policies.');
@@ -579,10 +600,22 @@ export default function BrokerUploadCOI() {
         }
       }
 
-      await updateCOIMutation.mutateAsync({
-        id: coiRecord.id,
-        data: updateData
-      });
+      if (isPublicAccess && token) {
+        const res = await fetch(`${backendBase}/public/coi-by-token?token=${encodeURIComponent(token)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updateData)
+        });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          throw new Error(errText || 'Failed to update COI (public)');
+        }
+      } else {
+        await updateCOIMutation.mutateAsync({
+          id: coiRecord.id,
+          data: updateData
+        });
+      }
 
       // Force refetch to ensure fresh data for validation
       await queryClient.invalidateQueries(['coi-by-token']);
@@ -922,9 +955,18 @@ export default function BrokerUploadCOI() {
       // Use the finalUpdateData we just persisted, merged with original coiRecord for missing fields
       let refreshedCoi = { ...coiRecord, ...finalUpdateData };
       try {
-        // Try to fetch from API but don't fail if unauthorized
-        const apiData = await apiClient.entities.GeneratedCOI.read(coiRecord?.id);
-        refreshedCoi = { ...refreshedCoi, ...apiData };
+        // Try to fetch from API only for authenticated (non-public) sessions
+        if (authToken && !isPublicAccess && coiRecord?.id) {
+          const apiData = await apiClient.entities.GeneratedCOI.read(coiRecord?.id);
+          refreshedCoi = { ...refreshedCoi, ...apiData };
+        } else if (token) {
+          // Public fallback: refresh via public token endpoint
+          const res = await fetch(`${backendBase}/public/coi-by-token?token=${encodeURIComponent(token)}`);
+          if (res.ok) {
+            const publicData = await res.json();
+            refreshedCoi = { ...refreshedCoi, ...publicData };
+          }
+        }
       } catch (_) {
         // Public portal may lack permission; use local data from finalUpdateData
       }
@@ -984,18 +1026,21 @@ export default function BrokerUploadCOI() {
           adminEmailsToNotify = admins.map(a => a.email).filter(Boolean);
         } catch (error) {
           console.warn('⚠️ Could not fetch admin emails:', error);
-          // Public fallback: fetch default admin emails from backend
-          try {
-            const res = await fetch(`${backendBase}/public/admin-emails`, { method: 'GET' });
-            if (res.ok) {
-              const data = await res.json();
-              if (Array.isArray(data.emails) && data.emails.length > 0) {
-                adminEmailsToNotify = data.emails;
-              }
+        }
+      }
+
+      if (adminEmailsToNotify.length === 0) {
+        // Public fallback: fetch default admin emails from backend
+        try {
+          const res = await fetch(`${backendBase}/public/admin-emails`, { method: 'GET' });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.emails) && data.emails.length > 0) {
+              adminEmailsToNotify = data.emails;
             }
-          } catch (fallbackErr) {
-            console.warn('⚠️ Fallback admin emails fetch failed:', fallbackErr);
           }
+        } catch (fallbackErr) {
+          console.warn('⚠️ Fallback admin emails fetch failed:', fallbackErr);
         }
       }
 

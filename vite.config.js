@@ -8,9 +8,24 @@ export default defineConfig({
   publicDir: 'public',
   server: {
     host: '0.0.0.0',
-    port: 5173,
+    port: 5175,
     strictPort: false,
-    allowedHosts: true
+    allowedHosts: true,
+    proxy: {
+      '/api': { target: process.env.VITE_PROXY_TARGET || 'http://localhost:3001', changeOrigin: true },
+      '/auth': { target: process.env.VITE_PROXY_TARGET || 'http://localhost:3001', changeOrigin: true },
+      '/entities': { target: process.env.VITE_PROXY_TARGET || 'http://localhost:3001', changeOrigin: true },
+      '/public': { target: process.env.VITE_PROXY_TARGET || 'http://localhost:3001', changeOrigin: true },
+      '/integrations': { target: process.env.VITE_PROXY_TARGET || 'http://localhost:3001', changeOrigin: true },
+      '/uploads': { target: process.env.VITE_PROXY_TARGET || 'http://localhost:3001', changeOrigin: true }
+    },
+    hmr: process.env.CODESPACE_NAME
+      ? {
+          protocol: 'wss',
+          host: `${process.env.CODESPACE_NAME}-5175.app.github.dev`,
+          clientPort: 443
+        }
+      : undefined
   },
   resolve: {
     alias: {

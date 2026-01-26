@@ -28,6 +28,7 @@ export const entities = {
   GCPortal: [],
   gcLogin: [],
   BrokerUpload: [],
+  BrokerUploadRequest: [],
   COIDeficiency: [],
   EmailNotification: [],
   HoldHarmlessAgreement: [],

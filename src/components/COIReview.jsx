@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useState, useEffect } from "react";
-import { apiClient, getApiBase } from "@/api/apiClient";
+import { apiClient, getApiBase, getAuthHeader } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notifySubCOIApproved } from "@/brokerNotifications";
@@ -20,7 +20,6 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
-import { validateCOICompliance } from "@/insuranceRequirements";
 
 export default function COIReview() {
   const navigate = useNavigate();
@@ -212,184 +211,35 @@ export default function COIReview() {
     setAnalyzingCompliance(true);
 
     try {
-      // First, run the tier-based compliance validation
-      const subTrades = coi.trade_type ? coi.trade_type.split(',').map(t => t.trim().toLowerCase()) : [];
-      const tierValidation = await validateCOICompliance(coi, project, subTrades);
-      
-      console.log('Tier Validation Result:', tierValidation);
-
-      const reqContext = requirements.map(r => ({
-        insurance_type: r.insurance_type,
-        tier: r.tier_name,
-        minimums: {
-          gl_each_occurrence: r.gl_each_occurrence,
-          gl_general_aggregate: r.gl_general_aggregate,
-          gl_products_completed_ops: r.gl_products_completed_ops,
-          umbrella_each_occurrence: r.umbrella_each_occurrence,
-          umbrella_aggregate: r.umbrella_aggregate,
-          wc_each_accident: r.wc_each_accident,
-          wc_disease_policy_limit: r.wc_disease_policy_limit,
-          wc_disease_each_employee: r.wc_disease_each_employee,
-          auto_combined_single_limit: r.auto_combined_single_limit,
+      const apiBase = getApiBase();
+      const response = await fetch(`${apiBase}/integrations/analyze-coi-compliance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
         },
-        required_endorsements: {
-          blanket_additional_insured: r.blanket_additional_insured,
-          waiver_of_subrogation: r.waiver_of_subrogation_required,
-          primary_non_contributory: r.primary_non_contributory,
-          per_project_aggregate: r.per_project_aggregate,
-        },
-        trade_specific_flags: {
-          no_condo_exclusion: r.no_condo_exclusion_required,
-          no_height_restriction: r.no_height_restriction,
-          no_action_over_exclusion: r.no_action_over_exclusion,
-          no_hammer_clause: r.no_hammer_clause,
-          no_subsidence_exclusion: r.no_subsidence_exclusion,
-          no_roofing_limitation: r.no_roofing_limitation,
-          no_direct_employee_exclusion: r.no_direct_employee_exclusion,
-        }
-      }));
-
-      const coiDataProvided = {
-        gl: coi.gl_each_occurrence ? {
-          carrier: coi.insurance_carrier_gl,
-          policy_number: coi.policy_number_gl,
-          each_occurrence: coi.gl_each_occurrence,
-          general_aggregate: coi.gl_general_aggregate,
-          products_completed_ops: coi.gl_products_completed_ops,
-          effective_date: coi.gl_effective_date,
-          expiration_date: coi.gl_expiration_date,
-        } : null,
-        umbrella: coi.umbrella_each_occurrence ? {
-          carrier: coi.insurance_carrier_umbrella,
-          policy_number: coi.policy_number_umbrella,
-          each_occurrence: coi.umbrella_each_occurrence,
-          aggregate: coi.umbrella_aggregate,
-          effective_date: coi.umbrella_effective_date,
-          expiration_date: coi.umbrella_expiration_date,
-        } : null,
-        wc: coi.wc_each_accident ? {
-          carrier: coi.insurance_carrier_wc,
-          policy_number: coi.policy_number_wc,
-          each_accident: coi.wc_each_accident,
-          disease_policy_limit: coi.wc_disease_policy_limit,
-          disease_each_employee: coi.wc_disease_each_employee,
-          effective_date: coi.wc_effective_date,
-          expiration_date: coi.wc_expiration_date,
-        } : null,
-        auto: coi.auto_combined_single_limit ? {
-          carrier: coi.insurance_carrier_auto,
-          policy_number: coi.policy_number_auto,
-          combined_single_limit: coi.auto_combined_single_limit,
-          effective_date: coi.auto_effective_date,
-          expiration_date: coi.auto_expiration_date,
-        } : null,
-      };
-
-      const glReq = requirements.find(r => r.insurance_type === 'general_liability');
-      
-      // Calculate effective umbrella
-      let effectiveUmbrellaOccurrence = coi.umbrella_each_occurrence || 0;
-      let effectiveUmbrellaAggregate = coi.umbrella_aggregate || 0;
-      
-      if (glReq && coi.gl_each_occurrence && coi.gl_each_occurrence > glReq.gl_each_occurrence) {
-        effectiveUmbrellaOccurrence += (coi.gl_each_occurrence - glReq.gl_each_occurrence);
-      }
-      
-      if (glReq && coi.gl_general_aggregate && coi.gl_general_aggregate > glReq.gl_general_aggregate) {
-        effectiveUmbrellaAggregate += (coi.gl_general_aggregate - glReq.gl_general_aggregate);
-      }
-
-      const analysis = await apiClient.integrations.Core.ExtractDataFromUploadedFile({
-        prompt: `You are analyzing a Certificate of Insurance for compliance. Check ALL items below systematically.
-
-CRITICAL VERIFICATION CHECKLIST:
-1. Named Insured - Must EXACTLY match subcontractor name
-2. Policy Numbers - Must exist and match carrier format patterns
-3. Insurance Carriers - Verify they are legitimate and match policy docs
-4. Effective Date - Policy must be currently active
-5. Expiration Date - Policy must NOT be expired
-6. Coverage Limits - Must meet or EXCEED requirements
-7. Coverage Types - Must include all required types (GL, WC, Auto, Umbrella)
-8. Additional Insured - GC/project entities must be listed
-9. Waiver of Subrogation - Must be present with endorsement
-10. Primary & Non-Contributory - When required by contract
-11. Certificate Holder - Should be the GC
-12. Issue Date - Should be recent from broker
-
-CRITICAL RULES:
-1. ONLY flag deficiencies when coverage is LESS than required
-2. HIGHER coverage is ALWAYS acceptable - never flag it
-3. GL excess above required counts toward umbrella coverage
-4. FLAG NAMED INSURED MISMATCH AS CRITICAL - this is a legal issue
-5. FLAG MISSING ENDORSEMENTS OR MISMATCHES AS MAJOR/CRITICAL
-
-PROJECT: ${project.project_name}
-LOCATION: ${project.city}, ${project.state}
-TYPE: ${project.project_type}
-HEIGHT: ${project.height_stories || 'Unknown'} stories
-SUBCONTRACTOR (Named Insured Must Match): ${coi.subcontractor_name}
-TRADE: ${coi.trade_type}
-
-REQUIREMENTS:
-${JSON.stringify(reqContext, null, 2)}
-
-COI DATA:
-${JSON.stringify(coiDataProvided, null, 2)}
-
-EFFECTIVE UMBRELLA (including GL excess):
-- Each Occurrence: $${effectiveUmbrellaOccurrence.toLocaleString()}
-- Aggregate: $${effectiveUmbrellaAggregate.toLocaleString()}
-
-Analyze for deficiencies - check all 12 items above. Remember: ONLY flag coverage LESS than required, but DO FLAG named insured mismatches, missing endorsements, or date issues.`,
-        add_context_from_internet: false,
-        response_json_schema: {
-          type: "object",
-          properties: {
-            overall_status: {
-              type: "string",
-              enum: ["compliant", "minor_issues", "major_issues", "critical_issues"]
-            },
-            compliance_score: { type: "number" },
-            deficiencies: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  deficiency_id: { type: "string" },
-                  category: { type: "string" },
-                  insurance_type: { type: "string" },
-                  severity: { type: "string" },
-                  description: { type: "string" },
-                  required_value: { type: "string" },
-                  actual_value: { type: "string" },
-                  remediation: { type: "string" },
-                  can_be_overridden: { type: "boolean" }
-                }
-              }
-            },
-            summary: { type: "string" },
-            approval_recommendation: { type: "string" }
-          }
-        }
+        credentials: 'include',
+        body: JSON.stringify({
+          coi_id: coi.id,
+          project_id: project?.id
+        })
       });
 
-      // Merge tier validation issues with AI analysis
-      // Determine compliance status based on tier validation
-      const complianceStatus = tierValidation.compliant ? 'compliant' : 'issues';
-      const overallStatus = tierValidation.compliant ? analysis.overall_status : 'critical_issues';
-      
-      const mergedAnalysis = {
-        ...analysis,
-        tierValidation: tierValidation,
-        compliance_status: overallStatus,
-      };
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Backend compliance analysis failed: ${response.status} ${errText}`);
+      }
+
+      const result = await response.json();
+      const policyAnalysis = result?.policy_analysis || result;
+      const complianceStatus = policyAnalysis?.status === 'approved' ? 'compliant' : 'issues';
 
       await updateCOIMutation.mutateAsync({
         id: coi.id,
-        data: { 
-          policy_analysis: mergedAnalysis,
+        data: {
+          policy_analysis: policyAnalysis,
           compliance_status: complianceStatus,
-          compliance_issues: tierValidation.issues || []
+          compliance_issues: policyAnalysis?.deficiencies || []
         }
       });
 
