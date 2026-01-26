@@ -4059,8 +4059,9 @@ InsureTrack System`
         let programId = undefined;
         let programHoldHarmlessUrl = null;
         let gcMailingAddress = undefined;
+        let proj = null;
         try {
-          const proj = (entities.Project || []).find(p => p.id === project_id);
+          proj = (entities.Project || []).find(p => p.id === project_id) || null;
           if (proj?.program_id) {
             programId = proj.program_id;
             const prog = (entities.InsuranceProgram || []).find(p => p.id === programId);
