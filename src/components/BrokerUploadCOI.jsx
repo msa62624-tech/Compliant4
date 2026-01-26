@@ -14,6 +14,24 @@ import { Label } from "@/components/ui/label";
 import { createPageUrl } from "@/utils";
 import { createEmailTemplate, getBrokerCOIConfirmationEmail } from "@/emailTemplates";
 
+/**
+ * Escape HTML to prevent XSS attacks
+ * @param {string} text - The text to escape
+ * @returns {string} - The escaped text safe for HTML insertion
+ */
+function escapeHtml(text) {
+  if (text == null) return '';
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;',
+  };
+  return String(text).replace(/[&<>"'/]/g, (char) => map[char]);
+}
+
 export default function BrokerUploadCOI() {
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
@@ -1119,28 +1137,36 @@ export default function BrokerUploadCOI() {
             // Create review link - direct URL without createPageUrl to avoid issues
             const reviewLink = `${window.location.origin}/COIReview?id=${coiRecord.id}`;
 
+            // Escape all user-provided data for XSS protection
+            const safeSubName = escapeHtml(coiRecord.subcontractor_name);
+            const safeProjectName = escapeHtml(coiRecord.project_name);
+            const safeTradeType = escapeHtml(coiRecord.trade_type || 'N/A');
+            const safeBrokerName = escapeHtml(brokerNameForEmail);
+            const safeBrokerEmail = escapeHtml(brokerEmailForEmail);
+            const safeBrokerPhone = escapeHtml(brokerPhoneForEmail || 'N/A');
+
             const policiesListHtml = uploadedPolicies.length > 0
-              ? `<ul>${uploadedPolicies.map(p => `<li>${p}</li>`).join('')}</ul>`
+              ? `<ul>${uploadedPolicies.map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`
               : '<p>No policies uploaded yet.</p>';
 
             const adminEmailHtml = createEmailTemplate(
               '🔍 COI Ready for Review',
-              `${coiRecord.subcontractor_name} - ${coiRecord.project_name}`,
+              `${safeSubName} - ${safeProjectName}`,
               `
                 <p>A broker has uploaded policies and signed the Certificate of Insurance. Please review and approve.</p>
 
                 <div class="section">
                   <div class="section-title">📋 Subcontractor Information</div>
-                  <div class="field"><span class="label">Company:</span> ${coiRecord.subcontractor_name}</div>
-                  <div class="field"><span class="label">Project:</span> ${coiRecord.project_name}</div>
-                  <div class="field"><span class="label">Trade:</span> ${coiRecord.trade_type || 'N/A'}</div>
+                  <div class="field"><span class="label">Company:</span> ${safeSubName}</div>
+                  <div class="field"><span class="label">Project:</span> ${safeProjectName}</div>
+                  <div class="field"><span class="label">Trade:</span> ${safeTradeType}</div>
                 </div>
 
                 <div class="section">
                   <div class="section-title">👔 Broker Information</div>
-                  <div class="field"><span class="label">Broker:</span> ${brokerNameForEmail}</div>
-                  <div class="field"><span class="label">Email:</span> ${brokerEmailForEmail}</div>
-                  <div class="field"><span class="label">Phone:</span> ${brokerPhoneForEmail || 'N/A'}</div>
+                  <div class="field"><span class="label">Broker:</span> ${safeBrokerName}</div>
+                  <div class="field"><span class="label">Email:</span> ${safeBrokerEmail}</div>
+                  <div class="field"><span class="label">Phone:</span> ${safeBrokerPhone}</div>
                 </div>
 
                 <div class="section">
