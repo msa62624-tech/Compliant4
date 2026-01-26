@@ -1,9 +1,9 @@
 /**
- * Standardized email templates that match InsureTrack system UI
- * Color scheme: #dc2626 (destructive red), #991b1b (dark red)
+ * Standardized email templates that match the system UI/UX
+ * Color scheme: #dc2626 (red-600), #991b1b (dark red) matching system pages
  */
 
-export const EMAIL_STYLES = `
+const EMAIL_STYLES = `
   <style>
     body { 
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -176,7 +176,7 @@ export const EMAIL_STYLES = `
 /**
  * Create a formatted email template
  */
-export function createEmailTemplate(title, subtitle, content, footer = null) {
+function createEmailTemplate(title, subtitle, content, footer = null) {
   const defaultFooter = `
     <div class="footer">
       <p><strong>compliant.team</strong> - Insurance Compliance Management</p>
@@ -213,8 +213,10 @@ export function createEmailTemplate(title, subtitle, content, footer = null) {
 /**
  * Password reset email template
  */
-export function getPasswordResetEmail(name, resetLink, type = 'general') {
-  const userType = type === 'gc' ? 'GC Account' : type === 'broker' ? 'Broker Account' : type === 'subcontractor' ? 'Subcontractor Account' : 'Account';
+function getPasswordResetEmail(name, resetLink, type = 'general') {
+  const userType = type === 'gc' ? 'GC Account' : 
+                   type === 'broker' ? 'Broker Account' : 
+                   type === 'subcontractor' ? 'Subcontractor Account' : 'Account';
   
   const content = `
     <p>Hello ${name || 'User'},</p>
@@ -251,46 +253,9 @@ export function getPasswordResetEmail(name, resetLink, type = 'general') {
 }
 
 /**
- * Broker COI submission confirmation
- */
-export function getBrokerCOIConfirmationEmail(subcontractorName, projectName, tradeType) {
-  const content = `
-    <p>Thank you for submitting your Certificate of Insurance!</p>
-    
-    <div class="section">
-      <div class="section-title">📋 SUBMISSION DETAILS</div>
-      <div class="field"><span class="label">Subcontractor:</span> ${subcontractorName}</div>
-      <div class="field"><span class="label">Project:</span> ${projectName}</div>
-      <div class="field"><span class="label">Trade:</span> ${tradeType}</div>
-      <div class="field"><span class="label">Submitted:</span> ${new Date().toLocaleDateString()}</div>
-    </div>
-    
-    <div class="section">
-      <div class="section-title">⏳ NEXT STEPS</div>
-      <p>Your certificate is currently <strong>under admin review</strong>. We will notify you once it has been reviewed and approved.</p>
-      <ol>
-        <li>Admins will review your submission</li>
-        <li>You'll receive an approval or request for changes</li>
-        <li>Work can begin once approved</li>
-      </ol>
-    </div>
-    
-    <p style="color: #666; font-size: 13px;">
-      Questions? Contact your General Contractor or the compliant.team support team.
-    </p>
-  `;
-  
-  return createEmailTemplate(
-    '✅ Certificate Submitted Successfully',
-    'Your COI is under review',
-    content
-  );
-}
-
-/**
  * Document replacement notification for GC
  */
-export function getDocumentReplacementNotificationEmail(subcontractorName, brokerName, brokerEmail, docType, reason = null) {
+function getDocumentReplacementNotificationEmail(subcontractorName, brokerName, brokerEmail, docType, reason = null) {
   const content = `
     <p>A broker has replaced a previously approved insurance document for one of your subcontractors.</p>
     
@@ -324,55 +289,9 @@ export function getDocumentReplacementNotificationEmail(subcontractorName, broke
   );
 }
 
-/**
- * New subcontractor onboarding email (for GC portal)
- */
-export function getSubcontractorOnboardingEmail(subcontractorName, projectName, address, tradeType, username, password, portalUrl) {
-  const content = `
-    <p>Dear ${subcontractorName},</p>
-    
-    <p>You have been added to a new project in InsureTrack!</p>
-    
-    <div class="section">
-      <div class="section-title">📋 PROJECT DETAILS</div>
-      <div class="field"><span class="label">Project:</span> ${projectName}</div>
-      <div class="field"><span class="label">Trade:</span> ${tradeType}</div>
-      <div class="field"><span class="label">Location:</span> ${address || 'Address not provided'}</div>
-    </div>
-    
-    <div class="section">
-      <div class="section-title">🔐 PORTAL LOGIN INFORMATION</div>
-      <div class="credentials">
-        <div class="field"><span class="label">Username:</span> ${username}</div>
-        <div class="field"><span class="label">Password:</span> <strong>${password}</strong></div>
-        <p style="color: #dc2626; font-size: 13px; margin-top: 10px;">
-          ⚠️ <strong>Save your password</strong> - You'll need it to log in
-        </p>
-        <div style="text-align: center; margin-top: 15px;">
-          <a href="${portalUrl}" class="button">Login to Portal →</a>
-        </div>
-      </div>
-    </div>
-    
-    <div class="section">
-      <div class="section-title">📝 GETTING STARTED</div>
-      <ol>
-        <li>Click the button above to access the portal</li>
-        <li>Log in with your credentials</li>
-        <li>Update your broker information in settings</li>
-        <li>Submit your Certificate of Insurance (COI)</li>
-        <li>Once approved, you're ready to start work!</li>
-      </ol>
-    </div>
-    
-    <p style="color: #666; font-size: 13px; margin-top: 20px;">
-      <strong>Questions?</strong> Contact your General Contractor or the compliant.team support team.
-    </p>
-  `;
-  
-  return createEmailTemplate(
-    '👋 Welcome to compliant.team',
-    `You've been added to ${projectName}`,
-    content
-  );
-}
+export {
+  EMAIL_STYLES,
+  createEmailTemplate,
+  getPasswordResetEmail,
+  getDocumentReplacementNotificationEmail
+};
