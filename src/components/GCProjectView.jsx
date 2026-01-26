@@ -71,8 +71,18 @@ export default function GCProjectView() {
   const { data: projectCois = [] } = useQuery({
     queryKey: ["gc-project-cois", projectId],
     queryFn: async () => {
-      // COIs endpoint requires auth, skip for public GC portal
-      return [];
+      const { protocol, host, origin } = window.location;
+      const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+      const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                         origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                         origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                         import.meta?.env?.VITE_API_BASE_URL || '';
+      const response = await fetch(`${backendBase}/public/all-cois`);
+      if (!response.ok) throw new Error('Failed to fetch COIs');
+      const allCois = await response.json();
+      return (allCois || []).filter(c =>
+        c.project_id === projectId || (Array.isArray(c.linked_projects) && c.linked_projects.includes(projectId))
+      );
     },
     enabled: !!projectId,
     retry: 1,
@@ -716,6 +726,12 @@ export default function GCProjectView() {
     setSuggestions([]);
   };
 
+  const getLatestCoiForSub = (sub) => {
+    const related = projectCois.filter((c) => c.subcontractor_id === sub.subcontractor_id || c.project_sub_id === sub.id);
+    if (related.length === 0) return null;
+    return related.sort((a, b) => new Date(b.created_date || b.updatedAt || 0) - new Date(a.created_date || a.updatedAt || 0))[0];
+  };
+
   if (!projectId) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
@@ -806,17 +822,57 @@ export default function GCProjectView() {
                       <TableCell className="text-slate-600">{sub.contact_email || ""}</TableCell>
                       <TableCell>{renderStatusForSub(sub)}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const reason = prompt(`Archive ${sub.subcontractor_name}? Optional reason:`) || '';
-                            if (reason !== null) archiveSubMutation.mutate({ id: sub.id, reason });
-                          }}
-                          disabled={archiveSubMutation.isPending}
-                        >
-                          {archiveSubMutation.isPending ? 'Archiving...' : 'Archive'}
-                        </Button>
+                        {(() => {
+                          const latestCoi = getLatestCoiForSub(sub);
+                          const coiLink = latestCoi?.pdf_url || latestCoi?.regenerated_coi_url || latestCoi?.first_coi_url;
+                          const hhLink = latestCoi?.hold_harmless_sub_signed_url || latestCoi?.hold_harmless_template_url;
+                          const hhStatus = latestCoi?.hold_harmless_status || '';
+                          const hhBadge = hhStatus === 'signed_by_gc'
+                            ? { label: 'GC Signed', className: 'bg-emerald-50 text-emerald-700' }
+                            : hhStatus === 'signed_by_sub'
+                              ? { label: 'Sub Signed', className: 'bg-amber-50 text-amber-700' }
+                              : hhLink
+                                ? { label: 'Template Ready', className: 'bg-slate-100 text-slate-700' }
+                                : null;
+                          return (
+                            <div className="inline-flex items-center gap-2">
+                              {coiLink && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => window.open(coiLink, '_blank')}
+                                >
+                                  View COI
+                                </Button>
+                              )}
+                              {hhLink && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => window.open(hhLink, '_blank')}
+                                >
+                                  Hold Harmless
+                                </Button>
+                              )}
+                              {hhBadge && (
+                                <Badge variant="outline" className={hhBadge.className}>
+                                  {hhBadge.label}
+                                </Badge>
+                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const reason = prompt(`Archive ${sub.subcontractor_name}? Optional reason:`) || '';
+                                  if (reason !== null) archiveSubMutation.mutate({ id: sub.id, reason });
+                                }}
+                                disabled={archiveSubMutation.isPending}
+                              >
+                                {archiveSubMutation.isPending ? 'Archiving...' : 'Archive'}
+                              </Button>
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                     </TableRow>
                   ))}

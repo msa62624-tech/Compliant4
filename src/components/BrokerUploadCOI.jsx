@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createPageUrl } from "@/utils";
+import { createEmailTemplate, getBrokerCOIConfirmationEmail } from "@/emailTemplates";
 
 export default function BrokerUploadCOI() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -273,6 +274,8 @@ export default function BrokerUploadCOI() {
               auto_combined_single_limit: { type: "number" },
               auto_effective_date: { type: "string" },
               auto_expiration_date: { type: "string" },
+              description_of_operations: { type: "string" },
+              additional_insureds: { type: "array", items: { type: "string" } },
             }
           }
         })
@@ -931,25 +934,18 @@ export default function BrokerUploadCOI() {
       try {
         const brokerConfirmationEmail = brokerContacts?.all?.email || coiRecord?.broker_email || '';
         if (brokerConfirmationEmail) {
+          const brokerConfirmationHtml = getBrokerCOIConfirmationEmail(
+            coiRecord?.subcontractor_name,
+            coiRecord?.project_name,
+            coiRecord?.trade_type
+          );
           const emailRes = await fetch(`${backendBase}/public/send-email`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               to: brokerConfirmationEmail,
               subject: `✅ Certificate Submitted Successfully - ${coiRecord?.subcontractor_name}`,
-              body: `Your certificate of insurance has been successfully submitted.
-
-Subcontractor: ${coiRecord?.subcontractor_name}
-Project: ${coiRecord?.project_name}
-Trade: ${coiRecord?.trade_type}
-Submission Date: ${new Date().toLocaleDateString()}
-
-Status: Under Admin Review
-
-We will notify you once the certificate has been reviewed and approved.
-
-Best regards,
-InsureTrack System`
+              html: brokerConfirmationHtml
             })
           });
           if (emailRes.ok) {
@@ -1075,10 +1071,48 @@ InsureTrack System`
             if (refreshedCoi.umbrella_policy_url) uploadedPolicies.push('✅ Umbrella/Excess');
             if (refreshedCoi.first_coi_url) uploadedPolicies.push('✅ ACORD 25 Certificate');
             
-            const policiesText = uploadedPolicies.length > 0 ? uploadedPolicies.join('\n') : 'No policies uploaded yet';
-            
             // Create review link - direct URL without createPageUrl to avoid issues
             const reviewLink = `${window.location.origin}/COIReview?id=${coiRecord.id}`;
+
+            const policiesListHtml = uploadedPolicies.length > 0
+              ? `<ul>${uploadedPolicies.map(p => `<li>${p}</li>`).join('')}</ul>`
+              : '<p>No policies uploaded yet.</p>';
+
+            const adminEmailHtml = createEmailTemplate(
+              '🔍 COI Ready for Review',
+              `${coiRecord.subcontractor_name} - ${coiRecord.project_name}`,
+              `
+                <p>A broker has uploaded policies and signed the Certificate of Insurance. Please review and approve.</p>
+
+                <div class="section">
+                  <div class="section-title">📋 Subcontractor Information</div>
+                  <div class="field"><span class="label">Company:</span> ${coiRecord.subcontractor_name}</div>
+                  <div class="field"><span class="label">Project:</span> ${coiRecord.project_name}</div>
+                  <div class="field"><span class="label">Trade:</span> ${coiRecord.trade_type || 'N/A'}</div>
+                </div>
+
+                <div class="section">
+                  <div class="section-title">👔 Broker Information</div>
+                  <div class="field"><span class="label">Broker:</span> ${brokerNameForEmail}</div>
+                  <div class="field"><span class="label">Email:</span> ${brokerEmailForEmail}</div>
+                  <div class="field"><span class="label">Phone:</span> ${brokerPhoneForEmail || 'N/A'}</div>
+                </div>
+
+                <div class="section">
+                  <div class="section-title">📄 Uploaded Policies</div>
+                  ${policiesListHtml}
+                </div>
+
+                <div class="section">
+                  <div class="section-title">🔗 Action Required</div>
+                  <p>Review and approve the COI using the link below.</p>
+                  <div style="text-align: center;">
+                    <a href="${reviewLink}" class="button">Review COI</a>
+                  </div>
+                  <p style="margin-top: 12px;">Admin Dashboard: ${window.location.origin}${createPageUrl('admin-dashboard')}</p>
+                </div>
+              `
+            );
             
             
             const adminEmailRes = await fetch(`${backendBase}/public/send-email`, {
@@ -1087,44 +1121,7 @@ InsureTrack System`
               body: JSON.stringify({
                 to: adminEmail,
                 subject: `🔍 COI Ready for Review - ${coiRecord.subcontractor_name}`,
-                body: `A broker has uploaded policies and signed the Certificate of Insurance. Please review and approve.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 SUBCONTRACTOR INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Company: ${coiRecord.subcontractor_name}
-Project: ${coiRecord.project_name}
-Trade: ${coiRecord.trade_type || 'N/A'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-👔 BROKER INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Broker: ${brokerNameForEmail}
-Email: ${brokerEmailForEmail}
-Phone: ${brokerPhoneForEmail || 'N/A'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📄 UPLOADED POLICIES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-${policiesText}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔗 ACTION REQUIRED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Review & Approve COI:
-${reviewLink}
-
-Admin Dashboard:
-${window.location.origin}${createPageUrl('admin-dashboard')}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Best regards,
-InsureTrack System`
+                html: adminEmailHtml
               })
             });
             if (adminEmailRes.ok) {

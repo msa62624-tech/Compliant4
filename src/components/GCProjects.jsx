@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { compliant } from "@/api/compliantClient";
 import * as auth from "@/auth";
+import { isReservedEmailDomain } from "@/emailHelper";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -560,6 +561,13 @@ Return actual data only. If not found, return null.`,
 
               <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
                 <div className="space-y-4 py-4 px-6 overflow-y-auto flex-1 min-h-0">
+                  {gc?.email && isReservedEmailDomain(gc.email) && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
+                      <p className="text-sm text-orange-700">
+                        ℹ️ <strong>Note:</strong> GC email ({gc.email}) is a reserved test domain. Project creation emails will be skipped in development.
+                      </p>
+                    </div>
+                  )}
                   {/* ADDRESS FIELD FIRST - triggers auto-population of other fields */}
                   <div className="space-y-2 border-b pb-4">
                     <Label htmlFor="address">

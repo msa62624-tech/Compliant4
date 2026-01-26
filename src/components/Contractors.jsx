@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import ReactDOM from "react-dom";
 import { compliant } from "@/api/compliantClient";
 import * as auth from "@/auth";
-import { sendEmail } from "@/emailHelper";
+import { sendEmail, isReservedEmailDomain } from "@/emailHelper";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -1035,6 +1035,11 @@ InsureTrack Team`
                     placeholder="contact@company.com"
                     required
                   />
+                  {isReservedEmailDomain(formData.email) && (
+                    <p className="text-sm text-orange-600">
+                      ℹ️ This is a reserved test domain. Welcome emails will be skipped in development. Use a real email address to test email sending.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">

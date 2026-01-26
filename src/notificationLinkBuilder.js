@@ -187,7 +187,7 @@ export class NotificationLinkBuilder {
     const links = {
       dashboard: this.getBrokerDashboardLink(brokerEmail),
       clients: this.getBrokerClientsLink(brokerEmail),
-      upload: this.getBrokerUploadLink(subcontractor.id),
+      upload: this.getBrokerUploadLink(subcontractor.coi_token || subcontractor.coiToken || subcontractor.coi_id || subcontractor.coiId),
       messages: this.getBrokerMessagesLink(brokerEmail),
     };
 

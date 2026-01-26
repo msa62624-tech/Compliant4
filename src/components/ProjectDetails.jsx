@@ -1207,6 +1207,7 @@ InsureTrack System`
 
       // Send email to subcontractor
       const brokerInfoLink = `${baseUrl}${createPageUrl('SubEnterBrokerInfo')}?token=${coiToken}`;
+      const brokerUploadLink = `${baseUrl}${createPageUrl('broker-upload-coi')}?token=${coiToken}&step=1&action=upload`;
 
       const dashboardLink = `${baseUrl}${createPageUrl('SubcontractorDashboard')}?id=${subId}`;
 
@@ -1224,8 +1225,6 @@ InsureTrack System`
       👉 Click here to get started: ${brokerInfoLink}
 
       We'll send your broker the project details and sample so they can upload and sign the COI for this job.
-
-      ${sampleCoiUrl ? 'A sample certificate showing the required format is attached to this email.' : ''}
 
       📊 After submitting broker info, view your dashboard: ${dashboardLink}
 
@@ -1256,6 +1255,19 @@ InsureTrack System`
         sendEmail({
           to: insuranceData.broker_email,
           subject: `Certificate Required - ${project.project_name}`,
+          includeSampleCOI: true,
+          recipientIsBroker: true,
+          sampleCOIData: {
+            program: project?.program_name || project?.program_id,
+            trade: formData.trade_types?.join(', '),
+            gc_name: project?.gc_name,
+            certificate_holder: project?.gc_name,
+            project_name: project?.project_name,
+            projectAddress: project?.address ? `${project.address}, ${project.city}, ${project.state} ${project.zip_code || ''}` : undefined,
+            description_of_operations: project?.description_of_operations || '',
+            requires_umbrella: project?.requires_umbrella || false,
+            additional_insureds: project?.additional_insured_entities || []
+          },
           body: `Your client ${formData.subcontractor_name} has been added to the project "${project.project_name}".
 
 Project Details:
@@ -1264,7 +1276,12 @@ Project Details:
 - General Contractor: ${project.gc_name}
 - Trade(s): ${formData.trade_types.join(', ')}
 
-Action needed: Upload and sign a project-specific COI with this project's additional insureds/locations using the link provided to you.
+Action needed: Upload and sign a project-specific COI for this job.
+
+Upload link:
+${brokerUploadLink}
+
+We have attached a sample Certificate of Insurance for your reference.
 
 Best regards,
 InsureTrack System`

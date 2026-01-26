@@ -897,9 +897,13 @@ app.use((req, res, next) => {
     'http://127.0.0.1:3000'
   ].filter(Boolean); // Remove undefined/null values
 
+  const isGithubDevOrigin = typeof requestOrigin === 'string' &&
+    (requestOrigin.startsWith('https://') || requestOrigin.startsWith('http://')) &&
+    requestOrigin.endsWith('.app.github.dev');
+
   // SECURITY: Only allow whitelisted origins, fallback to first allowed origin or localhost
   let allowOrigin;
-  if (allowedOrigins.includes(requestOrigin)) {
+  if (allowedOrigins.includes(requestOrigin) || isGithubDevOrigin) {
     allowOrigin = requestOrigin;
   } else {
     // Fallback to configured origin or localhost for development
@@ -945,7 +949,11 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.includes(origin)) {
+    const isGithubDevOrigin = typeof origin === 'string' &&
+      (origin.startsWith('https://') || origin.startsWith('http://')) &&
+      origin.endsWith('.app.github.dev');
+
+    if (allowedOrigins.includes(origin) || isGithubDevOrigin) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -1983,6 +1991,286 @@ app.post('/integrations/nyc/property', authenticateToken, async (req, res) => {
   }
 });
 
+// Helper: create an ACORD-style sample COI PDF buffer based on provided data
+async function generateSampleCOIPDF(data = {}) {
+  return new Promise((resolve, reject) => {
+    try {
+      // Fetch program requirements if program is specified
+      let programRequirements = null;
+      if (data.program || data.program_id) {
+        try {
+          let programId = data.program_id;
+          if (!programId && data.program) {
+            const programs = entities.InsuranceProgram?.filter(p => p.name === data.program || p.program_name === data.program) || [];
+            if (programs && programs.length > 0) {
+              programId = programs[0].id;
+            }
+          }
+          if (programId) {
+            // Check both SubInsuranceRequirement and ProgramRequirement
+            programRequirements = [
+              ...(entities.SubInsuranceRequirement?.filter(req => req.program_id === programId) || []),
+              ...(entities.ProgramRequirement?.filter(req => req.program_id === programId) || [])
+            ];
+            console.log(`📋 Found ${programRequirements.length} program requirements for program ${programId}`);
+          }
+        } catch (err) {
+          console.warn('Could not fetch program requirements:', err?.message);
+        }
+      }
+
+      // Determine trade tier and requirements
+      let tradeRequirements = null;
+      if (data.trade && programRequirements && programRequirements.length > 0) {
+        const tradesList = data.trade.split(',').map(t => t.trim().toLowerCase());
+        tradeRequirements = programRequirements.filter(req => {
+          const applicableTrades = req.applicable_trades || [];
+          // Also check trade_name for direct match
+          const tradeName = (req.trade_name || '').toLowerCase();
+          const scope = (req.scope || '').toLowerCase();
+          
+          // Check if requirement applies to "All Trades"
+          if (applicableTrades.some(t => t.toLowerCase() === 'all trades') || 
+              tradeName === 'all trades') {
+            return true;
+          }
+          
+          // Check if requirement is marked as "all other trades" or tier D fallback
+          if (req.is_all_other_trades || 
+              tradeName.includes('all other') || 
+              scope.includes('all other')) {
+            return true;
+          }
+          
+          // Check for exact or partial trade match
+          return applicableTrades.some(t => tradesList.includes(t.toLowerCase())) ||
+                 tradesList.some(t => tradeName.includes(t) || t.includes(tradeName) || scope.includes(t));
+        });
+        console.log(`📋 Matched ${tradeRequirements.length} requirements for trade(s): ${data.trade}`);
+      }
+
+      // Determine if umbrella is required
+      const hasUmbrellaRequirement = tradeRequirements && tradeRequirements.some(req => 
+        req.insurance_type === 'umbrella_policy' || req.umbrella_each_occurrence
+      );
+      
+      if (hasUmbrellaRequirement) {
+        const umbReq = tradeRequirements.find(r => r.insurance_type === 'umbrella_policy' || r.umbrella_each_occurrence);
+        console.log(`✅ Umbrella required: ${umbReq.umbrella_each_occurrence?.toLocaleString() || 'N/A'}`);
+      }
+
+      const doc = new PDFDocument({ size: 'LETTER', margin: 40 });
+      const chunks = [];
+      doc.on('data', (c) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+
+      const pageWidth = 612; // Letter size width in points
+      const pageHeight = 792; // Letter size height in points
+      const margin = 40;
+      const contentWidth = pageWidth - (margin * 2);
+      
+      // Helper to draw boxes
+      const drawBox = (x, y, width, height) => {
+        doc.rect(x, y, width, height).stroke();
+      };
+
+      // ACORD 25 FORM HEADER
+      doc.fontSize(7).font('Helvetica').text('ACORD', margin, margin);
+      doc.fontSize(6).text('CERTIFICATE OF LIABILITY INSURANCE', margin, margin + 8);
+      doc.fontSize(6).text('DATE (MM/DD/YYYY)', pageWidth - margin - 100, margin);
+      doc.fontSize(8).text(new Date().toLocaleDateString('en-US'), pageWidth - margin - 100, margin + 10);
+
+      let yPos = margin + 30;
+
+      // PRODUCER BOX (Left side)
+      drawBox(margin, yPos, contentWidth * 0.6, 80);
+      doc.fontSize(6).font('Helvetica-Bold').text('PRODUCER', margin + 3, yPos + 3);
+      // Do NOT include broker info on sample COI; use generic placeholders
+      doc.fontSize(8).font('Helvetica').text('(Broker/Producer Name and Contact)', margin + 3, yPos + 12);
+      doc.fontSize(7).text('(Address, Phone, Email to be completed)', margin + 3, yPos + 25);
+
+      // CONTACT INFO BOX (Right side)
+      const contactBoxX = margin + (contentWidth * 0.6) + 2;
+      drawBox(contactBoxX, yPos, contentWidth * 0.4 - 2, 40);
+      doc.fontSize(6).font('Helvetica-Bold').text('CONTACT', contactBoxX + 3, yPos + 3);
+      doc.fontSize(6).font('Helvetica').text('NAME:', contactBoxX + 3, yPos + 12);
+      doc.fontSize(6).text('PHONE: ', contactBoxX + 3, yPos + 22);
+      doc.fontSize(6).text('E-MAIL:', contactBoxX + 3, yPos + 32);
+
+      // INSURER INFO BOX (Right side, bottom)
+      drawBox(contactBoxX, yPos + 42, contentWidth * 0.4 - 2, 38);
+      doc.fontSize(6).font('Helvetica-Bold').text('INSURER(S) AFFORDING COVERAGE', contactBoxX + 3, yPos + 44);
+      doc.fontSize(6).font('Helvetica').text('INSURER A:', contactBoxX + 3, yPos + 54);
+      doc.fontSize(6).text('INSURER B:', contactBoxX + 3, yPos + 64);
+      doc.fontSize(6).text('INSURER C:', contactBoxX + 3, yPos + 74);
+
+      yPos += 82;
+
+      // INSURED BOX
+      drawBox(margin, yPos, contentWidth * 0.6, 45);
+      doc.fontSize(6).font('Helvetica-Bold').text('INSURED', margin + 3, yPos + 3);
+      doc.fontSize(8).font('Helvetica').text('(Named Insured Name and Address)', margin + 3, yPos + 12);
+      doc.fontSize(7).text('(To be completed by broker)', margin + 3, yPos + 25);
+
+      yPos += 47;
+
+      // COVERAGES SECTION
+      doc.fontSize(7).font('Helvetica-Bold').text('COVERAGES', margin, yPos);
+      doc.fontSize(6).font('Helvetica').text('THIS IS TO CERTIFY THAT THE POLICIES OF INSURANCE LISTED BELOW HAVE BEEN ISSUED TO THE INSURED NAMED ABOVE FOR THE POLICY PERIOD INDICATED.', margin, yPos + 10, { width: contentWidth, align: 'justify' });
+
+      yPos += 30;
+
+      // Coverage Table Header
+      drawBox(margin, yPos, contentWidth, 20);
+      doc.fontSize(6).font('Helvetica-Bold');
+      doc.text('TYPE OF INSURANCE', margin + 3, yPos + 3);
+      doc.text('INSR', margin + 3, yPos + 12);
+      doc.text('LTR', margin + 3, yPos + 12);
+      doc.text('POLICY NUMBER', margin + 180, yPos + 8);
+      doc.text('POLICY EFF', margin + 300, yPos + 3);
+      doc.text('(MM/DD/YYYY)', margin + 300, yPos + 11);
+      doc.text('POLICY EXP', margin + 380, yPos + 3);
+      doc.text('(MM/DD/YYYY)', margin + 380, yPos + 11);
+      doc.text('LIMITS', margin + 460, yPos + 8);
+
+      yPos += 22;
+
+      // GENERAL LIABILITY ROW
+      drawBox(margin, yPos, contentWidth, 60);
+      doc.fontSize(7).font('Helvetica-Bold').text('COMMERCIAL GENERAL LIABILITY', margin + 25, yPos + 3);
+      doc.fontSize(6).font('Helvetica').text('☐ CLAIMS-MADE  ☒ OCCUR', margin + 25, yPos + 12);
+      doc.fontSize(6).text('☐ PER PROJECT  ☒ PER OCCURRENCE', margin + 25, yPos + 20);
+      doc.fontSize(6).text('A', margin + 5, yPos + 3);
+      doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 8);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 8);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 8);
+      
+      // GL Limits
+      doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 460, yPos + 3);
+      const glLimit = tradeRequirements?.find(r => r.gl_each_occurrence)?.gl_each_occurrence || 1000000;
+      doc.text(`$ ${glLimit.toLocaleString()}`, margin + 460, yPos + 10);
+      doc.text('GENERAL AGGREGATE', margin + 460, yPos + 22);
+      const glAgg = tradeRequirements?.find(r => r.gl_general_aggregate)?.gl_general_aggregate || 2000000;
+      doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 29);
+      doc.text('PRODUCTS - COMP/OP AGG', margin + 460, yPos + 41);
+      doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 48);
+
+      yPos += 62;
+
+      // AUTOMOBILE LIABILITY ROW
+      drawBox(margin, yPos, contentWidth, 35);
+      doc.fontSize(7).font('Helvetica-Bold').text('AUTOMOBILE LIABILITY', margin + 25, yPos + 3);
+      doc.fontSize(6).font('Helvetica').text('☐ ANY AUTO  ☐ OWNED  ☐ SCHEDULED', margin + 25, yPos + 12);
+      doc.fontSize(6).text('☐ HIRED  ☐ NON-OWNED', margin + 25, yPos + 20);
+      doc.fontSize(6).text('B', margin + 5, yPos + 3);
+      doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
+      doc.text('COMBINED SINGLE LIMIT', margin + 460, yPos + 8);
+      const autoLimit = tradeRequirements?.find(r => r.auto_combined_single_limit)?.auto_combined_single_limit || 1000000;
+      doc.text(`$ ${autoLimit.toLocaleString()}`, margin + 460, yPos + 15);
+
+      yPos += 37;
+
+      // WORKERS COMPENSATION ROW
+      drawBox(margin, yPos, contentWidth, 35);
+      doc.fontSize(7).font('Helvetica-Bold').text('WORKERS COMPENSATION', margin + 25, yPos + 3);
+      doc.fontSize(6).font('Helvetica').text('AND EMPLOYERS\' LIABILITY', margin + 25, yPos + 11);
+      doc.fontSize(6).text('☒ STATUTORY LIMITS', margin + 25, yPos + 20);
+      doc.fontSize(6).text('C', margin + 5, yPos + 3);
+      doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
+      doc.text('E.L. EACH ACCIDENT', margin + 460, yPos + 3);
+      const wcLimit = tradeRequirements?.find(r => r.wc_each_accident)?.wc_each_accident || 1000000;
+      doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 10);
+      doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 460, yPos + 18);
+      doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 25);
+
+      yPos += 37;
+
+      // UMBRELLA ROW (if required)
+      if (hasUmbrellaRequirement) {
+        drawBox(margin, yPos, contentWidth, 35);
+        doc.fontSize(7).font('Helvetica-Bold').text('UMBRELLA LIAB', margin + 25, yPos + 3);
+        doc.fontSize(6).font('Helvetica').text('☐ OCCUR  ☐ CLAIMS-MADE', margin + 25, yPos + 12);
+        doc.fontSize(6).text('☒ FOLLOW FORM', margin + 25, yPos + 20);
+        doc.fontSize(6).text('D', margin + 5, yPos + 3);
+        doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
+        doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
+        doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
+        doc.text('EACH OCCURRENCE', margin + 460, yPos + 8);
+        const umbLimit = tradeRequirements?.find(r => r.umbrella_each_occurrence)?.umbrella_each_occurrence || 2000000;
+        doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 15);
+        doc.text('AGGREGATE', margin + 460, yPos + 23);
+        doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 30);
+        yPos += 37;
+      }
+
+      // DESCRIPTION OF OPERATIONS BOX
+      drawBox(margin, yPos, contentWidth * 0.6, 80);
+      doc.fontSize(6).font('Helvetica-Bold').text('DESCRIPTION OF OPERATIONS / LOCATIONS / VEHICLES', margin + 3, yPos + 3);
+      doc.fontSize(7).font('Helvetica');
+      const umbrellaText = hasUmbrellaRequirement ? ' & Umbrella' : '';
+      const jobLocationText = data.projectAddress ? `\n\nJob Location: ${data.projectAddress}` : '';
+      doc.text(
+        `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.${jobLocationText}`,
+        margin + 3,
+        yPos + 13,
+        { width: contentWidth * 0.6 - 6, align: 'left' }
+      );
+
+      // Additional Insureds
+      doc.fontSize(7).font('Helvetica-Bold').text('ADDITIONAL INSURED(S):', margin + 3, yPos + 50);
+      doc.fontSize(7).font('Helvetica');
+      const addlInsuredList = Array.isArray(data.additional_insureds) && data.additional_insureds.length > 0
+        ? data.additional_insureds
+        : (Array.isArray(data.additional_insured_entities) ? data.additional_insured_entities.map(e => e?.name || e).filter(Boolean) : []);
+      if (addlInsuredList.length > 0) {
+        addlInsuredList.slice(0, 3).forEach((ai, idx) => {
+          doc.text(`• ${ai}`, margin + 3, yPos + 58 + (idx * 8), { width: contentWidth * 0.6 - 6 });
+        });
+      } else {
+        doc.text('• (See certificate holder below)', margin + 3, yPos + 58);
+      }
+
+      // CERTIFICATE HOLDER BOX (Bottom right)
+      const certHolderX = margin + (contentWidth * 0.6) + 2;
+      drawBox(certHolderX, yPos, contentWidth * 0.4 - 2, 80);
+      doc.fontSize(6).font('Helvetica-Bold').text('CERTIFICATE HOLDER', certHolderX + 3, yPos + 3);
+      doc.fontSize(8).font('Helvetica');
+      const certHolder = data.gc_name || 'General Contractor';
+      doc.text(certHolder, certHolderX + 3, yPos + 15);
+      if (data.gc_mailing_address) {
+        doc.fontSize(7).text(data.gc_mailing_address, certHolderX + 3, yPos + 25, { width: contentWidth * 0.4 - 8 });
+      }
+      if (data.project_name) {
+        doc.fontSize(7).text(`Re: ${data.project_name}`, certHolderX + 3, yPos + 40, { width: contentWidth * 0.4 - 8 });
+      }
+
+      yPos += 82;
+
+      // CANCELLATION NOTICE
+      doc.fontSize(6).font('Helvetica-Bold').text('CANCELLATION', margin, yPos);
+      doc.fontSize(6).font('Helvetica').text('SHOULD ANY OF THE ABOVE DESCRIBED POLICIES BE CANCELLED BEFORE THE EXPIRATION DATE THEREOF, NOTICE WILL BE DELIVERED IN ACCORDANCE WITH THE POLICY PROVISIONS.', margin, yPos + 8, { width: contentWidth, align: 'justify' });
+
+      yPos += 25;
+
+      // AUTHORIZED REPRESENTATIVE
+      doc.fontSize(6).font('Helvetica-Bold').text('AUTHORIZED REPRESENTATIVE', margin, yPos);
+      doc.fontSize(7).font('Helvetica').text('(Signature)', margin, yPos + 15);
+
+      // Footer
+      doc.fontSize(5).font('Helvetica').text('© 1988-2015 ACORD CORPORATION. All rights reserved.', margin, pageHeight - margin - 15);
+      doc.text('ACORD 25 (2016/03)', pageWidth - margin - 80, pageHeight - margin - 15);
+
+      doc.end();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
 // Public email endpoint - no authentication required (for broker portal)
 app.post('/public/send-email', emailLimiter, async (req, res) => {
   /* eslint-disable no-unused-vars */
@@ -2017,286 +2305,6 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
   const rejectUnauthorized = parseBool(rejectUnauthorizedEnv, true);
 
   try {
-    // Helper: create an ACORD-style sample COI PDF buffer based on provided data
-    const generateSampleCOIPDF = async (data = {}) => {
-      return new Promise((resolve, reject) => {
-        try {
-          // Fetch program requirements if program is specified
-          let programRequirements = null;
-          if (data.program || data.program_id) {
-            try {
-              let programId = data.program_id;
-              if (!programId && data.program) {
-                const programs = entities.InsuranceProgram?.filter(p => p.name === data.program || p.program_name === data.program) || [];
-                if (programs && programs.length > 0) {
-                  programId = programs[0].id;
-                }
-              }
-              if (programId) {
-                // Check both SubInsuranceRequirement and ProgramRequirement
-                programRequirements = [
-                  ...(entities.SubInsuranceRequirement?.filter(req => req.program_id === programId) || []),
-                  ...(entities.ProgramRequirement?.filter(req => req.program_id === programId) || [])
-                ];
-                console.log(`📋 Found ${programRequirements.length} program requirements for program ${programId}`);
-              }
-            } catch (err) {
-              console.warn('Could not fetch program requirements:', err?.message);
-            }
-          }
-
-          // Determine trade tier and requirements
-          let tradeRequirements = null;
-          if (data.trade && programRequirements && programRequirements.length > 0) {
-            const tradesList = data.trade.split(',').map(t => t.trim().toLowerCase());
-            tradeRequirements = programRequirements.filter(req => {
-              const applicableTrades = req.applicable_trades || [];
-              // Also check trade_name for direct match
-              const tradeName = (req.trade_name || '').toLowerCase();
-              const scope = (req.scope || '').toLowerCase();
-              
-              // Check if requirement applies to "All Trades"
-              if (applicableTrades.some(t => t.toLowerCase() === 'all trades') || 
-                  tradeName === 'all trades') {
-                return true;
-              }
-              
-              // Check if requirement is marked as "all other trades" or tier D fallback
-              if (req.is_all_other_trades || 
-                  tradeName.includes('all other') || 
-                  scope.includes('all other')) {
-                return true;
-              }
-              
-              // Check for exact or partial trade match
-              return applicableTrades.some(t => tradesList.includes(t.toLowerCase())) ||
-                     tradesList.some(t => tradeName.includes(t) || t.includes(tradeName) || scope.includes(t));
-            });
-            console.log(`📋 Matched ${tradeRequirements.length} requirements for trade(s): ${data.trade}`);
-          }
-
-          // Determine if umbrella is required
-          const hasUmbrellaRequirement = tradeRequirements && tradeRequirements.some(req => 
-            req.insurance_type === 'umbrella_policy' || req.umbrella_each_occurrence
-          );
-          
-          if (hasUmbrellaRequirement) {
-            const umbReq = tradeRequirements.find(r => r.insurance_type === 'umbrella_policy' || r.umbrella_each_occurrence);
-            console.log(`✅ Umbrella required: ${umbReq.umbrella_each_occurrence?.toLocaleString() || 'N/A'}`);
-          }
-
-          const doc = new PDFDocument({ size: 'LETTER', margin: 40 });
-          const chunks = [];
-          doc.on('data', (c) => chunks.push(c));
-          doc.on('end', () => resolve(Buffer.concat(chunks)));
-
-          const pageWidth = 612; // Letter size width in points
-          const pageHeight = 792; // Letter size height in points
-          const margin = 40;
-          const contentWidth = pageWidth - (margin * 2);
-          
-          // Helper to draw boxes
-          const drawBox = (x, y, width, height) => {
-            doc.rect(x, y, width, height).stroke();
-          };
-
-          // ACORD 25 FORM HEADER
-          doc.fontSize(7).font('Helvetica').text('ACORD', margin, margin);
-          doc.fontSize(6).text('CERTIFICATE OF LIABILITY INSURANCE', margin, margin + 8);
-          doc.fontSize(6).text('DATE (MM/DD/YYYY)', pageWidth - margin - 100, margin);
-          doc.fontSize(8).text(new Date().toLocaleDateString('en-US'), pageWidth - margin - 100, margin + 10);
-
-          let yPos = margin + 30;
-
-          // PRODUCER BOX (Left side)
-          drawBox(margin, yPos, contentWidth * 0.6, 80);
-          doc.fontSize(6).font('Helvetica-Bold').text('PRODUCER', margin + 3, yPos + 3);
-          // Do NOT include broker info on sample COI; use generic placeholders
-          doc.fontSize(8).font('Helvetica').text('(Broker/Producer Name and Contact)', margin + 3, yPos + 12);
-          doc.fontSize(7).text('(Address, Phone, Email to be completed)', margin + 3, yPos + 25);
-
-          // CONTACT INFO BOX (Right side)
-          const contactBoxX = margin + (contentWidth * 0.6) + 2;
-          drawBox(contactBoxX, yPos, contentWidth * 0.4 - 2, 40);
-          doc.fontSize(6).font('Helvetica-Bold').text('CONTACT', contactBoxX + 3, yPos + 3);
-          doc.fontSize(6).font('Helvetica').text('NAME:', contactBoxX + 3, yPos + 12);
-          doc.fontSize(6).text('PHONE: ', contactBoxX + 3, yPos + 22);
-          doc.fontSize(6).text('E-MAIL:', contactBoxX + 3, yPos + 32);
-
-          // INSURER INFO BOX (Right side, bottom)
-          drawBox(contactBoxX, yPos + 42, contentWidth * 0.4 - 2, 38);
-          doc.fontSize(6).font('Helvetica-Bold').text('INSURER(S) AFFORDING COVERAGE', contactBoxX + 3, yPos + 44);
-          doc.fontSize(6).font('Helvetica').text('INSURER A:', contactBoxX + 3, yPos + 54);
-          doc.fontSize(6).text('INSURER B:', contactBoxX + 3, yPos + 64);
-          doc.fontSize(6).text('INSURER C:', contactBoxX + 3, yPos + 74);
-
-          yPos += 82;
-
-          // INSURED BOX
-          drawBox(margin, yPos, contentWidth * 0.6, 45);
-          doc.fontSize(6).font('Helvetica-Bold').text('INSURED', margin + 3, yPos + 3);
-          doc.fontSize(8).font('Helvetica').text('(Named Insured Name and Address)', margin + 3, yPos + 12);
-          doc.fontSize(7).text('(To be completed by broker)', margin + 3, yPos + 25);
-
-          yPos += 47;
-
-          // COVERAGES SECTION
-          doc.fontSize(7).font('Helvetica-Bold').text('COVERAGES', margin, yPos);
-          doc.fontSize(6).font('Helvetica').text('THIS IS TO CERTIFY THAT THE POLICIES OF INSURANCE LISTED BELOW HAVE BEEN ISSUED TO THE INSURED NAMED ABOVE FOR THE POLICY PERIOD INDICATED.', margin, yPos + 10, { width: contentWidth, align: 'justify' });
-
-          yPos += 30;
-
-          // Coverage Table Header
-          drawBox(margin, yPos, contentWidth, 20);
-          doc.fontSize(6).font('Helvetica-Bold');
-          doc.text('TYPE OF INSURANCE', margin + 3, yPos + 3);
-          doc.text('INSR', margin + 3, yPos + 12);
-          doc.text('LTR', margin + 3, yPos + 12);
-          doc.text('POLICY NUMBER', margin + 180, yPos + 8);
-          doc.text('POLICY EFF', margin + 300, yPos + 3);
-          doc.text('(MM/DD/YYYY)', margin + 300, yPos + 11);
-          doc.text('POLICY EXP', margin + 380, yPos + 3);
-          doc.text('(MM/DD/YYYY)', margin + 380, yPos + 11);
-          doc.text('LIMITS', margin + 460, yPos + 8);
-
-          yPos += 22;
-
-          // GENERAL LIABILITY ROW
-          drawBox(margin, yPos, contentWidth, 60);
-          doc.fontSize(7).font('Helvetica-Bold').text('COMMERCIAL GENERAL LIABILITY', margin + 25, yPos + 3);
-          doc.fontSize(6).font('Helvetica').text('☐ CLAIMS-MADE  ☒ OCCUR', margin + 25, yPos + 12);
-          doc.fontSize(6).text('☐ PER PROJECT  ☒ PER OCCURRENCE', margin + 25, yPos + 20);
-          doc.fontSize(6).text('A', margin + 5, yPos + 3);
-          doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 8);
-          doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 8);
-          doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 8);
-          
-          // GL Limits
-          doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 460, yPos + 3);
-          const glLimit = tradeRequirements?.find(r => r.gl_each_occurrence)?.gl_each_occurrence || 1000000;
-          doc.text(`$ ${glLimit.toLocaleString()}`, margin + 460, yPos + 10);
-          doc.text('GENERAL AGGREGATE', margin + 460, yPos + 22);
-          const glAgg = tradeRequirements?.find(r => r.gl_general_aggregate)?.gl_general_aggregate || 2000000;
-          doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 29);
-          doc.text('PRODUCTS - COMP/OP AGG', margin + 460, yPos + 41);
-          doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 48);
-
-          yPos += 62;
-
-          // AUTOMOBILE LIABILITY ROW
-          drawBox(margin, yPos, contentWidth, 35);
-          doc.fontSize(7).font('Helvetica-Bold').text('AUTOMOBILE LIABILITY', margin + 25, yPos + 3);
-          doc.fontSize(6).font('Helvetica').text('☐ ANY AUTO  ☐ OWNED  ☐ SCHEDULED', margin + 25, yPos + 12);
-          doc.fontSize(6).text('☐ HIRED  ☐ NON-OWNED', margin + 25, yPos + 20);
-          doc.fontSize(6).text('B', margin + 5, yPos + 3);
-          doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
-          doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
-          doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
-          doc.text('COMBINED SINGLE LIMIT', margin + 460, yPos + 8);
-          const autoLimit = tradeRequirements?.find(r => r.auto_combined_single_limit)?.auto_combined_single_limit || 1000000;
-          doc.text(`$ ${autoLimit.toLocaleString()}`, margin + 460, yPos + 15);
-
-          yPos += 37;
-
-          // WORKERS COMPENSATION ROW
-          drawBox(margin, yPos, contentWidth, 35);
-          doc.fontSize(7).font('Helvetica-Bold').text('WORKERS COMPENSATION', margin + 25, yPos + 3);
-          doc.fontSize(6).font('Helvetica').text('AND EMPLOYERS\' LIABILITY', margin + 25, yPos + 11);
-          doc.fontSize(6).text('☒ STATUTORY LIMITS', margin + 25, yPos + 20);
-          doc.fontSize(6).text('C', margin + 5, yPos + 3);
-          doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
-          doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
-          doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
-          doc.text('E.L. EACH ACCIDENT', margin + 460, yPos + 3);
-          const wcLimit = tradeRequirements?.find(r => r.wc_each_accident)?.wc_each_accident || 1000000;
-          doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 10);
-          doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 460, yPos + 18);
-          doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 25);
-
-          yPos += 37;
-
-          // UMBRELLA ROW (if required)
-          if (hasUmbrellaRequirement) {
-            drawBox(margin, yPos, contentWidth, 35);
-            doc.fontSize(7).font('Helvetica-Bold').text('UMBRELLA LIAB', margin + 25, yPos + 3);
-            doc.fontSize(6).font('Helvetica').text('☐ OCCUR  ☐ CLAIMS-MADE', margin + 25, yPos + 12);
-            doc.fontSize(6).text('☒ FOLLOW FORM', margin + 25, yPos + 20);
-            doc.fontSize(6).text('D', margin + 5, yPos + 3);
-            doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
-            doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
-            doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
-            doc.text('EACH OCCURRENCE', margin + 460, yPos + 8);
-            const umbLimit = tradeRequirements?.find(r => r.umbrella_each_occurrence)?.umbrella_each_occurrence || 2000000;
-            doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 15);
-            doc.text('AGGREGATE', margin + 460, yPos + 23);
-            doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 30);
-            yPos += 37;
-          }
-
-          // DESCRIPTION OF OPERATIONS BOX
-          drawBox(margin, yPos, contentWidth * 0.6, 80);
-          doc.fontSize(6).font('Helvetica-Bold').text('DESCRIPTION OF OPERATIONS / LOCATIONS / VEHICLES', margin + 3, yPos + 3);
-          doc.fontSize(7).font('Helvetica');
-          const umbrellaText = hasUmbrellaRequirement ? ' & Umbrella' : '';
-          const jobLocationText = data.projectAddress ? `\n\nJob Location: ${data.projectAddress}` : '';
-          doc.text(
-            `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.${jobLocationText}`,
-            margin + 3,
-            yPos + 13,
-            { width: contentWidth * 0.6 - 6, align: 'left' }
-          );
-
-          // Additional Insureds
-          doc.fontSize(7).font('Helvetica-Bold').text('ADDITIONAL INSURED(S):', margin + 3, yPos + 50);
-          doc.fontSize(7).font('Helvetica');
-          const addlInsuredList = Array.isArray(data.additional_insureds) && data.additional_insureds.length > 0
-            ? data.additional_insureds
-            : (Array.isArray(data.additional_insured_entities) ? data.additional_insured_entities.map(e => e?.name || e).filter(Boolean) : []);
-          if (addlInsuredList.length > 0) {
-            addlInsuredList.slice(0, 3).forEach((ai, idx) => {
-              doc.text(`• ${ai}`, margin + 3, yPos + 58 + (idx * 8), { width: contentWidth * 0.6 - 6 });
-            });
-          } else {
-            doc.text('• (See certificate holder below)', margin + 3, yPos + 58);
-          }
-
-          // CERTIFICATE HOLDER BOX (Bottom right)
-          const certHolderX = margin + (contentWidth * 0.6) + 2;
-          drawBox(certHolderX, yPos, contentWidth * 0.4 - 2, 80);
-          doc.fontSize(6).font('Helvetica-Bold').text('CERTIFICATE HOLDER', certHolderX + 3, yPos + 3);
-          doc.fontSize(8).font('Helvetica');
-          const certHolder = data.gc_name || 'General Contractor';
-          doc.text(certHolder, certHolderX + 3, yPos + 15);
-          if (data.gc_mailing_address) {
-            doc.fontSize(7).text(data.gc_mailing_address, certHolderX + 3, yPos + 25, { width: contentWidth * 0.4 - 8 });
-          }
-          if (data.project_name) {
-            doc.fontSize(7).text(`Re: ${data.project_name}`, certHolderX + 3, yPos + 40, { width: contentWidth * 0.4 - 8 });
-          }
-
-          yPos += 82;
-
-          // CANCELLATION NOTICE
-          doc.fontSize(6).font('Helvetica-Bold').text('CANCELLATION', margin, yPos);
-          doc.fontSize(6).font('Helvetica').text('SHOULD ANY OF THE ABOVE DESCRIBED POLICIES BE CANCELLED BEFORE THE EXPIRATION DATE THEREOF, NOTICE WILL BE DELIVERED IN ACCORDANCE WITH THE POLICY PROVISIONS.', margin, yPos + 8, { width: contentWidth, align: 'justify' });
-
-          yPos += 25;
-
-          // AUTHORIZED REPRESENTATIVE
-          doc.fontSize(6).font('Helvetica-Bold').text('AUTHORIZED REPRESENTATIVE', margin, yPos);
-          doc.fontSize(7).font('Helvetica').text('(Signature)', margin, yPos + 15);
-
-          // Footer
-          doc.fontSize(5).font('Helvetica').text('© 1988-2015 ACORD CORPORATION. All rights reserved.', margin, pageHeight - margin - 15);
-          doc.text('ACORD 25 (2016/03)', pageWidth - margin - 80, pageHeight - margin - 15);
-
-          doc.end();
-        } catch (e) {
-          reject(e);
-        }
-      });
-    };
-
     // Helper: Generate a regenerated COI PDF using stored data with updated job fields
     // eslint-disable-next-line no-unused-vars
     const generateGeneratedCOIPDF = async (coiRecord = {}) => {
@@ -2846,10 +2854,9 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
 
         if (shouldAttachSample) {
           try {
-            console.log('⚠️ Sample COI PDF generation not available in this handler');
-            // Note: generateSampleCOIPDF is defined in /public/send-email handler only
-            // const pdfBuffer = await generateSampleCOIPDF(sampleCOIData || {});
-            // mailAttachments.push({ filename: 'sample_coi.pdf', content: pdfBuffer, contentType: 'application/pdf' });
+            const pdfBuffer = await generateSampleCOIPDF(_sampleCOIData || {});
+            mailAttachments.push({ filename: 'sample_coi.pdf', content: pdfBuffer, contentType: 'application/pdf' });
+            console.log('✅ Sample COI PDF generated and attached (auth handler):', pdfBuffer.length, 'bytes');
           } catch (pdfErr) {
             console.error('❌ Could not generate sample COI PDF for broker:', pdfErr?.message || pdfErr);
           }
@@ -6497,8 +6504,8 @@ async function checkAndProcessRenewals() {
         try {
           if (coi.broker_email) {
             const frontendHost = process.env.FRONTEND_URL || `http://localhost:5175`;
-            const uploadBinderLink = `${frontendHost}/broker-upload-policy?token=${coi.coi_token}&type=binder`;
-            const uploadPolicyLink = `${frontendHost}/broker-upload-policy?token=${coi.coi_token}&type=policy`;
+            const uploadBinderLink = `${frontendHost}/broker-upload-coi?token=${coi.coi_token}&step=1&action=upload&type=binder`;
+            const uploadPolicyLink = `${frontendHost}/broker-upload-coi?token=${coi.coi_token}&step=1&action=upload&type=policy`;
             const _internalUrl = `${process.env.BACKEND_URL || (process.env.BACKEND_HOST ? `http://${process.env.BACKEND_HOST}` : '')}${reqHostSuffix()}`;
             const emailPayload = {
               to: coi.broker_email,

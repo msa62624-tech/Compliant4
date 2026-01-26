@@ -49,6 +49,11 @@ export default function SubcontractorsManagement() {
     queryFn: () => compliant.entities.GeneratedCOI.list('-created_date'),
   });
 
+  const { data: allProjects = [] } = useQuery({
+    queryKey: ['all-projects'],
+    queryFn: () => compliant.entities.Project.list(),
+  });
+
   const updateCOIMutation = useMutation({
     mutationFn: ({ id, data }) => compliant.entities.GeneratedCOI.update(id, data),
     onSuccess: () => {
@@ -121,17 +126,47 @@ export default function SubcontractorsManagement() {
       return;
     }
 
-    if (!subCOI.sample_coi_pdf_url) {
-      alert('Sample COI is being generated. Please try again in a moment.');
-      return;
-    }
-
     try {
       const baseUrl = window.location.origin.replace(/\/$/, '');
       const brokerUploadLink = `${baseUrl}${createPageUrl(`broker-upload-coi`)}?token=${subCOI.coi_token}&step=1`;
+      const sampleLinkText = subCOI.sample_coi_pdf_url
+        ? `\nVIEW SAMPLE CERTIFICATE: ${subCOI.sample_coi_pdf_url}\n`
+        : '';
+
+      const project = allProjects.find(p => p.id === subCOI.project_id) ||
+        allProjects.find(p => p.project_name === subCOI.project_name);
+
+      const projectAddress = project
+        ? [project.address || project.project_address, project.city, project.state, project.zip_code]
+          .filter(Boolean)
+          .join(', ')
+        : (subCOI.project_location || subCOI.project_address);
+
+      const projectInsureds = [];
+      if (project?.owner_entity) projectInsureds.push(project.owner_entity);
+      if (Array.isArray(project?.additional_insured_entities)) {
+        project.additional_insured_entities.forEach(ai => {
+          const value = ai?.name || ai;
+          if (value) projectInsureds.push(value);
+        });
+      }
 
       await sendEmail({
         to: subCOI.broker_email,
+        includeSampleCOI: true,
+        recipientIsBroker: true,
+        sampleCOIData: {
+          project_name: project?.project_name || subCOI.project_name,
+          gc_name: project?.gc_name || subCOI.gc_name,
+          certificate_holder: project?.gc_name || subCOI.gc_name,
+          projectAddress: projectAddress,
+          trade: subCOI.trade_type || (Array.isArray(subCOI.trade_types) ? subCOI.trade_types.join(', ') : undefined),
+          program: project?.program_name || subCOI.program_name || subCOI.program_id,
+          program_id: project?.program_id,
+          description_of_operations: project?.description_of_operations || subCOI.description_of_operations || '',
+          additional_insureds: projectInsureds.length > 0 ? projectInsureds : (subCOI.additional_insured_entities || subCOI.additional_insureds),
+          additional_insured_entities: projectInsureds.length > 0 ? projectInsureds : (subCOI.additional_insured_entities || subCOI.additional_insureds),
+        },
         subject: `Insurance Certificate Request - ${sub.company_name}`,
         body: `Dear ${subCOI.broker_name || 'Insurance Professional'},
 
@@ -140,7 +175,7 @@ We need an insurance certificate for your client ${sub.company_name}.
 WHAT WE NEED:
 Please review the sample certificate and provide a matching ACORD 25 certificate.
 
-VIEW SAMPLE CERTIFICATE: ${subCOI.sample_coi_pdf_url}
+      The sample certificate is attached for your reference.${sampleLinkText}
 
 UPLOAD YOUR CERTIFICATE HERE: ${brokerUploadLink}
 
