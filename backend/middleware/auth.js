@@ -3,12 +3,14 @@ import { sendError } from './validation.js';
 
 // Create auth middleware that will be initialized with JWT_SECRET
 let authMiddleware = null;
+let jwtSecretKey = null;
 
 /**
  * Initialize authenticateToken middleware with JWT secret
  * @param {string} jwtSecret - JWT secret key
  */
 export function initializeAuthMiddleware(jwtSecret) {
+  jwtSecretKey = jwtSecret;
   authMiddleware = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -70,13 +72,13 @@ export const optionalAuthentication = (req, res, next) => {
     return next();
   }
 
-  if (!authMiddleware) {
+  if (!jwtSecretKey) {
     // Auth not initialized - continue without setting req.user
     return next();
   }
 
   // Try to verify the token, but don't fail if it's invalid
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+  jwt.verify(token, jwtSecretKey, (err, user) => {
     if (!err) {
       // Token is valid - set req.user
       req.user = user;
