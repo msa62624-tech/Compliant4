@@ -11,6 +11,7 @@ import helmet from 'helmet';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import multer from 'multer';
 
 // Import configuration
 import { JWT_SECRET, ADMIN_PASSWORD_HASH, PORT, FRONTEND_URL, DEFAULT_ADMIN_EMAILS, RENEWAL_LOOKAHEAD_DAYS, BINDER_WINDOW_DAYS } from './config/env.js';
@@ -21,6 +22,13 @@ import { upload } from './config/upload.js';
 import { apiLimiter, authLimiter, uploadLimiter, emailLimiter, publicApiLimiter } from './middleware/rateLimiting.js';
 import { sendError, sendSuccess, handleValidationErrors } from './middleware/validation.js';
 import { authenticateToken, requireAdmin, initializeAuthMiddleware } from './middleware/auth.js';
+import logger from './config/logger.js';
+import { correlationId, requestLogger, errorLogger } from './middleware/requestLogger.js';
+import { logAuth, AuditEventType } from './middleware/auditLogger.js';
+import { healthCheckHandler, readinessCheckHandler, livenessCheckHandler } from './middleware/healthCheck.js';
+import { trackConnection, setupGracefulShutdown } from './middleware/gracefulShutdown.js';
+import { sanitizeInput } from './middleware/inputSanitization.js';
+import { validateEnvironment } from './middleware/envValidation.js';
 
 // Import services
 import { timingSafeEqual, DUMMY_PASSWORD_HASH } from './services/authService.js';
@@ -956,6 +964,22 @@ app.options('*', (req, res) => {
 app.use(express.json({ limit: '10mb' }));
 
 // =======================
+// ENTERPRISE MIDDLEWARE
+// =======================
+
+// Add correlation ID to all requests for tracing
+app.use(correlationId);
+
+// Track active connections for graceful shutdown
+app.use(trackConnection);
+
+// Request logging (morgan + winston)
+app.use(requestLogger);
+
+// Input sanitization middleware
+app.use(sanitizeInput());
+
+// =======================
 // RATE LIMITING MIDDLEWARE
 // =======================
 
@@ -979,10 +1003,10 @@ console.log('✅ Serving uploads from:', UPLOADS_DIR);
 // (Response formatters and validation now imported from middleware/validation.js)
 // (Auth middleware now imported from middleware/auth.js)
 
-// Health check
-app.get('/health', (req, res) => {
-  sendSuccess(res, { status: 'ok' });
-});
+// Enhanced health check endpoints
+app.get('/health', healthCheckHandler);
+app.get('/health/readiness', readinessCheckHandler);
+app.get('/health/liveness', livenessCheckHandler);
 
 // Auth endpoints with validation
 app.post('/auth/login',
@@ -1003,6 +1027,12 @@ app.post('/auth/login',
       const isPasswordValid = await bcrypt.compare(password, passwordToCheck);
       
       if (!user || !isPasswordValid) {
+        // Audit failed login attempt
+        logAuth(AuditEventType.LOGIN_FAILURE, username, false, {
+          ip: req.ip || req.connection.remoteAddress,
+          userAgent: req.headers['user-agent'],
+          correlationId: req.correlationId,
+        });
         return sendError(res, 401, 'Invalid credentials');
       }
 
@@ -1018,6 +1048,15 @@ app.post('/auth/login',
         { expiresIn: '7d' }
       );
 
+      // Audit successful login
+      logAuth(AuditEventType.LOGIN_SUCCESS, username, true, {
+        userId: user.id,
+        role: user.role,
+        ip: req.ip || req.connection.remoteAddress,
+        userAgent: req.headers['user-agent'],
+        correlationId: req.correlationId,
+      });
+
       res.json({
         accessToken,
         refreshToken,
@@ -1030,7 +1069,7 @@ app.post('/auth/login',
         }
       });
     } catch (err) {
-      console.error('Login error:', err);
+      logger.error('Login error', { error: err.message, stack: err.stack, correlationId: req.correlationId });
       return sendError(res, 500, 'Authentication service error');
     }
 });
@@ -6414,6 +6453,9 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
 // ERROR HANDLING
 // =======================
 
+// Error logging middleware
+app.use(errorLogger);
+
 // 404 handler for undefined routes
 app.use((req, res) => {
   sendError(res, 404, `Route ${req.method} ${req.path} not found`);
@@ -6421,7 +6463,13 @@ app.use((req, res) => {
 
 // Global error handler
 app.use((err, req, res, _next) => {
-  console.error('❌ Global error handler:', err);
+  logger.error('Global error handler', {
+    error: err.message,
+    stack: err.stack,
+    correlationId: req.correlationId,
+    method: req.method,
+    url: req.url,
+  });
   
   // Multer file upload errors
   if (err instanceof multer.MulterError) {
@@ -6568,25 +6616,36 @@ if (!process.env.VERCEL) {
   });
 
   (async () => {
+    // Validate environment before starting
+    try {
+      validateEnvironment();
+    } catch (err) {
+      logger.error('Environment validation failed, exiting', { error: err.message });
+      process.exit(1);
+    }
+
+    // Setup graceful shutdown handlers
+    setupGracefulShutdown();
+
     for (let i = 0; i <= MAX_PORT_TRIES; i++) {
       const p = configuredPort + i;
       try {
         const server = await tryListen(p);
-        console.log(`compliant.team Backend running on http://localhost:${p}`);
-        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log(`CORS allowed: ${process.env.FRONTEND_URL || '*'}`);
-        console.log(`✅ Security: Helmet enabled, Rate limiting active`);
+        logger.info(`compliant.team Backend running on http://localhost:${p}`);
+        logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        logger.info(`CORS allowed: ${process.env.FRONTEND_URL || '*'}`);
+        logger.info(`✅ Security: Helmet enabled, Rate limiting active`);
 
         const hasSmtpConfig = (process.env.SMTP_HOST || process.env.SMTP_SERVICE) && 
                               process.env.SMTP_USER && 
                               process.env.SMTP_PASS;
         if (hasSmtpConfig) {
-          console.log(`✅ Email service: CONFIGURED (${process.env.SMTP_SERVICE || process.env.SMTP_HOST})`);
-          console.log(`   From: ${process.env.SMTP_FROM || process.env.SMTP_USER}`);
+          logger.info(`✅ Email service: CONFIGURED (${process.env.SMTP_SERVICE || process.env.SMTP_HOST})`);
+          logger.info(`   From: ${process.env.SMTP_FROM || process.env.SMTP_USER}`);
         } else {
-          console.log(`⚠️  Email service: TEST MODE (not configured for real emails)`);
-          console.log(`   Configure SMTP in backend/.env to send real emails`);
-          console.log(`   See EMAIL_QUICKSTART.md for quick setup`);
+          logger.warn(`⚠️  Email service: TEST MODE (not configured for real emails)`);
+          logger.warn(`   Configure SMTP in backend/.env to send real emails`);
+          logger.warn(`   See EMAIL_QUICKSTART.md for quick setup`);
         }
 
         // Expose chosen port to environment for downstream processes
@@ -6595,40 +6654,32 @@ if (!process.env.VERCEL) {
         // Start renewal scheduler to monitor expiring policies
         try {
           startRenewalScheduler();
-          console.log('🔁 Renewal scheduler started');
+          logger.info('🔁 Renewal scheduler started');
         } catch (schedErr) {
-          console.warn('Could not start renewal scheduler:', schedErr?.message || schedErr);
+          logger.warn('Could not start renewal scheduler:', schedErr?.message || schedErr);
         }
 
         server.on('error', (err) => {
-          console.error('Server error:', err);
+          logger.error('Server error', { error: err.message, stack: err.stack });
         });
 
         return;
       } catch (err) {
         if (err && err.code === 'EADDRINUSE') {
-          console.warn(`Port ${p} in use — trying next port`);
+          logger.warn(`Port ${p} in use — trying next port`);
           continue;
         }
-        console.error('Failed to start server:', err);
+        logger.error('Failed to start server', { error: err.message, stack: err.stack });
         break;
       }
     }
 
-    console.error(`Unable to bind to any port in range ${configuredPort}-${configuredPort + MAX_PORT_TRIES}. Please free a port or set PORT to an available port.`);
+    logger.error(`Unable to bind to any port in range ${configuredPort}-${configuredPort + MAX_PORT_TRIES}. Please free a port or set PORT to an available port.`);
   })();
 }
 
-// Global error handlers to prevent crashes
-process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-  // Don't exit - attempt to continue running
-});
+// Note: Global error handlers (uncaughtException, unhandledRejection, SIGTERM, SIGINT) 
+// are configured in setupGracefulShutdown() middleware
 
 
 // Export for Vercel serverless
