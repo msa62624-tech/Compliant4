@@ -1,7 +1,7 @@
 // Playwright configuration for minimal E2E test with video recording
-const { devices } = require('@playwright/test');
+import { devices } from '@playwright/test';
 
-module.exports = {
+export default {
   testDir: './e2e',
   timeout: 60 * 1000,
   expect: { timeout: 5000 },

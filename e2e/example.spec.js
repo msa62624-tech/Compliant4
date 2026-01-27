@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+import { test, expect } from '@playwright/test';
 
 // Base URL can be overridden with PLAYWRIGHT_BASE_URL env var
 const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5175';
