@@ -299,9 +299,18 @@ export default function COIReview() {
   const approveWithDeficiencyWaivers = async () => {
     if (!coi) return;
     
-    const justification = prompt('Enter justification for approving this COI with deficiencies (minimum 10 characters):');
-    if (!justification || justification.trim().length < 10) {
-      alert('Justification is required and must be at least 10 characters.');
+    const justification = prompt('Enter justification for approving this COI with deficiencies (10-2000 characters):');
+    if (!justification) return; // User cancelled
+    
+    const trimmed = justification.trim();
+    
+    if (trimmed.length < 10) {
+      alert('Justification must be at least 10 characters.');
+      return;
+    }
+    
+    if (trimmed.length > 2000) {
+      alert('Justification must not exceed 2000 characters. Please provide a concise explanation.');
       return;
     }
 
@@ -316,7 +325,7 @@ export default function COIReview() {
         },
         body: JSON.stringify({
           coi_id: coi.id,
-          justification: justification.trim(),
+          justification: trimmed,
           approved_by: localStorage.getItem('user_email') || 'admin',
           waived_deficiencies: coi.deficiencies?.map(d => d.id) || []
         })

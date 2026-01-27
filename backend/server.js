@@ -44,18 +44,32 @@ import { getPasswordResetEmail, getDocumentReplacementNotificationEmail } from '
 import AdobePDFService from './integrations/adobe-pdf-service.js';
 import AIAnalysisService from './integrations/ai-analysis-service.js';
 
-// Initialize Adobe PDF Service
-const adobePDF = new AdobePDFService({
-  apiKey: process.env.ADOBE_API_KEY,
-  clientId: process.env.ADOBE_CLIENT_ID
-});
+// Initialize Adobe PDF Service with error handling
+let adobePDF;
+try {
+  adobePDF = new AdobePDFService({
+    apiKey: process.env.ADOBE_API_KEY,
+    clientId: process.env.ADOBE_CLIENT_ID
+  });
+} catch (error) {
+  console.error('⚠️  Failed to initialize Adobe PDF Service:', error.message);
+  console.log('   Service will run in fallback mode');
+  adobePDF = new AdobePDFService(); // Initialize with defaults
+}
 
-// Initialize AI Analysis Service
-const aiAnalysis = new AIAnalysisService({
-  provider: process.env.AI_PROVIDER || 'openai',
-  apiKey: process.env.AI_API_KEY || process.env.OPENAI_API_KEY,
-  model: process.env.AI_MODEL || 'gpt-4-turbo-preview'
-});
+// Initialize AI Analysis Service with error handling
+let aiAnalysis;
+try {
+  aiAnalysis = new AIAnalysisService({
+    provider: process.env.AI_PROVIDER || 'openai',
+    apiKey: process.env.AI_API_KEY || process.env.OPENAI_API_KEY,
+    model: process.env.AI_MODEL || 'gpt-4-turbo-preview'
+  });
+} catch (error) {
+  console.error('⚠️  Failed to initialize AI Analysis Service:', error.message);
+  console.log('   Service will run in fallback mode');
+  aiAnalysis = new AIAnalysisService(); // Initialize with defaults
+}
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -6943,7 +6957,7 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
 
 // Admin: Approve COI with deficiencies (override)
 // Allows admin to approve a COI even when deficiencies are found, with proper justification
-app.post('/admin/approve-coi-with-deficiencies', authenticateToken, async (req, res) => {
+app.post('/admin/approve-coi-with-deficiencies', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { coi_id, approved_by, justification, waived_deficiencies = [] } = req.body || {};
     
@@ -6951,9 +6965,22 @@ app.post('/admin/approve-coi-with-deficiencies', authenticateToken, async (req, 
       return res.status(400).json({ error: 'coi_id is required' });
     }
     
-    if (!justification || justification.trim().length < 10) {
+    // Validate justification
+    if (!justification || typeof justification !== 'string') {
+      return res.status(400).json({ error: 'Justification is required' });
+    }
+    
+    const trimmedJustification = justification.trim();
+    
+    if (trimmedJustification.length < 10) {
       return res.status(400).json({ 
-        error: 'Justification is required and must be at least 10 characters' 
+        error: 'Justification must be at least 10 characters' 
+      });
+    }
+    
+    if (trimmedJustification.length > 2000) {
+      return res.status(400).json({ 
+        error: 'Justification must not exceed 2000 characters' 
       });
     }
 
@@ -6968,7 +6995,7 @@ app.post('/admin/approve-coi-with-deficiencies', authenticateToken, async (req, 
     const approvalRecord = {
       approved_at: new Date().toISOString(),
       approved_by: approved_by || req.user?.email || 'admin',
-      justification: justification.trim(),
+      justification: trimmedJustification,
       waived_deficiencies: waived_deficiencies,
       deficiency_count: coi.deficiencies?.length || 0,
       original_status: coi.status
@@ -6988,21 +7015,27 @@ app.post('/admin/approve-coi-with-deficiencies', authenticateToken, async (req, 
 
     // Log the approval for audit trail
     console.log(`✅ COI ${coi_id} approved with deficiencies by ${approvalRecord.approved_by}`);
-    logAuth({
-      type: AuditEventType.COI_APPROVED_WITH_DEFICIENCIES,
-      userId: req.user?.id || 'admin',
-      email: req.user?.email || 'admin',
-      metadata: {
+    logAuth(
+      AuditEventType.ADMIN_ACTION,
+      req.user?.email || 'admin',
+      true,
+      { 
+        action: 'approve_coi_with_deficiencies',
         coi_id,
         deficiency_count: approvalRecord.deficiency_count,
-        justification: justification.substring(0, 100)
+        justification: trimmedJustification.substring(0, 100)
       }
-    });
+    );
 
     // Notify stakeholders
     try {
       const project = (entities.Project || []).find(p => p.id === coi.project_id || p.project_name === coi.project_name);
       const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+      
+      // Truncate justification for email display (max 500 chars)
+      const emailJustification = trimmedJustification.length > 500 
+        ? trimmedJustification.substring(0, 500) + '...' 
+        : trimmedJustification;
 
       // Notify subcontractor
       if (coi.contact_email) {
@@ -7014,7 +7047,9 @@ app.post('/admin/approve-coi-with-deficiencies', authenticateToken, async (req, 
             subject: `✅ Your Certificate is Approved - ${project?.project_name || coi.project_name}`,
             body: `Your Certificate of Insurance for ${project?.project_name || coi.project_name} has been approved.\n\nNote: Some deficiencies were waived by the reviewing administrator.\n\nView certificate: ${coi.final_coi_url || coi.first_coi_url || '(not available)'}`
           })
-        }).catch(() => {});
+        }).catch(err => {
+          console.error('Failed to notify subcontractor:', err);
+        });
       }
 
       // Notify GC
@@ -7025,9 +7060,11 @@ app.post('/admin/approve-coi-with-deficiencies', authenticateToken, async (req, 
           body: JSON.stringify({
             to: project.gc_email,
             subject: `✅ Insurance Approved (With Waivers) - ${coi.subcontractor_name}`,
-            body: `A Certificate of Insurance has been approved for ${coi.subcontractor_name} on ${project.project_name}.\n\nNote: ${approvalRecord.deficiency_count} deficiencies were waived. Reason: ${justification}\n\nView certificate: ${coi.final_coi_url || coi.first_coi_url || '(not available)'}`
+            body: `A Certificate of Insurance has been approved for ${coi.subcontractor_name} on ${project.project_name}.\n\nNote: ${approvalRecord.deficiency_count} deficiencies were waived. Reason: ${emailJustification}\n\nView certificate: ${coi.final_coi_url || coi.first_coi_url || '(not available)'}`
           })
-        }).catch(() => {});
+        }).catch(err => {
+          console.error('Failed to notify GC:', err);
+        });
       }
     } catch (notifyErr) {
       console.error('Notification error:', notifyErr);
