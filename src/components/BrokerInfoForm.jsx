@@ -312,13 +312,6 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
       if (primaryProject?.id) {
         for (const broker of brokers) {
           if (!broker.email) continue;
-          Object.entries(broker.policies)
-            .filter(([_, selected]) => selected)
-            .map(([policy]) => {
-              const labels = { gl: "General Liability", auto: "Auto Liability", wc: "Workers Compensation", umbrella: "Umbrella" };
-              return labels[policy];
-            })
-            .join(", ") || (subcontractor.trade_types?.join(', ') || 'General Construction');
           const tradeForRequirements = Array.isArray(subcontractor.trade_types) && subcontractor.trade_types.length > 0
             ? subcontractor.trade_types.join(', ')
             : (primaryProject?.trade_type || subcontractor.trade_type || 'General Construction');
