@@ -959,12 +959,15 @@ export default function BrokerUploadCOI() {
               }
             } else {
               console.warn('⚠️ AI analysis returned non-JSON response');
+              setErrorMsg('Policy analysis returned invalid response. Certificate uploaded but analysis incomplete.');
             }
           } else {
             console.warn('⚠️ AI analysis request failed:', policyAnalysisRes.status);
+            setErrorMsg('Policy analysis failed. Certificate uploaded but you may need to request manual review.');
           }
         } catch (analysisError) {
           console.warn('⚠️ AI analysis failed (continuing):', analysisError);
+          setErrorMsg('Policy analysis encountered an error. Certificate uploaded but analysis incomplete.');
           // Don't fail the whole submission if analysis fails
         }
       }

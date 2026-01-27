@@ -40,19 +40,36 @@ import { getBroker, getOrCreateBroker } from './utils/brokerHelpers.js';
 import { users, passwordResetTokens, findUser, findUserById } from './utils/users.js';
 import { getPasswordResetEmail, getDocumentReplacementNotificationEmail } from './utils/emailTemplates.js';
 
-// Stub implementations for optional services (not yet implemented)
-const adobePDF = {
-  generateCOIPDF: async () => { throw new Error('Adobe PDF service not configured'); },
-  extractCOIFields: async () => { throw new Error('Adobe PDF service not configured'); },
-  generatePolicyPDF: async () => { throw new Error('Adobe PDF service not configured'); },
-  signPDF: async () => { throw new Error('Adobe PDF service not configured'); }
-};
+// Import integration services
+import AdobePDFService from './integrations/adobe-pdf-service.js';
+import AIAnalysisService from './integrations/ai-analysis-service.js';
 
-const aiAnalysis = {
-  enabled: false,
-  callAI: async () => { throw new Error('AI Analysis service not configured'); },
-  parseJSON: () => ({})
-};
+// Initialize Adobe PDF Service with error handling
+let adobePDF;
+try {
+  adobePDF = new AdobePDFService({
+    apiKey: process.env.ADOBE_API_KEY,
+    clientId: process.env.ADOBE_CLIENT_ID
+  });
+} catch (error) {
+  console.error('⚠️  Failed to initialize Adobe PDF Service:', error.message);
+  console.log('   Service will run in fallback mode');
+  adobePDF = new AdobePDFService(); // Initialize with defaults
+}
+
+// Initialize AI Analysis Service with error handling
+let aiAnalysis;
+try {
+  aiAnalysis = new AIAnalysisService({
+    provider: process.env.AI_PROVIDER || 'openai',
+    apiKey: process.env.AI_API_KEY || process.env.OPENAI_API_KEY,
+    model: process.env.AI_MODEL || 'gpt-4-turbo-preview'
+  });
+} catch (error) {
+  console.error('⚠️  Failed to initialize AI Analysis Service:', error.message);
+  console.log('   Service will run in fallback mode');
+  aiAnalysis = new AIAnalysisService(); // Initialize with defaults
+}
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -6066,6 +6083,36 @@ app.post('/integrations/analyze-policy', authenticateToken, async (req, res) => 
       });
     }
 
+    // Check policy basis (occurrence vs claims-made)
+    if (project_requirements.requires_occurrence_basis && coi.policy_basis === 'claims-made') {
+      deficiencies.push({
+        id: `def-${coi_id}-${deficiencyCounter++}`,
+        severity: 'high',
+        category: 'policy_basis',
+        field: 'policy_basis',
+        title: 'Claims-Made Policy Not Acceptable',
+        description: 'Project requires Occurrence-based coverage, but policy is on Claims-Made basis',
+        required_action: 'Provide Occurrence-based General Liability policy or obtain tail coverage',
+        current_value: 'claims-made',
+        required_value: 'occurrence'
+      });
+    }
+
+    // Check for missing policy basis when required
+    if (project_requirements.verify_policy_basis && !coi.policy_basis) {
+      deficiencies.push({
+        id: `def-${coi_id}-${deficiencyCounter++}`,
+        severity: 'medium',
+        category: 'policy_basis',
+        field: 'policy_basis',
+        title: 'Policy Basis Not Specified',
+        description: 'Certificate does not indicate whether coverage is on an Occurrence or Claims-Made basis',
+        required_action: 'Verify and indicate policy basis (Occurrence or Claims-Made)',
+        current_value: null,
+        required_value: 'occurrence or claims-made'
+      });
+    }
+
     const analysis = {
       coi_id,
       analyzed_at: new Date().toISOString(),
@@ -6078,6 +6125,19 @@ app.post('/integrations/analyze-policy', authenticateToken, async (req, res) => 
       ai_confidence: 0.92, // Simulated confidence score
       analysis_method: 'ai_rules_based'
     };
+
+    // Persist the analysis results to the COI record
+    const coiIdx = entities.GeneratedCOI.findIndex(c => c.id === coi_id);
+    if (coiIdx !== -1) {
+      entities.GeneratedCOI[coiIdx] = {
+        ...entities.GeneratedCOI[coiIdx],
+        policy_analysis: analysis,
+        deficiencies: deficiencies,
+        last_analyzed_at: analysis.analyzed_at,
+        compliance_status: analysis.status
+      };
+      await debouncedSave();
+    }
 
     console.log(`✅ Policy analysis complete: ${deficiencies.length} deficiencies found`);
     res.json(analysis);
@@ -6892,6 +6952,135 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('admin sign-coi error:', err?.message || err);
     return res.status(500).json({ error: 'Failed to sign COI' });
+  }
+});
+
+// Admin: Approve COI with deficiencies (override)
+// Allows admin to approve a COI even when deficiencies are found, with proper justification
+app.post('/admin/approve-coi-with-deficiencies', apiLimiter, authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { coi_id, approved_by, justification, waived_deficiencies = [] } = req.body || {};
+    
+    if (!coi_id) {
+      return res.status(400).json({ error: 'coi_id is required' });
+    }
+    
+    // Validate justification
+    if (!justification || typeof justification !== 'string') {
+      return res.status(400).json({ error: 'Justification is required' });
+    }
+    
+    const trimmedJustification = justification.trim();
+    
+    if (trimmedJustification.length < 10) {
+      return res.status(400).json({ 
+        error: 'Justification must be at least 10 characters' 
+      });
+    }
+    
+    if (trimmedJustification.length > 2000) {
+      return res.status(400).json({ 
+        error: 'Justification must not exceed 2000 characters' 
+      });
+    }
+
+    const coiIdx = (entities.GeneratedCOI || []).findIndex(c => c.id === String(coi_id));
+    if (coiIdx === -1) {
+      return res.status(404).json({ error: 'COI not found' });
+    }
+
+    const coi = entities.GeneratedCOI[coiIdx];
+    
+    // Create approval record
+    const approvalRecord = {
+      approved_at: new Date().toISOString(),
+      approved_by: approved_by || req.user?.email || 'admin',
+      justification: trimmedJustification,
+      waived_deficiencies: waived_deficiencies,
+      deficiency_count: coi.deficiencies?.length || 0,
+      original_status: coi.status
+    };
+
+    // Update COI with approval
+    entities.GeneratedCOI[coiIdx] = {
+      ...coi,
+      status: 'active',
+      compliance_status: 'approved_with_waivers',
+      deficiency_approval: approvalRecord,
+      approved_at: approvalRecord.approved_at,
+      approved_by: approvalRecord.approved_by
+    };
+
+    await debouncedSave();
+
+    // Log the approval for audit trail
+    console.log(`✅ COI ${coi_id} approved with deficiencies by ${approvalRecord.approved_by}`);
+    logAuth(
+      AuditEventType.ADMIN_ACTION,
+      req.user?.email || 'admin',
+      true,
+      { 
+        action: 'approve_coi_with_deficiencies',
+        coi_id,
+        deficiency_count: approvalRecord.deficiency_count,
+        justification: trimmedJustification.substring(0, 100)
+      }
+    );
+
+    // Notify stakeholders
+    try {
+      const project = (entities.Project || []).find(p => p.id === coi.project_id || p.project_name === coi.project_name);
+      const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+      
+      // Truncate justification for email display (max 500 chars)
+      const emailJustification = trimmedJustification.length > 500 
+        ? trimmedJustification.substring(0, 500) + '...' 
+        : trimmedJustification;
+
+      // Notify subcontractor
+      if (coi.contact_email) {
+        await fetch(internalUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: coi.contact_email,
+            subject: `✅ Your Certificate is Approved - ${project?.project_name || coi.project_name}`,
+            body: `Your Certificate of Insurance for ${project?.project_name || coi.project_name} has been approved.\n\nNote: Some deficiencies were waived by the reviewing administrator.\n\nView certificate: ${coi.final_coi_url || coi.first_coi_url || '(not available)'}`
+          })
+        }).catch(err => {
+          console.error('Failed to notify subcontractor:', err);
+        });
+      }
+
+      // Notify GC
+      if (project && project.gc_email) {
+        await fetch(internalUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: project.gc_email,
+            subject: `✅ Insurance Approved (With Waivers) - ${coi.subcontractor_name}`,
+            body: `A Certificate of Insurance has been approved for ${coi.subcontractor_name} on ${project.project_name}.\n\nNote: ${approvalRecord.deficiency_count} deficiencies were waived. Reason: ${emailJustification}\n\nView certificate: ${coi.final_coi_url || coi.first_coi_url || '(not available)'}`
+          })
+        }).catch(err => {
+          console.error('Failed to notify GC:', err);
+        });
+      }
+    } catch (notifyErr) {
+      console.error('Notification error:', notifyErr);
+      // Don't fail the approval if notification fails
+    }
+
+    res.json({
+      success: true,
+      message: 'COI approved with deficiency waivers',
+      coi: entities.GeneratedCOI[coiIdx],
+      approval: approvalRecord
+    });
+
+  } catch (err) {
+    console.error('admin approve-coi-with-deficiencies error:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to approve COI', details: err.message });
   }
 });
 
