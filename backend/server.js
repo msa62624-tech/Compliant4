@@ -27,7 +27,7 @@ import { correlationId, requestLogger, errorLogger } from './middleware/requestL
 import { logAuth, AuditEventType } from './middleware/auditLogger.js';
 import { healthCheckHandler, readinessCheckHandler, livenessCheckHandler } from './middleware/healthCheck.js';
 import { trackConnection, setupGracefulShutdown } from './middleware/gracefulShutdown.js';
-import { sanitizeInput } from './middleware/inputSanitization.js';
+import { sanitizeInput, escapeHtml } from './middleware/inputSanitization.js';
 import { validateEnvironment } from './middleware/envValidation.js';
 
 // Import services
@@ -7030,12 +7030,14 @@ app.post('/admin/approve-coi-with-deficiencies', apiLimiter, authenticateToken, 
     // Notify stakeholders
     try {
       const project = (entities.Project || []).find(p => p.id === coi.project_id || p.project_name === coi.project_name);
-      const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+      // Use environment-based URL to prevent host header injection
+      const internalUrl = `${reqProtocolHost()}/public/send-email`;
       
       // Truncate justification for email display (max 500 chars)
-      const emailJustification = trimmedJustification.length > 500 
+      // Escape for XSS protection
+      const emailJustification = escapeHtml(trimmedJustification.length > 500 
         ? trimmedJustification.substring(0, 500) + '...' 
-        : trimmedJustification;
+        : trimmedJustification);
 
       // Notify subcontractor
       if (coi.contact_email) {
@@ -7044,8 +7046,8 @@ app.post('/admin/approve-coi-with-deficiencies', apiLimiter, authenticateToken, 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to: coi.contact_email,
-            subject: `✅ Your Certificate is Approved - ${project?.project_name || coi.project_name}`,
-            body: `Your Certificate of Insurance for ${project?.project_name || coi.project_name} has been approved.\n\nNote: Some deficiencies were waived by the reviewing administrator.\n\nView certificate: ${coi.final_coi_url || coi.first_coi_url || '(not available)'}`
+            subject: `✅ Your Certificate is Approved - ${escapeHtml(project?.project_name || coi.project_name)}`,
+            body: `Your Certificate of Insurance for ${escapeHtml(project?.project_name || coi.project_name)} has been approved.\n\nNote: Some deficiencies were waived by the reviewing administrator.\n\nView certificate: ${escapeHtml(coi.final_coi_url || coi.first_coi_url || '(not available)')}`
           })
         }).catch(err => {
           console.error('Failed to notify subcontractor:', err);
@@ -7059,8 +7061,8 @@ app.post('/admin/approve-coi-with-deficiencies', apiLimiter, authenticateToken, 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to: project.gc_email,
-            subject: `✅ Insurance Approved (With Waivers) - ${coi.subcontractor_name}`,
-            body: `A Certificate of Insurance has been approved for ${coi.subcontractor_name} on ${project.project_name}.\n\nNote: ${approvalRecord.deficiency_count} deficiencies were waived. Reason: ${emailJustification}\n\nView certificate: ${coi.final_coi_url || coi.first_coi_url || '(not available)'}`
+            subject: `✅ Insurance Approved (With Waivers) - ${escapeHtml(coi.subcontractor_name)}`,
+            body: `A Certificate of Insurance has been approved for ${escapeHtml(coi.subcontractor_name)} on ${escapeHtml(project.project_name)}.\n\nNote: ${approvalRecord.deficiency_count} deficiencies were waived. Reason: ${emailJustification}\n\nView certificate: ${escapeHtml(coi.final_coi_url || coi.first_coi_url || '(not available)')}`
           })
         }).catch(err => {
           console.error('Failed to notify GC:', err);
