@@ -45,7 +45,8 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
       };
       setBrokers([legacyBroker]);
     } else if (Array.isArray(subcontractor.brokers)) {
-      // New multi-broker model - create a new array to avoid reference issues
+      // New multi-broker model - create a new array copy to ensure React detects changes
+      // even if the subcontractor object reference stays the same but brokers array is mutated
       setBrokers([...subcontractor.brokers]);
     } else {
       setBrokers([]);
