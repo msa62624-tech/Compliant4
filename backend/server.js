@@ -40,19 +40,22 @@ import { getBroker, getOrCreateBroker } from './utils/brokerHelpers.js';
 import { users, passwordResetTokens, findUser, findUserById } from './utils/users.js';
 import { getPasswordResetEmail, getDocumentReplacementNotificationEmail } from './utils/emailTemplates.js';
 
-// Stub implementations for optional services (not yet implemented)
-const adobePDF = {
-  generateCOIPDF: async () => { throw new Error('Adobe PDF service not configured'); },
-  extractCOIFields: async () => { throw new Error('Adobe PDF service not configured'); },
-  generatePolicyPDF: async () => { throw new Error('Adobe PDF service not configured'); },
-  signPDF: async () => { throw new Error('Adobe PDF service not configured'); }
-};
+// Import integration services
+import AdobePDFService from './integrations/adobe-pdf-service.js';
+import AIAnalysisService from './integrations/ai-analysis-service.js';
 
-const aiAnalysis = {
-  enabled: false,
-  callAI: async () => { throw new Error('AI Analysis service not configured'); },
-  parseJSON: () => ({})
-};
+// Initialize Adobe PDF Service
+const adobePDF = new AdobePDFService({
+  apiKey: process.env.ADOBE_API_KEY,
+  clientId: process.env.ADOBE_CLIENT_ID
+});
+
+// Initialize AI Analysis Service
+const aiAnalysis = new AIAnalysisService({
+  provider: process.env.AI_PROVIDER || 'openai',
+  apiKey: process.env.AI_API_KEY || process.env.OPENAI_API_KEY,
+  model: process.env.AI_MODEL || 'gpt-4-turbo-preview'
+});
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -6066,6 +6069,36 @@ app.post('/integrations/analyze-policy', authenticateToken, async (req, res) => 
       });
     }
 
+    // Check policy basis (occurrence vs claims-made)
+    if (project_requirements.requires_occurrence_basis && coi.policy_basis === 'claims-made') {
+      deficiencies.push({
+        id: `def-${coi_id}-${deficiencyCounter++}`,
+        severity: 'high',
+        category: 'policy_basis',
+        field: 'policy_basis',
+        title: 'Claims-Made Policy Not Acceptable',
+        description: 'Project requires Occurrence-based coverage, but policy is on Claims-Made basis',
+        required_action: 'Provide Occurrence-based General Liability policy or obtain tail coverage',
+        current_value: 'claims-made',
+        required_value: 'occurrence'
+      });
+    }
+
+    // Check for missing policy basis when required
+    if (project_requirements.verify_policy_basis && !coi.policy_basis) {
+      deficiencies.push({
+        id: `def-${coi_id}-${deficiencyCounter++}`,
+        severity: 'medium',
+        category: 'policy_basis',
+        field: 'policy_basis',
+        title: 'Policy Basis Not Specified',
+        description: 'Certificate does not indicate whether coverage is on an Occurrence or Claims-Made basis',
+        required_action: 'Verify and indicate policy basis (Occurrence or Claims-Made)',
+        current_value: null,
+        required_value: 'occurrence or claims-made'
+      });
+    }
+
     const analysis = {
       coi_id,
       analyzed_at: new Date().toISOString(),
@@ -6078,6 +6111,19 @@ app.post('/integrations/analyze-policy', authenticateToken, async (req, res) => 
       ai_confidence: 0.92, // Simulated confidence score
       analysis_method: 'ai_rules_based'
     };
+
+    // Persist the analysis results to the COI record
+    const coiIdx = entities.GeneratedCOI.findIndex(c => c.id === coi_id);
+    if (coiIdx !== -1) {
+      entities.GeneratedCOI[coiIdx] = {
+        ...entities.GeneratedCOI[coiIdx],
+        policy_analysis: analysis,
+        deficiencies: deficiencies,
+        last_analyzed_at: analysis.analyzed_at,
+        compliance_status: analysis.status
+      };
+      await debouncedSave();
+    }
 
     console.log(`✅ Policy analysis complete: ${deficiencies.length} deficiencies found`);
     res.json(analysis);
