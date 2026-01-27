@@ -49,7 +49,7 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
     } else {
       setBrokers([]);
     }
-  }, [subcontractor?.id]);
+  }, [subcontractor?.id, subcontractor]);
 
   const updateSubcontractorMutation = useMutation({
     mutationFn: ({ id, data }) => apiClient.entities.Contractor.update(id, data),
@@ -158,8 +158,7 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
     }
     const primaryProject = projects
       .slice()
-      .sort((a, b) => new Date(b.createdAt || b.created_date || 0) - new Date(a.createdAt || a.created_date || 0))
-      [0] || null;
+      .sort((a, b) => new Date(b.createdAt || b.created_date || 0) - new Date(a.createdAt || a.created_date || 0))[0] || null;
     const projectLocation = primaryProject
       ? `${primaryProject.address || ''}, ${primaryProject.city || ''}, ${primaryProject.state || ''} ${primaryProject.zip_code || ''}`.replace(/\s+,/g, ',').replace(/,\s*,/g, ',').trim()
       : (subcontractor.address || subcontractor.city || subcontractor.company_name);
@@ -313,7 +312,7 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
       if (primaryProject?.id) {
         for (const broker of brokers) {
           if (!broker.email) continue;
-          const assignedPolicies = Object.entries(broker.policies)
+          Object.entries(broker.policies)
             .filter(([_, selected]) => selected)
             .map(([policy]) => {
               const labels = { gl: "General Liability", auto: "Auto Liability", wc: "Workers Compensation", umbrella: "Umbrella" };

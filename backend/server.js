@@ -8,14 +8,14 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
-import { body, validationResult } from 'express-validator';
+import { body } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import multer from 'multer';
 
 // Import configuration
-import { JWT_SECRET, ADMIN_PASSWORD_HASH, PORT, FRONTEND_URL, DEFAULT_ADMIN_EMAILS, RENEWAL_LOOKAHEAD_DAYS, BINDER_WINDOW_DAYS } from './config/env.js';
-import { entities, loadEntities, saveEntities, debouncedSave, findValidCOIForSub, DATA_DIR, DATA_FILE, UPLOADS_DIR } from './config/database.js';
+import { JWT_SECRET, PORT, DEFAULT_ADMIN_EMAILS, RENEWAL_LOOKAHEAD_DAYS, BINDER_WINDOW_DAYS } from './config/env.js';
+import { entities, loadEntities, saveEntities, debouncedSave, findValidCOIForSub, UPLOADS_DIR } from './config/database.js';
 import { upload } from './config/upload.js';
 
 // Import middleware
@@ -32,13 +32,12 @@ import { validateEnvironment } from './middleware/envValidation.js';
 
 // Import services
 import { timingSafeEqual, DUMMY_PASSWORD_HASH } from './services/authService.js';
-import { createEmailTransporter } from './services/emailService.js';
 
 // Import utilities
 import { validateAndSanitizeFilename, verifyPathWithinDirectory, validateEmail } from './utils/helpers.js';
 import { getBroker, getOrCreateBroker } from './utils/brokerHelpers.js';
-import { users, passwordResetTokens, findUser, findUserById } from './utils/users.js';
-import { getPasswordResetEmail, getDocumentReplacementNotificationEmail } from './utils/emailTemplates.js';
+import { users, passwordResetTokens } from './utils/users.js';
+import { getPasswordResetEmail, getDocumentReplacementNotificationEmail, createEmailTemplate } from './utils/emailTemplates.js';
 
 // Stub implementations for optional services (not yet implemented)
 const adobePDF = {
@@ -3093,7 +3092,7 @@ app.get('/public/users', (req, res) => {
 
 app.post('/integrations/send-email', authenticateToken, async (req, res) => {
   // Align with public endpoint: support attachments and optional sample COI
-  const { to, subject, body, html, cc, bcc, from, replyTo, attachments: incomingAttachments, includeSampleCOI, sampleCOIData: _sampleCOIData, recipientIsBroker } = req.body || {};
+  const { to, subject, body, html, cc, bcc, from, replyTo, attachments: incomingAttachments, includeSampleCOI, sampleCOIData: _sampleCOIData } = req.body || {};
   if (!to || !subject || (!body && !html)) {
     return res.status(400).json({ error: 'Missing required fields: to, subject, body/html' });
   }
@@ -3232,27 +3231,6 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
           console.log('✅ Sample COI PDF generated and attached (auth handler):', pdfBuffer.length, 'bytes');
         } catch (pdfErr) {
           console.error('❌ Could not generate sample COI PDF:', pdfErr?.message || pdfErr);
-        }
-      }
-
-      // Note: holdHarmlessTemplateUrl handling removed - not available in this handler scope
-      // eslint-disable-next-line no-constant-condition, no-constant-binary-expression
-      if (false) {
-        try {
-          /* eslint-disable no-undef */
-          console.log('🔗 Attaching Hold Harmless template from URL:', holdHarmlessTemplateUrl);
-          const fetchRes = await fetch(holdHarmlessTemplateUrl);
-          if (fetchRes.ok) {
-            const arrayBuf = await fetchRes.arrayBuffer();
-            const buf = Buffer.from(arrayBuf);
-            mailAttachments.push({ filename: 'hold_harmless.pdf', content: buf, contentType: 'application/pdf' });
-            console.log('✅ Hold Harmless attached, size:', buf.length);
-          } else {
-            console.warn('⚠️ Could not fetch hold harmless template, status:', fetchRes.status);
-          }
-          /* eslint-enable no-undef */
-        } catch (hhErr) {
-          console.warn('❌ Failed to attach hold-harmless template:', hhErr?.message || hhErr);
         }
       }
 
@@ -5602,12 +5580,12 @@ function extractFieldsWithRegex(text, schema) {
 
   // Additional Insureds (often listed in description block)
   if ('additional_insureds' in schema && !extracted.additional_insureds) {
-    const aiMatch = text.match(/ADDITIONAL\s+INSURED(?:S)?\s*[:\-]\s*([A-Za-z0-9 &.,'\-\n]{2,300})/i);
+    const aiMatch = text.match(/ADDITIONAL\s+INSURED(?:S)?\s*[:-]\s*([A-Za-z0-9 &.,'\-\n]{2,300})/i);
     if (aiMatch && aiMatch[1]) {
       const list = splitList(aiMatch[1]);
       if (list.length) extracted.additional_insureds = list;
     } else if (extracted.description_of_operations) {
-      const fromDesc = extracted.description_of_operations.match(/ADDITIONAL\s+INSURED(?:S)?\s*[:\-]\s*([A-Za-z0-9 &.,'\-\n]{2,300})/i);
+      const fromDesc = extracted.description_of_operations.match(/ADDITIONAL\s+INSURED(?:S)?\s*[:-]\s*([A-Za-z0-9 &.,'\-\n]{2,300})/i);
       if (fromDesc && fromDesc[1]) {
         const list = splitList(fromDesc[1]);
         if (list.length) extracted.additional_insureds = list;
