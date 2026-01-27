@@ -6941,6 +6941,112 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
   }
 });
 
+// Admin: Approve COI with deficiencies (override)
+// Allows admin to approve a COI even when deficiencies are found, with proper justification
+app.post('/admin/approve-coi-with-deficiencies', authenticateToken, async (req, res) => {
+  try {
+    const { coi_id, approved_by, justification, waived_deficiencies = [] } = req.body || {};
+    
+    if (!coi_id) {
+      return res.status(400).json({ error: 'coi_id is required' });
+    }
+    
+    if (!justification || justification.trim().length < 10) {
+      return res.status(400).json({ 
+        error: 'Justification is required and must be at least 10 characters' 
+      });
+    }
+
+    const coiIdx = (entities.GeneratedCOI || []).findIndex(c => c.id === String(coi_id));
+    if (coiIdx === -1) {
+      return res.status(404).json({ error: 'COI not found' });
+    }
+
+    const coi = entities.GeneratedCOI[coiIdx];
+    
+    // Create approval record
+    const approvalRecord = {
+      approved_at: new Date().toISOString(),
+      approved_by: approved_by || req.user?.email || 'admin',
+      justification: justification.trim(),
+      waived_deficiencies: waived_deficiencies,
+      deficiency_count: coi.deficiencies?.length || 0,
+      original_status: coi.status
+    };
+
+    // Update COI with approval
+    entities.GeneratedCOI[coiIdx] = {
+      ...coi,
+      status: 'active',
+      compliance_status: 'approved_with_waivers',
+      deficiency_approval: approvalRecord,
+      approved_at: approvalRecord.approved_at,
+      approved_by: approvalRecord.approved_by
+    };
+
+    await debouncedSave();
+
+    // Log the approval for audit trail
+    console.log(`✅ COI ${coi_id} approved with deficiencies by ${approvalRecord.approved_by}`);
+    logAuth({
+      type: AuditEventType.COI_APPROVED_WITH_DEFICIENCIES,
+      userId: req.user?.id || 'admin',
+      email: req.user?.email || 'admin',
+      metadata: {
+        coi_id,
+        deficiency_count: approvalRecord.deficiency_count,
+        justification: justification.substring(0, 100)
+      }
+    });
+
+    // Notify stakeholders
+    try {
+      const project = (entities.Project || []).find(p => p.id === coi.project_id || p.project_name === coi.project_name);
+      const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+
+      // Notify subcontractor
+      if (coi.contact_email) {
+        await fetch(internalUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: coi.contact_email,
+            subject: `✅ Your Certificate is Approved - ${project?.project_name || coi.project_name}`,
+            body: `Your Certificate of Insurance for ${project?.project_name || coi.project_name} has been approved.\n\nNote: Some deficiencies were waived by the reviewing administrator.\n\nView certificate: ${coi.final_coi_url || coi.first_coi_url || '(not available)'}`
+          })
+        }).catch(() => {});
+      }
+
+      // Notify GC
+      if (project && project.gc_email) {
+        await fetch(internalUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: project.gc_email,
+            subject: `✅ Insurance Approved (With Waivers) - ${coi.subcontractor_name}`,
+            body: `A Certificate of Insurance has been approved for ${coi.subcontractor_name} on ${project.project_name}.\n\nNote: ${approvalRecord.deficiency_count} deficiencies were waived. Reason: ${justification}\n\nView certificate: ${coi.final_coi_url || coi.first_coi_url || '(not available)'}`
+          })
+        }).catch(() => {});
+      }
+    } catch (notifyErr) {
+      console.error('Notification error:', notifyErr);
+      // Don't fail the approval if notification fails
+    }
+
+    res.json({
+      success: true,
+      message: 'COI approved with deficiency waivers',
+      coi: entities.GeneratedCOI[coiIdx],
+      approval: approvalRecord
+    });
+
+  } catch (err) {
+    console.error('admin approve-coi-with-deficiencies error:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to approve COI', details: err.message });
+  }
+});
+
 // Explicit preflight handler for program PDF parsing (needed for Codespaces origins)
 app.options('/integrations/parse-program-pdf', (req, res) => {
   const origin = req.headers.origin;

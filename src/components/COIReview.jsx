@@ -260,7 +260,8 @@ export default function COIReview() {
       });
 
     } catch (error) {
-      alert('Compliance analysis failed. Please review manually.');
+      console.error('Compliance analysis error:', error);
+      alert(`Compliance analysis failed: ${error.message}\n\nPlease review manually or try again.`);
     } finally {
       setAnalyzingCompliance(false);
     }
@@ -279,7 +280,7 @@ export default function COIReview() {
     }
   };
 
-  const _signCOIAsAdmin = async () => {
+  const signCOIAsAdmin = async () => {
     if (!coi) return;
     if (!coi.first_coi_url) {
       alert('No COI PDF found to sign. Please generate first.');
@@ -292,6 +293,47 @@ export default function COIReview() {
     } catch (err) {
       console.error('Sign COI failed:', err);
       alert('Failed to apply admin signature.');
+    }
+  };
+
+  const approveWithDeficiencyWaivers = async () => {
+    if (!coi) return;
+    
+    const justification = prompt('Enter justification for approving this COI with deficiencies (minimum 10 characters):');
+    if (!justification || justification.trim().length < 10) {
+      alert('Justification is required and must be at least 10 characters.');
+      return;
+    }
+
+    try {
+      const authHeader = getAuthHeader();
+      const apiBase = getApiBase();
+      const response = await fetch(`${apiBase}/admin/approve-coi-with-deficiencies`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeader
+        },
+        body: JSON.stringify({
+          coi_id: coi.id,
+          justification: justification.trim(),
+          approved_by: localStorage.getItem('user_email') || 'admin',
+          waived_deficiencies: coi.deficiencies?.map(d => d.id) || []
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to approve with waivers');
+      }
+
+      const result = await response.json();
+      queryClient.invalidateQueries(['coi', coi.id]);
+      alert('COI approved with deficiency waivers. Stakeholders have been notified.');
+      navigate(createPageUrl("AdminDashboard"));
+    } catch (err) {
+      console.error('Approve with waivers failed:', err);
+      alert(`Failed to approve with waivers: ${err.message}`);
     }
   };
 
@@ -1091,6 +1133,17 @@ InsureTrack Team`
               <XCircle className="w-4 h-4 mr-2" />
               Request Corrections
             </Button>
+            {coi.deficiencies && coi.deficiencies.length > 0 && (
+              <Button
+                onClick={approveWithDeficiencyWaivers}
+                className="bg-amber-600 hover:bg-amber-700"
+                disabled={updateCOIMutation.isPending}
+                title="Approve this COI despite deficiencies with documented justification"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Approve with Waivers
+              </Button>
+            )}
             <Button
               onClick={handleApprove}
               className="bg-emerald-600 hover:bg-emerald-700"
