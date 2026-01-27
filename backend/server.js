@@ -6957,7 +6957,7 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
 
 // Admin: Approve COI with deficiencies (override)
 // Allows admin to approve a COI even when deficiencies are found, with proper justification
-app.post('/admin/approve-coi-with-deficiencies', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/admin/approve-coi-with-deficiencies', apiLimiter, authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { coi_id, approved_by, justification, waived_deficiencies = [] } = req.body || {};
     
