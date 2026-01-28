@@ -9212,7 +9212,7 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
         ...coi,
         hold_harmless_sub_signed_url: signed_url,
         hold_harmless_sub_signed_date: now,
-        hold_harmless_status: coi.hold_harmless_status && coi.hold_harmless_status.startsWith('signed') ? coi.hold_harmless_status : 'signed_by_sub'
+        hold_harmless_status: 'signed_by_sub'
       };
     } else if (signer === 'gc' || signer === 'general_contractor') {
       // WORKFLOW REQUIREMENT: GC can only sign AFTER subcontractor has signed
@@ -9224,7 +9224,7 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
         ...coi,
         hold_harmless_gc_signed_url: signed_url,
         hold_harmless_gc_signed_date: now,
-        hold_harmless_status: coi.hold_harmless_status && coi.hold_harmless_status.startsWith('signed') ? coi.hold_harmless_status : 'signed_by_gc'
+        hold_harmless_status: 'signed_by_gc'
       };
     } else {
       return sendError(res, 400, 'Unknown signer type');
