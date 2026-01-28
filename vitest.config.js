@@ -8,8 +8,12 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/__tests__/setup.js',
+    include: ['src/**/*.test.js', 'src/**/*.test.jsx'],
     exclude: [
       'node_modules/**',
+      'backend/node_modules/**',
+      'backend/**/*.test.js',
+      'backend/**',
       'dist/**',
       'build/**',
       'e2e/**',
