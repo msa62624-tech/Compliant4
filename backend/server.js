@@ -5901,6 +5901,189 @@ function extractFieldsWithRegex(text, schema) {
     const v = getAmountAfter('MED\\s+EXP');
     if (v) extracted.gl_med_exp = v;
   }
+  
+  // WC LIMITS EXTRACTION
+  if ('wc_each_accident' in schema && extracted.wc_each_accident == null) {
+    const v = getAmountAfter('E\\.?L\\.?\\s+EACH\\s+ACCIDENT') || getAmountAfter('EL\\s+EACH\\s+ACCIDENT');
+    if (v) {
+      extracted.wc_each_accident = v;
+      console.log('✅ WC Each Accident:', v);
+    }
+  }
+  if ('wc_disease_policy_limit' in schema && extracted.wc_disease_policy_limit == null) {
+    const v = getAmountAfter('E\\.?L\\.?\\s+DISEASE\\s*-\\s*POLICY\\s+LIMIT') || getAmountAfter('DISEASE\\s*-\\s*POLICY\\s+LIMIT');
+    if (v) {
+      extracted.wc_disease_policy_limit = v;
+      console.log('✅ WC Disease Policy Limit:', v);
+    }
+  }
+  if ('wc_disease_each_employee' in schema && extracted.wc_disease_each_employee == null) {
+    const v = getAmountAfter('E\\.?L\\.?\\s+DISEASE\\s*-\\s*EA\\s+EMPLOYEE') || getAmountAfter('DISEASE\\s*-\\s*EACH\\s+EMPLOYEE');
+    if (v) {
+      extracted.wc_disease_each_employee = v;
+      console.log('✅ WC Disease Each Employee:', v);
+    }
+  }
+  
+  // AUTO LIMITS EXTRACTION
+  if ('auto_combined_single_limit' in schema && extracted.auto_combined_single_limit == null) {
+    const v = getAmountAfter('COMBINED\\s+SINGLE\\s+LIMIT') || getAmountAfter('CSL');
+    if (v) {
+      extracted.auto_combined_single_limit = v;
+      console.log('✅ Auto Combined Single Limit:', v);
+    }
+  }
+  if ('auto_bodily_injury' in schema && extracted.auto_bodily_injury == null) {
+    const v = getAmountAfter('BODILY\\s+INJURY.*?PER\\s+PERSON');
+    if (v) {
+      extracted.auto_bodily_injury = v;
+      console.log('✅ Auto Bodily Injury:', v);
+    }
+  }
+  
+  // UMBRELLA LIMITS EXTRACTION
+  if ('umbrella_each_occurrence' in schema && extracted.umbrella_each_occurrence == null) {
+    // Look for umbrella section specifically
+    const umbrellaSection = text.match(/UMBRELLA[\s\S]{0,300}?EACH\s+OCCURRENCE[\s:]*\$?\s?([\d,]+)/i);
+    if (umbrellaSection && umbrellaSection[1]) {
+      extracted.umbrella_each_occurrence = parseFloat(umbrellaSection[1].replace(/,/g, ''));
+      console.log('✅ Umbrella Each Occurrence:', extracted.umbrella_each_occurrence);
+    }
+  }
+  if ('umbrella_aggregate' in schema && extracted.umbrella_aggregate == null) {
+    const umbrellaSection = text.match(/UMBRELLA[\s\S]{0,300}?AGGREGATE[\s:]*\$?\s?([\d,]+)/i);
+    if (umbrellaSection && umbrellaSection[1]) {
+      extracted.umbrella_aggregate = parseFloat(umbrellaSection[1].replace(/,/g, ''));
+      console.log('✅ Umbrella Aggregate:', extracted.umbrella_aggregate);
+    }
+  }
+
+  // COMPREHENSIVE COVERAGE TABLE EXTRACTION
+  // ACORD 25 has a structured table with columns: TYPE OF INSURANCE | INSR LTR | POLICY NUMBER | POLICY EFF | POLICY EXP | LIMITS
+  // We need to extract each row and parse the coverage information
+  
+  const extractCoverageFromTable = () => {
+    const coverages = {
+      gl: {},
+      auto: {},
+      wc: {},
+      umbrella: {},
+      excess: {},
+      property: {}
+    };
+    
+    // Find the coverage table section
+    const tableStart = text.search(/TYPE\s+OF\s+INSURANCE/i);
+    if (tableStart === -1) {
+      console.log('⚠️ Coverage table not found');
+      return coverages;
+    }
+    
+    const tableText = text.substring(tableStart, tableStart + 3000);
+    
+    // Extract GL coverage row
+    const glMatch = tableText.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,800}?(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Z0-9-]{5,30}))?[\s\S]{0,200}?(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[\s\S]{0,200}?(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    if (glMatch) {
+      if (glMatch[1]) coverages.gl.policy_number = glMatch[1].trim();
+      if (glMatch[2]) coverages.gl.effective_date = glMatch[2].trim();
+      if (glMatch[3]) coverages.gl.expiration_date = glMatch[3].trim();
+      console.log('✅ GL Coverage extracted from table:', coverages.gl);
+    }
+    
+    // Extract Auto coverage row
+    const autoMatch = tableText.match(/AUTOMOBILE\s+LIABILITY[\s\S]{0,800}?(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Z0-9-]{5,30}))?[\s\S]{0,200}?(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[\s\S]{0,200}?(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    if (autoMatch) {
+      if (autoMatch[1]) coverages.auto.policy_number = autoMatch[1].trim();
+      if (autoMatch[2]) coverages.auto.effective_date = autoMatch[2].trim();
+      if (autoMatch[3]) coverages.auto.expiration_date = autoMatch[3].trim();
+      console.log('✅ Auto Coverage extracted from table:', coverages.auto);
+    }
+    
+    // Extract WC coverage row
+    const wcMatch = tableText.match(/WORKERS\s+COMPENSATION[\s\S]{0,800}?(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Z0-9-]{5,30}))?[\s\S]{0,200}?(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[\s\S]{0,200}?(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    if (wcMatch) {
+      if (wcMatch[1]) coverages.wc.policy_number = wcMatch[1].trim();
+      if (wcMatch[2]) coverages.wc.effective_date = wcMatch[2].trim();
+      if (wcMatch[3]) coverages.wc.expiration_date = wcMatch[3].trim();
+      console.log('✅ WC Coverage extracted from table:', coverages.wc);
+    }
+    
+    // Extract Umbrella coverage row
+    const umbrellaMatch = tableText.match(/UMBRELLA\s+LIAB(?:ILITY)?[\s\S]{0,800}?(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Z0-9-]{5,30}))?[\s\S]{0,200}?(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[\s\S]{0,200}?(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    if (umbrellaMatch) {
+      if (umbrellaMatch[1]) coverages.umbrella.policy_number = umbrellaMatch[1].trim();
+      if (umbrellaMatch[2]) coverages.umbrella.effective_date = umbrellaMatch[2].trim();
+      if (umbrellaMatch[3]) coverages.umbrella.expiration_date = umbrellaMatch[3].trim();
+      console.log('✅ Umbrella Coverage extracted from table:', coverages.umbrella);
+    }
+    
+    // Extract Excess Liability coverage row
+    const excessMatch = tableText.match(/EXCESS\s+LIAB(?:ILITY)?[\s\S]{0,800}?(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Z0-9-]{5,30}))?[\s\S]{0,200}?(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[\s\S]{0,200}?(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    if (excessMatch) {
+      if (excessMatch[1]) coverages.excess.policy_number = excessMatch[1].trim();
+      if (excessMatch[2]) coverages.excess.effective_date = excessMatch[2].trim();
+      if (excessMatch[3]) coverages.excess.expiration_date = excessMatch[3].trim();
+      console.log('✅ Excess Liability Coverage extracted from table:', coverages.excess);
+    }
+    
+    return coverages;
+  };
+  
+  // Extract coverage information from table
+  const tableCoverages = extractCoverageFromTable();
+  
+  // Apply table-extracted data to schema fields
+  if ('policy_number_gl' in schema && !extracted.policy_number_gl && tableCoverages.gl.policy_number) {
+    extracted.policy_number_gl = tableCoverages.gl.policy_number;
+    console.log('✅ GL Policy Number (from table):', extracted.policy_number_gl);
+  }
+  if ('gl_effective_date' in schema && !extracted.gl_effective_date && tableCoverages.gl.effective_date) {
+    extracted.gl_effective_date = tableCoverages.gl.effective_date;
+    console.log('✅ GL Effective Date (from table):', extracted.gl_effective_date);
+  }
+  if ('gl_expiration_date' in schema && !extracted.gl_expiration_date && tableCoverages.gl.expiration_date) {
+    extracted.gl_expiration_date = tableCoverages.gl.expiration_date;
+    console.log('✅ GL Expiration Date (from table):', extracted.gl_expiration_date);
+  }
+  
+  if ('policy_number_auto' in schema && !extracted.policy_number_auto && tableCoverages.auto.policy_number) {
+    extracted.policy_number_auto = tableCoverages.auto.policy_number;
+    console.log('✅ Auto Policy Number (from table):', extracted.policy_number_auto);
+  }
+  if ('auto_effective_date' in schema && !extracted.auto_effective_date && tableCoverages.auto.effective_date) {
+    extracted.auto_effective_date = tableCoverages.auto.effective_date;
+    console.log('✅ Auto Effective Date (from table):', extracted.auto_effective_date);
+  }
+  if ('auto_expiration_date' in schema && !extracted.auto_expiration_date && tableCoverages.auto.expiration_date) {
+    extracted.auto_expiration_date = tableCoverages.auto.expiration_date;
+    console.log('✅ Auto Expiration Date (from table):', extracted.auto_expiration_date);
+  }
+  
+  if ('policy_number_wc' in schema && !extracted.policy_number_wc && tableCoverages.wc.policy_number) {
+    extracted.policy_number_wc = tableCoverages.wc.policy_number;
+    console.log('✅ WC Policy Number (from table):', extracted.policy_number_wc);
+  }
+  if ('wc_effective_date' in schema && !extracted.wc_effective_date && tableCoverages.wc.effective_date) {
+    extracted.wc_effective_date = tableCoverages.wc.effective_date;
+    console.log('✅ WC Effective Date (from table):', extracted.wc_effective_date);
+  }
+  if ('wc_expiration_date' in schema && !extracted.wc_expiration_date && tableCoverages.wc.expiration_date) {
+    extracted.wc_expiration_date = tableCoverages.wc.expiration_date;
+    console.log('✅ WC Expiration Date (from table):', extracted.wc_expiration_date);
+  }
+  
+  if ('policy_number_umbrella' in schema && !extracted.policy_number_umbrella && tableCoverages.umbrella.policy_number) {
+    extracted.policy_number_umbrella = tableCoverages.umbrella.policy_number;
+    console.log('✅ Umbrella Policy Number (from table):', extracted.policy_number_umbrella);
+  }
+  if ('umbrella_effective_date' in schema && !extracted.umbrella_effective_date && tableCoverages.umbrella.effective_date) {
+    extracted.umbrella_effective_date = tableCoverages.umbrella.effective_date;
+    console.log('✅ Umbrella Effective Date (from table):', extracted.umbrella_effective_date);
+  }
+  if ('umbrella_expiration_date' in schema && !extracted.umbrella_expiration_date && tableCoverages.umbrella.expiration_date) {
+    extracted.umbrella_expiration_date = tableCoverages.umbrella.expiration_date;
+    console.log('✅ Umbrella Expiration Date (from table):', extracted.umbrella_expiration_date);
+  }
 
   // AGGRESSIVE DATE EXTRACTION for all coverage types
   if ('gl_effective_date' in schema && !extracted.gl_effective_date) {
@@ -6163,6 +6346,50 @@ function extractFieldsWithRegex(text, schema) {
         if (list.length) extracted.additional_insureds = list;
       }
     }
+  }
+  
+  // ENDORSEMENT EXTRACTION - Additional Insured and Waiver of Subrogation
+  if ('gl_additional_insured' in schema && extracted.gl_additional_insured == null) {
+    // Look for keywords indicating additional insured endorsement
+    const addlInsuredIndicators = [
+      /ADDITIONAL\s+INSURED/i,
+      /ADDL\s+INSD/i,
+      /blanket\s+additional\s+insured/i,
+      /primary\s+and\s+non-contributory/i,
+      /primary\s+&\s+non-contributory/i
+    ];
+    
+    let hasAddlInsured = false;
+    for (const pattern of addlInsuredIndicators) {
+      if (pattern.test(text)) {
+        hasAddlInsured = true;
+        break;
+      }
+    }
+    
+    extracted.gl_additional_insured = hasAddlInsured;
+    console.log('✅ GL Additional Insured:', hasAddlInsured);
+  }
+  
+  if ('gl_waiver_of_subrogation' in schema && extracted.gl_waiver_of_subrogation == null) {
+    // Look for keywords indicating waiver of subrogation
+    const waiverIndicators = [
+      /WAIVER\s+OF\s+SUBROGATION/i,
+      /SUBR\s+WVD/i,
+      /waived\s+in\s+favor/i,
+      /subrogation.*waived/i
+    ];
+    
+    let hasWaiver = false;
+    for (const pattern of waiverIndicators) {
+      if (pattern.test(text)) {
+        hasWaiver = true;
+        break;
+      }
+    }
+    
+    extracted.gl_waiver_of_subrogation = hasWaiver;
+    console.log('✅ GL Waiver of Subrogation:', hasWaiver);
   }
 
   console.log('📊 Regex extraction results:', { 
