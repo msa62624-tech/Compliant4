@@ -1,6 +1,8 @@
 import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { generateSecureToken } from "@/utils/tokenGenerator";
+import { sendEmailWithErrorHandling } from "@/utils/notificationUtils";
+import { getFrontendBaseUrl, createBrokerDashboardLink, createSubcontractorDashboardLink } from "@/urlConfig";
 
 
 
@@ -81,20 +83,19 @@ async function generateRenewalCOI(subcontractor, renewedPolicy, project, project
 export async function notifyBrokerPolicyRenewal(subcontractor, oldPolicy, newPolicy, project) {
   if (!subcontractor.broker_email) return;
 
-  const brokerDashboardLink = `${window.location.origin}/broker-dashboard?name=${encodeURIComponent(subcontractor.broker_name)}`;
+  const brokerDashboardLink = createBrokerDashboardLink(subcontractor.broker_name, subcontractor.broker_email);
   
-  try {
-    await sendEmail({
-      to: subcontractor.broker_email,
-      includeSampleCOI: true,
-      sampleCOIData: {
-        project_name: project?.project_name,
-        gc_name: project?.gc_name,
-        trade: newPolicy.insurance_type,
-        program: project?.program_name || project?.program_id
-      },
-      subject: `Policy Renewal - Action Required: ${newPolicy.insurance_type.replace(/_/g, ' ')} for ${subcontractor.company_name}`,
-      body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
+  await sendEmailWithErrorHandling({
+    to: subcontractor.broker_email,
+    includeSampleCOI: true,
+    sampleCOIData: {
+      project_name: project?.project_name,
+      gc_name: project?.gc_name,
+      trade: newPolicy.insurance_type,
+      program: project?.program_name || project?.program_id
+    },
+    subject: `Policy Renewal - Action Required: ${newPolicy.insurance_type.replace(/_/g, ' ')} for ${subcontractor.company_name}`,
+    body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
 
 A policy has been renewed for your client ${subcontractor.company_name} and requires COI approval.
 
@@ -122,10 +123,7 @@ Note: If you need to make edits or corrections to the certificate, you can do so
 
 Best regards,
 InsureTrack System`
-    });
-  } catch (error) {
-    console.error('Error sending broker policy renewal notification:', error);
-  }
+  }, 'broker policy renewal notification', sendEmail);
 }
 
 /**
@@ -134,13 +132,12 @@ InsureTrack System`
 export async function notifySubPolicyRenewal(subcontractor, oldPolicy, newPolicy, project) {
   if (!subcontractor.email) return;
 
-  const subDashboardLink = `${window.location.origin}/subcontractor-dashboard?id=${subcontractor.id}`;
+  const subDashboardLink = createSubcontractorDashboardLink(subcontractor.id);
   
-  try {
-    await sendEmail({
-      to: subcontractor.email,
-      subject: `Policy Renewed - ${newPolicy.insurance_type.replace(/_/g, ' ')}`,
-      body: `Dear ${subcontractor.contact_person || subcontractor.company_name},
+  await sendEmailWithErrorHandling({
+    to: subcontractor.email,
+    subject: `Policy Renewed - ${newPolicy.insurance_type.replace(/_/g, ' ')}`,
+    body: `Dear ${subcontractor.contact_person || subcontractor.company_name},
 
 Great news! Your insurance policy has been renewed.
 
@@ -165,10 +162,7 @@ Keep your broker updated if there are any changes to your coverage or policy det
 
 Best regards,
 InsureTrack System`
-    });
-  } catch (error) {
-    console.error('Error sending subcontractor policy renewal notification:', error);
-  }
+  }, 'subcontractor policy renewal notification', sendEmail);
 }
 
 /**
@@ -177,13 +171,13 @@ InsureTrack System`
 export async function notifyGCPolicyRenewal(project, subcontractor, newPolicy) {
   if (!project.gc_email) return;
 
-  const projectDetailsLink = `${window.location.origin}/ProjectDetails?id=${project.id}`;
+  const baseUrl = getFrontendBaseUrl();
+  const projectDetailsLink = `${baseUrl}/ProjectDetails?id=${project.id}`;
   
-  try {
-    await sendEmail({
-      to: project.gc_email,
-      subject: `Policy Renewed - ${subcontractor.company_name} (${newPolicy.insurance_type.replace(/_/g, ' ')})`,
-      body: `Dear ${project.gc_name},
+  await sendEmailWithErrorHandling({
+    to: project.gc_email,
+    subject: `Policy Renewed - ${subcontractor.company_name} (${newPolicy.insurance_type.replace(/_/g, ' ')})`,
+    body: `Dear ${project.gc_name},
 
 A subcontractor's insurance policy has been renewed. A new Certificate of Insurance is being generated and will be sent for approval.
 
@@ -206,10 +200,7 @@ You will receive notification once all approvals are complete.
 
 Best regards,
 InsureTrack System`
-    });
-  } catch (error) {
-    console.error('Error sending GC policy renewal notification:', error);
-  }
+  }, 'GC policy renewal notification', sendEmail);
 }
 
 /**

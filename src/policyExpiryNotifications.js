@@ -1,7 +1,7 @@
 import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { calculateDaysUntilExpiry } from "@/utils/dateCalculations";
-import { calculateUrgency, formatTimeframe } from "@/utils/notificationUtils";
+import { calculateUrgency, formatTimeframe, sendEmailWithErrorHandling } from "@/utils/notificationUtils";
 
 
 
@@ -50,11 +50,10 @@ async function notifyBrokerPolicyExpiring(document, subcontractor, daysUntilExpi
   const urgency = calculateUrgency(daysUntilExpiry);
   const timeframe = formatTimeframe(daysUntilExpiry);
   
-  try {
-    await sendEmail({
-      to: subcontractor.broker_email,
-      subject: `${urgency}: Policy Expiring ${timeframe} - ${subcontractor.company_name}`,
-      body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
+  await sendEmailWithErrorHandling({
+    to: subcontractor.broker_email,
+    subject: `${urgency}: Policy Expiring ${timeframe} - ${subcontractor.company_name}`,
+    body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
 
 A policy for your client ${subcontractor.company_name} is expiring ${timeframe}.
 
@@ -74,10 +73,7 @@ Once renewed, please upload the updated policy document to keep coverage current
 
 Best regards,
 InsureTrack System`
-    });
-  } catch (error) {
-    console.error('Error sending broker policy expiry notification:', error);
-  }
+  }, 'broker policy expiry notification', sendEmail);
 }
 
 /**
@@ -87,11 +83,10 @@ async function notifySubPolicyExpiring(document, subcontractor, daysUntilExpiry)
   const urgency = calculateUrgency(daysUntilExpiry);
   const timeframe = formatTimeframe(daysUntilExpiry);
   
-  try {
-    await sendEmail({
-      to: subcontractor.email,
-      subject: `${urgency}: Insurance Policy Expiring ${timeframe}`,
-      body: `Dear ${subcontractor.contact_person || subcontractor.company_name},
+  await sendEmailWithErrorHandling({
+    to: subcontractor.email,
+    subject: `${urgency}: Insurance Policy Expiring ${timeframe}`,
+    body: `Dear ${subcontractor.contact_person || subcontractor.company_name},
 
 Your ${document.insurance_type.replace(/_/g, ' ')} policy is expiring ${timeframe}.
 
@@ -112,10 +107,7 @@ Once your policy is renewed, your broker will upload the new policy document to 
 
 Best regards,
 InsureTrack System`
-    });
-  } catch (error) {
-    console.error('Error sending subcontractor policy expiry notification:', error);
-  }
+  }, 'subcontractor policy expiry notification', sendEmail);
 }
 
 /**

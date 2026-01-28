@@ -1,6 +1,7 @@
 import { generateSecurePassword } from "@/passwordUtils";
 import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl } from "@/urlConfig";
+import { sendEmailWithErrorHandling } from "@/utils/notificationUtils";
 
 /**
  * Send welcome email when GC first joins the system
