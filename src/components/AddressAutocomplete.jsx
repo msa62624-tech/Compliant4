@@ -76,19 +76,20 @@ export default function AddressAutocompleteWithGoogle({ value, onChange, onAddre
     }
 
     // Fallback: Poll for availability if callback doesn't work
+    // Use 500ms interval instead of 100ms to reduce CPU usage
     const checkInterval = setInterval(() => {
       initializeAttemptRef.current++;
       if (window.google?.maps?.places && inputRef.current && !autocompleteRef.current) {
         initializeAutocomplete();
         clearInterval(checkInterval);
       }
-      if (initializeAttemptRef.current > 30) {
-        // After 3 seconds, give up and allow manual entry
+      if (initializeAttemptRef.current > 10) {
+        // After 5 seconds (10 * 500ms), give up and allow manual entry
         console.warn('⚠️ Google Maps autocomplete unavailable - manual entry mode');
         setApiFailed(true);
         clearInterval(checkInterval);
       }
-    }, 100);
+    }, 500);
 
     return () => {
       clearInterval(checkInterval);

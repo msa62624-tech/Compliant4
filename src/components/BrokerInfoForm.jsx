@@ -170,8 +170,24 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
       : '';
 
     // Detect if brokers changed by comparing with existing
+    // Use Set-based comparison for robust detection regardless of order
     const existingBrokers = Array.isArray(subcontractor.brokers) ? subcontractor.brokers : [];
-    const brokersChanged = JSON.stringify(existingBrokers) !== JSON.stringify(brokers);
+    
+    // Create sets of broker emails for efficient comparison
+    const existingEmails = new Set(existingBrokers.map(b => b.email));
+    const newEmails = new Set(brokers.map(b => b.email));
+    
+    // Check if any brokers were added or removed
+    const brokersChanged = existingEmails.size !== newEmails.size ||
+      [...newEmails].some(email => !existingEmails.has(email)) ||
+      // Also check if any broker properties changed (excluding order)
+      brokers.some(broker => {
+        const existing = existingBrokers.find(e => e.email === broker.email);
+        return !existing ||
+          broker.name !== existing.name ||
+          broker.phone !== existing.phone ||
+          broker.company !== existing.company;
+      });
 
     // Save brokers list to subcontractor
     await updateSubcontractorMutation.mutateAsync({
@@ -311,9 +327,10 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
       }
 
       // Always create a fresh COI request for the current project so brokers (including existing) receive a sample COI
+      // Parallelize API calls for better performance
       if (primaryProject?.id) {
-        for (const broker of brokers) {
-          if (!broker.email) continue;
+        const coiPromises = brokers.map(async (broker) => {
+          if (!broker.email) return null;
           const tradeForRequirements = Array.isArray(subcontractor.trade_types) && subcontractor.trade_types.length > 0
             ? subcontractor.trade_types.join(', ')
             : (primaryProject?.trade_type || subcontractor.trade_type || 'General Construction');
@@ -340,10 +357,13 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
                 project_location: projectLocation
               })
             });
+            return true;
           } catch (reqErr) {
             console.error(`Failed to create COI request for ${broker.email}:`, reqErr);
+            return false;
           }
-        }
+        });
+        await Promise.all(coiPromises);
       }
       
       toast.success("All brokers notified and saved");
