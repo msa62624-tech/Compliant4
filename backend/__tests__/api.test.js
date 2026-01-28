@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Backend server details
-const BASE_URL = 'http://localhost:3001';
+const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3001';
 let serverProcess;
 let authToken;
 
@@ -40,14 +40,14 @@ describe('Backend API Tests', () => {
       const response = await request(BASE_URL)
         .post('/auth/login')
         .send({
-          username: 'admin',
-          password: 'INsure2026!'
+          username: process.env.TEST_USERNAME || 'admin',
+          password: process.env.TEST_PASSWORD || 'INsure2026!'
         })
         .expect(200);
 
       expect(response.body).toHaveProperty('accessToken');
       expect(response.body).toHaveProperty('refreshToken');
-      expect(response.body.user).toHaveProperty('username', 'admin');
+      expect(response.body.user).toHaveProperty('username', process.env.TEST_USERNAME || 'admin');
       
       // Store token for later tests
       authToken = response.body.accessToken;

@@ -385,8 +385,12 @@ function ensureDefaultGC() {
   const hasGC = contractors.some(c => c.contractor_type === 'general_contractor');
   if (hasGC) return;
 
-  // Use environment variable for default password
-  const defaultPassword = process.env.DEFAULT_GC_PASSWORD || 'GCpassword123!';
+  // Use environment variable for default password - required for security
+  const defaultPassword = process.env.DEFAULT_GC_PASSWORD;
+  if (!defaultPassword) {
+    console.warn('⚠️ DEFAULT_GC_PASSWORD not set - skipping default GC account creation');
+    return;
+  }
   const hash = bcrypt.hashSync(defaultPassword, 10);
   const gcId = `Contractor-${Date.now()}`;
 
@@ -5626,7 +5630,9 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(emailPayload)
-        }).catch(() => {});
+        }).catch(err => {
+          logger.warn('Failed to send COI upload notification email', { error: err?.message || err });
+        });
       } catch (emailErr) {
         logger.warn('Could not send admin email', { error: emailErr?.message || emailErr });
       }
@@ -5677,8 +5683,12 @@ app.post('/public/upload-policy', uploadLimiter, upload.single('file'), async (r
           subject: `Binder uploaded for ${coi.subcontractor_name} (${coi.id})`,
           body: `A binder has been uploaded for ${coi.subcontractor_name} on project ${coi.project_name}. Binder URL: ${fileUrl}`
         };
-        await fetch(internalUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {});
-      } catch (e) {}
+        await fetch(internalUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(err => {
+          logger.warn('Failed to send binder upload notification email', { error: err?.message || err });
+        });
+      } catch (e) {
+        logger.warn('Could not send binder upload notification', { error: e?.message || e });
+      }
 
       debouncedSave();
       return res.json({ ok: true, type: 'binder', file_url: fileUrl, coi: entities.GeneratedCOI[coiIdx] });
@@ -5709,7 +5719,9 @@ app.post('/public/upload-policy', uploadLimiter, upload.single('file'), async (r
           subject: `Policy uploaded for ${coi.subcontractor_name} requires admin review`,
           body: `A policy has been uploaded for ${coi.subcontractor_name} on project ${coi.project_name}. Please review: ${fileUrl}`
         };
-        await fetch(internalUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {});
+        await fetch(internalUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(err => {
+          logger.warn('Failed to send policy upload notification email', { error: err?.message || err });
+        });
       }
     } catch (notifyErr) {
       logger.warn('Policy upload admin notify failed', { error: notifyErr?.message || notifyErr });
@@ -8673,7 +8685,9 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
             subject: `✅ Your Certificate is Approved - ${project?.project_name || coi.project_name}`,
             body: `Your Certificate of Insurance for ${project?.project_name || coi.project_name} has been approved and is now active.\n\nView certificate: ${entities.GeneratedCOI[coiIdx].final_coi_url || entities.GeneratedCOI[coiIdx].first_coi_url || '(not available)'}`
           })
-        }).catch(() => {});
+        }).catch(err => {
+          logger.warn('Failed to send COI approval notification to subcontractor', { error: err?.message || err });
+        });
       }
 
       // Notify GC
@@ -8686,7 +8700,9 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
             subject: `✅ Insurance Approved - ${coi.subcontractor_name} on ${project.project_name}`,
             body: `A Certificate of Insurance has been approved for ${coi.subcontractor_name} on ${project.project_name}.\n\nView certificate: ${entities.GeneratedCOI[coiIdx].final_coi_url || entities.GeneratedCOI[coiIdx].first_coi_url || '(not available)'}`
           })
-        }).catch(() => {});
+        }).catch(err => {
+          logger.warn('Failed to send COI approval notification to GC', { error: err?.message || err });
+        });
       }
 
       // Notify broker
@@ -8699,7 +8715,9 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
             subject: `✅ COI Approved - ${coi.subcontractor_name} - ${project?.project_name || coi.project_name}`,
             body: `The Certificate of Insurance you generated has been approved and is now active.\n\nView certificate: ${entities.GeneratedCOI[coiIdx].final_coi_url || entities.GeneratedCOI[coiIdx].first_coi_url || '(not available)'}`
           })
-        }).catch(() => {});
+        }).catch(err => {
+          logger.warn('Failed to send COI approval notification to broker', { error: err?.message || err });
+        });
       }
     } catch (notifyErr) {
       logger.warn('Could not send activation notifications after admin sign', { error: notifyErr?.message || notifyErr });
@@ -9536,8 +9554,14 @@ function reqHostSuffix() {
 function startRenewalScheduler() {
   const intervalMs = Number(process.env.RENEWAL_POLL_INTERVAL_MS || 24 * 60 * 60 * 1000);
   // Run once immediately
-  checkAndProcessRenewals().catch(() => {});
-  setInterval(() => { checkAndProcessRenewals().catch(() => {}); }, intervalMs);
+  checkAndProcessRenewals().catch(err => {
+    console.error('❌ Error in initial renewal check:', err.message);
+  });
+  setInterval(() => { 
+    checkAndProcessRenewals().catch(err => {
+      console.error('❌ Error in scheduled renewal check:', err.message);
+    }); 
+  }, intervalMs);
 }
 
 // Start server (skip if running in serverless environment like Vercel)

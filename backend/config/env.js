@@ -114,7 +114,7 @@ export const ADMIN_PASSWORD_HASH = (() => {
   
   // Development fallback with warning
   console.warn('⚠️ WARNING: Using default admin password hash for development. Set ADMIN_PASSWORD_HASH in production!');
-  // This is bcrypt hash of: "INsure2026!" - Only for development
+  // Default development password hash - DO NOT use in production
   return '$2b$10$SdlYpKRtZWyeRtelxZazJ.E34HJK70pJCuAy4qXely62Z/LAvAzBO';
 })();
 
