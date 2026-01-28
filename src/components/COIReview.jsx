@@ -586,6 +586,16 @@ export default function COIReview() {
       return;
     }
 
+    // Fetch subcontractor to get their email address
+    let subcontractor = null;
+    try {
+      if (coi.subcontractor_id) {
+        subcontractor = await apiClient.entities.Contractor.read(coi.subcontractor_id);
+      }
+    } catch (err) {
+      console.error('Failed to fetch subcontractor:', err);
+    }
+
     // Update confirmation message based on renewal status
     const confirmMessage = isRenewal 
       ? 'Approve this COI renewal? (No new hold harmless agreement required for renewals)'
@@ -612,8 +622,9 @@ export default function COIReview() {
 
       // Send renewal approval notification (no hold harmless requirement)
       try {
+        const recipientEmail = subcontractor?.email || coi.contact_email || coi.broker_email;
         await sendMessageMutation.mutateAsync({
-          to: coi.contact_email || coi.broker_email,
+          to: recipientEmail,
           subject: `COI Renewal Approved - ${project.project_name}`,
           body: `Your renewed Certificate of Insurance for ${project.project_name} has been approved.
 
@@ -700,8 +711,9 @@ Thank you!`
 
 Work cannot proceed until the agreement is signed.`;
 
+        const recipientEmail = subcontractor?.email || coi.contact_email || coi.broker_email;
         await sendMessageMutation.mutateAsync({
-          to: coi.contact_email || coi.broker_email,
+          to: recipientEmail,
           subject: `COI Approved ${alreadySignedHoldHarmless ? '- Hold Harmless On File' : '- Hold Harmless Required'} - ${project.project_name}`,
           body: `Good news! Your Certificate of Insurance for ${project.project_name} has been approved.
 
@@ -747,8 +759,7 @@ InsureTrack Team`
 
     // Also notify broker asynchronously using dedicated broker notifications
     try {
-      if (coi.subcontractor_id && project?.id) {
-        const subcontractor = await apiClient.entities.Contractor.read(coi.subcontractor_id);
+      if (subcontractor && project?.id) {
         await notifySubCOIApproved(coi, subcontractor, project);
       }
     } catch (err) {

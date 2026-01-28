@@ -4094,8 +4094,8 @@ InsureTrack System`
     const primaryBroker = contractor && Array.isArray(contractor.brokers) && contractor.brokers.length > 0
       ? contractor.brokers.find(b => b.email) || contractor.brokers[0]
       : null;
-    const contactEmailNormalized = contact_email || undefined;
-    let resolvedBrokerEmail = broker_email || primaryBroker?.email || contactEmailNormalized;
+    const contactEmailNormalized = contact_email || contractor?.email || undefined;
+    let resolvedBrokerEmail = broker_email || primaryBroker?.email || undefined;
     let resolvedBrokerName = broker_name || primaryBroker?.name || primaryBroker?.company || undefined;
 
     // Fill certificate holder and additional insureds from Project if missing
@@ -4130,7 +4130,7 @@ InsureTrack System`
       status: 'awaiting_broker_upload',
       broker_email: resolvedBrokerEmail,
       broker_name: resolvedBrokerName,
-      contact_email: contact_email || broker_email || resolvedBrokerEmail,
+      contact_email: contactEmailNormalized,
       created_date: new Date().toISOString(),
       first_coi_uploaded: false,
       first_coi_url: null,
