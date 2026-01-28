@@ -1,13 +1,128 @@
+interface DocumentVersion {
+  id: string;
+  documentId: string;
+  versionNumber: number;
+  createdAt: string;
+  createdBy: string;
+  changes: string;
+  snapshot: Record<string, any>;
+  status: string;
+}
+
+interface RestoredDocument extends Record<string, any> {
+  restoredAt: string;
+  restoredBy: string;
+  restoredFromVersion: number;
+}
+
+interface VersionChange {
+  field: string;
+  oldValue: any;
+  newValue: any;
+}
+
+interface AuditLogDetails {
+  userId?: string;
+  ipAddress?: string;
+  description?: string;
+  status?: string;
+  result?: any;
+  changedFields?: string[];
+}
+
+interface AuditLog {
+  id: string;
+  action: string;
+  timestamp: string;
+  userId?: string;
+  ipAddress?: string;
+  userAgent: string;
+  details: string;
+  status: string;
+  result?: any;
+  changedFields: string[];
+}
+
+interface AuditFilters {
+  action?: string;
+  userId?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+interface AuditReport {
+  totalActions: number;
+  actionsByType: Record<string, number>;
+  userActivity: Record<string, number>;
+  successRate: number;
+  dateRange: {
+    from?: string;
+    to?: string;
+  };
+}
+
+interface ArchiveDocument extends Record<string, any> {
+  status: string;
+  archivedAt: string | null;
+  archivedReason: string | null;
+  isArchived: boolean;
+}
+
+interface Folder {
+  id: string;
+  name: string;
+  parentId: string | null;
+  createdAt: string;
+  children: any[];
+  itemCount: number;
+  type: string;
+}
+
+interface DocumentWithFolder extends Record<string, any> {
+  folderId?: string;
+  movedAt?: string;
+}
+
+interface FolderTree {
+  documents: any[];
+  folders: any[];
+}
+
+interface ComplianceReport {
+  totalDocuments: number;
+  byStatus: Record<string, number>;
+  expiringSoon: any[];
+  expired: Array<{
+    id: string;
+    name: string;
+    expiryDate: string;
+    daysExpired: number;
+  }>;
+  pending: any[];
+  generatedAt: string;
+}
+
+interface ActivityReport {
+  period: {
+    from?: string;
+    to?: string;
+  };
+  activitiesByDay: Record<string, number>;
+  topUsers: Array<{ userId: string; count: number }>;
+  topActions: Array<{ action: string; count: number }>;
+  generatedAt: string;
+}
+
 /**
  * Document Versioning System
  * Tracks changes and maintains version history
  */
-
 export const DocumentVersioning = {
   /**
    * Create a new version of a document
    */
-  createVersion: (document, userId, changesSummary) => {
+  createVersion: (document: Record<string, any>, userId: string, changesSummary: string): DocumentVersion => {
     return {
       id: `version-${Date.now()}`,
       documentId: document.id,
@@ -23,14 +138,14 @@ export const DocumentVersioning = {
   /**
    * Get version history
    */
-  getHistory: (versions = []) => {
-    return versions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  getHistory: (versions: DocumentVersion[] = []): DocumentVersion[] => {
+    return versions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
   /**
    * Restore document to previous version
    */
-  restoreVersion: (version, restoredBy) => {
+  restoreVersion: (version: DocumentVersion, restoredBy: string): RestoredDocument => {
     return {
       ...version.snapshot,
       restoredAt: new Date().toISOString(),
@@ -42,8 +157,8 @@ export const DocumentVersioning = {
   /**
    * Compare two versions
    */
-  compareVersions: (version1, version2) => {
-    const changes = [];
+  compareVersions: (version1: DocumentVersion, version2: DocumentVersion): VersionChange[] => {
+    const changes: VersionChange[] = [];
     const allKeys = new Set([
       ...Object.keys(version1.snapshot || {}),
       ...Object.keys(version2.snapshot || {})
@@ -73,7 +188,7 @@ export const AuditTrail = {
   /**
    * Log an action
    */
-  log: (action, details = {}) => {
+  log: (action: string, details: AuditLogDetails = {}): AuditLog => {
     return {
       id: `audit-${Date.now()}`,
       action,
@@ -91,7 +206,7 @@ export const AuditTrail = {
   /**
    * Filter audit logs
    */
-  filterLogs: (logs = [], filters = {}) => {
+  filterLogs: (logs: AuditLog[] = [], filters: AuditFilters = {}): AuditLog[] => {
     return logs.filter(log => {
       if (filters.action && log.action !== filters.action) return false;
       if (filters.userId && log.userId !== filters.userId) return false;
@@ -105,8 +220,8 @@ export const AuditTrail = {
   /**
    * Generate audit report
    */
-  generateReport: (logs = []) => {
-    const report = {
+  generateReport: (logs: AuditLog[] = []): AuditReport => {
+    const report: AuditReport = {
       totalActions: logs.length,
       actionsByType: {},
       userActivity: {},
@@ -115,20 +230,17 @@ export const AuditTrail = {
     };
 
     logs.forEach(log => {
-      // Count by action
       report.actionsByType[log.action] = (report.actionsByType[log.action] || 0) + 1;
-
-      // Count by user
-      report.userActivity[log.userId] = (report.userActivity[log.userId] || 0) + 1;
+      if (log.userId) {
+        report.userActivity[log.userId] = (report.userActivity[log.userId] || 0) + 1;
+      }
     });
 
-    // Calculate success rate
     const successful = logs.filter(log => log.status === 'success').length;
     report.successRate = logs.length > 0 ? (successful / logs.length) * 100 : 0;
 
-    // Date range
     if (logs.length > 0) {
-      const dates = logs.map(log => new Date(log.timestamp));
+      const dates = logs.map(log => new Date(log.timestamp).getTime());
       report.dateRange = {
         from: new Date(Math.min(...dates)).toISOString(),
         to: new Date(Math.max(...dates)).toISOString()
@@ -146,7 +258,7 @@ export const ArchiveSystem = {
   /**
    * Archive a document
    */
-  archive: (document, reason = '') => {
+  archive: (document: Record<string, any>, reason: string = ''): ArchiveDocument => {
     return {
       ...document,
       status: 'archived',
@@ -159,7 +271,7 @@ export const ArchiveSystem = {
   /**
    * Unarchive a document
    */
-  unarchive: (document) => {
+  unarchive: (document: Record<string, any>): ArchiveDocument => {
     return {
       ...document,
       status: 'active',
@@ -172,7 +284,7 @@ export const ArchiveSystem = {
   /**
    * Create folder
    */
-  createFolder: (name, parentId = null) => {
+  createFolder: (name: string, parentId: string | null = null): Folder => {
     return {
       id: `folder-${Date.now()}`,
       name,
@@ -187,7 +299,7 @@ export const ArchiveSystem = {
   /**
    * Move document to folder
    */
-  moveToFolder: (document, folderId) => {
+  moveToFolder: (document: Record<string, any>, folderId: string): DocumentWithFolder => {
     return {
       ...document,
       folderId,
@@ -198,18 +310,16 @@ export const ArchiveSystem = {
   /**
    * Build folder tree
    */
-  buildFolderTree: (folders = [], documents = []) => {
-    const docsByFolder = {};
+  buildFolderTree: (folders: Folder[] = [], documents: any[] = []): FolderTree => {
+    const docsByFolder: Record<string, any[]> = {};
 
-    // Group docs by folder
     documents.forEach(doc => {
       const folderId = doc.folderId || 'root';
       if (!docsByFolder[folderId]) docsByFolder[folderId] = [];
       docsByFolder[folderId].push(doc);
     });
 
-    // Build tree
-    const buildNode = (folderId) => {
+    const buildNode = (folderId: string): any => {
       const folder = folders.find(f => f.id === folderId);
       return {
         ...folder,
@@ -236,8 +346,8 @@ export const ReportingSystem = {
   /**
    * Generate compliance report
    */
-  generateComplianceReport: (documents = {}) => {
-    const report = {
+  generateComplianceReport: (documents: Record<string, any[]> = {}): ComplianceReport => {
+    const report: ComplianceReport = {
       totalDocuments: 0,
       byStatus: {},
       expiringSoon: [],
@@ -250,13 +360,11 @@ export const ReportingSystem = {
     report.totalDocuments = allDocs.length;
 
     allDocs.forEach(doc => {
-      // Count by status
       report.byStatus[doc.status] = (report.byStatus[doc.status] || 0) + 1;
 
-      // Check expiry
       if (doc.expiry_date) {
         const expiryDate = new Date(doc.expiry_date);
-        const daysUntilExpiry = Math.floor((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
+        const daysUntilExpiry = Math.floor((expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
 
         if (daysUntilExpiry < 0) {
           report.expired.push({
@@ -266,7 +374,7 @@ export const ReportingSystem = {
             daysExpired: Math.abs(daysUntilExpiry)
           });
         } else if (daysUntilExpiry <= 30) {
-          report.expiringsoon.push({
+          report.expiringSoon.push({
             id: doc.id,
             name: doc.name || 'Unknown',
             expiryDate: doc.expiry_date,
@@ -275,7 +383,6 @@ export const ReportingSystem = {
         }
       }
 
-      // Check pending
       if (doc.status === 'pending_review' || doc.status === 'awaiting_admin_review') {
         report.pending.push(doc);
       }
@@ -287,8 +394,8 @@ export const ReportingSystem = {
   /**
    * Generate activity report
    */
-  generateActivityReport: (auditLogs = []) => {
-    const report = {
+  generateActivityReport: (auditLogs: AuditLog[] = []): ActivityReport => {
+    const report: ActivityReport = {
       period: {},
       activitiesByDay: {},
       topUsers: [],
@@ -298,30 +405,29 @@ export const ReportingSystem = {
 
     if (auditLogs.length === 0) return report;
 
-    const dates = auditLogs.map(log => new Date(log.timestamp));
+    const dates = auditLogs.map(log => new Date(log.timestamp).getTime());
     report.period = {
       from: new Date(Math.min(...dates)).toISOString(),
       to: new Date(Math.max(...dates)).toISOString()
     };
 
-    // Group by day
     auditLogs.forEach(log => {
       const date = new Date(log.timestamp).toISOString().split('T')[0];
       report.activitiesByDay[date] = (report.activitiesByDay[date] || 0) + 1;
     });
 
-    // Top users
-    const userCount = {};
+    const userCount: Record<string, number> = {};
     auditLogs.forEach(log => {
-      userCount[log.userId] = (userCount[log.userId] || 0) + 1;
+      if (log.userId) {
+        userCount[log.userId] = (userCount[log.userId] || 0) + 1;
+      }
     });
     report.topUsers = Object.entries(userCount)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([userId, count]) => ({ userId, count }));
 
-    // Top actions
-    const actionCount = {};
+    const actionCount: Record<string, number> = {};
     auditLogs.forEach(log => {
       actionCount[log.action] = (actionCount[log.action] || 0) + 1;
     });

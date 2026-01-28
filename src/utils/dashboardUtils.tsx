@@ -2,14 +2,80 @@ import { AlertCircle, Search, CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+interface ErrorResponse {
+  response?: {
+    status?: number;
+  };
+  message?: string;
+}
+
+interface ErrorHandlerResult {
+  message: string;
+  type: 'warning' | 'error';
+}
+
+interface SortConfig {
+  key?: string;
+  direction?: 'asc' | 'desc';
+}
+
+interface BulkOperationResult {
+  id: string;
+  success: boolean;
+  data?: any;
+  error?: string;
+}
+
+interface ApiClient {
+  update: (id: string, updates: Record<string, any>) => Promise<any>;
+  delete: (id: string) => Promise<void>;
+}
+
+interface ExportColumn {
+  label: string;
+  key?: string;
+  accessor?: (item: any) => any;
+}
+
+interface VisibleRange {
+  startIndex: number;
+  endIndex: number;
+}
+
+interface ErrorAlertProps {
+  error: ErrorHandlerResult | null;
+  onDismiss?: () => void;
+}
+
+interface SearchBarProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}
+
+interface BulkAction {
+  id: string;
+  label: string;
+  onClick: () => void;
+  variant?: 'outline' | 'default' | 'destructive';
+  disabled?: boolean;
+}
+
+interface BulkActionsToolbarProps {
+  selectedCount?: number;
+  onSelectAll?: () => void;
+  onClearSelection: () => void;
+  actions?: BulkAction[];
+}
+
 /**
  * Enhanced Dashboard Utilities
  * Provides search, filtering, bulk operations, and error handling
  */
 
-// Error handler with user-friendly messages
 export const DashboardErrorHandler = {
-  handle: (error, context = '') => {
+  handle: (error: ErrorResponse, context: string = ''): ErrorHandlerResult => {
     console.error(`Dashboard Error (${context}):`, error);
     
     if (error.response?.status === 401) {
@@ -24,7 +90,7 @@ export const DashboardErrorHandler = {
     if (error.response?.status === 429) {
       return { message: 'Too many requests. Please wait a moment and try again.', type: 'warning' };
     }
-    if (error.response?.status >= 500) {
+    if (error.response?.status && error.response.status >= 500) {
       return { message: 'Server error. Please try again later.', type: 'error' };
     }
     if (error.message === 'Network Error') {
@@ -38,18 +104,17 @@ export const DashboardErrorHandler = {
   }
 };
 
-// Search and filter utilities
 export const SearchFilterUtils = {
   /**
    * Search across multiple fields
    */
-  search: (items = [], query = '', searchFields = []) => {
+  search: (items: any[] = [], query: string = '', searchFields: string[] = []): any[] => {
     if (!query.trim()) return items;
     
     const lowerQuery = query.toLowerCase();
     return items.filter(item => 
       searchFields.some(field => {
-        const value = field.split('.').reduce((obj, key) => obj?.[key], item);
+        const value = field.split('.').reduce((obj: any, key) => obj?.[key], item);
         return String(value).toLowerCase().includes(lowerQuery);
       })
     );
@@ -58,7 +123,7 @@ export const SearchFilterUtils = {
   /**
    * Filter items by multiple criteria
    */
-  filter: (items = [], filters = {}) => {
+  filter: (items: any[] = [], filters: Record<string, any> = {}): any[] => {
     return items.filter(item => {
       return Object.entries(filters).every(([key, value]) => {
         if (!value) return true;
@@ -73,7 +138,7 @@ export const SearchFilterUtils = {
   /**
    * Sort items with multi-column support
    */
-  sort: (items = [], sortConfig = {}) => {
+  sort: (items: any[] = [], sortConfig: SortConfig = {}): any[] => {
     const { key, direction = 'asc' } = sortConfig;
     if (!key) return items;
 
@@ -90,18 +155,17 @@ export const SearchFilterUtils = {
   /**
    * Paginate items
    */
-  paginate: (items = [], page = 1, pageSize = 10) => {
+  paginate: (items: any[] = [], page: number = 1, pageSize: number = 10): any[] => {
     const startIndex = (page - 1) * pageSize;
     return items.slice(startIndex, startIndex + pageSize);
   }
 };
 
-// Bulk operations utilities
 export const BulkOperationsUtils = {
   /**
    * Select/deselect items
    */
-  toggleSelection: (selected = new Set(), id, isSelected) => {
+  toggleSelection: (selected: Set<string> = new Set(), id: string, isSelected: boolean): Set<string> => {
     const newSelected = new Set(selected);
     if (isSelected) {
       newSelected.add(id);
@@ -114,57 +178,58 @@ export const BulkOperationsUtils = {
   /**
    * Select all items
    */
-  selectAll: (items = []) => {
+  selectAll: (items: any[] = []): Set<string> => {
     return new Set(items.map(item => item.id));
   },
 
   /**
    * Deselect all items
    */
-  deselectAll: () => {
+  deselectAll: (): Set<string> => {
     return new Set();
   },
 
   /**
    * Bulk operations
    */
-  bulkUpdate: async (ids = [], updates = {}, apiClient) => {
-    const results = [];
+  bulkUpdate: async (ids: string[] = [], updates: Record<string, any> = {}, apiClient: ApiClient): Promise<BulkOperationResult[]> => {
+    const results: BulkOperationResult[] = [];
     for (const id of ids) {
       try {
         const result = await apiClient.update(id, updates);
         results.push({ id, success: true, data: result });
       } catch (error) {
-        results.push({ id, success: false, error: error.message });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        results.push({ id, success: false, error: errorMessage });
       }
     }
     return results;
   },
 
-  bulkDelete: async (ids = [], apiClient) => {
-    const results = [];
+  bulkDelete: async (ids: string[] = [], apiClient: ApiClient): Promise<BulkOperationResult[]> => {
+    const results: BulkOperationResult[] = [];
     for (const id of ids) {
       try {
         await apiClient.delete(id);
         results.push({ id, success: true });
       } catch (error) {
-        results.push({ id, success: false, error: error.message });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        results.push({ id, success: false, error: errorMessage });
       }
     }
     return results;
   }
 };
 
-// Export utilities
 export const ExportUtils = {
   /**
    * Export to CSV
    */
-  toCSV: (items = [], columns = []) => {
+  toCSV: (items: any[] = [], columns: ExportColumn[] = []): string => {
     const headers = columns.map(col => col.label).join(',');
     const rows = items.map(item =>
       columns.map(col => {
-        const value = col.accessor ? col.accessor(item) : item[col.key];
+        const value = col.accessor ? col.accessor(item) : item[col.key!];
         return `"${String(value).replace(/"/g, '""')}"`;
       }).join(',')
     );
@@ -175,14 +240,14 @@ export const ExportUtils = {
   /**
    * Export to JSON
    */
-  toJSON: (items = []) => {
+  toJSON: (items: any[] = []): string => {
     return JSON.stringify(items, null, 2);
   },
 
   /**
    * Download file
    */
-  download: (content, filename, mimeType = 'text/plain') => {
+  download: (content: string, filename: string, mimeType: string = 'text/plain'): void => {
     const element = document.createElement('a');
     element.setAttribute('href', `data:${mimeType};charset=utf-8,${encodeURIComponent(content)}`);
     element.setAttribute('download', filename);
@@ -193,12 +258,11 @@ export const ExportUtils = {
   }
 };
 
-// Performance utilities for large datasets
 export const PerformanceUtils = {
   /**
    * Virtualize large lists
    */
-  getVisibleRange: (scrollTop = 0, itemHeight = 40, containerHeight = 400) => {
+  getVisibleRange: (scrollTop: number = 0, itemHeight: number = 40, containerHeight: number = 400): VisibleRange => {
     const startIndex = Math.floor(scrollTop / itemHeight);
     const visibleCount = Math.ceil(containerHeight / itemHeight);
     return {
@@ -210,9 +274,9 @@ export const PerformanceUtils = {
   /**
    * Debounce function calls
    */
-  debounce: (func, delay = 300) => {
-    let timeoutId;
-    return (...args) => {
+  debounce: <T extends (...args: any[]) => any>(func: T, delay: number = 300): ((...args: Parameters<T>) => void) => {
+    let timeoutId: NodeJS.Timeout;
+    return (...args: Parameters<T>) => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => func(...args), delay);
     };
@@ -221,12 +285,12 @@ export const PerformanceUtils = {
   /**
    * Memoize expensive computations
    */
-  memoize: (fn) => {
-    const cache = new Map();
-    return (...args) => {
+  memoize: <T extends (...args: any[]) => any>(fn: T): ((...args: Parameters<T>) => ReturnType<T>) => {
+    const cache = new Map<string, ReturnType<T>>();
+    return (...args: Parameters<T>): ReturnType<T> => {
       const key = JSON.stringify(args);
       if (cache.has(key)) {
-        return cache.get(key);
+        return cache.get(key)!;
       }
       const result = fn(...args);
       cache.set(key, result);
@@ -235,36 +299,34 @@ export const PerformanceUtils = {
   }
 };
 
-// Reporting utilities
 export const ReportingUtils = {
   /**
    * Generate summary statistics
    */
-  generateSummary: (items = [], metrics = {}) => {
+  generateSummary: (items: any[] = [], metrics: Record<string, (items: any[]) => any> = {}): Record<string, any> => {
     return {
       totalCount: items.length,
       ...Object.entries(metrics).reduce((acc, [key, fn]) => {
         acc[key] = fn(items);
         return acc;
-      }, {})
+      }, {} as Record<string, any>)
     };
   },
 
   /**
    * Group items by field
    */
-  groupBy: (items = [], field) => {
+  groupBy: (items: any[] = [], field: string): Record<string, any[]> => {
     return items.reduce((groups, item) => {
       const key = item[field];
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
       return groups;
-    }, {});
+    }, {} as Record<string, any[]>);
   }
 };
 
-// Error Alert Component
-export function ErrorAlert({ error, onDismiss }) {
+export function ErrorAlert({ error, onDismiss }: ErrorAlertProps) {
   if (!error) return null;
 
   return (
@@ -285,8 +347,7 @@ export function ErrorAlert({ error, onDismiss }) {
   );
 }
 
-// Search Bar Component
-export function SearchBar({ value, onChange, placeholder = 'Search...', disabled = false }) {
+export function SearchBar({ value, onChange, placeholder = 'Search...', disabled = false }: SearchBarProps) {
   return (
     <div className="relative">
       <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
@@ -302,8 +363,7 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', disabled
   );
 }
 
-// Bulk Actions Toolbar Component
-export function BulkActionsToolbar({ selectedCount = 0, onSelectAll: _onSelectAll, onClearSelection, actions = [] }) {
+export function BulkActionsToolbar({ selectedCount = 0, onSelectAll: _onSelectAll, onClearSelection, actions = [] }: BulkActionsToolbarProps) {
   if (selectedCount === 0) return null;
 
   return (
