@@ -1,4 +1,4 @@
-export { compliant } from '@/api/compliantClient.js';
+export { compliant } from '@/api/compliantClient';
 
 // IMPORTANT: This is the Compliant REST API client!
 // 

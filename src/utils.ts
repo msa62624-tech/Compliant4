@@ -1,12 +1,12 @@
-import { clsx } from "clsx"
+import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
-export function cn(...inputs) {
+export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
 }
 
 // Map friendly page keys to actual routed paths (case-insensitive)
-const PATH_ALIASES = {
+const PATH_ALIASES: Record<string, string> = {
   'subcontractordashboard': '/subcontractor-dashboard',
   'subcontractor-dashboard': '/subcontractor-dashboard',
   'subenterbrokerinfo': '/sub-enter-broker-info',
@@ -49,7 +49,7 @@ const PATH_ALIASES = {
   'contractor-dashboard': '/contractor-dashboard',
 };
 
-export function createPageUrl(path) {
+export function createPageUrl(path: string | null | undefined): string {
   if (!path) return '/';
 
   // Separate query string if provided
@@ -63,10 +63,8 @@ export function createPageUrl(path) {
 /**
  * Normalize subcontractor trade types to an array
  * Handles both legacy single trade_type and new trade_types array
- * @param {Object} subcontractor - The subcontractor object
- * @returns {Array<string>} - Array of trade types
  */
-export function normalizeSubcontractorTrades(subcontractor) {
+export function normalizeSubcontractorTrades(subcontractor: { trade_types?: string[]; trade_type?: string } | null | undefined): string[] {
   if (!subcontractor) return [];
   return subcontractor.trade_types || 
          (subcontractor.trade_type ? [subcontractor.trade_type] : []);

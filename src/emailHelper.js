@@ -1,4 +1,4 @@
-import { getAuthHeader } from '@/auth.js';
+import { getAuthHeader } from '@/auth';
 import { createEmailTemplate } from '@/emailTemplates.js';
 import { escapeHtml } from '@/utils/htmlEscaping.js';
 

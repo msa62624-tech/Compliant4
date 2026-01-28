@@ -8,14 +8,32 @@ const apiBase = (typeof import.meta !== 'undefined' && import.meta.env && import
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')
   : null;
 
-let refreshPromise = null;
+let refreshPromise: Promise<string | null> | null = null;
+
+interface JWTPayload {
+  exp?: number;
+  [key: string]: unknown;
+}
+
+interface LoginCredentials {
+  username: string;
+  password: string;
+}
+
+interface AuthResponse {
+  accessToken: string;
+  refreshToken?: string;
+}
+
+interface MemoryStorage {
+  token: string | null;
+  refreshToken: string | null;
+}
 
 /**
  * Decode JWT token without verification (for client-side expiration check only)
- * @param {string} token - JWT token
- * @returns {object|null} - Decoded payload or null if invalid
  */
-function decodeJWT(token) {
+function decodeJWT(token: string): JWTPayload | null {
   try {
     if (!token || typeof token !== 'string') return null;
     const parts = token.split('.');
@@ -25,18 +43,15 @@ function decodeJWT(token) {
     const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
     return decoded;
   } catch (error) {
-    logger.error('Failed to decode JWT token', { error: error.message });
+    logger.error('Failed to decode JWT token', { error: (error as Error).message });
     return null;
   }
 }
 
 /**
  * Check if JWT token is expired or about to expire
- * @param {string} token - JWT token
- * @param {number} bufferSeconds - Seconds before expiry to consider token expired (default: 60)
- * @returns {boolean} - True if expired or about to expire
  */
-export function isTokenExpired(token, bufferSeconds = 60) {
+export function isTokenExpired(token: string, bufferSeconds: number = 60): boolean {
   const decoded = decodeJWT(token);
   if (!decoded || !decoded.exp) {
     logger.warn('Token missing expiration claim');
@@ -59,14 +74,14 @@ export function isTokenExpired(token, bufferSeconds = 60) {
 }
 
 // In-memory fallback storage for when localStorage fails (e.g., privacy mode)
-let memoryStorage = {
+let memoryStorage: MemoryStorage = {
   token: null,
   refreshToken: null
 };
 
 let useMemoryStorage = false;
 
-export function getToken() {
+export function getToken(): string | null {
   // Use memory storage if localStorage failed
   if (useMemoryStorage) {
     const token = memoryStorage.token;
@@ -85,7 +100,7 @@ export function getToken() {
     
     return token;
   } catch (e) {
-    logger.error('Failed to retrieve authentication token from storage', { error: e.message });
+    logger.error('Failed to retrieve authentication token from storage', { error: (e as Error).message });
     // Fall back to memory storage
     useMemoryStorage = true;
     const token = memoryStorage.token;
@@ -97,9 +112,8 @@ export function getToken() {
 /**
  * Get token and automatically refresh if expired
  * Use this for API calls that need a valid token
- * @returns {Promise<string|null>} - Valid token or null
  */
-export async function getValidToken() {
+export async function getValidToken(): Promise<string | null> {
   const token = getToken();
   
   if (!token) {
@@ -117,7 +131,7 @@ export async function getValidToken() {
   return token;
 }
 
-export function setToken(token, refreshToken = null) {
+export function setToken(token: string | null, refreshToken: string | null = null): void {
   logger.debug('setToken called', { hasToken: !!token, hasRefreshToken: !!refreshToken });
   
   // Update memory storage first (always works)
@@ -141,7 +155,7 @@ export function setToken(token, refreshToken = null) {
       }
     } catch (e) {
       // Log storage errors and switch to memory-only mode
-      logger.error('Failed to store token in localStorage', { error: e.message });
+      logger.error('Failed to store token in localStorage', { error: (e as Error).message });
       logger.warn('Switching to in-memory storage mode (tokens will not persist across page reloads)');
       useMemoryStorage = true;
     }
@@ -150,10 +164,10 @@ export function setToken(token, refreshToken = null) {
   }
   
   // Notify listeners (e.g., App) when auth state changes so UI can react
-  try { window.dispatchEvent(new Event('auth-changed')); } catch (e) {}
+  try { window.dispatchEvent(new Event('auth-changed')); } catch (e) { /* ignore */ }
 }
 
-export function clearToken() {
+export function clearToken(): void {
   // Clear all storage: memory, localStorage, and legacy sessionStorage
   setToken(null, null);
   
@@ -165,7 +179,7 @@ export function clearToken() {
   }
 }
 
-export async function login({ username, password }) {
+export async function login({ username, password }: LoginCredentials): Promise<AuthResponse> {
   // Validate required backend configuration
   if (!apiBase) {
     logger.error('Authentication backend not configured', {
@@ -212,7 +226,7 @@ export async function login({ username, password }) {
       throw new Error(`Login failed: ${res.status} ${text || res.statusText}`);
     }
 
-    const data = await res.json();
+    const data: AuthResponse = await res.json();
     
     // Validate response structure
     if (!data?.accessToken) {
@@ -227,7 +241,7 @@ export async function login({ username, password }) {
     return data;
   } catch (error) {
     // Handle timeout errors
-    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+    if ((error as Error).name === 'AbortError' || (error as Error).name === 'TimeoutError') {
       logger.error('Login request timed out', { username });
       throw new Error('Login request timed out. Please check your connection and try again');
     }
@@ -237,11 +251,11 @@ export async function login({ username, password }) {
   }
 }
 
-export function isConfigured() {
+export function isConfigured(): boolean {
   return !!apiBase;
 }
 
-export async function refreshAccessToken() {
+export async function refreshAccessToken(): Promise<string | null> {
   // Prevent multiple concurrent refresh calls
   if (refreshPromise) {
     logger.debug('Token refresh already in progress, waiting for existing promise');
@@ -265,7 +279,7 @@ export async function refreshAccessToken() {
         try {
           refreshToken = localStorage.getItem(REFRESH_KEY);
         } catch (e) {
-          logger.error('Failed to retrieve refresh token from localStorage', { error: e.message });
+          logger.error('Failed to retrieve refresh token from localStorage', { error: (e as Error).message });
           // Fall back to memory if localStorage fails
           useMemoryStorage = true;
           refreshToken = memoryStorage.refreshToken;
@@ -303,7 +317,7 @@ export async function refreshAccessToken() {
         return null;
       }
       
-      const data = await res.json();
+      const data: AuthResponse = await res.json();
       if (data?.accessToken) {
         logger.info('Access token refreshed successfully');
         setToken(data.accessToken, data.refreshToken || refreshToken);
@@ -314,14 +328,14 @@ export async function refreshAccessToken() {
       return null;
     } catch (error) {
       // Handle timeout errors
-      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+      if ((error as Error).name === 'AbortError' || (error as Error).name === 'TimeoutError') {
         logger.error('Token refresh request timed out');
         return null;
       }
       
       logger.error('Token refresh failed with exception', {
-        error: error.message,
-        name: error.name
+        error: (error as Error).message,
+        name: (error as Error).name
       });
       return null;
     } finally {
@@ -332,7 +346,7 @@ export async function refreshAccessToken() {
   return refreshPromise;
 }
 
-export function getAuthHeader() {
+export function getAuthHeader(): Record<string, string> {
   const t = getToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
 }

@@ -2,7 +2,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Bell } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import auth from '@/auth.js';
+import auth from '@/auth';
 
 /**
  * NotificationBadge - Shows unread notification count

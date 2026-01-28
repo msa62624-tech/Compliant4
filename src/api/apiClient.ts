@@ -10,8 +10,8 @@
  * - Correlation ID tracking
  */
 
-import * as auth from '../auth.js';
-import logger from '../utils/logger.js';
+import * as auth from '../auth';
+import logger from '../utils/logger';
 
 // Configuration constants
 const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
@@ -19,11 +19,76 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000; // Initial retry delay
 const RETRY_STATUS_CODES = [408, 429, 500, 502, 503, 504]; // Retryable HTTP status codes
 
+interface FetchOptions extends RequestInit {
+  timeout?: number;
+  retries?: number;
+  correlationId?: string;
+}
+
+interface FetchResult {
+  response: Response;
+  base: string;
+}
+
+interface ApiError extends Error {
+  status?: number;
+  statusText?: string;
+  correlationId?: string;
+  endpoint?: string;
+  isTimeout?: boolean;
+}
+
+interface EntityConditions {
+  [key: string]: string | number | boolean;
+}
+
+interface UploadFilePayload {
+  file: File;
+}
+
+interface ExtractDataPayload {
+  file_url: string;
+  json_schema: Record<string, unknown>;
+}
+
+interface ParseProgramPDFPayload {
+  pdf_base64: string;
+  pdf_name: string;
+  pdf_type: string;
+}
+
+interface BrokerSignCOIPayload {
+  token: string;
+}
+
+interface GenerateCOIPayload {
+  coi_id: string;
+}
+
+interface SignCOIPayload {
+  coi_id: string;
+  signature_url: string;
+}
+
+interface AnalyzePolicyPayload {
+  coi_id: string;
+  policy_documents: string[];
+}
+
+interface EntityAPI<T = unknown> {
+  list: (sortBy?: string) => Promise<T[]>;
+  filter: (conditions: EntityConditions) => Promise<T[]>;
+  read: (id: string) => Promise<T>;
+  create: (data: Partial<T>) => Promise<T>;
+  update: (id: string, data: Partial<T>) => Promise<T>;
+  delete: (id: string) => Promise<void>;
+}
+
 // Use centralized auth module for consistent token management
-export const getAuthHeader = () => auth.getAuthHeader();
+export const getAuthHeader = (): Record<string, string> => auth.getAuthHeader();
 
 // Build the API base URLs we should attempt, ordered by priority
-const getApiBaseCandidates = () => {
+const getApiBaseCandidates = (): string[] => {
   // Highest priority: explicit base URL from environment
   const envBase = import.meta.env.VITE_API_BASE_URL;
   if (envBase) {
@@ -33,8 +98,8 @@ const getApiBaseCandidates = () => {
   }
 
   // Check for cached base URL from previous successful request
-  const cachedBase = typeof window !== 'undefined' ? window.__API_BASE_CACHE__ : null;
-  const bases = [];
+  const cachedBase = typeof window !== 'undefined' ? (window as Window & { __API_BASE_CACHE__?: string }).__API_BASE_CACHE__ : null;
+  const bases: string[] = [];
   if (cachedBase) {
     logger.debug('Found cached API base URL', { url: cachedBase });
     bases.push(cachedBase);
@@ -57,7 +122,7 @@ const getApiBaseCandidates = () => {
 
   const { protocol, host, origin } = window.location;
 
-  const deriveBaseForPort = (port) => {
+  const deriveBaseForPort = (port: string): string => {
     // GitHub Codespaces pattern
     const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
     if (withPortMatch) {
@@ -88,25 +153,20 @@ const getApiBaseCandidates = () => {
   return allBases;
 };
 
-export const getApiBase = () => {
+export const getApiBase = (): string => {
   const candidates = getApiBaseCandidates();
   return candidates[0] || 'http://localhost:3001';
 };
 
 /**
  * Sleep for specified duration
- * @param {number} ms - Milliseconds to sleep
- * @returns {Promise} - Promise that resolves after delay
  */
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Calculate exponential backoff delay
- * @param {number} attempt - Current attempt number (0-indexed)
- * @param {number} baseDelay - Base delay in milliseconds
- * @returns {number} - Delay in milliseconds
  */
-const getRetryDelay = (attempt, baseDelay = RETRY_DELAY_MS) => {
+const getRetryDelay = (attempt: number, baseDelay: number = RETRY_DELAY_MS): number => {
   const exponentialDelay = baseDelay * Math.pow(2, attempt);
   const jitter = Math.random() * 0.3 * exponentialDelay; // Add 0-30% jitter
   return Math.min(exponentialDelay + jitter, 10000); // Cap at 10 seconds
@@ -114,10 +174,8 @@ const getRetryDelay = (attempt, baseDelay = RETRY_DELAY_MS) => {
 
 /**
  * Check if error/status is retryable
- * @param {Error|number} errorOrStatus - Error object or HTTP status code
- * @returns {boolean} - True if should retry
  */
-const isRetryable = (errorOrStatus) => {
+const isRetryable = (errorOrStatus: Error | number): boolean => {
   // Network errors are retryable
   if (errorOrStatus instanceof Error) {
     const isNetworkError = errorOrStatus instanceof TypeError || 
@@ -136,10 +194,13 @@ const isRetryable = (errorOrStatus) => {
 };
 
 // Fetch wrapper that retries across candidate bases on network/CORS failures
-const fetchWithFallback = async (buildRequest, options = {}) => {
+const fetchWithFallback = async (
+  buildRequest: (base: string) => Promise<Response>,
+  options: { retries?: number } = {}
+): Promise<FetchResult> => {
   const bases = getApiBaseCandidates();
   const maxRetries = options.retries !== undefined ? options.retries : MAX_RETRIES;
-  let lastError;
+  let lastError: Error | undefined;
   let attempt = 0;
 
   for (const base of bases) {
@@ -161,7 +222,7 @@ const fetchWithFallback = async (buildRequest, options = {}) => {
         
         // Cache successful base URL
         if (typeof window !== 'undefined') {
-          window.__API_BASE_CACHE__ = base;
+          (window as Window & { __API_BASE_CACHE__?: string }).__API_BASE_CACHE__ = base;
         }
         
         return { response, base };
@@ -202,7 +263,7 @@ const fetchWithFallback = async (buildRequest, options = {}) => {
 };
 
 // Generic fetch wrapper with automatic token refresh and comprehensive error handling
-const apiFetch = async (endpoint, options = {}) => {
+const apiFetch = async <T = unknown>(endpoint: string, options: FetchOptions = {}): Promise<T> => {
   const timeout = options.timeout || DEFAULT_TIMEOUT_MS;
   const retries = options.retries !== undefined ? options.retries : MAX_RETRIES;
   const correlationId = options.correlationId || `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -279,7 +340,7 @@ const apiFetch = async (endpoint, options = {}) => {
       });
       
       // Provide user-friendly error messages for common scenarios
-      let errorMessage;
+      let errorMessage: string;
       switch (response.status) {
         case 400:
           errorMessage = `Invalid request: ${errorText || response.statusText}`;
@@ -309,7 +370,7 @@ const apiFetch = async (endpoint, options = {}) => {
           errorMessage = `Request failed (${response.status}): ${errorText || response.statusText}`;
       }
       
-      const error = new Error(errorMessage);
+      const error = new Error(errorMessage) as ApiError;
       error.status = response.status;
       error.statusText = response.statusText;
       error.correlationId = correlationId;
@@ -329,54 +390,54 @@ const apiFetch = async (endpoint, options = {}) => {
     return data;
   } catch (error) {
     // Handle timeout errors
-    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+    if ((error as Error).name === 'AbortError' || (error as Error).name === 'TimeoutError') {
       logger.error('API request timed out', {
         endpoint,
         timeout,
         correlationId
       });
-      const timeoutError = new Error(`Request timed out after ${timeout}ms`);
+      const timeoutError = new Error(`Request timed out after ${timeout}ms`) as ApiError;
       timeoutError.isTimeout = true;
       timeoutError.correlationId = correlationId;
       throw timeoutError;
     }
     
     // Re-throw with correlation ID if not already attached
-    if (!error.correlationId) {
-      error.correlationId = correlationId;
+    if (!(error as ApiError).correlationId) {
+      (error as ApiError).correlationId = correlationId;
     }
     throw error;
   }
 };
 
 // Entity operations
-const createEntityAPI = (entityName) => ({
-  list: (sortBy) => {
+const createEntityAPI = <T = unknown>(entityName: string): EntityAPI<T> => ({
+  list: (sortBy?: string) => {
     const query = sortBy ? `?sort=${sortBy}` : '';
-    return apiFetch(`/entities/${entityName}${query}`);
+    return apiFetch<T[]>(`/entities/${entityName}${query}`);
   },
 
-  filter: (conditions) => {
+  filter: (conditions: EntityConditions) => {
     const queryParams = new URLSearchParams();
     Object.entries(conditions).forEach(([key, value]) => {
-      queryParams.append(key, value);
+      queryParams.append(key, String(value));
     });
-    return apiFetch(`/entities/${entityName}/query?${queryParams}`);
+    return apiFetch<T[]>(`/entities/${entityName}/query?${queryParams}`);
   },
 
-  read: (id) => apiFetch(`/entities/${entityName}/${id}`),
+  read: (id: string) => apiFetch<T>(`/entities/${entityName}/${id}`),
 
-  create: (data) => apiFetch(`/entities/${entityName}`, {
+  create: (data: Partial<T>) => apiFetch<T>(`/entities/${entityName}`, {
     method: 'POST',
     body: JSON.stringify(data)
   }),
 
-  update: (id, data) => apiFetch(`/entities/${entityName}/${id}`, {
+  update: (id: string, data: Partial<T>) => apiFetch<T>(`/entities/${entityName}/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data)
   }),
 
-  delete: (id) => apiFetch(`/entities/${entityName}/${id}`, {
+  delete: (id: string) => apiFetch<void>(`/entities/${entityName}/${id}`, {
     method: 'DELETE'
   })
 });
@@ -384,7 +445,7 @@ const createEntityAPI = (entityName) => ({
 // Core integrations
 const coreIntegrations = {
   // Upload file
-  UploadFile: async ({ file }) => {
+  UploadFile: async ({ file }: UploadFilePayload) => {
     const formData = new FormData();
     formData.append('file', file);
     
@@ -405,7 +466,7 @@ const coreIntegrations = {
   },
 
   // Extract data from uploaded file (AI)
-  ExtractDataFromUploadedFile: async ({ file_url, json_schema }) => {
+  ExtractDataFromUploadedFile: async ({ file_url, json_schema }: ExtractDataPayload) => {
     return apiFetch('/integrations/extract-data', {
       method: 'POST',
       body: JSON.stringify({ file_url, json_schema })
@@ -413,7 +474,7 @@ const coreIntegrations = {
   },
 
   // Parse program PDF from base64 (matches backend /integrations/parse-program-pdf)
-  ParseProgramPDF: async ({ pdf_base64, pdf_name, pdf_type }) => {
+  ParseProgramPDF: async ({ pdf_base64, pdf_name, pdf_type }: ParseProgramPDFPayload) => {
     return apiFetch('/integrations/parse-program-pdf', {
       method: 'POST',
       body: JSON.stringify({ pdf_base64, pdf_name, pdf_type })
@@ -423,7 +484,7 @@ const coreIntegrations = {
 
 // Public integrations (no auth)
 const publicIntegrations = {
-  BrokerSignCOI: async ({ token }) => {
+  BrokerSignCOI: async ({ token }: BrokerSignCOIPayload) => {
     const { response } = await fetchWithFallback((apiBase) =>
       fetch(`${apiBase}/public/broker-sign-coi?token=${encodeURIComponent(token)}`, {
         method: 'POST',
@@ -452,13 +513,13 @@ const publicIntegrations = {
 
 // Admin actions (auth required)
 const adminIntegrations = {
-  GenerateCOI: async ({ coi_id }) => {
+  GenerateCOI: async ({ coi_id }: GenerateCOIPayload) => {
     return apiFetch('/admin/generate-coi', {
       method: 'POST',
       body: JSON.stringify({ coi_id })
     });
   },
-  SignCOI: async ({ coi_id, signature_url }) => {
+  SignCOI: async ({ coi_id, signature_url }: SignCOIPayload) => {
     return apiFetch('/admin/sign-coi', {
       method: 'POST',
       body: JSON.stringify({ coi_id, signature_url })
@@ -467,7 +528,7 @@ const adminIntegrations = {
 };
 
 // Send email
-const sendEmail = async (payload) => {
+const sendEmail = async (payload: Record<string, unknown>) => {
   return apiFetch('/integrations/send-email', {
     method: 'POST',
     body: JSON.stringify(payload)
@@ -475,7 +536,7 @@ const sendEmail = async (payload) => {
 };
 
 // Analyze policy
-const _analyzePolicy = async ({ coi_id, policy_documents }) => {
+const _analyzePolicy = async ({ coi_id, policy_documents }: AnalyzePolicyPayload) => {
   return apiFetch('/integrations/analyze-policy', {
     method: 'POST',
     body: JSON.stringify({ coi_id, policy_documents })
@@ -487,7 +548,7 @@ const authModule = {
   // Support both calling patterns for backward compatibility:
   // - login(username, password) - legacy pattern
   // - login({ username, password }) - consistent with auth.login()
-  login: async (usernameOrObj, password) => {
+  login: async (usernameOrObj: string | { username: string; password: string }, password?: string) => {
     if (typeof usernameOrObj === 'object') {
       // Object pattern: { username, password }
       return auth.login(usernameOrObj);
@@ -514,8 +575,8 @@ const authModule = {
 export const apiClient = {
   auth: authModule,
   api: {
-    get: (endpoint) => apiFetch(endpoint, { method: 'GET' }),
-    post: (endpoint, data) => apiFetch(endpoint, { method: 'POST', body: JSON.stringify(data) })
+    get: <T = unknown>(endpoint: string) => apiFetch<T>(endpoint, { method: 'GET' }),
+    post: <T = unknown>(endpoint: string, data: unknown) => apiFetch<T>(endpoint, { method: 'POST', body: JSON.stringify(data) })
   },
   entities: {
     User: createEntityAPI('User'),

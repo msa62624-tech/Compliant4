@@ -18,12 +18,69 @@
  * - Auto-detection: Codespaces and localhost URLs are automatically detected
  */
 
-import { getAuthHeader, clearToken, refreshAccessToken } from '../auth.js';
+import { getAuthHeader, clearToken, refreshAccessToken } from '../auth';
 import logger from '../utils/logger';
 
 const envUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL)
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')
   : null;
+
+interface QueryParams {
+  [key: string]: string | number | boolean;
+}
+
+interface EntityAdapter<T = unknown> {
+  list: (sort?: string) => Promise<T[]>;
+  filter: (params?: QueryParams) => Promise<T[]>;
+  read: (id: string) => Promise<T>;
+  update: (id: string, data: Partial<T>) => Promise<T>;
+  create: (data: Partial<T>) => Promise<T>;
+  delete: (id: string) => Promise<unknown>;
+}
+
+interface DoFetchOptions {
+  retries?: number;
+  timeout?: number;
+}
+
+interface LLMPayload {
+  [key: string]: unknown;
+}
+
+interface EmailPayload {
+  [key: string]: unknown;
+}
+
+interface FilePayload {
+  file: File;
+}
+
+interface ExtractFilePayload {
+  file_url: string;
+  json_schema: Record<string, unknown>;
+}
+
+interface ParseProgramPDFPayload {
+  pdf_base64: string;
+  pdf_name: string;
+  pdf_type: string;
+}
+
+interface SignedUrlPayload {
+  [key: string]: unknown;
+}
+
+interface AdobeTransientPayload {
+  [key: string]: unknown;
+}
+
+interface AdobeAgreementPayload {
+  [key: string]: unknown;
+}
+
+interface NYCPropertyPayload {
+  [key: string]: unknown;
+}
 
 const computedCodespacesUrl = (() => {
   if (typeof window === 'undefined') return null;
@@ -69,13 +126,13 @@ if (typeof window !== 'undefined') {
   }
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function sleep(ms: number): Promise<void> { return new Promise(r => setTimeout(r, ms)); }
 
-  async function doFetch(url, opts = {}, { retries = 2, timeout = 15000 } = {}){
+async function doFetch(url: string, opts: RequestInit = {}, { retries = 2, timeout = 15000 }: DoFetchOptions = {}): Promise<unknown> {
     const controller = new AbortController();
-    const id = setTimeout(()=>controller.abort(), timeout);
-    const headers = { ...(opts.headers || {}), ...getAuthHeader() };
-    const finalOpts = { ...opts, headers, signal: controller.signal, credentials: 'include' };
+    const id = setTimeout(() => controller.abort(), timeout);
+    const headers: Record<string, string> = { ...(opts.headers as Record<string, string> || {}), ...getAuthHeader() };
+    const finalOpts: RequestInit = { ...opts, headers, signal: controller.signal, credentials: 'include' };
 
     try {
       let attempt = 0;
@@ -94,8 +151,8 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
           if (res.status === 401) {
             // unauthorized - clear token and surface a clear error
             logger.error('401 Unauthorized - Token invalid or expired');
-            try { clearToken(); } catch(e){}
-            const e = new Error('Your session has expired. Please log in again.');
+            try { clearToken(); } catch (e) { /* ignore */ }
+            const e = new Error('Your session has expired. Please log in again.') as Error & { status?: number };
             e.status = 401;
             throw e;
           }
@@ -105,8 +162,8 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
               // Check if we have attempts left before refreshing
               if (attempt >= maxAttempts - 1) {
                 // Not enough attempts left to refresh and retry
-                const text = await res.text().catch(()=> '');
-                const err = new Error(text || `HTTP ${res.status}`);
+                const text = await res.text().catch(() => '');
+                const err = new Error(text || `HTTP ${res.status}`) as Error & { status?: number };
                 err.status = res.status;
                 throw err;
               }
@@ -115,27 +172,27 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
                 await refreshAccessToken();
                 tokenRefreshAttempted = true;
                 // Update headers with new token and retry
-                const newHeaders = { ...(opts.headers || {}), ...getAuthHeader() };
+                const newHeaders: Record<string, string> = { ...(opts.headers as Record<string, string> || {}), ...getAuthHeader() };
                 finalOpts.headers = newHeaders;
                 logger.info('Token refreshed successfully, retrying request');
                 continue; // Retry with new token without counting toward attempt limit
               } catch (err) {
-                logger.error('Token refresh failed', { error: err?.message });
-                try { clearToken(); } catch(e){}
-                const e = new Error('Your session has expired. Please log in again.');
+                logger.error('Token refresh failed', { error: (err as Error)?.message });
+                try { clearToken(); } catch (e) { /* ignore */ }
+                const e = new Error('Your session has expired. Please log in again.') as Error & { status?: number };
                 e.status = 401;
                 throw e;
               }
             }
             // If we already tried refresh, it's a real permission error
-            const text = await res.text().catch(()=> '');
-            const err = new Error(text || `HTTP ${res.status}`);
+            const text = await res.text().catch(() => '');
+            const err = new Error(text || `HTTP ${res.status}`) as Error & { status?: number };
             err.status = res.status;
             throw err;
           }
           if (!res.ok) {
-            const text = await res.text().catch(()=> '');
-            const err = new Error(text || `HTTP ${res.status}`);
+            const text = await res.text().catch(() => '');
+            const err = new Error(text || `HTTP ${res.status}`) as Error & { status?: number };
             err.status = res.status;
             throw err;
           }
@@ -163,75 +220,83 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     }
   }
 
-  function makeEntityAdapter(entityName) {
-    const basePath = baseUrl ? `${baseUrl}/entities/${entityName}` : null;
+function makeEntityAdapter<T = unknown>(entityName: string): EntityAdapter<T> {
+  const basePath: string | null = baseUrl ? `${baseUrl}/entities/${entityName}` : null;
 
-    return {
-      list: async (sort) => {
-        if (!basePath) {
-          throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
-        }
-        const url = new URL(basePath);
-        if (sort) url.searchParams.set('sort', sort);
-        const result = await doFetch(url.toString(), { method: 'GET' }, { retries: 2 });
-        return result;
-      },
+  return {
+    list: async (sort?: string) => {
+      if (!basePath) {
+        throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
+      }
+      const url = new URL(basePath);
+      if (sort) url.searchParams.set('sort', sort);
+      const result = await doFetch(url.toString(), { method: 'GET' }, { retries: 2 });
+      return result as T[];
+    },
 
-      filter: async (params) => {
-        if (!basePath) {
-          throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
-        }
-        return await doFetch(`${basePath}/query`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(params || {}) }, { retries: 1 });
-      },
+    filter: async (params?: QueryParams) => {
+      if (!basePath) {
+        throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
+      }
+      const result = await doFetch(`${basePath}/query`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params || {}) }, { retries: 1 });
+      return result as T[];
+    },
 
-      read: async (id) => {
+    read: async (id: string) => {
         if (!basePath) {
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
         }
         const url = new URL(basePath);
         url.searchParams.set('id', id);
         try {
-          return await doFetch(url.toString(), { method: 'GET' }, { retries: 1 });
+          const result = await doFetch(url.toString(), { method: 'GET' }, { retries: 1 });
+          return result as T;
         } catch (err) {
           // Fallback for backends that only support query POST
-          if (err?.status === 404) {
+          if ((err as Error & { status?: number })?.status === 404) {
             const filtered = await doFetch(`${basePath}/query`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id })
             }, { retries: 0 });
-            if (Array.isArray(filtered) && filtered.length > 0) return filtered[0];
+            if (Array.isArray(filtered) && filtered.length > 0) return filtered[0] as T;
           }
           throw err;
         }
       },
 
-      update: async (id, data) => {
-        if (!basePath) {
-          throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
-        }
-        return await doFetch(`${basePath}/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) }, { retries: 0 });
-      },
-
-      create: async (data) => {
-        if (!basePath) {
-          throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
-        }
-        return await doFetch(basePath, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) }, { retries: 0 });
-      },
-
-      delete: async (id) => {
-        if (!basePath) {
-          throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
-        }
-        return await doFetch(`${basePath}/${id}`, { method: 'DELETE' }, { retries: 0 });
+    update: async (id: string, data: Partial<T>) => {
+      if (!basePath) {
+        throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
       }
-    };
-  }
+      const result = await doFetch(`${basePath}/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }, { retries: 0 });
+      return result as T;
+    },
+
+    create: async (data: Partial<T>) => {
+      if (!basePath) {
+        throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
+      }
+      const result = await doFetch(basePath, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }, { retries: 0 });
+      return result as T;
+    },
+
+    delete: async (id: string) => {
+      if (!basePath) {
+        throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
+      }
+      return await doFetch(`${basePath}/${id}`, { method: 'DELETE' }, { retries: 0 });
+    }
+  };
+}
+
 const shim = {
-  entities: new Proxy({}, {
-    get(target, name) {
-      return makeEntityAdapter(name);
+  entities: new Proxy({} as Record<string, EntityAdapter>, {
+    get(_target, name: string | symbol) {
+      if (typeof name === 'string') {
+        return makeEntityAdapter(name);
+      }
+      return undefined;
     }
   }),
 
@@ -254,7 +319,7 @@ const shim = {
 
   integrations: {
     Core: {
-      InvokeLLM: async (payload) => {
+      InvokeLLM: async (payload: LLMPayload) => {
         if (!baseUrl) {
           logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
@@ -270,7 +335,7 @@ const shim = {
         return await res.json();
       },
 
-      SendEmail: async (payload) => {
+      SendEmail: async (payload: EmailPayload) => {
         if (!baseUrl) {
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
         }
@@ -286,12 +351,12 @@ const shim = {
       },
 
       // Helper function to extract error message from response
-      _extractErrorMessage: async (res, defaultMessage) => {
+      _extractErrorMessage: async (res: Response, defaultMessage: string): Promise<string> => {
         try {
           const contentType = res.headers.get('content-type');
           if (contentType && contentType.includes('application/json')) {
             const errorData = await res.json();
-            return errorData.error || errorData.message || defaultMessage;
+            return (errorData as { error?: string; message?: string }).error || (errorData as { message?: string }).message || defaultMessage;
           } else {
             const errorText = await res.text();
             return errorText || defaultMessage;
@@ -303,14 +368,14 @@ const shim = {
       },
 
       // Helper function for file upload
-      _uploadFileHelper: async (endpoint, payload, { timeout = 60000, retries = 1 } = {}) => {
+      _uploadFileHelper: async (endpoint: string, payload: FilePayload | FormData, { timeout = 60000, retries = 1 }: { timeout?: number; retries?: number } = {}) => {
         if (!baseUrl) {
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
         }
         
         // Determine the body to send
-        let body;
-        if (payload.file) {
+        let body: FormData;
+        if ('file' in payload && payload.file instanceof File) {
           // Validate file exists and has content
           if (!payload.file || !(payload.file instanceof File)) {
             throw new Error('Invalid file: expected File object');
@@ -392,11 +457,11 @@ const shim = {
         throw lastError;
       },
 
-      UploadFile: async (payload) => {
+      UploadFile: async (payload: FilePayload) => {
         return await shim.integrations.Core._uploadFileHelper('/integrations/upload-file', payload);
       },
 
-      GenerateImage: async (payload) => {
+      GenerateImage: async (payload: Record<string, unknown>) => {
         if (!baseUrl) {
           logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
@@ -412,7 +477,7 @@ const shim = {
         return await res.json();
       },
 
-      ExtractDataFromUploadedFile: async (payload) => {
+      ExtractDataFromUploadedFile: async (payload: ExtractFilePayload) => {
         if (!baseUrl) {
           logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
@@ -431,7 +496,7 @@ const shim = {
         return await res.json();
       },
 
-      ParseProgramPDF: async (payload) => {
+      ParseProgramPDF: async (payload: ParseProgramPDFPayload) => {
         if (!baseUrl) {
           logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
@@ -447,7 +512,7 @@ const shim = {
         return await res.json();
       },
 
-      CreateFileSignedUrl: async (payload) => {
+      CreateFileSignedUrl: async (payload: SignedUrlPayload) => {
         if (!baseUrl) {
           logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
@@ -463,14 +528,14 @@ const shim = {
         return await res.json();
       },
 
-      UploadPrivateFile: async (payload) => {
+      UploadPrivateFile: async (payload: FilePayload) => {
         return await shim.integrations.Core._uploadFileHelper('/integrations/upload-private-file', payload);
       }
       ,
 
       Adobe: {
         // Upload a transient document to Adobe (returns transientDocumentId)
-        CreateTransientDocument: async (payload) => {
+        CreateTransientDocument: async (payload: FormData) => {
           if (!baseUrl) {
             logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
             throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
@@ -487,7 +552,7 @@ const shim = {
         },
 
         // Create an agreement using a transientDocumentId
-        CreateAgreement: async (payload) => {
+        CreateAgreement: async (payload: AdobeAgreementPayload) => {
           if (!baseUrl) {
             logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
             throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
@@ -504,7 +569,7 @@ const shim = {
         },
 
         // Get a signing URL for an agreement
-        GetSigningUrl: async (agreementId) => {
+        GetSigningUrl: async (agreementId: string) => {
           if (!baseUrl) {
             logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
             throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
@@ -521,7 +586,7 @@ const shim = {
       }
       ,
       NYC: {
-        PropertyLookup: async (payload) => {
+        PropertyLookup: async (payload: NYCPropertyPayload) => {
           if (!baseUrl) {
             logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
             throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
