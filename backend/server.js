@@ -5864,6 +5864,35 @@ async function extractTextFromPDF(filePath) {
   }
 }
 
+// Constants for endorsement negation checking
+const NEGATION_LOOKBACK_CHARS = 50;
+const NEGATION_PATTERN = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i;
+
+// Helper function to check if any occurrence of a keyword is not negated
+function hasNonNegatedKeyword(text, keywordPattern) {
+  const matchIndices = [];
+  let match;
+  const regex = new RegExp(keywordPattern.source, 'gi');
+  
+  while ((match = regex.exec(text)) !== null) {
+    matchIndices.push(match.index);
+  }
+  
+  // If we find any occurrence, check if at least one is not negated
+  for (const matchIndex of matchIndices) {
+    const startPos = Math.max(0, matchIndex - NEGATION_LOOKBACK_CHARS);
+    const precedingText = text.substring(startPos, matchIndex);
+    const hasNegation = NEGATION_PATTERN.test(precedingText);
+    
+    // If this occurrence is not negated, we found a valid keyword
+    if (!hasNegation) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 // Helper function to extract common fields using regex patterns (fallback when AI is not configured)
 function extractFieldsWithRegex(text, schema) {
   console.log('🔧 Starting AGGRESSIVE regex extraction with schema fields:', Object.keys(schema));
@@ -6661,23 +6690,12 @@ function extractFieldsWithRegex(text, schema) {
       /primary\s+&\s+non-contributory/i
     ];
     
-    // Check for negation words within 50 chars before "ADDITIONAL INSURED"
-    // Find the keyword and check if any negation word appears in the 50 chars before it
-    let hasNegation = false;
-    const keywordMatch = /ADDITIONAL\s+INSURED/i.exec(text);
-    if (keywordMatch) {
-      const startPos = Math.max(0, keywordMatch.index - 50);
-      const precedingText = text.substring(startPos, keywordMatch.index);
-      hasNegation = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i.test(precedingText);
-    }
-    
+    // Check each pattern for non-negated occurrences
     let hasAddlInsured = false;
-    if (!hasNegation) {
-      for (const pattern of addlInsuredIndicators) {
-        if (pattern.test(text)) {
-          hasAddlInsured = true;
-          break;
-        }
+    for (const pattern of addlInsuredIndicators) {
+      if (hasNonNegatedKeyword(text, pattern)) {
+        hasAddlInsured = true;
+        break;
       }
     }
     
@@ -6689,28 +6707,18 @@ function extractFieldsWithRegex(text, schema) {
     // Look for keywords indicating waiver of subrogation
     const waiverIndicators = [
       /WAIVER\s+OF\s+SUBROGATION/i,
+      /(?:WAIVER|SUBROGATION)/i,  // Check standalone keywords
       /SUBR\s+WVD/i,
       /waived\s+in\s+favor/i,
       /subrogation.*waived/i
     ];
     
-    // Check for negation words within 50 chars before "WAIVER" or "SUBROGATION"
-    // Find the keyword and check if any negation word appears in the 50 chars before it
-    let hasNegation = false;
-    const keywordMatch = /(?:WAIVER|SUBROGATION)/i.exec(text);
-    if (keywordMatch) {
-      const startPos = Math.max(0, keywordMatch.index - 50);
-      const precedingText = text.substring(startPos, keywordMatch.index);
-      hasNegation = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i.test(precedingText);
-    }
-    
+    // Check each pattern for non-negated occurrences
     let hasWaiver = false;
-    if (!hasNegation) {
-      for (const pattern of waiverIndicators) {
-        if (pattern.test(text)) {
-          hasWaiver = true;
-          break;
-        }
+    for (const pattern of waiverIndicators) {
+      if (hasNonNegatedKeyword(text, pattern)) {
+        hasWaiver = true;
+        break;
       }
     }
     
