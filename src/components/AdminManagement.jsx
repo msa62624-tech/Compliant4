@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { UserPlus, Trash2, Mail, Shield, AlertTriangle } from 'lucide-react';
+import { isValidEmail, validatePassword } from '@/utils';
 import {
   Select,
   SelectContent,
@@ -98,13 +99,20 @@ export default function AdminManagement() {
       return;
     }
 
-    if (!newAdmin.email.includes('@')) {
+    if (!isValidEmail(newAdmin.email)) {
       setError('Please enter a valid email address');
       return;
     }
 
+    const passwordValidation = validatePassword(newAdmin.password);
+    if (!passwordValidation.valid) {
+      setError(passwordValidation.message);
+      return;
+    }
+    
+    // Admin passwords should be at least 12 characters
     if (newAdmin.password.length < 12) {
-      setError('Password must be at least 12 characters');
+      setError('Admin password must be at least 12 characters');
       return;
     }
 

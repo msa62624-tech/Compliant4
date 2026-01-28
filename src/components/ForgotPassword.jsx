@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 import { getBackendBaseUrl } from '@/urlConfig';
+import { validatePassword } from '@/utils';
 
 /**
  * ForgotPassword Component
@@ -67,8 +68,10 @@ export default function ForgotPassword({ onBackToLogin, portalType = 'gc' }) {
       if (newPassword !== confirmPassword) {
         throw new Error('Passwords do not match');
       }
-      if (newPassword.length < 8) {
-        throw new Error('Password must be at least 8 characters');
+      
+      const passwordValidation = validatePassword(newPassword);
+      if (!passwordValidation.valid) {
+        throw new Error(passwordValidation.message);
       }
 
       const backendBase = getBackendBaseUrl();

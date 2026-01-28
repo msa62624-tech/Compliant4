@@ -70,4 +70,29 @@ export function normalizeSubcontractorTrades(subcontractor) {
   if (!subcontractor) return [];
   return subcontractor.trade_types || 
          (subcontractor.trade_type ? [subcontractor.trade_type] : []);
+}
+
+/**
+ * Validate email format
+ * @param {string} email - The email to validate
+ * @returns {boolean} - True if email is valid
+ */
+export function isValidEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  return email.trim().includes('@') && email.trim().includes('.');
+}
+
+/**
+ * Validate password strength
+ * @param {string} password - The password to validate
+ * @returns {Object} - { valid: boolean, message: string }
+ */
+export function validatePassword(password) {
+  if (!password) {
+    return { valid: false, message: 'Password is required' };
+  }
+  if (password.length < 8) {
+    return { valid: false, message: 'Password must be at least 8 characters' };
+  }
+  return { valid: true, message: '' };
 } 

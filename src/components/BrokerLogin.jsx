@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Building2 } from 'lucide-react';
 import ForgotPassword from '@/components/ForgotPassword';
 import { getBackendBaseUrl } from '@/urlConfig';
+import { isValidEmail } from '@/utils';
 
 export default function BrokerLogin({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -24,7 +25,7 @@ export default function BrokerLogin({ onLogin }) {
       }
 
       // Validate email format
-      if (!email.includes('@')) {
+      if (!isValidEmail(email)) {
         throw new Error('Please enter a valid email address');
       }
 
