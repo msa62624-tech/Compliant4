@@ -28,21 +28,7 @@ import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import UserProfile from "@/components/UserProfile.tsx";
-import type * as ApiTypes from '@/api-types';
-
-interface GeneratedCOI {
-  id: string;
-  subcontractor_name?: string;
-  project_name?: string;
-  gc_name?: string;
-  broker_email?: string;
-  trade_type?: string;
-  status?: string;
-  first_coi_uploaded?: boolean;
-  sub_notified_date?: string;
-  sample_coi_pdf_url?: string;
-  coi_token?: string;
-}
+import type { GeneratedCOI } from '@/api-types';
 
 interface StatusInfo {
   label: string;
@@ -70,7 +56,7 @@ export default function BrokerPortal(): JSX.Element {
   const { data: myCOIs = [], isLoading } = useQuery<GeneratedCOI[]>({
     queryKey: ['broker-cois', user?.email],
     queryFn: async (): Promise<GeneratedCOI[]> => {
-      const allCOIs = await apiClient.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[];
+      const allCOIs = await apiClient.entities.GeneratedCOI.list() as GeneratedCOI[];
       
       // In testing mode, show all COIs for broker testing
       if (isBrokerTest) {
