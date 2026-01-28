@@ -11,7 +11,6 @@ import { calculateUrgency, formatTimeframe } from "@/utils/notificationUtils";
  */
 export async function checkAndNotifyExpiringPolicies() {
   try {
-    const today = new Date();
     const documents = await apiClient.entities.InsuranceDocument.list();
     
     // Define notification thresholds (days before expiry)
@@ -124,7 +123,6 @@ InsureTrack System`
  */
 export async function getExpiringPoliciesSummary() {
   try {
-    const today = new Date();
     const documents = await apiClient.entities.InsuranceDocument.list();
     
     const upcoming = {
