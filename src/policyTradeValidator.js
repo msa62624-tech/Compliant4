@@ -239,71 +239,6 @@ export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
   };
 }
 
-// ============================================================================
-// HELPER FUNCTIONS (Internal Use)
-// ============================================================================
-
-/**
- * Validates class codes against required trades
- * Uses NCCI classification code mappings to determine coverage
- * 
- * @private
- * @param {number} classCode - NCCI classification code
- * @param {Array<string>} requiredTrades - Trades that need coverage
- * @returns {Object} { compliant, limitedTrades, issues }
- */
-function validateClassifications(classCode, requiredTrades) {
-  const limitedTrades = [];
-  const issues = [];
-
-  // Check each required trade
-  for (const trade of requiredTrades) {
-    let tradeCovered = false;
-
-    // This is simplified - real implementation would need comprehensive NCCI mapping
-    const tradeLower = trade.toLowerCase();
-
-    if (tradeLower.includes('carpenter') || tradeLower.includes('framing')) {
-      tradeCovered = [5402, 5405, 5403].includes(classCode);
-    } else if (tradeLower.includes('roof')) {
-      tradeCovered = [5474, 5405].includes(classCode);
-    } else if (tradeLower.includes('electrical')) {
-      tradeCovered = [5403, 5427].includes(classCode);
-    } else if (tradeLower.includes('plumb')) {
-      tradeCovered = [5410, 5403].includes(classCode);
-    } else if (tradeLower.includes('hvac')) {
-      tradeCovered = [5403, 5410].includes(classCode);
-    } else if (tradeLower.includes('excavat')) {
-      tradeCovered = [5478, 5403].includes(classCode);
-    } else if (tradeLower.includes('crane')) {
-      tradeCovered = [5485, 5403].includes(classCode);
-    } else if (tradeLower.includes('scaffold')) {
-      tradeCovered = [5473, 5403].includes(classCode);
-    }
-
-    if (!tradeCovered) {
-      limitedTrades.push({
-        trade,
-        classCode,
-        message: `Classification ${classCode} may not cover ${trade}`,
-      });
-
-      issues.push({
-        type: 'warning',
-        trade,
-        message: `GL classification code ${classCode} may not fully cover ${trade}`,
-        severity: 'medium',
-      });
-    }
-  }
-
-  return {
-    compliant: limitedTrades.length === 0,
-    limitedTrades,
-    issues,
-  };
-}
-
 /**
  * Checks for trade-specific policy restrictions
  * Validates minimum limits and coverage requirements for high-risk trades
@@ -380,42 +315,6 @@ export function validateTradeRestrictions(coi, trade) {
   }
 
   return restrictions;
-}
-
-/**
- * Generates admin review notes from validation results
- * 
- * @private
- * @param {Array} issues - Validation issues found
- * @param {Array} warnings - Validation warnings
- * @param {Array} excludedTrades - Trades excluded by policy
- * @returns {string} Compiled review notes for admin
- */
-function compileReviewNotes(issues, warnings, excludedTrades) {
-  const notes = [];
-
-  if (excludedTrades.length > 0) {
-    notes.push(
-      `POLICY EXCLUSIONS FOUND: ${excludedTrades.map(e => e.trade).join(', ')}`
-    );
-    notes.push(
-      'Admin must contact broker to obtain COI with proper coverage or request waiver.'
-    );
-  }
-
-  if (issues.length > 0) {
-    notes.push(
-      `COMPLIANCE ISSUES: ${issues.length} issue(s) found requiring review`
-    );
-  }
-
-  if (warnings.length > 0) {
-    notes.push(
-      `WARNINGS: ${warnings.length} warning(s) - review before approval`
-    );
-  }
-
-  return notes.join('\n');
 }
 
 /**
@@ -499,6 +398,100 @@ export function generateBrokerTradeMessage(coi, requiredTrades, validation) {
   }
 
   return message;
+}
+
+// ============================================================================
+// HELPER FUNCTIONS (Internal Use)
+// ============================================================================
+
+/**
+ * Validates class codes against required trades
+ * Uses NCCI classification code mappings to determine coverage
+ * 
+ * @private
+ * @param {number} classCode - NCCI classification code
+ * @param {Array<string>} requiredTrades - Trades that need coverage
+ * @returns {Object} { compliant, limitedTrades, issues }
+ */
+function validateClassifications(classCode, requiredTrades) {
+  const limitedTrades = [];
+  const issues = [];
+
+  // Check each required trade
+  for (const trade of requiredTrades) {
+    let tradeCovered = false;
+    const tradeLower = trade.toLowerCase();
+
+    // Check if the classification code covers this trade
+    // by iterating through NCCI_CLASS_CODE_MAPPINGS
+    for (const [code, trades] of Object.entries(NCCI_CLASS_CODE_MAPPINGS)) {
+      if (parseInt(code) === classCode) {
+        // Check if any of the mapped trades match the required trade
+        tradeCovered = trades.some(mappedTrade => 
+          tradeLower.includes(mappedTrade.toLowerCase()) ||
+          mappedTrade.toLowerCase().includes(tradeLower)
+        );
+        if (tradeCovered) break;
+      }
+    }
+
+    if (!tradeCovered) {
+      limitedTrades.push({
+        trade,
+        classCode,
+        message: `Classification ${classCode} may not cover ${trade}`,
+      });
+
+      issues.push({
+        type: 'warning',
+        trade,
+        message: `GL classification code ${classCode} may not fully cover ${trade}`,
+        severity: 'medium',
+      });
+    }
+  }
+
+  return {
+    compliant: limitedTrades.length === 0,
+    limitedTrades,
+    issues,
+  };
+}
+
+/**
+ * Generates admin review notes from validation results
+ * 
+ * @private
+ * @param {Array} issues - Validation issues found
+ * @param {Array} warnings - Validation warnings
+ * @param {Array} excludedTrades - Trades excluded by policy
+ * @returns {string} Compiled review notes for admin
+ */
+function compileReviewNotes(issues, warnings, excludedTrades) {
+  const notes = [];
+
+  if (excludedTrades.length > 0) {
+    notes.push(
+      `POLICY EXCLUSIONS FOUND: ${excludedTrades.map(e => e.trade).join(', ')}`
+    );
+    notes.push(
+      'Admin must contact broker to obtain COI with proper coverage or request waiver.'
+    );
+  }
+
+  if (issues.length > 0) {
+    notes.push(
+      `COMPLIANCE ISSUES: ${issues.length} issue(s) found requiring review`
+    );
+  }
+
+  if (warnings.length > 0) {
+    notes.push(
+      `WARNINGS: ${warnings.length} warning(s) - review before approval`
+    );
+  }
+
+  return notes.join('\n');
 }
 
 export default {
