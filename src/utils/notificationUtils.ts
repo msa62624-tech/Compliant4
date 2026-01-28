@@ -98,7 +98,7 @@ interface EmailParams {
   [key: string]: any;
 }
 
-type SendEmailFn = (params: EmailParams) => Promise<void>;
+type SendEmailFn = (params: EmailParams) => Promise<any>;
 
 /**
  * Wrapper function to send email with standardized error handling
