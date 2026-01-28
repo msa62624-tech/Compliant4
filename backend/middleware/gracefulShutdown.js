@@ -1,5 +1,6 @@
 import logger from '../config/logger.js';
 import { saveEntities } from '../config/database.js';
+import { cleanupIdempotency } from './idempotency.js';
 
 // Track active connections
 let activeConnections = new Set();
@@ -75,6 +76,13 @@ export async function gracefulShutdown(signal) {
     logger.info('Data saved successfully');
   } catch (error) {
     logger.error('Error saving data during shutdown', { error: error.message, stack: error.stack });
+  }
+  
+  // Cleanup idempotency interval
+  try {
+    cleanupIdempotency();
+  } catch (error) {
+    logger.error('Error cleaning up idempotency', { error: error.message, stack: error.stack });
   }
   
   // Perform any other cleanup
