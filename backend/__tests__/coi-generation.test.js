@@ -1,5 +1,4 @@
 import { describe, test, expect } from '@jest/globals';
-import PDFDocument from 'pdfkit';
 
 /**
  * Test COI Generation - Project Info Inclusion
@@ -8,8 +7,8 @@ import PDFDocument from 'pdfkit';
  * in the "Description of Operations" section.
  */
 
-describe('COI Generation - Project Info', () => {
-  test('generateGeneratedCOIPDF should include project location in description', async () => {
+describe('COI Description Building Logic', () => {
+  test('description building should include project location', async () => {
     // Mock COI record with project information
     const mockCoiRecord = {
       broker_name: 'Test Broker LLC',
@@ -46,9 +45,9 @@ describe('COI Generation - Project Info', () => {
     let descriptionText = mockCoiRecord.description_of_operations ||
       `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`;
     
-    // Add job location if available (this is the fix)
+    // Add job location if available (this is the fix) - with validation
     const jobLocation = mockCoiRecord.updated_project_address || mockCoiRecord.project_address;
-    if (jobLocation) {
+    if (jobLocation && jobLocation.trim() && jobLocation.replace(/[,\s]/g, '')) {
       descriptionText += `\n\nJob Location: ${jobLocation}`;
     }
 
@@ -58,7 +57,7 @@ describe('COI Generation - Project Info', () => {
     expect(descriptionText).toContain('General construction work as required by contract.');
   });
 
-  test('generateGeneratedCOIPDF should handle missing project location gracefully', async () => {
+  test('description building should handle missing project location gracefully', async () => {
     // Mock COI record WITHOUT project information
     const mockCoiRecord = {
       broker_name: 'Test Broker LLC',
@@ -71,9 +70,9 @@ describe('COI Generation - Project Info', () => {
     let descriptionText = mockCoiRecord.description_of_operations ||
       `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL & Workers Compensation policies.`;
     
-    // Add job location if available
+    // Add job location if available - with validation
     const jobLocation = mockCoiRecord.updated_project_address || mockCoiRecord.project_address;
-    if (jobLocation) {
+    if (jobLocation && jobLocation.trim() && jobLocation.replace(/[,\s]/g, '')) {
       descriptionText += `\n\nJob Location: ${jobLocation}`;
     }
 
@@ -82,7 +81,7 @@ describe('COI Generation - Project Info', () => {
     expect(descriptionText).toContain('General construction work as required by contract.');
   });
 
-  test('generateGeneratedCOIPDF should prefer updated_project_address over project_address', async () => {
+  test('description building should prefer updated_project_address over project_address', async () => {
     // Mock COI record with both addresses
     const mockCoiRecord = {
       broker_name: 'Test Broker LLC',
@@ -105,7 +104,7 @@ describe('COI Generation - Project Info', () => {
     expect(descriptionText).not.toContain('789 Old Address');
   });
 
-  test('generateGeneratedCOIPDF should use project_address when updated_project_address is not available', async () => {
+  test('description building should use project_address when updated_project_address is not available', async () => {
     // Mock COI record with only project_address
     const mockCoiRecord = {
       broker_name: 'Test Broker LLC',
@@ -127,7 +126,7 @@ describe('COI Generation - Project Info', () => {
     expect(descriptionText).toContain('Job Location: 789 Project Address, Queens, NY');
   });
 
-  test('generateGeneratedCOIPDF should use default description when description_of_operations is missing', async () => {
+  test('description building should use default description when description_of_operations is missing', async () => {
     // Mock COI record without description_of_operations
     const mockCoiRecord = {
       broker_name: 'Test Broker LLC',
@@ -140,14 +139,39 @@ describe('COI Generation - Project Info', () => {
     let descriptionText = mockCoiRecord.description_of_operations ||
       `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`;
     
-    // Add job location if available
+    // Add job location if available - with validation
     const jobLocation = mockCoiRecord.updated_project_address || mockCoiRecord.project_address;
-    if (jobLocation) {
+    if (jobLocation && jobLocation.trim() && jobLocation.replace(/[,\s]/g, '')) {
       descriptionText += `\n\nJob Location: ${jobLocation}`;
     }
 
     // Verify default description is used and job location is added
     expect(descriptionText).toContain('Certificate holder and entities listed below are included in the GL & Umbrella policies');
     expect(descriptionText).toContain('Job Location: 456 Construction Ave, Brooklyn, NY 11201');
+  });
+
+  test('description building should reject empty or punctuation-only addresses', async () => {
+    // Mock COI record with empty/punctuation-only addresses
+    const testCases = [
+      { description_of_operations: 'Test', updated_project_address: '   ' },
+      { description_of_operations: 'Test', updated_project_address: ',' },
+      { description_of_operations: 'Test', updated_project_address: ', , ,' },
+      { description_of_operations: 'Test', updated_project_address: '  ,  ' },
+      { description_of_operations: 'Test', project_address: '' },
+    ];
+
+    for (const mockCoiRecord of testCases) {
+      let descriptionText = mockCoiRecord.description_of_operations;
+      
+      // Add job location if available - with validation
+      const jobLocation = mockCoiRecord.updated_project_address || mockCoiRecord.project_address;
+      if (jobLocation && jobLocation.trim() && jobLocation.replace(/[,\s]/g, '')) {
+        descriptionText += `\n\nJob Location: ${jobLocation}`;
+      }
+
+      // Verify that empty/punctuation-only addresses are not added
+      expect(descriptionText).not.toContain('Job Location:');
+      expect(descriptionText).toBe('Test');
+    }
   });
 });

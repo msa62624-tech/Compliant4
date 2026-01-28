@@ -2899,9 +2899,9 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
       let descriptionText = coiRecord.description_of_operations ||
         `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`;
       
-      // Add job location if available
+      // Add job location if available - with validation to avoid empty or punctuation-only addresses
       const jobLocation = coiRecord.updated_project_address || coiRecord.project_address;
-      if (jobLocation) {
+      if (jobLocation && jobLocation.trim() && jobLocation.replace(/[,\s]/g, '')) {
         descriptionText += `\n\nJob Location: ${jobLocation}`;
       }
       
@@ -3220,9 +3220,9 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
           let descriptionText = coiRecord.description_of_operations || 
             `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`;
           
-          // Add job location if available
+          // Add job location if available - with validation to avoid empty or punctuation-only addresses
           const jobLocation = coiRecord.updated_project_address || coiRecord.project_address;
-          if (jobLocation) {
+          if (jobLocation && jobLocation.trim() && jobLocation.replace(/[,\s]/g, '')) {
             descriptionText += `\n\nJob Location: ${jobLocation}`;
           }
           
@@ -4273,6 +4273,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           updated_project_address: projectAddress || '',
           updated_project_name: project_name || '',
           certificate_holder_name: certificate_holder || reusable.certificate_holder_name || reusable.gc_name || gc_name || '',
+          certificate_holder_address: certificate_holder_address || reusable.certificate_holder_address || '',
           manually_entered_additional_insureds: []
         };
 
