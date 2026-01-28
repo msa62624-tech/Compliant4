@@ -332,7 +332,8 @@ function ensureDefaultGC() {
   const hasGC = contractors.some(c => c.contractor_type === 'general_contractor');
   if (hasGC) return;
 
-  const defaultPassword = 'GCpassword123!';
+  // Use environment variable for default password
+  const defaultPassword = process.env.DEFAULT_GC_PASSWORD || 'GCpassword123!';
   const hash = bcrypt.hashSync(defaultPassword, 10);
   const gcId = `Contractor-${Date.now()}`;
 
