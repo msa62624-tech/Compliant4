@@ -5,9 +5,19 @@
 
 import * as React from "react";
 
-export const SidebarContext = React.createContext(null);
+export type SidebarContextValue = {
+  state: "expanded" | "collapsed"
+  open: boolean
+  setOpen: (open: boolean | ((open: boolean) => boolean)) => void
+  isMobile: boolean
+  openMobile: boolean
+  setOpenMobile: React.Dispatch<React.SetStateAction<boolean>>
+  toggleSidebar: () => void
+}
 
-export function useSidebar(): JSX.Element {
+export const SidebarContext = React.createContext<SidebarContextValue | null>(null);
+
+export function useSidebar(): SidebarContextValue {
   const context = React.useContext(SidebarContext);
   if (!context) {
     throw new Error("useSidebar must be used within a SidebarProvider.");
