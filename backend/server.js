@@ -60,9 +60,12 @@ try {
     apiKey: process.env.ADOBE_API_KEY,
     clientId: process.env.ADOBE_CLIENT_ID
   });
+  logger.info('Adobe PDF Service initialized successfully');
 } catch (error) {
-  console.error('⚠️  Failed to initialize Adobe PDF Service:', error.message);
-  console.log('   Service will run in fallback mode');
+  logger.warn('Failed to initialize Adobe PDF Service, running in fallback mode', {
+    error: error.message,
+    stack: error.stack
+  });
   adobePDF = new AdobePDFService(); // Initialize with defaults
 }
 
@@ -74,9 +77,15 @@ try {
     apiKey: process.env.AI_API_KEY || process.env.OPENAI_API_KEY,
     model: process.env.AI_MODEL || 'gpt-4-turbo-preview'
   });
+  logger.info('AI Analysis Service initialized successfully', {
+    provider: process.env.AI_PROVIDER || 'openai',
+    model: process.env.AI_MODEL || 'gpt-4-turbo-preview'
+  });
 } catch (error) {
-  console.error('⚠️  Failed to initialize AI Analysis Service:', error.message);
-  console.log('   Service will run in fallback mode');
+  logger.warn('Failed to initialize AI Analysis Service, running in fallback mode', {
+    error: error.message,
+    stack: error.stack
+  });
   aiAnalysis = new AIAnalysisService(); // Initialize with defaults
 }
 
@@ -131,7 +140,12 @@ function migrateBrokerPasswords() {
                 ? `${localPart.substring(0, 3)}***@${domain}`
                 : `***@${domain}`;
             }
-            console.warn(`⚠️ Password conflict detected for broker: ${maskedEmail} (found ${existing.uniquePasswords.size} different passwords across ${existing.count} COI records, keeping first)`);
+            logger.warn('Password conflict detected for broker', {
+              maskedEmail,
+              uniquePasswordsCount: existing.uniquePasswords.size,
+              recordCount: existing.count,
+              action: 'keeping first password'
+            });
             existing.conflictLogged = true;
           }
         }
@@ -156,7 +170,11 @@ function migrateBrokerPasswords() {
                 ? `${localPart.substring(0, 3)}***@${domain}`
                 : `***@${domain}`;
             }
-            console.log(`  ℹ️ Migrated password for ${maskedEmail} (consolidated from ${data.count} COI records)`);
+            logger.info('Migrated broker password', {
+              maskedEmail,
+              recordCount: data.count,
+              action: 'consolidated from multiple COI records'
+            });
           }
         }
       }
@@ -164,7 +182,10 @@ function migrateBrokerPasswords() {
 
     cleanupSuccessful = true;
   } catch (error) {
-    console.error('❌ Error migrating broker passwords:', error.message);
+    logger.error('Error migrating broker passwords', {
+      error: error.message,
+      stack: error.stack
+    });
     cleanupSuccessful = false;
   }
 
@@ -180,11 +201,17 @@ function migrateBrokerPasswords() {
       });
 
       if (migratedCount > 0) {
-        console.log(`✅ Migrated ${migratedCount} broker password(s) to centralized Broker table`);
+        logger.info('Broker password migration completed', {
+          migratedCount,
+          action: 'migrated to centralized Broker table'
+        });
         debouncedSave();
       }
     } catch (cleanupError) {
-      console.error('❌ Error during migration cleanup:', cleanupError.message);
+      logger.error('Error during migration cleanup', {
+        error: cleanupError.message,
+        stack: cleanupError.stack
+      });
     }
   }
 }

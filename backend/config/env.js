@@ -29,7 +29,10 @@ const JWT_SECRET_FILE = path.join(DATA_DIR, '.jwt-secret');
 async function loadOrGenerateJWTSecret() {
   // Priority 1: Use environment variable if set
   if (process.env.JWT_SECRET) {
-    console.log('✅ Using JWT_SECRET from environment variable');
+    // Only log in development to avoid leaking secret presence
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ Using JWT_SECRET from environment variable');
+    }
     return process.env.JWT_SECRET;
   }
   
@@ -62,7 +65,7 @@ async function loadOrGenerateJWTSecret() {
     console.log('🔐 Generated and persisted new JWT secret');
     return newSecret;
   } catch (e) {
-    console.warn('⚠️ Failed to persist JWT secret, using ephemeral secret in memory');
+    console.warn('⚠️ Failed to persist JWT secret, using ephemeral secret in memory', e.message);
     return crypto.randomBytes(32).toString('hex');
   }
 }
@@ -111,6 +114,7 @@ export const ADMIN_PASSWORD_HASH = (() => {
   
   // Development fallback with warning
   console.warn('⚠️ WARNING: Using default admin password hash for development. Set ADMIN_PASSWORD_HASH in production!');
+  // This is bcrypt hash of: "INsure2026!" - Only for development
   return '$2b$10$SdlYpKRtZWyeRtelxZazJ.E34HJK70pJCuAy4qXely62Z/LAvAzBO';
 })();
 
