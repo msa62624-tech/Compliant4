@@ -39,7 +39,9 @@ export const fetchUser = async (userId: string): Promise<User | null> => {
   try {
     const response = await fetch(`/api/users/${userId}`);
     if (!response.ok) return null;
-    return await response.json();
+    // Note: In production, consider adding runtime validation of the API response
+    // to ensure it matches the User interface (e.g., using zod or similar)
+    return await response.json() as User;
   } catch (error) {
     console.error('Error fetching user:', error);
     return null;
