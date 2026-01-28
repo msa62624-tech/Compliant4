@@ -87,6 +87,6 @@ If the workflow is still stuck after following these steps:
 
 ---
 
-**Issue**: "Chelc of my last code change request is atuck"
+**Original Issue**: "Chelc of my last code change request is atuck" (likely meant: "Check of my last code change request is stuck")
 **Identified**: Workflow run 21447181990 stuck since 2026-01-28T16:46:30Z
 **Next Action**: User must cancel the workflow manually (link above)
