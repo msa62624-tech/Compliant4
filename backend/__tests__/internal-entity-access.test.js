@@ -12,6 +12,7 @@ const BASE_URL = 'http://localhost:3002';
 let serverProcess;
 let regularUserToken;
 let adminToken;
+let createdUserId; // Track created user for cleanup
 
 describe('Internal Entity Access Control Tests', () => {
   beforeAll(async () => {
@@ -58,6 +59,7 @@ describe('Internal Entity Access Control Tests', () => {
     if (createUserResponse.status !== 201) {
       throw new Error(`Failed to create test user: ${createUserResponse.status} ${JSON.stringify(createUserResponse.body)}`);
     }
+    createdUserId = createUserResponse.body.id; // Store user ID for cleanup
     console.log('Test user created successfully');
     
     // Login as the regular user to get their token
@@ -75,7 +77,26 @@ describe('Internal Entity Access Control Tests', () => {
     console.log('Regular user token obtained');
   }, 30000);
 
-  afterAll(() => {
+  afterAll(async () => {
+    // Clean up the created test user to prevent database accumulation
+    if (createdUserId && adminToken) {
+      try {
+        console.log(`Cleaning up test user with ID: ${createdUserId}`);
+        const deleteResponse = await request(BASE_URL)
+          .delete(`/entities/User/${createdUserId}`)
+          .set('Authorization', `Bearer ${adminToken}`);
+        
+        if (deleteResponse.status === 200) {
+          console.log('Test user cleaned up successfully');
+        } else {
+          console.warn(`Failed to delete test user: ${deleteResponse.status} ${JSON.stringify(deleteResponse.body)}`);
+        }
+      } catch (error) {
+        console.warn(`Error during test user cleanup: ${error.message}`);
+      }
+    }
+    
+    // Stop the server process
     if (serverProcess) {
       serverProcess.kill();
       console.log('Backend server stopped');
