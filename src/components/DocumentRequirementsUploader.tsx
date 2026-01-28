@@ -9,6 +9,30 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FileUp, FileText, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { compliant } from "@/api/compliantClient";
 
+interface DocumentRequirementsUploaderProps {
+  projectId: string;
+  onRequirementsSaved?: () => void;
+}
+
+interface ManualRequirements {
+  tier: string;
+  gl_min: string;
+  gl_aggregate: string;
+  wc_min: string;
+  auto_min: string;
+  umbrella_min: string;
+  required_endorsements: string[];
+  waiver_subrogation: boolean;
+  waiver_excess: boolean;
+  additional_notes: string;
+}
+
+interface Flag {
+  type: 'error' | 'warning' | 'info' | 'pending';
+  message: string;
+  field: string;
+}
+
 /**
  * DocumentRequirementsUploader
  * Allows admins to either upload a requirements document OR manually enter requirements
@@ -18,12 +42,12 @@ import { compliant } from "@/api/compliantClient";
  * - projectId: Project ID
  * - onRequirementsSaved: Callback when saved
  */
-export default function DocumentRequirementsUploader({ projectId, onRequirementsSaved }) {
-  const [uploadMode, setUploadMode] = useState("document"); // 'document' or 'manual'
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [manualRequirements, setManualRequirements] = useState({
+export default function DocumentRequirementsUploader({ projectId, onRequirementsSaved }: DocumentRequirementsUploaderProps): JSX.Element {
+  const [uploadMode, setUploadMode] = useState<"document" | "manual">("document");
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [manualRequirements, setManualRequirements] = useState<ManualRequirements>({
     tier: "1",
     gl_min: "$1,000,000",
     gl_aggregate: "$2,000,000",
@@ -35,14 +59,14 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
     waiver_excess: true,
     additional_notes: "",
   });
-  const [flags, setFlags] = useState([]);
-  const [showReview, setShowReview] = useState(false);
+  const [flags, setFlags] = useState<Flag[]>([]);
+  const [showReview, setShowReview] = useState<boolean>(false);
 
   /**
    * Validate requirements and generate flags for admin review
    */
-  const validateRequirements = (requirements) => {
-    const newFlags = [];
+  const validateRequirements = (requirements: ManualRequirements): Flag[] => {
+    const newFlags: Flag[] = [];
 
     // Check for inconsistencies
     if (requirements.gl_min && requirements.gl_aggregate) {
@@ -91,7 +115,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
   /**
    * Handle document upload
    */
-  const handleFileUpload = async (e) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const uploadedFile = e.target.files?.[0];
     if (!uploadedFile) return;
 
@@ -114,7 +138,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
 
     try {
       // Simulate progress
-      const progressInterval = setInterval(() => {
+      const progressInterval: ReturnType<typeof setInterval> = setInterval(() => {
         setUploadProgress(prev => Math.min(prev + Math.random() * 40, 90));
       }, 300);
 
@@ -123,7 +147,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
       setUploadProgress(100);
 
       // Create flags for this document upload
-      const documentFlags = [
+      const documentFlags: Flag[] = [
         {
           type: 'info',
           message: `Document uploaded: ${uploadedFile.name} (${(uploadedFile.size / 1024).toFixed(2)}KB)`,
@@ -142,7 +166,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
 
     } catch (error) {
       console.error('Upload failed:', error);
-      alert('Upload failed: ' + error.message);
+      alert('Upload failed: ' + (error as Error).message);
       setUploading(false);
       setUploadProgress(0);
     }
@@ -151,7 +175,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
   /**
    * Handle manual requirement entry
    */
-  const handleManualEntry = () => {
+  const handleManualEntry = (): void => {
     const validationFlags = validateRequirements(manualRequirements);
     setFlags(validationFlags);
     setShowReview(true);
@@ -160,7 +184,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
   /**
    * Submit requirements for admin review
    */
-  const submitForReview = async () => {
+  const submitForReview = async (): Promise<void> => {
     if (!projectId) {
       alert('Project ID required');
       return;
@@ -170,7 +194,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
       await compliant.entities.ProjectRequirementsReview.create({
         project_id: projectId,
         submission_type: uploadMode,
-        submission_data: uploadMode === 'document' ? { file_name: file.name } : manualRequirements,
+        submission_data: uploadMode === 'document' ? { file_name: file?.name } : manualRequirements,
         flags: flags,
         review_status: 'pending_admin_review',
         created_date: new Date().toISOString()
@@ -200,7 +224,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
       alert('Requirements submitted for admin review');
     } catch (error) {
       console.error('Submission failed:', error);
-      alert('Submission failed: ' + error.message);
+      alert('Submission failed: ' + (error as Error).message);
     }
   };
 
@@ -293,7 +317,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
                   <Label>Requirement Tier</Label>
                   <select
                     value={manualRequirements.tier}
-                    onChange={(e) =>
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                       setManualRequirements({
                         ...manualRequirements,
                         tier: e.target.value,
@@ -312,7 +336,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
                   <Label>GL Minimum Per Occurrence</Label>
                   <Input
                     value={manualRequirements.gl_min}
-                    onChange={(e) =>
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setManualRequirements({
                         ...manualRequirements,
                         gl_min: e.target.value,
@@ -327,7 +351,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
                   <Label>GL Aggregate</Label>
                   <Input
                     value={manualRequirements.gl_aggregate}
-                    onChange={(e) =>
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setManualRequirements({
                         ...manualRequirements,
                         gl_aggregate: e.target.value,
@@ -342,7 +366,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
                   <Label>Workers Comp Minimum</Label>
                   <Input
                     value={manualRequirements.wc_min}
-                    onChange={(e) =>
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setManualRequirements({
                         ...manualRequirements,
                         wc_min: e.target.value,
@@ -357,7 +381,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
                   <Label>Auto Minimum CSL</Label>
                   <Input
                     value={manualRequirements.auto_min}
-                    onChange={(e) =>
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setManualRequirements({
                         ...manualRequirements,
                         auto_min: e.target.value,
@@ -372,7 +396,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
                   <Label>Umbrella Minimum (Optional)</Label>
                   <Input
                     value={manualRequirements.umbrella_min}
-                    onChange={(e) =>
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setManualRequirements({
                         ...manualRequirements,
                         umbrella_min: e.target.value,
@@ -392,7 +416,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
                     type="checkbox"
                     id="waiver-subrogation"
                     checked={manualRequirements.waiver_subrogation}
-                    onChange={(e) =>
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setManualRequirements({
                         ...manualRequirements,
                         waiver_subrogation: e.target.checked,
@@ -409,7 +433,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
                     type="checkbox"
                     id="waiver-excess"
                     checked={manualRequirements.waiver_excess}
-                    onChange={(e) =>
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setManualRequirements({
                         ...manualRequirements,
                         waiver_excess: e.target.checked,
@@ -427,7 +451,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
                 <Label>Additional Notes</Label>
                 <Textarea
                   value={manualRequirements.additional_notes}
-                  onChange={(e) =>
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                     setManualRequirements({
                       ...manualRequirements,
                       additional_notes: e.target.value,
@@ -444,7 +468,7 @@ export default function DocumentRequirementsUploader({ projectId, onRequirements
           {showReview && flags.length > 0 && (
             <div className="mt-6 space-y-3">
               <Label className="text-base font-semibold">System Flags for Admin Review</Label>
-              {flags.map((flag, idx) => (
+              {flags.map((flag: Flag, idx: number) => (
                 <div
                   key={idx}
                   className={`p-3 rounded-lg border ${
