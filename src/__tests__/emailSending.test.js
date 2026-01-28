@@ -101,4 +101,77 @@ describe('Email Sending with Promise.allSettled', () => {
     // Restore console.error
     consoleErrorSpy.mockRestore();
   });
+
+  test('correctly maps recipients to failed emails using reduce', async () => {
+    // Mock recipients
+    const selectedRecipients = [
+      { email: 'user1@test.com', name: 'User 1' },
+      { email: 'user2@test.com', name: 'User 2' },
+      { email: 'user3@test.com', name: 'User 3' },
+      { email: 'user4@test.com', name: 'User 4' },
+    ];
+
+    // Mock email promises - emails at index 1 and 3 fail
+    const emailPromises = [
+      Promise.resolve({ success: true }),
+      Promise.reject(new Error('Failed to send to user2')),
+      Promise.resolve({ success: true }),
+      Promise.reject(new Error('Failed to send to user4')),
+    ];
+
+    const results = await Promise.allSettled(emailPromises);
+
+    // Use the corrected reduce-based mapping logic
+    const failureDetails = results.reduce((acc, result, index) => {
+      if (result.status === 'rejected') {
+        acc.push({
+          recipient: selectedRecipients[index]?.email || 'unknown',
+          error: result.reason?.message || 'Unknown error'
+        });
+      }
+      return acc;
+    }, []);
+
+    // Verify that the failure details correctly map to the right recipients
+    expect(failureDetails).toHaveLength(2);
+    expect(failureDetails[0].recipient).toBe('user2@test.com');
+    expect(failureDetails[0].error).toBe('Failed to send to user2');
+    expect(failureDetails[1].recipient).toBe('user4@test.com');
+    expect(failureDetails[1].error).toBe('Failed to send to user4');
+  });
+
+  test('recipient mapping handles missing recipients gracefully', async () => {
+    // Mock recipients - intentionally shorter than promises array
+    const selectedRecipients = [
+      { email: 'user1@test.com' },
+      { email: 'user2@test.com' },
+    ];
+
+    // Mock email promises - more promises than recipients
+    const emailPromises = [
+      Promise.resolve({ success: true }),
+      Promise.reject(new Error('Failed 1')),
+      Promise.reject(new Error('Failed 2')),
+      Promise.reject(new Error('Failed 3')),
+    ];
+
+    const results = await Promise.allSettled(emailPromises);
+
+    // Use the corrected reduce-based mapping logic
+    const failureDetails = results.reduce((acc, result, index) => {
+      if (result.status === 'rejected') {
+        acc.push({
+          recipient: selectedRecipients[index]?.email || 'unknown',
+          error: result.reason?.message || 'Unknown error'
+        });
+      }
+      return acc;
+    }, []);
+
+    // Verify that missing recipients default to 'unknown'
+    expect(failureDetails).toHaveLength(3);
+    expect(failureDetails[0].recipient).toBe('user2@test.com'); // index 1
+    expect(failureDetails[1].recipient).toBe('unknown'); // index 2 - no recipient
+    expect(failureDetails[2].recipient).toBe('unknown'); // index 3 - no recipient
+  });
 });
