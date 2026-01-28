@@ -1,11 +1,11 @@
 /**
  * Escape HTML to prevent XSS attacks
- * @param {string} text - The text to escape
- * @returns {string} - The escaped text safe for HTML insertion
+ * @param text - The text to escape
+ * @returns The escaped text safe for HTML insertion
  */
-export function escapeHtml(text) {
+export function escapeHtml(text: string | null | undefined): string {
   if (text == null) return '';
-  const map = {
+  const map: Record<string, string> = {
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',

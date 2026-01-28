@@ -1,6 +1,6 @@
 import { getAuthHeader } from '@/auth';
 import { createEmailTemplate } from '@/emailTemplates.js';
-import { escapeHtml } from '@/utils/htmlEscaping.js';
+import { escapeHtml } from '@/utils/htmlEscaping';
 
 /**
  * RFC 2606 Reserved Domains - These should never be sent to in production

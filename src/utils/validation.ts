@@ -160,15 +160,34 @@ export const urlParamSchemas = {
   })
 };
 
+interface ValidationError {
+  field: string;
+  message: string;
+  code: string;
+}
+
+interface ValidationResult<T = any> {
+  success: boolean;
+  data?: T;
+  errors?: ValidationError[];
+}
+
+interface ValidationOptions {
+  throwOnError?: boolean;
+}
+
 /**
  * Validate data against a Zod schema
- * @param {z.ZodSchema} schema - Zod schema to validate against
- * @param {any} data - Data to validate
- * @param {object} options - Validation options
- * @param {boolean} options.throwOnError - Throw error on validation failure (default: false)
- * @returns {object} - Validation result { success: boolean, data?: any, errors?: array }
+ * @param schema - Zod schema to validate against
+ * @param data - Data to validate
+ * @param options - Validation options
+ * @returns Validation result { success: boolean, data?: any, errors?: array }
  */
-export function validate(schema, data, options = {}) {
+export function validate<T = any>(
+  schema: z.ZodSchema<T>,
+  data: unknown,
+  options: ValidationOptions = {}
+): ValidationResult<T> {
   const { throwOnError = false } = options;
 
   try {
@@ -213,12 +232,18 @@ export function validate(schema, data, options = {}) {
   }
 }
 
+interface EmailValidationResult {
+  valid: boolean;
+  email?: string;
+  error?: string;
+}
+
 /**
  * Validate and sanitize email address
- * @param {string} email - Email to validate
- * @returns {object} - { valid: boolean, email?: string, error?: string }
+ * @param email - Email to validate
+ * @returns { valid: boolean, email?: string, error?: string }
  */
-export function validateEmail(email) {
+export function validateEmail(email: string): EmailValidationResult {
   const result = validate(authSchemas.email, email);
   if (result.success) {
     return { valid: true, email: result.data };
@@ -226,12 +251,18 @@ export function validateEmail(email) {
   return { valid: false, error: result.errors[0]?.message };
 }
 
+interface UsernameValidationResult {
+  valid: boolean;
+  username?: string;
+  error?: string;
+}
+
 /**
  * Validate and sanitize username
- * @param {string} username - Username to validate
- * @returns {object} - { valid: boolean, username?: string, error?: string }
+ * @param username - Username to validate
+ * @returns { valid: boolean, username?: string, error?: string }
  */
-export function validateUsername(username) {
+export function validateUsername(username: string): UsernameValidationResult {
   const result = validate(authSchemas.username, username);
   if (result.success) {
     return { valid: true, username: result.data };
@@ -239,19 +270,25 @@ export function validateUsername(username) {
   return { valid: false, error: result.errors[0]?.message };
 }
 
+interface PasswordValidationResult {
+  valid: boolean;
+  strength?: 'weak' | 'medium' | 'strong';
+  error?: string;
+}
+
 /**
  * Validate password strength
- * @param {string} password - Password to validate
- * @param {boolean} requireStrong - Require strong password (default: false)
- * @returns {object} - { valid: boolean, strength?: string, error?: string }
+ * @param password - Password to validate
+ * @param requireStrong - Require strong password (default: false)
+ * @returns { valid: boolean, strength?: string, error?: string }
  */
-export function validatePassword(password, requireStrong = false) {
+export function validatePassword(password: string, requireStrong: boolean = false): PasswordValidationResult {
   const schema = requireStrong ? authSchemas.passwordStrong : authSchemas.password;
   const result = validate(schema, password);
   
   if (result.success) {
     // Calculate strength
-    let strength = 'weak';
+    let strength: 'weak' | 'medium' | 'strong' = 'weak';
     if (password.length >= 12 && /[a-z]/.test(password) && /[A-Z]/.test(password) && 
         /[0-9]/.test(password) && /[^a-zA-Z0-9]/.test(password)) {
       strength = 'strong';
@@ -265,22 +302,27 @@ export function validatePassword(password, requireStrong = false) {
   return { valid: false, error: result.errors[0]?.message };
 }
 
+type LoginCredentials = z.infer<typeof authSchemas.login>;
+
 /**
  * Validate login credentials
- * @param {object} credentials - { username, password }
- * @returns {object} - { valid: boolean, data?: object, errors?: array }
+ * @param credentials - { username, password }
+ * @returns { valid: boolean, data?: object, errors?: array }
  */
-export function validateLoginCredentials(credentials) {
+export function validateLoginCredentials(credentials: LoginCredentials): ValidationResult<LoginCredentials> {
   return validate(authSchemas.login, credentials);
 }
 
 /**
  * Validate URL parameters
- * @param {URLSearchParams|object} params - URL parameters to validate
- * @param {z.ZodSchema} schema - Zod schema to validate against
- * @returns {object} - { valid: boolean, data?: object, errors?: array }
+ * @param params - URL parameters to validate
+ * @param schema - Zod schema to validate against
+ * @returns { valid: boolean, data?: object, errors?: array }
  */
-export function validateUrlParams(params, schema) {
+export function validateUrlParams<T = any>(
+  params: URLSearchParams | Record<string, any>,
+  schema: z.ZodSchema<T>
+): ValidationResult<T> {
   // Convert URLSearchParams to object if needed
   const paramsObject = params instanceof URLSearchParams
     ? Object.fromEntries(params.entries())
@@ -289,14 +331,17 @@ export function validateUrlParams(params, schema) {
   return validate(schema, paramsObject);
 }
 
+interface SanitizeOptions {
+  allowHtml?: boolean;
+}
+
 /**
  * Sanitize string input (remove potentially dangerous characters)
- * @param {string} input - Input to sanitize
- * @param {object} options - Sanitization options
- * @param {boolean} options.allowHtml - Allow HTML tags (default: false)
- * @returns {string} - Sanitized string
+ * @param input - Input to sanitize
+ * @param options - Sanitization options
+ * @returns Sanitized string
  */
-export function sanitizeString(input, options = {}) {
+export function sanitizeString(input: any, options: SanitizeOptions = {}): string {
   if (typeof input !== 'string') {
     return '';
   }
@@ -324,10 +369,10 @@ export function sanitizeString(input, options = {}) {
 
 /**
  * Check if value is a valid ID (string or positive number)
- * @param {any} value - Value to check
- * @returns {boolean} - True if valid ID
+ * @param value - Value to check
+ * @returns True if valid ID
  */
-export function isValidId(value) {
+export function isValidId(value: any): boolean {
   if (typeof value === 'string' && value.length > 0) return true;
   if (typeof value === 'number' && value > 0 && Number.isInteger(value)) return true;
   return false;

@@ -48,7 +48,7 @@ describe('Authentication Module Integrity', () => {
   });
 
   test('validation module should export all required functions', async () => {
-    const validation = await import('@/utils/validation.js');
+    const validation = await import('@/utils/validation');
     expect(validation.validate).toBeDefined();
     expect(validation.validateEmail).toBeDefined();
     expect(validation.validateUsername).toBeDefined();
