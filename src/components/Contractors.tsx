@@ -797,7 +797,7 @@ InsureTrack Team`
                       </TableCell>
                     </TableRow>
                   ) : (
-                    contractors.map((contractor) => {
+                    contractors.map((contractor: ApiTypes.Contractor) => {
                       const hasCustomPricing = contractor.custom_pricing && 
                         (contractor.custom_pricing.per_project || contractor.custom_pricing.monthly || contractor.custom_pricing.annual);
                       

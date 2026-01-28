@@ -560,7 +560,7 @@ InsureTrack System`,
 /**
  * Notify when subcontractor approves/signs the COI
  */
-export async function notifySubcontractorCOIApproved(coi, subcontractor, project) {
+export async function notifySubcontractorCOIApproved(coi: GeneratedCOI, subcontractor: Subcontractor, project: Project) {
   if (!coi || !subcontractor || !project) return;
   const baseUrl = getFrontendBaseUrl();
   const subDashboardLink = `${baseUrl}/subcontractor-dashboard?id=${subcontractor.id}&section=active_projects`;
@@ -621,7 +621,7 @@ InsureTrack System`,
 /**
  * Send all stakeholder update on COI approval
  */
-export async function notifyAllStakeholdersCOIApproved(coi, subcontractor, project) {
+export async function notifyAllStakeholdersCOIApproved(coi: GeneratedCOI, subcontractor: Subcontractor, project: Project) {
   // Notify each stakeholder
   await notifySubCOIApproved(coi, subcontractor, project);
   await notifyGCCOIApprovedReady(coi, subcontractor, project);
@@ -648,7 +648,7 @@ export async function notifyAllStakeholdersCOIApproved(coi, subcontractor, proje
  * Notify admin when a subcontractor changes their brokers
  * Generate new COI and policy requests for the changed brokers
  */
-export async function notifyAdminBrokerChanged(subcontractor, newBrokers, oldBrokers, projects) {
+export async function notifyAdminBrokerChanged(subcontractor: Subcontractor, newBrokers: unknown, oldBrokers: unknown, projects: Project[]) {
   if (!subcontractor || !newBrokers || !Array.isArray(projects)) return;
 
   const baseUrl = getFrontendBaseUrl();

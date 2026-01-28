@@ -579,7 +579,7 @@ export default function InsurancePrograms() {
               </div>
             ) : (
               <div className="divide-y">
-                {filteredPrograms.map((program) => (
+                {filteredPrograms.map((program: ApiTypes.InsuranceProgram) => (
                   <div
                     key={program.id}
                     className="p-6 hover:bg-slate-50 transition-colors"

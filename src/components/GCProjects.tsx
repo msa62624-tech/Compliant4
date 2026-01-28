@@ -466,7 +466,7 @@ Return actual data only. If not found, return null.`,
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {projects.map((project) => (
+                  {projects.map((project: ApiTypes.Project) => (
                     <TableRow key={project.id} className="hover:bg-slate-50">
                       <TableCell className="font-medium">{project.project_name}</TableCell>
                       <TableCell>{project.project_type}</TableCell>

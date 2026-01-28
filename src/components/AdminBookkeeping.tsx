@@ -217,7 +217,7 @@ export default function AdminBookkeeping() {
     };
   }, [subscriptions, contractors, revenueByPlan]);
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     const colors = {
       active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       trial: 'bg-red-50 text-red-700 border-red-200',
@@ -225,10 +225,10 @@ export default function AdminBookkeeping() {
       cancelled: 'bg-slate-100 text-slate-700 border-slate-300',
       expired: 'bg-red-50 text-red-700 border-red-200',
     };
-    return colors[status] || colors.pending_payment;
+    return colors[status as keyof typeof colors] || colors.pending_payment;
   };
 
-  const getPaymentStatusIcon = (status) => {
+  const getPaymentStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
         return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
@@ -269,11 +269,11 @@ export default function AdminBookkeeping() {
   };
 
   // Send renewal reminder
-  const sendRenewalReminder = async (subscription) => {
+  const sendRenewalReminder = async (subscription: ApiTypes.Subscription) => {
     const gc = contractors.find(c => c.id === subscription.gc_id);
     if (!gc?.email) return;
 
-    const daysUntil = differenceInDays(new Date(subscription.next_billing_date), new Date());
+    const daysUntil = differenceInDays(new Date(subscription.next_billing_date || ''), new Date());
     
     await sendEmail({
       to: gc.email,
@@ -283,8 +283,8 @@ export default function AdminBookkeeping() {
 Your subscription is renewing soon.
 
 Plan: ${subscription.plan_name}
-Amount: $${(subscription.amount || 0).toLocaleString()}
-Next Billing Date: ${format(new Date(subscription.next_billing_date), 'MMM d, yyyy')}
+Amount: $${(subscription.amount_paid || 0).toLocaleString()}
+Next Billing Date: ${format(new Date(subscription.next_billing_date || ''), 'MMM d, yyyy')}
 Days Until Renewal: ${daysUntil}
 
 Your payment method on file will be charged automatically.
@@ -295,7 +295,7 @@ InsureTrack Billing Team`
   };
 
   // Send payment confirmation
-  const sendPaymentConfirmation = async (subscription) => {
+  const sendPaymentConfirmation = async (subscription: ApiTypes.Subscription) => {
     const gc = contractors.find(c => c.id === subscription.gc_id);
     if (!gc?.email) return;
 
