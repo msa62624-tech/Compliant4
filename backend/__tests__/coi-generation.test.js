@@ -93,9 +93,9 @@ describe('COI Description Building Logic', () => {
     // Simulate the logic from generateGeneratedCOIPDF
     let descriptionText = mockCoiRecord.description_of_operations;
     
-    // Add job location if available
+    // Add job location if available - with validation
     const jobLocation = mockCoiRecord.updated_project_address || mockCoiRecord.project_address;
-    if (jobLocation) {
+    if (jobLocation && jobLocation.trim() && jobLocation.replace(/[,\s]/g, '')) {
       descriptionText += `\n\nJob Location: ${jobLocation}`;
     }
 
@@ -116,9 +116,9 @@ describe('COI Description Building Logic', () => {
     // Simulate the logic from generateGeneratedCOIPDF
     let descriptionText = mockCoiRecord.description_of_operations;
     
-    // Add job location if available
+    // Add job location if available - with validation
     const jobLocation = mockCoiRecord.updated_project_address || mockCoiRecord.project_address;
-    if (jobLocation) {
+    if (jobLocation && jobLocation.trim() && jobLocation.replace(/[,\s]/g, '')) {
       descriptionText += `\n\nJob Location: ${jobLocation}`;
     }
 
