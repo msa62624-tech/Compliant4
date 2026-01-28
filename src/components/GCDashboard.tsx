@@ -19,12 +19,40 @@ import {
 } from "@/components/ui/select";
 import { getBackendBaseUrl } from "@/urlConfig";
 
-export default function GCDashboard() {
+interface Project {
+  id: string;
+  project_name: string;
+  address?: string;
+  gc_id?: string;
+  status?: string;
+}
+
+interface ProjectSubcontractor {
+  id: string;
+  project_id: string;
+  subcontractor_id: string;
+  subcontractor_name?: string;
+  compliance_status?: string;
+  trade_type?: string;
+}
+
+interface COI {
+  id: string;
+  project_id?: string;
+  subcontractor_id?: string;
+  project_sub_id?: string;
+  status: string;
+  created_date?: string;
+}
+
+type SearchType = 'all' | 'job' | 'subcontractor';
+
+export default function GCDashboard(): JSX.Element {
   const urlParams = new URLSearchParams(window.location.search);
-  const gcId = urlParams.get('id');
+  const gcId: string | null = urlParams.get('id');
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchType, setSearchType] = useState('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchType, setSearchType] = useState<SearchType>('all');
 
 
   // Set public access mode
@@ -35,16 +63,16 @@ export default function GCDashboard() {
   }, [gcId]);
 
   // Fetch projects - don't filter by status, show all
-  const { data: projects = [], isLoading: projectsLoading } = useQuery({
+  const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
     queryKey: ['gc-projects', gcId],
-    queryFn: async () => {
+    queryFn: async (): Promise<Project[]> => {
       try {
         const backendBase = getBackendBaseUrl();
         const response = await fetch(`${backendBase}/public/projects`);
         if (!response.ok) throw new Error('Failed to fetch projects');
         const allProjects = await response.json();
-        return allProjects.filter(p => p.gc_id === gcId);
-      } catch (err) {
+        return allProjects.filter((p: Project) => p.gc_id === gcId);
+      } catch (err: any) {
         logger.error('Error fetching projects', { context: 'GCDashboard', error: err.message });
         return [];
       }
@@ -54,9 +82,9 @@ export default function GCDashboard() {
   });
 
   // Fetch subcontractors
-  const { data: projectSubs = [] } = useQuery({
+  const { data: projectSubs = [] } = useQuery<ProjectSubcontractor[]>({
     queryKey: ['gc-subs', gcId],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProjectSubcontractor[]> => {
       try {
         // Use public endpoint to fetch all project subcontractors
         const { protocol, host, origin } = window.location;
@@ -71,9 +99,9 @@ export default function GCDashboard() {
         const allSubs = await response.json();
         
         // Filter to only show subcontractors for projects owned by this GC
-        const projectIds = new Set(projects.map(p => p.id));
-        return allSubs.filter(ps => projectIds.has(ps.project_id));
-      } catch (err) {
+        const projectIds = new Set(projects.map((p: Project) => p.id));
+        return allSubs.filter((ps: ProjectSubcontractor) => projectIds.has(ps.project_id));
+      } catch (err: any) {
         logger.error('Error fetching subcontractors', { context: 'GCDashboard', error: err.message });
         return [];
       }
@@ -83,9 +111,9 @@ export default function GCDashboard() {
   });
 
   // Fetch COIs to determine actual compliance status
-  const { data: cois = [] } = useQuery({
+  const { data: cois = [] } = useQuery<COI[]>({
     queryKey: ['gc-cois', gcId],
-    queryFn: async () => {
+    queryFn: async (): Promise<COI[]> => {
       try {
         // Use public endpoint to fetch all COIs
         const { protocol, host, origin } = window.location;
@@ -100,9 +128,9 @@ export default function GCDashboard() {
         const allCois = await response.json();
         
         // Filter to COIs for this GC's projects
-        const projectIds = new Set(projects.map(p => p.id));
-        return allCois.filter(coi => projectIds.has(coi.project_id));
-      } catch (err) {
+        const projectIds = new Set(projects.map((p: Project) => p.id));
+        return allCois.filter((coi: COI) => projectIds.has(coi.project_id || ''));
+      } catch (err: any) {
         logger.error('Error fetching COIs', { context: 'GCDashboard', error: err.message });
         return [];
       }
@@ -113,18 +141,18 @@ export default function GCDashboard() {
 
   // Create optimized COI lookup maps for O(1) access instead of O(n) filtering
   const coiMaps = useMemo(() => {
-    if (!cois || cois.length === 0) return { bySubId: new Map(), byProjectSubId: new Map() };
+    if (!cois || cois.length === 0) return { bySubId: new Map<string, COI[]>(), byProjectSubId: new Map<string, COI[]>() };
     
-    const bySubId = new Map();
-    const byProjectSubId = new Map();
+    const bySubId = new Map<string, COI[]>();
+    const byProjectSubId = new Map<string, COI[]>();
     
-    cois.forEach(coi => {
+    cois.forEach((coi: COI) => {
       // Group COIs by subcontractor_id
       if (coi.subcontractor_id) {
         if (!bySubId.has(coi.subcontractor_id)) {
           bySubId.set(coi.subcontractor_id, []);
         }
-        bySubId.get(coi.subcontractor_id).push(coi);
+        bySubId.get(coi.subcontractor_id)!.push(coi);
       }
       
       // Group COIs by project_sub_id
@@ -132,7 +160,7 @@ export default function GCDashboard() {
         if (!byProjectSubId.has(coi.project_sub_id)) {
           byProjectSubId.set(coi.project_sub_id, []);
         }
-        byProjectSubId.get(coi.project_sub_id).push(coi);
+        byProjectSubId.get(coi.project_sub_id)!.push(coi);
       }
     });
     
@@ -140,7 +168,7 @@ export default function GCDashboard() {
   }, [cois]);
 
   // Helper function to get actual status for a subcontractor (optimized with Map lookup)
-  const getActualStatus = (sub) => {
+  const getActualStatus = (sub: ProjectSubcontractor): string => {
     // Use Map lookup instead of filtering entire array - O(1) vs O(n)
     const subCois = coiMaps.bySubId.get(sub.subcontractor_id) || [];
     const projectSubCois = coiMaps.byProjectSubId.get(sub.id) || [];
@@ -173,30 +201,30 @@ export default function GCDashboard() {
   };
 
   // Memoize expensive filter computation for performance
-  const filteredProjects = useMemo(() => {
-    return projects.filter(project => {
+  const filteredProjects = useMemo<Project[]>(() => {
+    return projects.filter((project: Project) => {
       const searchLower = searchTerm.toLowerCase();
       
       if (!searchTerm) return true;
       
       if (searchType === 'all') {
-        const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
-        const hasMatchingSub = projectSubsList.some(ps => 
+        const projectSubsList = projectSubs.filter((ps: ProjectSubcontractor) => ps.project_id === project.id);
+        const hasMatchingSub = projectSubsList.some((ps: ProjectSubcontractor) => 
           ps.subcontractor_name?.toLowerCase().includes(searchLower)
         );
         return (
           project.project_name?.toLowerCase().includes(searchLower) ||
-          project.project_address?.toLowerCase().includes(searchLower) ||
+          project.address?.toLowerCase().includes(searchLower) ||
           hasMatchingSub
         );
       } else if (searchType === 'job') {
         return (
           project.project_name?.toLowerCase().includes(searchLower) ||
-          project.project_address?.toLowerCase().includes(searchLower)
+          project.address?.toLowerCase().includes(searchLower)
         );
       } else if (searchType === 'subcontractor') {
-        const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
-        return projectSubsList.some(ps => 
+        const projectSubsList = projectSubs.filter((ps: ProjectSubcontractor) => ps.project_id === project.id);
+        return projectSubsList.some((ps: ProjectSubcontractor) => 
           ps.subcontractor_name?.toLowerCase().includes(searchLower)
         );
       }
@@ -264,7 +292,7 @@ export default function GCDashboard() {
                 Your Projects
               </CardTitle>
               <div className="flex flex-col md:flex-row gap-3">
-                <Select value={searchType} onValueChange={setSearchType}>
+                <Select value={searchType} onValueChange={(value: string) => setSearchType(value as SearchType)}>
                   <SelectTrigger className="w-full md:w-48">
                     <SelectValue placeholder="Filter by" />
                   </SelectTrigger>
@@ -279,7 +307,7 @@ export default function GCDashboard() {
                   <Input
                     placeholder={`Search ${searchType === 'all' ? 'all fields' : searchType === 'job' ? 'by job/project' : 'by subcontractor'}...`}
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                     className="pl-9"
                   />
                 </div>
@@ -315,19 +343,19 @@ export default function GCDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProjects.map((project) => {
-                    const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
+                  {filteredProjects.map((project: Project) => {
+                    const projectSubsList = projectSubs.filter((ps: ProjectSubcontractor) => ps.project_id === project.id);
                     
                     // If searching by subcontractor, filter the subs to show only matching ones
                     let displaySubsList = projectSubsList;
                     if (searchType === 'subcontractor' && searchTerm) {
                       const searchLower = searchTerm.toLowerCase();
-                      displaySubsList = projectSubsList.filter(ps => 
+                      displaySubsList = projectSubsList.filter((ps: ProjectSubcontractor) => 
                         ps.subcontractor_name?.toLowerCase().includes(searchLower)
                       );
                     }
                     
-                    const compliantCount = displaySubsList.filter(ps => {
+                    const compliantCount = displaySubsList.filter((ps: ProjectSubcontractor) => {
                       const actualStatus = getActualStatus(ps);
                       return actualStatus === 'compliant';
                     }).length;
@@ -352,7 +380,7 @@ export default function GCDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button size="sm" variant="outline" onClick={(e) => {
+                          <Button size="sm" variant="outline" onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation();
                             navigate(`/gc-project?project=${project.id}&id=${gcId}`);
                           }}>
@@ -393,16 +421,16 @@ export default function GCDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredProjects.flatMap((project) => {
-                      const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
+                    {filteredProjects.flatMap((project: Project) => {
+                      const projectSubsList = projectSubs.filter((ps: ProjectSubcontractor) => ps.project_id === project.id);
                       const searchLower = searchTerm.toLowerCase();
-                      const matchingSubs = projectSubsList.filter(ps => 
+                      const matchingSubs = projectSubsList.filter((ps: ProjectSubcontractor) => 
                         ps.subcontractor_name?.toLowerCase().includes(searchLower)
                       );
                       
                       logger.info('Project matching subs', { context: 'GCDashboard', projectName: project.project_name, matchingSubsCount: matchingSubs.length });
                       
-                      return matchingSubs.map((sub) => {
+                      return matchingSubs.map((sub: ProjectSubcontractor) => {
                         const status = getActualStatus(sub);
                         const statusColor = status === 'compliant' ? 'bg-emerald-50 text-emerald-700' :
                                            status === 'awaiting_broker_upload' ? 'bg-yellow-50 text-yellow-700' :

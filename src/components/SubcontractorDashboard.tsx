@@ -14,17 +14,48 @@ import { format, differenceInDays } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import UserProfile from "@/components/UserProfile.tsx";
-// Project requirements viewer intentionally omitted for subs (GC/admin only)
 
-export default function SubcontractorDashboard() {
+interface Subcontractor {
+  id: string;
+  company_name: string;
+  contact_person?: string;
+  email?: string;
+  contractor_type?: string;
+  broker_name?: string;
+  broker_email?: string;
+}
+
+interface Project {
+  id: string;
+  project_name: string;
+  gc_name?: string;
+  city?: string;
+  state?: string;
+  status?: string;
+}
+
+interface COI {
+  id: string;
+  project_id?: string;
+  status: string;
+  first_coi_uploaded?: boolean;
+  first_coi_url?: string;
+  gl_expiration_date?: string;
+  broker_verified_at_renewal?: boolean;
+  project_name?: string;
+  compliance_status?: string;
+  created_date?: string;
+}
+
+export default function SubcontractorDashboard(): JSX.Element {
   const urlParams = new URLSearchParams(window.location.search);
-  const subId = urlParams.get('id');
-  const subEmail = urlParams.get('email');
+  const subId: string | null = urlParams.get('id');
+  const subEmail: string | null = urlParams.get('email');
   const navigate = useNavigate();
 
-  const { data: subcontractor, isLoading: subLoading, error: subError } = useQuery({
+  const { data: subcontractor, isLoading: subLoading, error: subError } = useQuery<Subcontractor | null>({
     queryKey: ['subcontractor', subId, subEmail],
-    queryFn: async () => {
+    queryFn: async (): Promise<Subcontractor | null> => {
       if (subId) {
         try {
           const res = await fetch(`${getApiBase()}/public/contractor/${subId}`, {
@@ -46,9 +77,9 @@ export default function SubcontractorDashboard() {
   });
 
   // Get projects this subcontractor is assigned to via ProjectSubcontractor
-  const { data: assignedProjects = [] } = useQuery({
+  const { data: assignedProjects = [] } = useQuery<Project[]>({
     queryKey: ['sub-assigned-projects', subId],
-    queryFn: async () => {
+    queryFn: async (): Promise<Project[]> => {
       if (!subId) return [];
       try {
         const res = await fetch(`${getApiBase()}/public/projects-for-sub/${subId}`, {
@@ -64,9 +95,9 @@ export default function SubcontractorDashboard() {
     enabled: !!subId,
   });
 
-  const { data: myCOIs = [] } = useQuery({
+  const { data: myCOIs = [] } = useQuery<COI[]>({
     queryKey: ['sub-cois', subcontractor?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<COI[]> => {
       if (!subcontractor?.id) return [];
       try {
         const res = await fetch(`${getApiBase()}/public/cois-for-sub/${subcontractor.id}`, {
@@ -142,23 +173,23 @@ export default function SubcontractorDashboard() {
     );
   }
 
-  const activeCOIs = myCOIs.filter(c => c.status === 'active');
-  const expiringSoon = activeCOIs.filter(c => {
+  const activeCOIs: COI[] = myCOIs.filter((c: COI) => c.status === 'active');
+  const expiringSoon: COI[] = activeCOIs.filter((c: COI) => {
     if (!c.gl_expiration_date) return false;
     const daysUntil = differenceInDays(new Date(c.gl_expiration_date), new Date());
     return daysUntil >= 0 && daysUntil <= 30;
   });
 
   // Check for COIs that need broker verification for renewal
-  const needsVerification = myCOIs.filter(c => {
+  const needsVerification: COI[] = myCOIs.filter((c: COI) => {
     if (!c.gl_expiration_date) return false;
     const daysUntil = differenceInDays(new Date(c.gl_expiration_date), new Date());
     // Show alert if expiring within 30 days and not yet verified for this renewal cycle
     return daysUntil >= 0 && daysUntil <= 30 && !c.broker_verified_at_renewal;
   });
 
-  const needsBrokerInfo = !subcontractor.broker_email;
-  const brokerInfo = subcontractor.broker_email ? {
+  const needsBrokerInfo: boolean = !subcontractor.broker_email;
+  const brokerInfo: { name: string; email: string } | null = subcontractor.broker_email ? {
     name: subcontractor.broker_name || 'Your Broker',
     email: subcontractor.broker_email,
   } : null;
@@ -204,14 +235,14 @@ export default function SubcontractorDashboard() {
               </p>
               <div className="bg-white rounded-lg p-4 border border-red-200">
                 <p className="text-sm font-semibold text-red-900 mb-2">Policies Requiring Verification:</p>
-                {needsVerification.map((coi) => {
-                  const daysUntil = differenceInDays(new Date(coi.gl_expiration_date), new Date());
+                {needsVerification.map((coi: COI) => {
+                  const daysUntil = differenceInDays(new Date(coi.gl_expiration_date!), new Date());
                   return (
                     <div key={coi.id} className="flex items-center justify-between py-2 border-b border-red-100 last:border-0">
                       <div>
                         <p className="font-medium text-slate-900">{coi.project_name || 'Policy'}</p>
                         <p className="text-sm text-slate-600">
-                          Expires: {format(new Date(coi.gl_expiration_date), 'MMMM d, yyyy')} ({daysUntil} days)
+                          Expires: {format(new Date(coi.gl_expiration_date!), 'MMMM d, yyyy')} ({daysUntil} days)
                         </p>
                       </div>
                       <Button
@@ -261,8 +292,8 @@ export default function SubcontractorDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {assignedProjects.map((project) => {
-                    const projectCOI = myCOIs.find(c => c.project_id === project.id);
+                  {assignedProjects.map((project: Project) => {
+                    const projectCOI = myCOIs.find((c: COI) => c.project_id === project.id);
                     const hasUploaded = projectCOI?.first_coi_uploaded || projectCOI?.first_coi_url;
 
                     let insuranceStatus = 'pending';
@@ -369,7 +400,7 @@ export default function SubcontractorDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {myCOIs.map((coi) => {
+                  {myCOIs.map((coi: COI) => {
                     const daysUntilExpiry = coi.gl_expiration_date 
                       ? differenceInDays(new Date(coi.gl_expiration_date), new Date())
                       : null;

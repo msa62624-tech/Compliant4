@@ -16,7 +16,8 @@ import {
   Loader2,
   MessageSquare,
   Briefcase,
-  RefreshCw
+  RefreshCw,
+  LucideIcon
 } from "lucide-react";
 import { format } from "date-fns";
 import { createPageUrl } from "@/utils";
@@ -25,7 +26,65 @@ import UserProfile from "@/components/UserProfile.tsx";
 import ReplaceDocumentDialog from "@/components/ReplaceDocumentDialog.tsx";
 import { getBackendBaseUrl } from "@/urlConfig";
 
-export default function BrokerDashboard() {
+interface BrokerCOI {
+  id: string;
+  status: string;
+  broker_name?: string;
+  broker_gl_name?: string;
+  broker_company?: string;
+  broker_gl_company?: string;
+  subcontractor_name?: string;
+  project_name?: string;
+  project_id?: string;
+  gc_name?: string;
+  trade_type?: string;
+  sub_notified_date?: string;
+  sample_coi_pdf_url?: string;
+  coi_token?: string;
+  is_reused?: boolean;
+  first_coi_url?: string;
+  deficiency_message?: string;
+  upload_request_id?: string;
+  compliance_check_id?: string;
+  subcontractor_id?: string;
+  compliance_status?: string;
+  compliance_issues?: string[];
+  first_coi_uploaded?: boolean;
+}
+
+interface Project {
+  id: string;
+  project_name?: string;
+}
+
+interface BrokerMessage {
+  id: string;
+  content?: string;
+  created_date?: string;
+}
+
+interface CurrentUser {
+  user_type: string;
+  id?: string;
+  name?: string;
+  email?: string;
+}
+
+interface StatusConfig {
+  label: string;
+  color: string;
+  icon: LucideIcon;
+}
+
+interface StatCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  colorClass: 'blue' | 'amber' | 'emerald' | 'red';
+  highlight?: boolean;
+}
+
+export default function BrokerDashboard(): JSX.Element {
   // SECURITY: Get authenticated broker info from session, not URL parameters
   // This prevents unauthorized access by URL manipulation
   const authenticatedEmail = sessionStorage.getItem('brokerPortalEmail');
@@ -37,14 +96,14 @@ export default function BrokerDashboard() {
   const effectiveBrokerEmail = authenticatedEmail;
 
   // State for replace document dialog
-  const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
-  const [selectedCOIForReplace, setSelectedCOIForReplace] = useState(null);
+  const [replaceDialogOpen, setReplaceDialogOpen] = useState<boolean>(false);
+  const [selectedCOIForReplace, setSelectedCOIForReplace] = useState<BrokerCOI | null>(null);
 
   const backendBase = React.useMemo(() => getBackendBaseUrl(), []);
 
-  const { data: allCOIs = [], isLoading } = useQuery({
+  const { data: allCOIs = [], isLoading } = useQuery<BrokerCOI[]>({
     queryKey: ['broker-cois', effectiveBrokerName, effectiveBrokerEmail],
-    queryFn: async () => {
+    queryFn: async (): Promise<BrokerCOI[]> => {
       const params = new URLSearchParams();
       // Always send both name and email for precise filtering
       if (effectiveBrokerEmail) params.set('email', effectiveBrokerEmail);
@@ -56,18 +115,18 @@ export default function BrokerDashboard() {
     enabled: !!(effectiveBrokerName || effectiveBrokerEmail),
   });
 
-  const { data: allProjects = [] } = useQuery({
+  const { data: allProjects = [] } = useQuery<Project[]>({
     queryKey: ['all-projects'],
-    queryFn: async () => {
+    queryFn: async (): Promise<Project[]> => {
       const res = await fetch(`${backendBase}/public/projects`);
       if (!res.ok) throw new Error('Failed to load projects');
       return await res.json();
     },
   });
 
-  const { data: messages = [] } = useQuery({
+  const { data: messages = [] } = useQuery<BrokerMessage[]>({
     queryKey: ['broker-messages', effectiveBrokerEmail],
-    queryFn: async () => {
+    queryFn: async (): Promise<BrokerMessage[]> => {
       if (!effectiveBrokerEmail) return [];
       const params = new URLSearchParams({ email: effectiveBrokerEmail });
       const res = await fetch(`${backendBase}/public/messages?${params.toString()}`);
@@ -106,17 +165,17 @@ export default function BrokerDashboard() {
     );
   }
 
-  const pendingCount = allCOIs.filter(c => 
+  const pendingCount: number = allCOIs.filter((c: BrokerCOI) => 
     c.status === 'awaiting_broker_info' || 
     c.status === 'awaiting_broker_upload'
   ).length;
-  const activeCount = allCOIs.filter(c => c.status === 'active').length;
-  const needsAttentionCount = allCOIs.filter(c => 
+  const activeCount: number = allCOIs.filter((c: BrokerCOI) => c.status === 'active').length;
+  const needsAttentionCount: number = allCOIs.filter((c: BrokerCOI) => 
     c.status === 'awaiting_admin_review' || 
     c.status === 'deficiency_pending'
   ).length;
 
-  const statusConfig = {
+  const statusConfig: Record<string, StatusConfig> = {
     awaiting_broker_info: { label: 'Awaiting Info', color: 'bg-red-100 text-red-700 border-red-200', icon: Clock },
     awaiting_broker_upload: { label: 'Awaiting Upload', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Upload },
     awaiting_broker_signature: { label: 'Needs Signature', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: FileText },
@@ -208,9 +267,9 @@ export default function BrokerDashboard() {
               messages={messages} 
               currentUser={{
                 user_type: 'broker',
-                id: effectiveBrokerEmail,
+                id: effectiveBrokerEmail || '',
                 name: displayBrokerName,
-                email: effectiveBrokerEmail
+                email: effectiveBrokerEmail || ''
               }}
               recipientType="admin"
             />
@@ -239,8 +298,8 @@ export default function BrokerDashboard() {
                 </div>
               ) : (
                 <div className="divide-y divide-slate-200">
-                  {allCOIs.map((coi, index) => {
-                    const _project = allProjects.find(p => p.id === coi.project_id);
+                  {allCOIs.map((coi: BrokerCOI, index: number) => {
+                    const _project = allProjects.find((p: Project) => p.id === coi.project_id);
                     const config = statusConfig[coi.status] || statusConfig.awaiting_broker_info;
                     const StatusIcon = config.icon;
 
@@ -405,8 +464,8 @@ export default function BrokerDashboard() {
           complianceCheckId={selectedCOIForReplace.compliance_check_id}
           projectId={selectedCOIForReplace.project_id}
           subcontractorId={selectedCOIForReplace.subcontractor_id}
-          brokerEmail={effectiveBrokerEmail}
-          brokerName={effectiveBrokerName}
+          brokerEmail={effectiveBrokerEmail || ''}
+          brokerName={effectiveBrokerName || ''}
           onSuccess={() => {
             // Refresh the COI list
             window.location.reload();

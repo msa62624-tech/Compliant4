@@ -26,9 +26,75 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Helper function to get search type label
-const getSearchTypeLabel = (type) => {
-  const labels = {
+interface User {
+  id?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+}
+
+interface GeneratedCOI {
+  id: string;
+  status: string;
+  assigned_admin_email?: string;
+  gl_expiration_date?: string;
+  gl_carrier?: string;
+  auto_carrier?: string;
+  wc_carrier?: string;
+  umbrella_carrier?: string;
+  project_id?: string;
+  subcontractor_id?: string;
+  created_date?: string;
+}
+
+interface Project {
+  id: string;
+  project_name: string;
+  gc_name?: string;
+  needs_admin_setup?: boolean;
+  assigned_admin_email?: string;
+  created_date?: string;
+}
+
+interface Contractor {
+  id: string;
+  company_name?: string;
+  entity_name?: string;
+  contractor_type: string;
+  assigned_admin_email?: string;
+}
+
+interface Trade {
+  id: string;
+  trade_name: string;
+}
+
+interface Message {
+  id: string;
+  recipient_id?: string;
+  sender_id?: string;
+  is_read?: boolean;
+  created_date?: string;
+}
+
+interface Notification {
+  id: string;
+  related_entity?: string;
+  related_entity_id?: string;
+}
+
+interface Stats {
+  pendingReviews: number;
+  expiringSoon: number;
+  projectsNeedingSetup: number;
+  totalSubs: number;
+  unreadMessages: number;
+}
+
+type SearchType = 'gc' | 'trade' | 'carrier' | 'subcontractor';
+
+const getSearchTypeLabel = (type: SearchType): string => {
+  const labels: Record<SearchType, string> = {
     gc: 'general contractor',
     trade: 'trade',
     carrier: 'insurance carrier',
@@ -37,11 +103,11 @@ const getSearchTypeLabel = (type) => {
   return labels[type] || type;
 };
 
-export default function AdminDashboard() {
+export default function AdminDashboard(): JSX.Element {
   const navigate = useNavigate();
-  const [searchType, setSearchType] = useState("gc");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchFeedback, setSearchFeedback] = useState(null);
+  const [searchType, setSearchType] = useState<SearchType>("gc");
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [searchFeedback, setSearchFeedback] = useState<string | null>(null);
 
   // Initialize deficiency reminder system on component mount
   useEffect(() => {
@@ -49,12 +115,12 @@ export default function AdminDashboard() {
   }, []);
 
   // Get current user
-  const { data: currentUser } = useQuery({
+  const { data: currentUser } = useQuery<User>({
     queryKey: ['current-user'],
-    queryFn: async () => {
+    queryFn: async (): Promise<User> => {
       try {
         return await apiClient.auth.me();
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Failed to fetch current user', { context: 'AdminDashboard', error: error.message });
         return { name: 'Miriam Sabel', email: 'miriamsabel@insuretrack.onmicrosoft.com', role: 'admin' };
       }
@@ -62,18 +128,18 @@ export default function AdminDashboard() {
   });
 
 
-  const { data: pendingCOIs = [], isLoading: pendingLoading, error: pendingError } = useQuery({
+  const { data: pendingCOIs = [], isLoading: pendingLoading, error: pendingError } = useQuery<GeneratedCOI[]>({
     queryKey: ["pending-coi-reviews"],
-    queryFn: async () => {
+    queryFn: async (): Promise<GeneratedCOI[]> => {
       try {
         const cois = await apiClient.entities.GeneratedCOI.list("-uploaded_for_review_date");
         // Filter by assigned admin if user is assistant admin, show all if super admin
-        let filtered = cois.filter((c) => c.status === "awaiting_admin_review");
+        let filtered = cois.filter((c: GeneratedCOI) => c.status === "awaiting_admin_review");
         if (currentUser?.role === 'admin' && currentUser?.email) {
-          filtered = filtered.filter(c => !c.assigned_admin_email || c.assigned_admin_email === currentUser.email);
+          filtered = filtered.filter((c: GeneratedCOI) => !c.assigned_admin_email || c.assigned_admin_email === currentUser.email);
         }
         return filtered;
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Error fetching pending COIs', { context: 'AdminDashboard', error: error.message });
         throw error;
       }
@@ -81,20 +147,20 @@ export default function AdminDashboard() {
     enabled: !!currentUser, // Only run when user is loaded
   });
 
-  const { data: activeCOIs = [], isLoading: activeLoading, error: activeError } = useQuery({
+  const { data: activeCOIs = [], isLoading: activeLoading, error: activeError } = useQuery<GeneratedCOI[]>({
     queryKey: ["active-cois"],
-    queryFn: async () => {
+    queryFn: async (): Promise<GeneratedCOI[]> => {
       try {
         const cois = await apiClient.entities.GeneratedCOI.list();
         // Combine filters in single pass for better performance
-        return cois.filter((c) => {
+        return cois.filter((c: GeneratedCOI) => {
           if (c.status !== "active") return false;
           if (currentUser?.role === 'admin' && currentUser?.email) {
             if (c.assigned_admin_email && c.assigned_admin_email !== currentUser.email) return false;
           }
           return true;
         });
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Error fetching active COIs', { context: 'AdminDashboard', error: error.message });
         throw error;
       }
@@ -102,26 +168,26 @@ export default function AdminDashboard() {
     enabled: !!currentUser,
   });
 
-  const { data: projects = [], isLoading: projectsLoading, error: projectsError } = useQuery({
+  const { data: projects = [], isLoading: projectsLoading, error: projectsError } = useQuery<Project[]>({
     queryKey: ["projects"],
-    queryFn: async () => {
+    queryFn: async (): Promise<Project[]> => {
       try {
         const allProjects = await apiClient.entities.Project.list("-created_date");
         // Combine filters in single pass
         if (currentUser?.role === 'admin' && currentUser?.email) {
-          return allProjects.filter(p => !p.assigned_admin_email || p.assigned_admin_email === currentUser.email);
+          return allProjects.filter((p: Project) => !p.assigned_admin_email || p.assigned_admin_email === currentUser.email);
         }
         return allProjects;
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Error fetching projects', { context: 'AdminDashboard', error: error.message });
         // Fallback to in-memory compliant client so admin can still view projects
         try {
           const allProjects = await compliant.entities.Project.list();
           if (currentUser?.role === 'admin' && currentUser?.email) {
-            return allProjects.filter(p => !p.assigned_admin_email || p.assigned_admin_email === currentUser.email);
+            return allProjects.filter((p: Project) => !p.assigned_admin_email || p.assigned_admin_email === currentUser.email);
           }
           return allProjects;
-        } catch (fallbackErr) {
+        } catch (fallbackErr: any) {
           logger.error('Fallback projects fetch failed', { context: 'AdminDashboard', error: fallbackErr.message });
           throw error; // Preserve original error for react-query
         }
@@ -130,26 +196,26 @@ export default function AdminDashboard() {
     enabled: !!currentUser,
   });
 
-  const { data: allSubs = [], isLoading: subsLoading, error: subsError } = useQuery({
+  const { data: allSubs = [], isLoading: subsLoading, error: subsError } = useQuery<Contractor[]>({
     queryKey: ["all-subs"],
-    queryFn: async () => {
+    queryFn: async (): Promise<Contractor[]> => {
       try {
         const subs = await apiClient.entities.Contractor.filter({ contractor_type: "subcontractor" });
         // Filter by assigned admin if user is assistant admin, show all if super admin
         if (currentUser?.role === 'admin' && currentUser?.email) {
-          return subs.filter(s => !s.assigned_admin_email || s.assigned_admin_email === currentUser.email);
+          return subs.filter((s: Contractor) => !s.assigned_admin_email || s.assigned_admin_email === currentUser.email);
         }
         return subs;
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Error fetching subcontractors', { context: 'AdminDashboard', error: error.message });
         // Fallback to compliant client so tables still render
         try {
           const subs = await compliant.entities.Contractor.filter({ contractor_type: "subcontractor" });
           if (currentUser?.role === 'admin' && currentUser?.email) {
-            return subs.filter(s => !s.assigned_admin_email || s.assigned_admin_email === currentUser.email);
+            return subs.filter((s: Contractor) => !s.assigned_admin_email || s.assigned_admin_email === currentUser.email);
           }
           return subs;
-        } catch (fallbackErr) {
+        } catch (fallbackErr: any) {
           logger.error('Fallback subcontractors fetch failed', { context: 'AdminDashboard', error: fallbackErr.message });
           throw error;
         }
@@ -158,29 +224,29 @@ export default function AdminDashboard() {
     enabled: !!currentUser,
   });
 
-  const { data: messages = [], isLoading: messagesLoading, error: messagesError } = useQuery({
+  const { data: messages = [], isLoading: messagesLoading, error: messagesError } = useQuery<Message[]>({
     queryKey: ["recent-messages"],
-    queryFn: async () => {
+    queryFn: async (): Promise<Message[]> => {
       try {
         const allMessages = await apiClient.entities.Message.list("-created_date");
         // Super admin should NOT see messages from assistant admins (only their own)
         // Assistant admins only see their own messages
         if (currentUser?.role === 'super_admin') {
           // Filter out messages where sender or recipient is an assistant admin
-          return allMessages.filter(msg => {
+          return allMessages.filter((msg: Message) => {
             // Only show messages where both sender and recipient are NOT assistant admins
             // or messages sent/received by the super admin themselves
             return msg.recipient_id === currentUser.id || msg.sender_id === currentUser.id;
           });
         } else if (currentUser?.role === 'admin') {
           // Assistant admins only see their own messages
-          return allMessages.filter(msg => 
+          return allMessages.filter((msg: Message) => 
             msg.recipient_id === currentUser.email || msg.sender_id === currentUser.email ||
             msg.recipient_id === currentUser.id || msg.sender_id === currentUser.id
           );
         }
         return allMessages;
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Error fetching messages', { context: 'AdminDashboard', error: error.message });
         throw error;
       }
@@ -189,13 +255,13 @@ export default function AdminDashboard() {
   });
 
   // Fetch GCs for search
-  const { data: allGCs = [] } = useQuery({
+  const { data: allGCs = [] } = useQuery<Contractor[]>({
     queryKey: ["all-gcs"],
-    queryFn: async () => {
+    queryFn: async (): Promise<Contractor[]> => {
       try {
         const contractors = await apiClient.entities.Contractor.list();
-        return contractors.filter(c => c.contractor_type === 'general_contractor');
-      } catch (error) {
+        return contractors.filter((c: Contractor) => c.contractor_type === 'general_contractor');
+      } catch (error: any) {
         logger.error('Error fetching GCs', { context: 'AdminDashboard', error: error.message });
         return [];
       }
@@ -204,12 +270,12 @@ export default function AdminDashboard() {
   });
 
   // Fetch Trades for search
-  const { data: allTrades = [] } = useQuery({
+  const { data: allTrades = [] } = useQuery<Trade[]>({
     queryKey: ["all-trades"],
-    queryFn: async () => {
+    queryFn: async (): Promise<Trade[]> => {
       try {
         return await apiClient.entities.Trade.list();
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Error fetching trades', { context: 'AdminDashboard', error: error.message });
         return [];
       }
@@ -218,7 +284,7 @@ export default function AdminDashboard() {
   });
 
   // Perform search based on search type and term
-  const performSearch = () => {
+  const performSearch = (): void => {
     if (!searchTerm.trim()) {
       return;
     }
@@ -230,7 +296,7 @@ export default function AdminDashboard() {
     let found = false;
 
     if (searchType === "gc") {
-      const matchedGC = allGCs.find(gc => 
+      const matchedGC = allGCs.find((gc: Contractor) => 
         gc.company_name?.toLowerCase().includes(lowerSearchTerm) ||
         gc.entity_name?.toLowerCase().includes(lowerSearchTerm)
       );
@@ -239,7 +305,7 @@ export default function AdminDashboard() {
         found = true;
       }
     } else if (searchType === "trade") {
-      const matchedTrade = allTrades.find(t => 
+      const matchedTrade = allTrades.find((t: Trade) => 
         t.trade_name?.toLowerCase().includes(lowerSearchTerm)
       );
       if (matchedTrade) {
@@ -250,7 +316,7 @@ export default function AdminDashboard() {
       }
     } else if (searchType === "carrier") {
       // Search for insurance carriers in COIs
-      const matchedCOI = [...pendingCOIs, ...activeCOIs].find(coi =>
+      const matchedCOI = [...pendingCOIs, ...activeCOIs].find((coi: GeneratedCOI) =>
         coi.gl_carrier?.toLowerCase().includes(lowerSearchTerm) ||
         coi.auto_carrier?.toLowerCase().includes(lowerSearchTerm) ||
         coi.wc_carrier?.toLowerCase().includes(lowerSearchTerm) ||
@@ -261,7 +327,7 @@ export default function AdminDashboard() {
         found = true;
       }
     } else if (searchType === "subcontractor") {
-      const matchedSub = allSubs.find(sub =>
+      const matchedSub = allSubs.find((sub: Contractor) =>
         sub.company_name?.toLowerCase().includes(lowerSearchTerm) ||
         sub.entity_name?.toLowerCase().includes(lowerSearchTerm)
       );
@@ -278,23 +344,23 @@ export default function AdminDashboard() {
   };
 
   // Memoized expensive computations for performance
-  const expiringSoon = useMemo(() => {
-    return activeCOIs.filter((coi) => {
+  const expiringSoon = useMemo<GeneratedCOI[]>(() => {
+    return activeCOIs.filter((coi: GeneratedCOI) => {
       if (!coi.gl_expiration_date) return false;
       const daysUntil = differenceInDays(new Date(coi.gl_expiration_date), new Date());
       return daysUntil >= 0 && daysUntil <= 30;
     });
   }, [activeCOIs]);
 
-  const projectsNeedingSetup = useMemo(() => {
-    return Array.isArray(projects) ? projects.filter((p) => p.needs_admin_setup) : [];
+  const projectsNeedingSetup = useMemo<Project[]>(() => {
+    return Array.isArray(projects) ? projects.filter((p: Project) => p.needs_admin_setup) : [];
   }, [projects]);
 
-  const unreadMessages = useMemo(() => {
-    return Array.isArray(messages) ? messages.filter((m) => !m.is_read).length : 0;
+  const unreadMessages = useMemo<number>(() => {
+    return Array.isArray(messages) ? messages.filter((m: Message) => !m.is_read).length : 0;
   }, [messages]);
 
-  const stats = useMemo(() => ({
+  const stats = useMemo<Stats>(() => ({
     pendingReviews: pendingCOIs.length,
     expiringSoon: expiringSoon.length,
     projectsNeedingSetup: projectsNeedingSetup.length,
@@ -352,8 +418,8 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row gap-4">
-              <Select value={searchType} onValueChange={(value) => {
-                setSearchType(value);
+              <Select value={searchType} onValueChange={(value: string) => {
+                setSearchType(value as SearchType);
                 setSearchFeedback(null); // Clear feedback when search type changes
               }}>
                 <SelectTrigger className="w-full md:w-48">
@@ -370,11 +436,11 @@ export default function AdminDashboard() {
                 <Input
                   placeholder={`Search for ${getSearchTypeLabel(searchType)}...`}
                   value={searchTerm}
-                  onChange={(e) => {
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                     setSearchTerm(e.target.value);
                     setSearchFeedback(null); // Clear feedback when user types
                   }}
-                  onKeyDown={(e) => e.key === 'Enter' && performSearch()}
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && performSearch()}
                   className="flex-1"
                 />
                 <Button onClick={performSearch} disabled={!searchTerm.trim()}>
@@ -470,7 +536,7 @@ export default function AdminDashboard() {
           <NotificationPanel 
             recipientId="admin"
             recipientType="admin"
-            onNotificationClick={(notification) => {
+            onNotificationClick={(notification: Notification) => {
               // Navigate to the related entity when notification is clicked
               if (notification.related_entity === 'GeneratedCOI' && notification.related_entity_id) {
                 navigate(createPageUrl(`COIReview?id=${notification.related_entity_id}`));

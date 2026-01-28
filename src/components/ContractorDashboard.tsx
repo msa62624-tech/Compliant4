@@ -1,4 +1,3 @@
-
 import { compliant } from "@/api/compliantClient";
 import { useQuery } from "@tanstack/react-query";
 import { Shield, Upload, FileText, AlertTriangle } from "lucide-react";
@@ -12,32 +11,64 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInDays } from "date-fns";
 import UserProfile from "@/components/UserProfile.tsx";
 
+interface User {
+  id?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+}
+
+interface InsuranceDocument {
+  id: string;
+  insurance_type: string;
+  approval_status: string;
+  expiration_date: string;
+  policy_number?: string;
+  insurance_provider?: string;
+  document_url?: string;
+  rejection_reason?: string;
+  created_by?: string;
+}
+
+interface InsuranceType {
+  key: string;
+  label: string;
+  required: boolean;
+}
+
+interface Stats {
+  total: number;
+  approved: number;
+  pending: number;
+  expiringSoon: number;
+}
+
 export default function ContractorDashboard(): JSX.Element {
-  const { data: user } = useQuery({
+  const { data: user } = useQuery<User>({
     queryKey: ['current-user'],
-    queryFn: () => compliant.auth.me(),
+    queryFn: (): Promise<User> => compliant.auth.me(),
   });
 
-  const { data: documents = [], isLoading } = useQuery({
+  const { data: documents = [], isLoading } = useQuery<InsuranceDocument[]>({
     queryKey: ['my-documents', user?.email],
-    queryFn: async () => {
+    queryFn: async (): Promise<InsuranceDocument[]> => {
       if (!user?.email) return [];
       return compliant.entities.InsuranceDocument.filter({ created_by: user.email }, '-created_date');
     },
     enabled: !!user?.email,
   });
 
-  const stats = {
+  const stats: Stats = {
     total: documents.length,
-    approved: documents.filter(d => d.approval_status === 'approved').length,
-    pending: documents.filter(d => d.approval_status === 'pending').length,
-    expiringSoon: documents.filter(d => {
+    approved: documents.filter((d: InsuranceDocument) => d.approval_status === 'approved').length,
+    pending: documents.filter((d: InsuranceDocument) => d.approval_status === 'pending').length,
+    expiringSoon: documents.filter((d: InsuranceDocument) => {
       const daysUntil = differenceInDays(new Date(d.expiration_date), new Date());
       return daysUntil >= 0 && daysUntil <= 30 && d.approval_status === 'approved';
     }).length,
   };
 
-  const insuranceTypes = [
+  const insuranceTypes: InsuranceType[] = [
     { key: 'general_liability', label: 'General Liability', required: true },
     { key: 'workers_compensation', label: 'Workers Compensation', required: true },
     { key: 'auto_liability', label: 'Auto Liability', required: true },
@@ -46,8 +77,8 @@ export default function ContractorDashboard(): JSX.Element {
     { key: 'builders_risk', label: 'Builders Risk', required: false },
   ];
 
-  const getDocumentForType = (type) => {
-    return documents.find(d => d.insurance_type === type);
+  const getDocumentForType = (type: string): InsuranceDocument | undefined => {
+    return documents.find((d: InsuranceDocument) => d.insurance_type === type);
   };
 
   return (
@@ -117,7 +148,7 @@ export default function ContractorDashboard(): JSX.Element {
               </div>
             ) : (
               <div className="space-y-4">
-                {insuranceTypes.map((type) => {
+                {insuranceTypes.map((type: InsuranceType) => {
                   const doc = getDocumentForType(type.key);
                   const daysUntilExpiry = doc ? differenceInDays(new Date(doc.expiration_date), new Date()) : null;
                   const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
