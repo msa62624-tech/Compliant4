@@ -1234,6 +1234,41 @@ app.get('/health/liveness', livenessCheckHandler);
 
 /**
  * @swagger
+ * /debug/health:
+ *   get:
+ *     summary: Debug Health Check
+ *     description: Extended health check endpoint for debugging with detailed server status
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Server health status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: ok
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 uptime:
+ *                   type: number
+ *                   description: Server uptime in seconds
+ */
+app.get('/debug/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    nodeVersion: process.version
+  });
+});
+
+/**
+ * @swagger
  * /metrics:
  *   get:
  *     summary: Prometheus Metrics
@@ -1848,8 +1883,48 @@ app.post('/entities/:entityName', authenticateToken, idempotency(), async (req, 
   res.status(201).json(responsePayload);
 });
 
-// Update
+// Get single entity by ID
+app.get('/entities/:entityName/:id', authenticateToken, (req, res) => {
+  const { entityName, id } = req.params;
+  const { includeArchived } = req.query;
+  
+  if (!entities[entityName]) {
+    return res.status(404).json({ error: `Entity ${entityName} not found` });
+  }
+  
+  const item = entities[entityName].find(item => item.id === id);
+  if (!item || (includeArchived !== 'true' && (item.isArchived || item.status === 'archived'))) {
+    return res.status(404).json({ error: `${entityName} with id '${id}' not found` });
+  }
+  
+  res.json(item);
+});
+
+// Update (PATCH - partial update)
 app.patch('/entities/:entityName/:id', authenticateToken, (req, res) => {
+  const { entityName, id } = req.params;
+  const updates = req.body || {};
+  if (!entities[entityName]) {
+    return res.status(404).json({ error: `Entity ${entityName} not found` });
+  }
+  const index = entities[entityName].findIndex(item => item.id === id);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Item not found' });
+  }
+  if (entityName === 'User') {
+    const current = entities.User[index];
+    const updatedUser = { ...current, ...updates, ...(updates.is_active !== undefined && { is_active: updates.is_active }), updatedAt: new Date().toISOString(), updatedBy: req.user.id };
+    entities.User[index] = updatedUser;
+    debouncedSave();
+    return res.json(updatedUser);
+  }
+  entities[entityName][index] = { ...entities[entityName][index], ...updates, updatedAt: new Date().toISOString(), updatedBy: req.user.id };
+  debouncedSave();
+  res.json(entities[entityName][index]);
+});
+
+// Update (PUT - full replacement, same implementation as PATCH for compatibility)
+app.put('/entities/:entityName/:id', authenticateToken, (req, res) => {
   const { entityName, id } = req.params;
   const updates = req.body || {};
   if (!entities[entityName]) {

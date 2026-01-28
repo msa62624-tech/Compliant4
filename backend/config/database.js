@@ -82,7 +82,9 @@ export const entities = {
   PolicyQuote: [],
   Subscription: [],
   ProgramTemplate: [],
-  Message: []
+  Message: [],
+  // Migration tracking to prevent re-running migrations after server restart
+  _migrations: {}
 };
 
 // ========== Persistent Storage Functions ==========
