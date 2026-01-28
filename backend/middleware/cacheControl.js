@@ -61,7 +61,6 @@ function getCacheStrategy(req) {
 export function cacheControl(options = {}) {
   const {
     defaultMaxAge = 0,
-    enableETag = true,
   } = options;
 
   return (req, res, next) => {
@@ -86,12 +85,8 @@ export function cacheControl(options = {}) {
     // Add Vary header for content negotiation
     res.set('Vary', 'Accept-Encoding');
 
-    // Enable ETag for GET requests if enabled
-    if (enableETag && (req.method === 'GET' || req.method === 'HEAD')) {
-      // Express automatically generates ETags via `etag` middleware
-      // We just ensure it's enabled
-      res.set('ETag', res.get('ETag') || 'W/"generated"');
-    }
+    // Note: ETags are generated automatically by Express after response body is created
+    // We don't set them here as the response body doesn't exist yet
 
     next();
   };
