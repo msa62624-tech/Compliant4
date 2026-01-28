@@ -59,12 +59,30 @@ export default function AdminBookkeeping() {
     queryFn: () => compliant.entities.Project.list(),
   });
 
+  // Memoize contractor and project lookups for better performance
+  const contractorsMap = useMemo(() => 
+    new Map(contractors.map(c => [c.id, c])), 
+    [contractors]
+  );
+
+  const projectsByGC = useMemo(() => {
+    const map = new Map();
+    projects.forEach(p => {
+      if (p.status === 'active') {
+        const gcProjects = map.get(p.gc_id) || [];
+        gcProjects.push(p);
+        map.set(p.gc_id, gcProjects);
+      }
+    });
+    return map;
+  }, [projects]);
+
   const getContractor = (gcId) => {
-    return contractors.find(c => c.id === gcId);
+    return contractorsMap.get(gcId);
   };
 
   const getGCProjects = (gcId) => {
-    return projects.filter(p => p.gc_id === gcId && p.status === 'active').length;
+    return (projectsByGC.get(gcId) || []).length;
   };
 
   //subscriptions by date range
@@ -324,6 +342,9 @@ InsureTrack Billing Team`
     let sentCount = 0;
     
     try {
+      // Create Map for O(1) contractor lookups (performance optimization)
+      const contractorsMap = new Map(contractors.map(c => [c.id, c]));
+
       // Find subscriptions expiring in 7 days
       const dueSoon = subscriptions.filter(s => {
         if (!s.next_billing_date || s.status !== 'active') return false;
@@ -331,23 +352,30 @@ InsureTrack Billing Team`
         return days === 7;
       });
 
-      for (const sub of dueSoon) {
-        await sendRenewalReminder(sub);
-        sentCount++;
-      }
+      // Parallelize renewal reminders for better performance
+      const renewalPromises = dueSoon.map(sub => 
+        sendRenewalReminder(sub).catch(err => {
+          console.error(`Failed to send renewal reminder for subscription ${sub.id}:`, err);
+          return null;
+        })
+      );
+      const renewalResults = await Promise.all(renewalPromises);
+      sentCount += renewalResults.filter(r => r !== null).length;
 
       // Find pending payments
       const pending = subscriptions.filter(s => 
         s.payment_status === 'pending' && s.status === 'pending_payment'
       );
 
-      for (const sub of pending) {
-        const gc = contractors.find(c => c.id === sub.gc_id);
+      // Parallelize pending payment emails for better performance
+      const pendingPromises = pending.map(async (sub) => {
+        const gc = contractorsMap.get(sub.gc_id);
         if (gc?.email) {
-          await sendEmail({
-            to: gc.email,
-            subject: `💰 Payment Pending - ${sub.plan_name}`,
-            body: `Dear ${sub.gc_name},
+          try {
+            await sendEmail({
+              to: gc.email,
+              subject: `💰 Payment Pending - ${sub.plan_name}`,
+              body: `Dear ${sub.gc_name},
 
 Your payment is currently pending for:
 
@@ -358,10 +386,17 @@ Please complete your payment to activate your subscription.
 
 Thank you,
 InsureTrack Billing Team`
-          });
-          sentCount++;
+            });
+            return true;
+          } catch (err) {
+            console.error(`Failed to send pending payment email for subscription ${sub.id}:`, err);
+            return false;
+          }
         }
-      }
+        return false;
+      });
+      const pendingResults = await Promise.all(pendingPromises);
+      sentCount += pendingResults.filter(r => r === true).length;
 
       setEmailStatus(`✅ Sent ${sentCount} automated reminder emails!`);
     } catch (error) {
