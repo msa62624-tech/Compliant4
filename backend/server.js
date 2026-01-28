@@ -363,7 +363,8 @@ function ensureDefaultGC() {
 
   entities.Contractor.push(gc);
   debouncedSave();
-  console.log('✅ Seeded default GC account for portal login:', gc.email, '(password:', defaultPassword, ')');
+  // SECURITY FIX: Don't log passwords in plaintext
+  console.log('✅ Seeded default GC account for portal login:', gc.email);
 }
 
 ensureDefaultGC();
