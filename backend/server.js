@@ -15,7 +15,7 @@ import crypto from 'crypto';
 import multer from 'multer';
 
 // Import configuration
-import { getJWTSecret, initializeJWTSecret, PORT, DEFAULT_ADMIN_EMAILS, RENEWAL_LOOKAHEAD_DAYS, BINDER_WINDOW_DAYS } from './config/env.js';
+import { getJWTSecret, initializeJWTSecret, PORT, DEFAULT_ADMIN_EMAILS, RENEWAL_LOOKAHEAD_DAYS, BINDER_WINDOW_DAYS, validateProductionEnvironment } from './config/env.js';
 import { entities, loadEntities, saveEntities, debouncedSave, findValidCOIForSub, UPLOADS_DIR } from './config/database.js';
 import { upload } from './config/upload.js';
 
@@ -9609,7 +9609,7 @@ if (!process.env.VERCEL) {
     
     // Validate environment before starting
     try {
-      validateEnvironment();
+      validateProductionEnvironment();
     } catch (err) {
       logger.error('Environment validation failed, exiting', { error: err.message });
       process.exit(1);
