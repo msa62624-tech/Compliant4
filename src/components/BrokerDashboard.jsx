@@ -23,6 +23,7 @@ import { createPageUrl } from "@/utils";
 import MessageThread from "@/components/MessageThread.jsx";
 import UserProfile from "@/components/UserProfile.jsx";
 import ReplaceDocumentDialog from "@/components/ReplaceDocumentDialog.jsx";
+import { getBackendBaseUrl } from "@/urlConfig";
 
 export default function BrokerDashboard() {
   // SECURITY: Get authenticated broker info from session, not URL parameters
@@ -39,15 +40,7 @@ export default function BrokerDashboard() {
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
   const [selectedCOIForReplace, setSelectedCOIForReplace] = useState(null);
 
-  // Compute backend base for Codespaces or local
-  const backendBase = React.useMemo(() => {
-    const { protocol, host, origin } = window.location;
-    const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-    if (m) return `${protocol}//${m[1]}-3001${m[3]}`;
-    if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
-    if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
-    return import.meta?.env?.VITE_API_BASE_URL || '';
-  }, []);
+  const backendBase = React.useMemo(() => getBackendBaseUrl(), []);
 
   const { data: allCOIs = [], isLoading } = useQuery({
     queryKey: ['broker-cois', effectiveBrokerName, effectiveBrokerEmail],

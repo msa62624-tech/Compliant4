@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, ArrowLeft, FileCheck, Eye } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { getBackendBaseUrl } from "@/urlConfig";
 
 export default function GCProjectView() {
   const params = new URLSearchParams(window.location.search);
@@ -31,12 +32,7 @@ export default function GCProjectView() {
   const { data: project, isLoading: projectLoading, error: projectError } = useQuery({
     queryKey: ["gc-project", projectId],
     queryFn: async () => {
-      const { protocol, host, origin } = window.location;
-      const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-      const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
-                         origin.includes(':5175') ? origin.replace(':5175', ':3001') :
-                         origin.includes(':5176') ? origin.replace(':5176', ':3001') :
-                         import.meta?.env?.VITE_API_BASE_URL || '';
+      const backendBase = getBackendBaseUrl();
       const response = await fetch(`${backendBase}/public/projects`);
       if (!response.ok) throw new Error('Failed to fetch projects');
       const allProjects = await response.json();

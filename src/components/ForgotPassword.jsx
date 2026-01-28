@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import { getBackendBaseUrl } from "@/urlConfig";
 
 /**
  * ForgotPassword Component
@@ -18,15 +19,6 @@ export default function ForgotPassword({ onBackToLogin, portalType = 'gc' }) {
   const [error, setError] = useState(null);
   const [_message, setMessage] = useState(null);
 
-  const getBackendBase = () => {
-    const { protocol, host, origin } = window.location;
-    const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-    return m ? `${protocol}//${m[1]}-3001${m[3]}` : 
-           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
-           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
-           import.meta?.env?.VITE_API_BASE_URL || '';
-  };
-
   const requestReset = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -36,7 +28,7 @@ export default function ForgotPassword({ onBackToLogin, portalType = 'gc' }) {
         throw new Error('Email is required');
       }
 
-      const backendBase = getBackendBase();
+      const backendBase = getBackendBaseUrl();
       const endpoint = portalType === 'gc' ? '/public/gc-forgot-password' :
                       portalType === 'broker' ? '/public/broker-forgot-password' :
                       '/public/subcontractor-forgot-password';
@@ -79,7 +71,7 @@ export default function ForgotPassword({ onBackToLogin, portalType = 'gc' }) {
         throw new Error('Password must be at least 8 characters');
       }
 
-      const backendBase = getBackendBase();
+      const backendBase = getBackendBaseUrl();
       const endpoint = portalType === 'gc' ? '/public/gc-reset-password' :
                       portalType === 'broker' ? '/public/broker-reset-password' :
                       '/public/subcontractor-reset-password';

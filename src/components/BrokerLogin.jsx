@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Building2 } from 'lucide-react';
 import ForgotPassword from '@/components/ForgotPassword';
+import { getBackendBaseUrl } from "@/urlConfig";
 
 export default function BrokerLogin({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -27,13 +28,7 @@ export default function BrokerLogin({ onLogin }) {
         throw new Error('Please enter a valid email address');
       }
 
-      // Compute backend base
-      const { protocol, host, origin } = window.location;
-      const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-      const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
-                         origin.includes(':5175') ? origin.replace(':5175', ':3001') :
-                         origin.includes(':5176') ? origin.replace(':5176', ':3001') :
-                         import.meta?.env?.VITE_API_BASE_URL || '';
+      const backendBase = getBackendBaseUrl();
 
       // Authenticate broker via public endpoint
       const response = await fetch(`${backendBase}/public/broker-login`, {

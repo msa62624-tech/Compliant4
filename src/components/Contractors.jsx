@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getBackendBaseUrl } from "@/urlConfig";
 
 const US_STATES = [
   { code: 'AL', name: 'Alabama' }, { code: 'AK', name: 'Alaska' }, { code: 'AZ', name: 'Arizona' },
@@ -145,16 +146,7 @@ export default function Contractors() {
   // Archive mutation
   const archiveContractorMutation = useMutation({
     mutationFn: async ({ id, reason }) => {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
-        (() => {
-          const { protocol, host, origin } = window.location;
-          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
-          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
-          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
-          return 'http://localhost:3001';
-        })();
-      
+      const baseUrl = getBackendBaseUrl();
       const response = await fetch(`${baseUrl}/entities/Contractor/${id}/archive`, {
         method: 'POST',
         headers: {

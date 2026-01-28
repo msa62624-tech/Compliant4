@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { toast } from "sonner";
+import { getBackendBaseUrl } from "@/urlConfig";
 
 export default function ArchivePage() {
   const _navigate = useNavigate();
@@ -39,16 +40,7 @@ export default function ArchivePage() {
   const { data: archivedContractors = [], isLoading: loadingContractors, error: contractorsError } = useQuery({
     queryKey: ['archived-contractors'],
     queryFn: async () => {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
-        (() => {
-          const { protocol, host, origin } = window.location;
-          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
-          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
-          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
-          return 'http://localhost:3001';
-        })();
-      
+      const baseUrl = getBackendBaseUrl();
       console.log('🗄️ Fetching archived contractors from:', `${baseUrl}/entities/Contractor/archived`);
       const response = await fetch(`${baseUrl}/entities/Contractor/archived`, {
         headers: {
@@ -73,16 +65,7 @@ export default function ArchivePage() {
   const { data: archivedProjects = [], isLoading: loadingProjects, error: projectsError } = useQuery({
     queryKey: ['archived-projects'],
     queryFn: async () => {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
-        (() => {
-          const { protocol, host, origin } = window.location;
-          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
-          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
-          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
-          return 'http://localhost:3001';
-        })();
-      
+      const baseUrl = getBackendBaseUrl();
       console.log('🗄️ Fetching archived projects from:', `${baseUrl}/entities/Project/archived`);
       const response = await fetch(`${baseUrl}/entities/Project/archived`, {
         headers: {
@@ -107,16 +90,7 @@ export default function ArchivePage() {
   const { data: archivedProjectSubs = [], isLoading: loadingProjectSubs } = useQuery({
     queryKey: ['archived-project-subs'],
     queryFn: async () => {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
-        (() => {
-          const { protocol, host, origin } = window.location;
-          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
-          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
-          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
-          return 'http://localhost:3001';
-        })();
-      
+      const baseUrl = getBackendBaseUrl();
       const response = await fetch(`${baseUrl}/entities/ProjectSubcontractor/archived`, {
         headers: {
           'Content-Type': 'application/json',
@@ -134,16 +108,7 @@ export default function ArchivePage() {
   // Unarchive mutation
   const unarchiveMutation = useMutation({
     mutationFn: async ({ entityName, id }) => {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
-        (() => {
-          const { protocol, host, origin } = window.location;
-          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
-          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
-          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
-          return 'http://localhost:3001';
-        })();
-      
+      const baseUrl = getBackendBaseUrl();
       const response = await fetch(`${baseUrl}/entities/${entityName}/${id}/unarchive`, {
         method: 'POST',
         headers: {

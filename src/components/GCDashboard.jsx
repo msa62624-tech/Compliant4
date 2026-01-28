@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getBackendBaseUrl } from "@/urlConfig";
 
 export default function GCDashboard() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -37,14 +38,7 @@ export default function GCDashboard() {
     queryKey: ['gc-projects', gcId],
     queryFn: async () => {
       try {
-        // Use public endpoint to fetch all projects, then filter by gc_id
-        const { protocol, host, origin } = window.location;
-        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
-                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
-                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
-                           import.meta?.env?.VITE_API_BASE_URL || '';
-        
+        const backendBase = getBackendBaseUrl();
         const response = await fetch(`${backendBase}/public/projects`);
         if (!response.ok) throw new Error('Failed to fetch projects');
         const allProjects = await response.json();
