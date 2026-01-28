@@ -168,10 +168,20 @@ export default function MessagingCenter() {
       // Using allSettled to ensure all emails are attempted even if some fail
       const results = await Promise.allSettled(emailPromises);
       
-      // Log any failed email sends for monitoring
+      // Track email sending results
       const failedEmails = results.filter(r => r.status === 'rejected');
+      const successCount = results.length - failedEmails.length;
+      
+      // Log structured failure information for monitoring
       if (failedEmails.length > 0) {
-        console.error(`Failed to send ${failedEmails.length} email(s):`, failedEmails);
+        const failureDetails = failedEmails.map((result) => ({
+          recipient: selectedRecipients[results.indexOf(result)]?.email || 'unknown',
+          error: result.reason?.message || 'Unknown error'
+        }));
+        console.error(`Email delivery: ${successCount}/${results.length} successful`, failureDetails);
+        
+        // Notify user of partial failure
+        toast.warning(`Message saved, but ${failedEmails.length} of ${results.length} email notification(s) failed to send. Recipients can still view the message in their inbox.`);
       }
       
       return message;
