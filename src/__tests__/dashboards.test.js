@@ -35,7 +35,7 @@ describe('Dashboard Components Integrity', () => {
 
 describe('Authentication Module Integrity', () => {
   test('auth module should export all required functions', async () => {
-    const auth = await import('@/auth.js');
+    const auth = await import('@/auth');
     expect(auth.getToken).toBeDefined();
     expect(auth.getValidToken).toBeDefined();
     expect(auth.setToken).toBeDefined();
