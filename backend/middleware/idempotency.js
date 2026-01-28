@@ -15,7 +15,9 @@ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
  * Start or restart the cleanup interval
+ * Starts the cleanup interval for removing expired idempotency keys
  * @private
+ * @returns {NodeJS.Timeout} The interval timer reference
  */
 function startCleanupInterval() {
   return setInterval(() => {
