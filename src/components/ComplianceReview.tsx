@@ -19,6 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type * as ApiTypes from '@/api-types';
 
 export default function ComplianceReview() {
   const [selectedCheck, setSelectedCheck] = useState(null);
@@ -33,17 +34,17 @@ export default function ComplianceReview() {
 
   const { data: uploadRequests = [] } = useQuery({
     queryKey: ['upload-requests'],
-    queryFn: () => compliant.entities.BrokerUploadRequest.list(),
+    queryFn: () => compliant.entities.BrokerUploadRequest.list() as ApiTypes.BrokerUploadRequest[],
   });
 
   const { data: policyDocs = [] } = useQuery({
     queryKey: ['policy-docs'],
-    queryFn: () => compliant.entities.PolicyDocument.list(),
+    queryFn: () => compliant.entities.PolicyDocument.list() as ApiTypes.PolicyDocument[],
   });
 
   const { data: projects = [] } = useQuery({
     queryKey: ['projects'],
-    queryFn: () => compliant.entities.Project.list(),
+    queryFn: () => compliant.entities.Project.list() as ApiTypes.Project[],
   });
 
   const updateCheckMutation = useMutation({

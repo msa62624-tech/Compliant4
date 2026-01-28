@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { sendEmail } from "@/emailHelper";
 import { notificationLinks } from "@/notificationLinkBuilder";
 import { toast } from "sonner";
+import type * as ApiTypes from '@/api-types';
 
 export default function MessagingCenter() {
   const queryClient = useQueryClient();
@@ -73,13 +74,13 @@ export default function MessagingCenter() {
   // Fetch projects for selection
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
-    queryFn: () => apiClient.entities.Project.list(),
+    queryFn: () => apiClient.entities.Project.list() as ApiTypes.Project[],
   });
 
   // Fetch project subcontractors for recipient selection
   const { data: projectSubs = [] } = useQuery({
     queryKey: ["project-subs", selectedProject],
-    queryFn: () => apiClient.entities.ProjectSubcontractor.list(),
+    queryFn: () => apiClient.entities.ProjectSubcontractor.list() as ApiTypes.ProjectSubcontractor[],
     enabled: !!selectedProject,
   });
 
@@ -87,7 +88,7 @@ export default function MessagingCenter() {
   const { data: allSubs = [] } = useQuery({
     queryKey: ["subcontractors"],
     queryFn: async () => {
-      const contractors = await apiClient.entities.Contractor.list();
+      const contractors = await apiClient.entities.Contractor.list() as ApiTypes.Contractor[];
       return contractors.filter(c => c.contractor_type === "subcontractor");
     },
   });

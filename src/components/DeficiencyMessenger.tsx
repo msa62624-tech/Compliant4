@@ -15,6 +15,7 @@ import {
 import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { useQueryClient } from "@tanstack/react-query";
+import type * as ApiTypes from '@/api-types';
 
 /**
  * DeficiencyMessenger

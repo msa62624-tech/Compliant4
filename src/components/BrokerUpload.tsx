@@ -11,6 +11,7 @@ import { notifyBrokerAssignment } from "@/brokerNotifications";
 import { getBackendBaseUrl } from "@/urlConfig";
 import { validateUrlParams, validate, brokerSchemas } from "@/utils/validation";
 import logger from "@/utils/logger";
+import type * as ApiTypes from '@/api-types';
 
 interface GlobalBroker {
   broker_name: string;
@@ -288,7 +289,7 @@ export default function BrokerUpload(): JSX.Element {
       let coiUpdateSuccess = false;
       let coiUpdateError: Error | null = null;
       try {
-        const allCOIs = await apiClient.entities.GeneratedCOI.list();
+        const allCOIs = await apiClient.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[];
         const subCOIs = allCOIs.filter((c: any) => 
           c.subcontractor_name === subcontractor?.company_name ||
           c.subcontractor_id === subId

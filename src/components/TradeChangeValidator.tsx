@@ -15,6 +15,7 @@ import { compliant } from "@/api/compliantClient";
 import { useQuery } from "@tanstack/react-query";
 import { validatePolicyTradeCoverage, compareTradesCoverage } from "@/policyTradeValidator";
 import TradeSelectionComponent from "@/components/TradeSelectionComponent.tsx";
+import type * as ApiTypes from '@/api-types';
 
 /**
  * TradeChangeValidator
@@ -49,7 +50,7 @@ export default function TradeChangeValidator({
     queryFn: async () => {
       if (!subcontractor?.id) return null;
 
-      const cois = await compliant.entities.GeneratedCOI.list();
+      const cois = await compliant.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[];
       return cois.find(
         (c) =>
           c.subcontractor_id === subcontractor.id &&

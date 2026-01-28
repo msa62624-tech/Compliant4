@@ -15,6 +15,7 @@ import { notificationLinks } from "@/notificationLinkBuilder";
 import { validateCOICompliance } from "@/insuranceRequirements";
 import { notifyCOIDeficiencies, notifyAllStakeholdersCOIApproved } from "@/coiNotifications";
 import UserProfile from "@/components/UserProfile.tsx";
+import type * as ApiTypes from '@/api-types';
 
 /**
  * AdminCOIApprovalDashboard Component
@@ -37,7 +38,7 @@ export default function AdminCOIApprovalDashboard() {
     queryKey: ['allCOIs', filterStatus],
     queryFn: async () => {
       try {
-        const allCois = await apiClient.entities.GeneratedCOI.list();
+        const allCois = await apiClient.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[];
         if (filterStatus === 'all') return allCois;
         if (filterStatus === 'pending') {
           return allCois.filter((c) => c.status === 'pending' || c.status === 'awaiting_admin_review');
@@ -74,7 +75,7 @@ export default function AdminCOIApprovalDashboard() {
     queryKey: ['projects'],
     queryFn: async () => {
       try {
-        const prjs = await apiClient.entities.Project.list();
+        const prjs = await apiClient.entities.Project.list() as ApiTypes.Project[];
         const map = {};
         prjs.forEach((p) => (map[p.id] = p));
         return map;

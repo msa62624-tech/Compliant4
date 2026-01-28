@@ -16,6 +16,7 @@ import { Plus, Pencil, Trash2, FolderOpen, ArrowLeft, Archive } from "lucide-rea
 import { notifyGCProjectCreated } from "@/gcNotifications";
 import { toast } from "sonner";
 import { getBackendBaseUrl } from "@/urlConfig";
+import type * as ApiTypes from '@/api-types';
 
 const US_STATES = [
   { code: 'AL', name: 'Alabama' },
@@ -100,7 +101,7 @@ export default function GCProjects() {
   const { data: gc } = useQuery({
     queryKey: ['gc', gcId],
     queryFn: async () => {
-      const contractors = await compliant.entities.Contractor.list();
+      const contractors = await compliant.entities.Contractor.list() as ApiTypes.Contractor[];
       return contractors.find(c => c.id === gcId);
     },
     enabled: !!gcId,
@@ -116,13 +117,13 @@ export default function GCProjects() {
   // Fetch programs
   const { data: programs = [] } = useQuery({
     queryKey: ['programs'],
-    queryFn: () => compliant.entities.InsuranceProgram.list(),
+    queryFn: () => compliant.entities.InsuranceProgram.list() as ApiTypes.InsuranceProgram[],
   });
 
   // Fetch all project subs for counts
   const { data: allProjectSubs = [] } = useQuery({
     queryKey: ['all-project-subs'],
-    queryFn: () => compliant.entities.ProjectSubcontractor.list(),
+    queryFn: () => compliant.entities.ProjectSubcontractor.list() as ApiTypes.ProjectSubcontractor[],
   });
 
   const createProjectMutation = useMutation({

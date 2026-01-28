@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Trash2, Plus, Edit2 } from "lucide-react";
 import { toast } from "sonner";
+import type * as ApiTypes from '@/api-types';
 
 export default function BrokerInfoForm({ subcontractor, subId }) {
   const queryClient = useQueryClient();

@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import type * as ApiTypes from '@/api-types';
 
 interface User {
   id: string;

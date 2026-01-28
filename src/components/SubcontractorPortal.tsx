@@ -24,6 +24,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import UserProfile from "@/components/UserProfile.tsx";
+import type * as ApiTypes from '@/api-types';
 
 interface User {
   id?: string;
@@ -131,7 +132,7 @@ export default function SubcontractorPortal(): JSX.Element {
       
       if (testingRole === 'sub_mpi') {
         // For testing, find MPI contractor
-        const contractors = await compliant.entities.Contractor.list();
+        const contractors = await compliant.entities.Contractor.list() as ApiTypes.Contractor[];
         return contractors.find(c => c.company_name === 'MPI' && c.contractor_type === 'subcontractor');
       }
       
@@ -154,7 +155,7 @@ export default function SubcontractorPortal(): JSX.Element {
       });
       
       // Get project details for each
-      const allProjects = await compliant.entities.Project.list();
+      const allProjects = await compliant.entities.Project.list() as ApiTypes.Project[];
       return projectSubs.map((ps: ProjectSubcontractor) => {
         const project = allProjects.find((p: Project) => p.id === ps.project_id);
         return { ...ps, project_details: project };
@@ -175,7 +176,7 @@ export default function SubcontractorPortal(): JSX.Element {
   // Get all requirements for my projects
   const { data: allRequirements = [] } = useQuery<SubInsuranceRequirement[]>({
     queryKey: ['all-requirements'],
-    queryFn: () => compliant.entities.SubInsuranceRequirement.list(),
+    queryFn: () => compliant.entities.SubInsuranceRequirement.list() as ApiTypes.SubInsuranceRequirement[],
   });
 
   // Filter projects based on search term

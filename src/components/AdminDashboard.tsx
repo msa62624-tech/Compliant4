@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type * as ApiTypes from '@/api-types';
 
 interface User {
   id?: string;
@@ -151,7 +152,7 @@ export default function AdminDashboard(): JSX.Element {
     queryKey: ["active-cois"],
     queryFn: async (): Promise<GeneratedCOI[]> => {
       try {
-        const cois = await apiClient.entities.GeneratedCOI.list();
+        const cois = await apiClient.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[];
         // Combine filters in single pass for better performance
         return cois.filter((c: GeneratedCOI) => {
           if (c.status !== "active") return false;
@@ -182,7 +183,7 @@ export default function AdminDashboard(): JSX.Element {
         logger.error('Error fetching projects', { context: 'AdminDashboard', error: error.message });
         // Fallback to in-memory compliant client so admin can still view projects
         try {
-          const allProjects = await compliant.entities.Project.list();
+          const allProjects = await compliant.entities.Project.list() as ApiTypes.Project[];
           if (currentUser?.role === 'admin' && currentUser?.email) {
             return allProjects.filter((p: Project) => !p.assigned_admin_email || p.assigned_admin_email === currentUser.email);
           }
@@ -259,7 +260,7 @@ export default function AdminDashboard(): JSX.Element {
     queryKey: ["all-gcs"],
     queryFn: async (): Promise<Contractor[]> => {
       try {
-        const contractors = await apiClient.entities.Contractor.list();
+        const contractors = await apiClient.entities.Contractor.list() as ApiTypes.Contractor[];
         return contractors.filter((c: Contractor) => c.contractor_type === 'general_contractor');
       } catch (error: any) {
         logger.error('Error fetching GCs', { context: 'AdminDashboard', error: error.message });
@@ -274,7 +275,7 @@ export default function AdminDashboard(): JSX.Element {
     queryKey: ["all-trades"],
     queryFn: async (): Promise<Trade[]> => {
       try {
-        return await apiClient.entities.Trade.list();
+        return await apiClient.entities.Trade.list() as ApiTypes.Trade[];
       } catch (error: any) {
         logger.error('Error fetching trades', { context: 'AdminDashboard', error: error.message });
         return [];

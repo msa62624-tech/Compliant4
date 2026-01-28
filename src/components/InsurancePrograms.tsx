@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Pencil, Trash2, Settings, Upload, Sparkles, Search } from "lucide-react";
 
 import { getAvailableTrades } from "@/insuranceRequirements";
+import type * as ApiTypes from '@/api-types';
 
 export default function InsurancePrograms() {
   const queryClient = useQueryClient();
@@ -217,7 +218,7 @@ export default function InsurancePrograms() {
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ['programs'],
-    queryFn: () => apiClient.entities.InsuranceProgram.list(),
+    queryFn: () => apiClient.entities.InsuranceProgram.list() as ApiTypes.InsuranceProgram[],
   });
 
   // Filter programs based on search and status

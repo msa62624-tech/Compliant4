@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import UserProfile from "@/components/UserProfile.tsx";
+import type * as ApiTypes from '@/api-types';
 
 export default function AdminDashboard(): JSX.Element {
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ export default function AdminDashboard(): JSX.Element {
   const { data: activeCOIs = [] } = useQuery({
     queryKey: ['active-cois'],
     queryFn: async () => {
-      const cois = await apiClient.entities.GeneratedCOI.list();
+      const cois = await apiClient.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[];
       return cois.filter(c => c.status === 'active');
     },
     staleTime: 0,

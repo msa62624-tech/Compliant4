@@ -41,6 +41,7 @@ import {
 import StatsCard from "@/components/insurance/StatsCard";
 import AddressAutocomplete from "@/components/AddressAutocomplete.tsx";
 import ZipCodeLookup from "@/components/ZipCodeLookup.tsx";
+import type * as ApiTypes from '@/api-types';
 
 const US_STATES = [
   { code: 'AL', name: 'Alabama' }, { code: 'AK', name: 'Alaska' }, { code: 'AZ', name: 'Arizona' },
@@ -95,7 +96,7 @@ export default function GCDetails() {
     queryFn: async () => {
       if (!gcId) return null;
       try {
-        const contractors = await compliant.entities.Contractor.list();
+        const contractors = await compliant.entities.Contractor.list() as ApiTypes.Contractor[];
         const found = contractors.find(c => c.id === gcId);
         if (!found) {
           console.warn('Contractor not found with ID:', gcId);
@@ -117,7 +118,7 @@ export default function GCDetails() {
 
   const { data: projectSubs = [] } = useQuery({
     queryKey: ['project-subs'],
-    queryFn: () => compliant.entities.ProjectSubcontractor.list(),
+    queryFn: () => compliant.entities.ProjectSubcontractor.list() as ApiTypes.ProjectSubcontractor[],
   });
 
   const updateContractorMutation = useMutation({

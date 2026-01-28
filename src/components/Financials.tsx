@@ -27,6 +27,7 @@ import { format, startOfMonth, subMonths, eachMonthOfInterval, isWithinInterval,
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 import StatsCard from "@/components/insurance/StatsCard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type * as ApiTypes from '@/api-types';
 
 export default function Financials() {
   const [dateRange, setDateRange] = useState({

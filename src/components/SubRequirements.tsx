@@ -21,6 +21,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import type * as ApiTypes from '@/api-types';
 
 export default function SubRequirements() {
   const navigate = useNavigate();

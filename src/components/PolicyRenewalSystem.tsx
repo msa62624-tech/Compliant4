@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { RefreshCw, AlertTriangle, Mail, CheckCircle2, XCircle, Clock, Bell, TrendingUp, Activity, BarChart3, Eye } from "lucide-react";
 import { differenceInDays, addDays, format, startOfMonth, subMonths, eachMonthOfInterval, isWithinInterval, endOfMonth } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import type * as ApiTypes from '@/api-types';
 
 export default function PolicyRenewalSystem(): JSX.Element {
   const queryClient = useQueryClient();
@@ -20,14 +21,14 @@ export default function PolicyRenewalSystem(): JSX.Element {
   const { data: allCOIs = [] } = useQuery({
     queryKey: ['all-active-cois'],
     queryFn: async () => {
-      const cois = await apiClient.entities.GeneratedCOI.list();
+      const cois = await apiClient.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[];
       return cois.filter(c => c.first_coi_uploaded || c.status === 'awaiting_broker_info' || c.status === 'awaiting_broker_upload');
     },
   });
 
   const { data: allProjectSubs = [] } = useQuery({
     queryKey: ['all-project-subs-for-renewal'],
-    queryFn: () => apiClient.entities.ProjectSubcontractor.list(),
+    queryFn: () => apiClient.entities.ProjectSubcontractor.list() as ApiTypes.ProjectSubcontractor[],
   });
 
   const updateCOIMutation = useMutation({

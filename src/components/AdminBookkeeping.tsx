@@ -34,6 +34,7 @@ import {
 import { format, startOfMonth, endOfMonth, startOfYear, isWithinInterval, subMonths, eachMonthOfInterval, differenceInDays } from "date-fns";
 import { BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type * as ApiTypes from '@/api-types';
 
 export default function AdminBookkeeping() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,12 +53,12 @@ export default function AdminBookkeeping() {
 
   const { data: contractors = [] } = useQuery<Contractor[]>({
     queryKey: ['contractors'],
-    queryFn: () => compliant.entities.Contractor.list(),
+    queryFn: () => compliant.entities.Contractor.list() as ApiTypes.Contractor[],
   });
 
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['projects'],
-    queryFn: () => compliant.entities.Project.list(),
+    queryFn: () => compliant.entities.Project.list() as ApiTypes.Project[],
   });
 
   const getContractor = (gcId: string) => {

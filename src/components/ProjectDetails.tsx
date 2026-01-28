@@ -34,6 +34,7 @@ import {
 import SendBrokerRequestDialog from "./SendBrokerRequest";
 import TradeSelectionComponent from "./TradeSelectionComponent";
 import { getBackendBaseUrl } from "@/urlConfig";
+import type * as ApiTypes from '@/api-types';
 
 export default function ProjectDetails(): JSX.Element {
   const navigate = useNavigate();
@@ -114,7 +115,7 @@ export default function ProjectDetails(): JSX.Element {
   const { data: project } = useQuery({
     queryKey: ['project', projectId],
     queryFn: async () => {
-      const projects = await compliant.entities.Project.list();
+      const projects = await compliant.entities.Project.list() as ApiTypes.Project[];
       return projects.find(p => p.id === projectId);
     },
     enabled: !!projectId,
@@ -122,7 +123,7 @@ export default function ProjectDetails(): JSX.Element {
 
   const { data: programs = [] } = useQuery({
     queryKey: ['insurance-programs'],
-    queryFn: () => compliant.entities.InsuranceProgram.list(),
+    queryFn: () => compliant.entities.InsuranceProgram.list() as ApiTypes.InsuranceProgram[],
     enabled: user?.role === 'admin' || user?.role === 'super_admin',
   });
 
@@ -152,7 +153,7 @@ export default function ProjectDetails(): JSX.Element {
 
   const { data: allCOIs = [] } = useQuery({
     queryKey: ['project-cois', projectId],
-    queryFn: () => compliant.entities.GeneratedCOI.list(),
+    queryFn: () => compliant.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[],
     enabled: !!projectId && !project?.needs_admin_setup,
   });
 
