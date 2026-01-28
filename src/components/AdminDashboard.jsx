@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { apiClient } from "@/api/apiClient";
 import { compliant } from "@/api/compliantClient";
 import { useQuery } from "@tanstack/react-query";
+import logger from '../utils/logger';
 import { Shield, Users, FileText, AlertTriangle, CheckCircle2, Clock, Building2, MessageSquare, Search } from "lucide-react";
 import StatsCard from "@/components/insurance/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,7 +55,7 @@ export default function AdminDashboard() {
       try {
         return await apiClient.auth.me();
       } catch (error) {
-        console.error('Failed to fetch current user:', error);
+        logger.error('Failed to fetch current user', { context: 'AdminDashboard', error: error.message });
         return { name: 'Miriam Sabel', email: 'miriamsabel@insuretrack.onmicrosoft.com', role: 'admin' };
       }
     }
@@ -73,7 +74,7 @@ export default function AdminDashboard() {
         }
         return filtered;
       } catch (error) {
-        console.error('❌ Error fetching pending COIs:', error);
+        logger.error('Error fetching pending COIs', { context: 'AdminDashboard', error: error.message });
         throw error;
       }
     },
@@ -94,7 +95,7 @@ export default function AdminDashboard() {
           return true;
         });
       } catch (error) {
-        console.error('❌ Error fetching active COIs:', error);
+        logger.error('Error fetching active COIs', { context: 'AdminDashboard', error: error.message });
         throw error;
       }
     },
@@ -112,7 +113,7 @@ export default function AdminDashboard() {
         }
         return allProjects;
       } catch (error) {
-        console.error('❌ Error fetching projects:', error);
+        logger.error('Error fetching projects', { context: 'AdminDashboard', error: error.message });
         // Fallback to in-memory compliant client so admin can still view projects
         try {
           const allProjects = await compliant.entities.Project.list();
@@ -121,7 +122,7 @@ export default function AdminDashboard() {
           }
           return allProjects;
         } catch (fallbackErr) {
-          console.error('❌ Fallback projects fetch failed:', fallbackErr);
+          logger.error('Fallback projects fetch failed', { context: 'AdminDashboard', error: fallbackErr.message });
           throw error; // Preserve original error for react-query
         }
       }
@@ -140,7 +141,7 @@ export default function AdminDashboard() {
         }
         return subs;
       } catch (error) {
-        console.error('❌ Error fetching subcontractors:', error);
+        logger.error('Error fetching subcontractors', { context: 'AdminDashboard', error: error.message });
         // Fallback to compliant client so tables still render
         try {
           const subs = await compliant.entities.Contractor.filter({ contractor_type: "subcontractor" });
@@ -149,7 +150,7 @@ export default function AdminDashboard() {
           }
           return subs;
         } catch (fallbackErr) {
-          console.error('❌ Fallback subcontractors fetch failed:', fallbackErr);
+          logger.error('Fallback subcontractors fetch failed', { context: 'AdminDashboard', error: fallbackErr.message });
           throw error;
         }
       }
@@ -180,7 +181,7 @@ export default function AdminDashboard() {
         }
         return allMessages;
       } catch (error) {
-        console.error('❌ Error fetching messages:', error);
+        logger.error('Error fetching messages', { context: 'AdminDashboard', error: error.message });
         throw error;
       }
     },
@@ -195,7 +196,7 @@ export default function AdminDashboard() {
         const contractors = await apiClient.entities.Contractor.list();
         return contractors.filter(c => c.contractor_type === 'general_contractor');
       } catch (error) {
-        console.error('❌ Error fetching GCs:', error);
+        logger.error('Error fetching GCs', { context: 'AdminDashboard', error: error.message });
         return [];
       }
     },
@@ -209,7 +210,7 @@ export default function AdminDashboard() {
       try {
         return await apiClient.entities.Trade.list();
       } catch (error) {
-        console.error('❌ Error fetching trades:', error);
+        logger.error('Error fetching trades', { context: 'AdminDashboard', error: error.message });
         return [];
       }
     },

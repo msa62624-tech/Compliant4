@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { apiClient } from "@/api/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import logger from '../utils/logger';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -316,7 +317,7 @@ export default function InsurancePrograms() {
           setTiers([{ name: fallbackTier, id: `tier-${Date.now()}` }]);
         }
       } catch (err) {
-        console.error('Error loading requirements:', err);
+        logger.error('Error loading requirements', { context: 'InsurancePrograms', error: err.message });
         // Fallback to empty requirements
         setRequirements([]);
         setTiers([{ name: 'Tier 1', id: `tier-${Date.now()}` }]);
@@ -357,7 +358,7 @@ export default function InsurancePrograms() {
           insurance_type: req.insurance_type || 'general_liability',
           is_required: req.is_required !== undefined ? req.is_required : true
         })));
-        console.log('✅ Program updated with', requirements.length, 'requirements');
+        logger.info('Program updated', { context: 'InsurancePrograms', requirementsCount: requirements.length });
       } else {
         const created = await createProgramMutation.mutateAsync(data);
         await Promise.all(requirements.map((req) => apiClient.entities.SubInsuranceRequirement.create({ 
@@ -366,7 +367,7 @@ export default function InsurancePrograms() {
           insurance_type: req.insurance_type || 'general_liability',
           is_required: req.is_required !== undefined ? req.is_required : true
         })));
-        console.log('✅ Program created with ID', created.id, 'and', requirements.length, 'requirements');
+        logger.info('Program created', { context: 'InsurancePrograms', programId: created.id, requirementsCount: requirements.length });
       }
       
       // Refresh the data
@@ -380,7 +381,7 @@ export default function InsurancePrograms() {
       setRequirements([]);
       setTiers([]);
     } catch (err) {
-      console.error('Error saving program:', err);
+      logger.error('Error saving program', { context: 'InsurancePrograms', error: err.message });
       alert('Failed to save program. Check console for details.');
     }
   };
@@ -410,7 +411,7 @@ export default function InsurancePrograms() {
           await autoImportAndPopulate(parsed, { clearPreview: false });
           setIsDialogOpen(true);
         } catch (err) {
-          console.error(err);
+          logger.error('Failed to parse PDF', { context: 'InsurancePrograms', error: err.message });
           setParseError('Failed to parse PDF. Please verify the file is readable.');
         } finally {
           setIsParsing(false);
@@ -423,7 +424,7 @@ export default function InsurancePrograms() {
       };
       reader.readAsDataURL(file);
     } catch (err) {
-      console.error(err);
+      logger.error('Failed to process file', { context: 'InsurancePrograms', error: err.message });
       setParseError('Failed to process the file.');
       setIsParsing(false);
     }
@@ -438,7 +439,7 @@ export default function InsurancePrograms() {
       setParseError('');
       alert('Review the imported data below and click Create Program to save.');
     } catch (err) {
-      console.error('Import load error:', err);
+      logger.error('Import load error', { context: 'InsurancePrograms', error: err.message });
       setParseError('Failed to load imported program into the form.');
     }
   };
@@ -484,7 +485,7 @@ export default function InsurancePrograms() {
       }
       setParseError('');
     } catch (err) {
-      console.error('Auto-import failed:', err);
+      logger.error('Auto-import failed', { context: 'InsurancePrograms', error: err.message });
       setParseError('Failed to auto-populate from PDF. Please review manually.');
     }
   };
@@ -625,7 +626,7 @@ export default function InsurancePrograms() {
                                   const url = URL.createObjectURL(blob);
                                   window.open(url, '_blank');
                                 } catch (err) {
-                                  console.error('Failed to open PDF', err);
+                                  logger.error('Failed to open PDF', { context: 'InsurancePrograms', error: err.message });
                                   alert('Could not open PDF');
                                 }
                               }}
@@ -909,7 +910,7 @@ export default function InsurancePrograms() {
                             }));
                           }
                         } catch (err) {
-                          console.error('Failed to upload hold harmless template', err);
+                          logger.error('Failed to upload hold harmless template', { context: 'InsurancePrograms', error: err.message });
                           alert('Could not upload the hold harmless template.');
                         } finally {
                           setIsUploading(false);

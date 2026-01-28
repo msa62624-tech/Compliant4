@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { createPageUrl } from "@/utils";
 import { createEmailTemplate, getBrokerCOIConfirmationEmail } from "@/emailTemplates";
 import { escapeHtml } from "@/utils/htmlEscaping";
+import logger from '../utils/logger';
 
 export default function BrokerUploadCOI() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -82,7 +83,7 @@ export default function BrokerUploadCOI() {
         if (!res.ok) return null;
         return await res.json();
       } catch (error) {
-        console.error('Error fetching COI:', error);
+        logger.error('Error fetching COI', { context: 'BrokerUploadCOI', error: error.message });
         return null;
       }
     },
@@ -290,7 +291,7 @@ export default function BrokerUploadCOI() {
       const result = await resp.json();
       return result?.status === 'success' ? (result.output || null) : null;
     } catch (e) {
-      console.warn('COI data extraction failed, continuing:', e?.message || e);
+      logger.warn('COI data extraction failed, continuing', { context: 'BrokerUploadCOI', error: e?.message || e });
       return null;
     }
   };
@@ -363,7 +364,7 @@ export default function BrokerUploadCOI() {
       const result = await resp.json();
       return result?.status === 'success' ? (result.output || null) : null;
     } catch (e) {
-      console.warn('Policy data extraction failed, continuing:', e?.message || e);
+      logger.warn('Policy data extraction failed, continuing', { context: 'BrokerUploadCOI', error: e?.message || e });
       return null;
     }
   };
@@ -468,7 +469,7 @@ export default function BrokerUploadCOI() {
           });
         }
       } catch (e) {
-        console.warn('⚠️ Skipping ProjectSubcontractor update (public portal):', e?.message || e);
+        logger.warn('Skipping ProjectSubcontractor update (public portal)', { context: 'BrokerUploadCOI', error: e?.message || e });
       }
 
       // Step 6: Notify admins
@@ -495,7 +496,7 @@ export default function BrokerUploadCOI() {
             }
           }
         } catch (fallbackErr) {
-          console.warn('⚠️ Fallback admin emails fetch failed:', fallbackErr);
+          logger.warn('Fallback admin emails fetch failed', { context: 'BrokerUploadCOI', error: fallbackErr.message });
         }
       }
 
@@ -519,7 +520,7 @@ export default function BrokerUploadCOI() {
           });
           _emailsSent++;
         } catch (emailError) {
-          console.error('Failed to email admin:', adminEmail, emailError.message);
+          logger.error('Failed to email admin', { context: 'BrokerUploadCOI', adminEmail, error: emailError.message });
         }
       }
 
@@ -528,7 +529,7 @@ export default function BrokerUploadCOI() {
       setIsUploading(false);
       setCurrentStep(2);
     } catch (error) {
-      console.error('❌ Upload error:', error);
+      logger.error('Upload error', { context: 'BrokerUploadCOI', error: error.message });
       setError(`Upload failed: ${error.message || 'Unknown error'}`);
       setIsUploading(false);
       setUploadProgress('');
@@ -630,7 +631,7 @@ export default function BrokerUploadCOI() {
 
       alert(`✅ ${policyType.toUpperCase().replace('_', ' ')} uploaded successfully!`);
     } catch (error) {
-      console.error('Policy upload error:', error);
+      logger.error('Policy upload error', { context: 'BrokerUploadCOI', policyType, error: error.message });
       setError(`Failed to upload ${policyType}: ${error.message || 'Unknown error'}`);
       setIsUploading(false);
       setUploadProgress('');
@@ -641,7 +642,7 @@ export default function BrokerUploadCOI() {
     setIsDrawing(true);
     const canvas = canvasRef.current;
     if (!canvas) {
-      console.error('❌ Canvas ref not found');
+      logger.error('Canvas ref not found', { context: 'BrokerUploadCOI' });
       return;
     }
     const ctx = canvas.getContext('2d');
@@ -704,7 +705,7 @@ export default function BrokerUploadCOI() {
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     } else {
-      console.error('❌ Canvas not found for clear');
+      logger.error('Canvas not found for clear', { context: 'BrokerUploadCOI' });
     }
   };
 
@@ -712,14 +713,14 @@ export default function BrokerUploadCOI() {
     try {
       if (!coiRecord || !coiRecord.id) {
         const errorMsg = 'COI record not loaded. Please refresh the page.';
-        console.error('❌', errorMsg);
+        logger.error(errorMsg, { context: 'BrokerUploadCOI' });
         setError(errorMsg);
         throw new Error(errorMsg);
       }
       
       if (!brokerSignature) {
         const errorMsg = 'Please add your signature before submitting.';
-        console.error('❌', errorMsg);
+        logger.error(errorMsg, { context: 'BrokerUploadCOI' });
         setError(errorMsg);
         return;
       }
@@ -734,7 +735,7 @@ export default function BrokerUploadCOI() {
       
       // Only check if this broker manages GL - if not, skip GL validation
       if (currentBrokerPolicies.includes('gl') && !hasGLPolicy) {
-        console.error('❌ GL validation failed - broker manages GL but no GL policy uploaded');
+        logger.error('GL validation failed - broker manages GL but no GL policy uploaded', { context: 'BrokerUploadCOI' });
         setIsUploading(false);
         setError('Please upload the General Liability (GL) policy PDF in Step 2 before continuing.');
         return;
@@ -746,7 +747,7 @@ export default function BrokerUploadCOI() {
       
       // Only check if this broker manages Umbrella - if not, skip Umbrella validation
       if (currentBrokerPolicies.includes('umbrella') && !hasUmbrellaPolicy) {
-        console.error('❌ Umbrella validation failed - broker manages Umbrella but no Umbrella policy uploaded');
+        logger.error('Umbrella validation failed - broker manages Umbrella but no Umbrella policy uploaded', { context: 'BrokerUploadCOI' });
         setIsUploading(false);
         setError('Please upload the Umbrella/Excess Liability policy PDF in Step 2 before continuing.');
         return;
@@ -820,7 +821,7 @@ export default function BrokerUploadCOI() {
                 throw new Error('Signature data is empty');
               }
             } catch (fetchError) {
-              console.error('❌ Signature blob conversion failed:', fetchError);
+              logger.error('Signature blob conversion failed', { context: 'BrokerUploadCOI', error: fetchError.message });
               throw new Error(`Invalid signature data: ${fetchError.message}`);
             }
             
@@ -842,7 +843,7 @@ export default function BrokerUploadCOI() {
               } catch (e) {
                 // Use default error message
               }
-              console.error('❌ Signature upload failed:', errorMessage);
+              logger.error('Signature upload failed', { context: 'BrokerUploadCOI', error: errorMessage });
               throw new Error(errorMessage);
             }
             
@@ -855,17 +856,17 @@ export default function BrokerUploadCOI() {
             const result = await sigRes.json();
             const sigUrl = result?.file_url || result?.url;
             if (!sigUrl) {
-              console.error('❌ No URL in response:', result);
+              logger.error('No URL in response', { context: 'BrokerUploadCOI', result });
               throw new Error('Signature upload failed - no URL returned from server');
             }
             signatureUrls.broker_signature_url = sigUrl;
           }
         } catch (sigError) {
-          console.error('❌ Signature upload error:', sigError);
+          logger.error('Signature upload error', { context: 'BrokerUploadCOI', error: sigError.message });
           throw new Error(`Signature upload failed: ${sigError.message}`);
         }
       } else {
-        console.warn('⚠️ No broker signature provided');
+        logger.warn('No broker signature provided', { context: 'BrokerUploadCOI' });
       }
 
       setUploadProgress('Updating certificate status...');
@@ -942,15 +943,15 @@ export default function BrokerUploadCOI() {
                 });
               }
             } else {
-              console.warn('⚠️ AI analysis returned non-JSON response');
+              logger.warn('AI analysis returned non-JSON response', { context: 'BrokerUploadCOI' });
               setError('Policy analysis returned invalid response. Certificate uploaded but analysis incomplete.');
             }
           } else {
-            console.warn('⚠️ AI analysis request failed:', policyAnalysisRes.status);
+            logger.warn('AI analysis request failed', { context: 'BrokerUploadCOI', status: policyAnalysisRes.status });
             setError('Policy analysis failed. Certificate uploaded but you may need to request manual review.');
           }
         } catch (analysisError) {
-          console.warn('⚠️ AI analysis failed (continuing):', analysisError);
+          logger.warn('AI analysis failed (continuing)', { context: 'BrokerUploadCOI', error: analysisError.message });
           setError('Policy analysis encountered an error. Certificate uploaded but analysis incomplete.');
           // Don't fail the whole submission if analysis fails
         }
@@ -1000,7 +1001,7 @@ export default function BrokerUploadCOI() {
             if (contentType && contentType.includes('application/json')) {
               const _emailResult = await emailRes.json();
             } else {
-              console.warn('⚠️ Broker email returned non-JSON response');
+              logger.warn('Broker email returned non-JSON response', { context: 'BrokerUploadCOI' });
             }
           } else {
             // Try to parse error as JSON, but handle non-JSON responses
@@ -1008,18 +1009,18 @@ export default function BrokerUploadCOI() {
               const contentType = emailRes.headers.get('content-type');
               if (contentType && contentType.includes('application/json')) {
                 const errorData = await emailRes.json();
-                console.warn('⚠️ Broker email failed:', errorData);
+                logger.warn('Broker email failed', { context: 'BrokerUploadCOI', errorData });
               } else {
                 const errorText = await emailRes.text();
-                console.warn('⚠️ Broker email failed:', errorText);
+                logger.warn('Broker email failed', { context: 'BrokerUploadCOI', errorText });
               }
             } catch (_parseError) {
-              console.warn('⚠️ Broker email failed with status:', emailRes.status);
+              logger.warn('Broker email failed with status', { context: 'BrokerUploadCOI', status: emailRes.status });
             }
           }
         }
       } catch (brokerEmailError) {
-        console.warn('⚠️ Failed to send broker confirmation email:', brokerEmailError?.message || brokerEmailError);
+        logger.warn('Failed to send broker confirmation email', { context: 'BrokerUploadCOI', error: brokerEmailError?.message || brokerEmailError });
       }
       
       let adminEmailsToNotify = coiRecord?.admin_emails || [];
@@ -1031,7 +1032,7 @@ export default function BrokerUploadCOI() {
           // Optimized: filter first to remove falsy emails
           adminEmailsToNotify = admins.filter(a => a.email).map(a => a.email);
         } catch (error) {
-          console.warn('⚠️ Could not fetch admin emails:', error);
+          logger.warn('Could not fetch admin emails', { context: 'BrokerUploadCOI', error: error.message });
         }
       }
 
@@ -1046,12 +1047,12 @@ export default function BrokerUploadCOI() {
             }
           }
         } catch (fallbackErr) {
-          console.warn('⚠️ Fallback admin emails fetch failed:', fallbackErr);
+          logger.warn('Fallback admin emails fetch failed', { context: 'BrokerUploadCOI', error: fallbackErr.message });
         }
       }
 
       if (adminEmailsToNotify.length === 0) {
-        console.warn('⚠️ No admin emails found');
+        logger.warn('No admin emails found', { context: 'BrokerUploadCOI' });
         // If broker provided manual admin emails, use them
         const manualList = (manualAdminEmails || '')
           .split(',')
@@ -1187,10 +1188,10 @@ export default function BrokerUploadCOI() {
               _emailsSent++;
             } else {
               const errorData = await adminEmailRes.json();
-              console.error('❌ Failed to email admin', adminEmail, ':', errorData);
+              logger.error('Failed to email admin', { context: 'BrokerUploadCOI', adminEmail, errorData });
             }
           } catch (emailError) {
-            console.error('❌ Failed to email admin', adminEmail, ':', emailError.message || emailError);
+            logger.error('Failed to email admin', { context: 'BrokerUploadCOI', adminEmail, error: emailError.message || emailError });
           }
         }
         
@@ -1216,11 +1217,11 @@ export default function BrokerUploadCOI() {
                 is_read: false
               });
             } catch (e) {
-              console.warn('⚠️ Skipping notification for', adminEmail, '(public portal)');
+              logger.warn('Skipping notification for (public portal)', { context: 'BrokerUploadCOI', adminEmail });
             }
           }
         } catch (notifError) {
-          console.warn('⚠️ Failed to create notifications (public portal):', notifError?.message || notifError);
+          logger.warn('Failed to create notifications (public portal)', { context: 'BrokerUploadCOI', error: notifError?.message || notifError });
         }
       }
 
@@ -1248,19 +1249,18 @@ export default function BrokerUploadCOI() {
   InsureTrack Team`
             });
           } catch (emailError) {
-            console.error('❌ Failed to email GC', project.gc_email, ':', emailError);
+            logger.error('Failed to email GC', { context: 'BrokerUploadCOI', gcEmail: project.gc_email, error: emailError.message });
           }
         }
       } catch (projError) {
-        console.warn('⚠️ Could not fetch project for GC notification (public portal):', projError?.message || projError);
+        logger.warn('Could not fetch project for GC notification (public portal)', { context: 'BrokerUploadCOI', error: projError?.message || projError });
       }
 
       setIsComplete(true);
       setUploadProgress('');
       setIsUploading(false);
     } catch (error) {
-      console.error('❌ Error submitting certificate:', error);
-      console.error('❌ Error stack:', error.stack);
+      logger.error('Error submitting certificate', { context: 'BrokerUploadCOI', error: error.message, stack: error.stack });
       const errorMsg = error.message || 'An unknown error occurred';
       setError(`Failed to submit: ${errorMsg}`);
       alert(`Failed to submit: ${errorMsg}`);

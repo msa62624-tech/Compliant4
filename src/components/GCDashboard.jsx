@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import logger from '../utils/logger';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +45,7 @@ export default function GCDashboard() {
         const allProjects = await response.json();
         return allProjects.filter(p => p.gc_id === gcId);
       } catch (err) {
-        console.error('Error fetching projects:', err);
+        logger.error('Error fetching projects', { context: 'GCDashboard', error: err.message });
         return [];
       }
     },
@@ -73,7 +74,7 @@ export default function GCDashboard() {
         const projectIds = new Set(projects.map(p => p.id));
         return allSubs.filter(ps => projectIds.has(ps.project_id));
       } catch (err) {
-        console.error('Error fetching subcontractors:', err);
+        logger.error('Error fetching subcontractors', { context: 'GCDashboard', error: err.message });
         return [];
       }
     },
@@ -102,7 +103,7 @@ export default function GCDashboard() {
         const projectIds = new Set(projects.map(p => p.id));
         return allCois.filter(coi => projectIds.has(coi.project_id));
       } catch (err) {
-        console.error('Error fetching COIs:', err);
+        logger.error('Error fetching COIs', { context: 'GCDashboard', error: err.message });
         return [];
       }
     },
@@ -146,7 +147,7 @@ export default function GCDashboard() {
     const relatedCois = [...subCois, ...projectSubCois];
     
     if (relatedCois.length === 0) {
-      console.log(`[${sub.subcontractor_name}] No COIs found, returning: ${sub.compliance_status || 'pending_broker'}`);
+      logger.info('No COIs found, returning status', { context: 'GCDashboard', subcontractor: sub.subcontractor_name, status: sub.compliance_status || 'pending_broker' });
       return sub.compliance_status || 'pending_broker';
     }
     
@@ -157,7 +158,7 @@ export default function GCDashboard() {
       return bDate - aDate;
     })[0];
     
-    console.log(`[${sub.subcontractor_name}] Found COI with status: ${latestCoi.status}`, latestCoi);
+    logger.info('Found COI with status', { context: 'GCDashboard', subcontractor: sub.subcontractor_name, status: latestCoi.status, coiId: latestCoi.id });
     
     // Map COI status to compliance status
     if (latestCoi.status === 'approved' || latestCoi.status === 'compliant') {
@@ -206,22 +207,11 @@ export default function GCDashboard() {
 
   // Log COI data for debugging
   useEffect(() => {
-    console.log('🔍 GC Dashboard Debug:', {
-      gcId,
-      projectsCount: projects.length,
-      coisCount: cois.length,
-      subsCount: projectSubs.length,
-      searchTerm,
-      searchType,
-      filteredProjectsCount: filteredProjects.length,
-      coisData: cois.slice(0, 3) // First 3 COIs
-    });
+    logger.info('GC Dashboard Debug', { context: 'GCDashboard', gcId, projectsCount: projects.length, coisCount: cois.length, subsCount: projectSubs.length, searchTerm, searchType, filteredProjectsCount: filteredProjects.length });
   }, [cois, projects, projectSubs, gcId, searchTerm, searchType, filteredProjects]);
 
   if (!gcId) {
-    console.warn('❌ No GC ID provided in URL');
-    console.warn('   Full URL:', window.location.href);
-    console.warn('   Search params:', window.location.search);
+    logger.warn('No GC ID provided in URL', { context: 'GCDashboard', fullURL: window.location.href, searchParams: window.location.search });
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
@@ -410,7 +400,7 @@ export default function GCDashboard() {
                         ps.subcontractor_name?.toLowerCase().includes(searchLower)
                       );
                       
-                      console.log(`Project ${project.project_name}: ${matchingSubs.length} matching subs`);
+                      logger.info('Project matching subs', { context: 'GCDashboard', projectName: project.project_name, matchingSubsCount: matchingSubs.length });
                       
                       return matchingSubs.map((sub) => {
                         const status = getActualStatus(sub);
