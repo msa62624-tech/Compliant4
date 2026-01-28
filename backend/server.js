@@ -22,7 +22,7 @@ import { upload } from './config/upload.js';
 // Import middleware
 import { apiLimiter, authLimiter, uploadLimiter, emailLimiter, publicApiLimiter } from './middleware/rateLimiting.js';
 import { sendError, sendSuccess, handleValidationErrors } from './middleware/validation.js';
-import { authenticateToken, requireAdmin, initializeAuthMiddleware, optionalAuthentication } from './middleware/auth.js';
+import { authenticateToken, requireAdmin, initializeAuthMiddleware, optionalAuthentication, blockInternalEntities } from './middleware/auth.js';
 import logger from './config/logger.js';
 import { correlationId, requestLogger, errorLogger } from './middleware/requestLogger.js';
 import { logAuth, AuditEventType } from './middleware/auditLogger.js';
@@ -1735,7 +1735,7 @@ app.post('/auth/reset-password',
 
 // Entity endpoints (clean rebuild)
 // Get archived entities (Admin only) - Must be before generic route
-app.get('/entities/:entityName/archived', authenticateToken, requireAdmin, (req, res) => {
+app.get('/entities/:entityName/archived', authenticateToken, blockInternalEntities, requireAdmin, (req, res) => {
   const { entityName } = req.params;
   if (!entities[entityName]) {
     return sendError(res, 404, `Entity ${entityName} not found`);
@@ -1745,7 +1745,7 @@ app.get('/entities/:entityName/archived', authenticateToken, requireAdmin, (req,
 });
 
 // List or read one
-app.get('/entities/:entityName', authenticateToken, (req, res) => {
+app.get('/entities/:entityName', authenticateToken, blockInternalEntities, (req, res) => {
   const { entityName } = req.params;
   const { sort, id, includeArchived } = req.query;
   if (!entities[entityName]) {
@@ -1780,7 +1780,7 @@ app.get('/entities/:entityName', authenticateToken, (req, res) => {
 });
 
 // Query via querystring
-app.get('/entities/:entityName/query', authenticateToken, (req, res) => {
+app.get('/entities/:entityName/query', authenticateToken, blockInternalEntities, (req, res) => {
   const { entityName } = req.params;
   if (!entities[entityName]) {
     return res.status(404).json({ error: `Entity ${entityName} not found` });
@@ -1818,7 +1818,7 @@ app.get('/entities/:entityName/query', authenticateToken, (req, res) => {
 });
 
 // Create
-app.post('/entities/:entityName', authenticateToken, idempotency(), async (req, res) => {
+app.post('/entities/:entityName', authenticateToken, blockInternalEntities, idempotency(), async (req, res) => {
   const { entityName } = req.params;
   const data = req.body;
   if (!entities[entityName]) {
@@ -1884,7 +1884,7 @@ app.post('/entities/:entityName', authenticateToken, idempotency(), async (req, 
 });
 
 // Get single entity by ID
-app.get('/entities/:entityName/:id', authenticateToken, (req, res) => {
+app.get('/entities/:entityName/:id', authenticateToken, blockInternalEntities, (req, res) => {
   const { entityName, id } = req.params;
   const { includeArchived } = req.query;
   
@@ -1901,7 +1901,7 @@ app.get('/entities/:entityName/:id', authenticateToken, (req, res) => {
 });
 
 // Update (PATCH - partial update)
-app.patch('/entities/:entityName/:id', authenticateToken, (req, res) => {
+app.patch('/entities/:entityName/:id', authenticateToken, blockInternalEntities, (req, res) => {
   const { entityName, id } = req.params;
   const updates = req.body || {};
   if (!entities[entityName]) {
@@ -1924,7 +1924,7 @@ app.patch('/entities/:entityName/:id', authenticateToken, (req, res) => {
 });
 
 // Update (PUT - full replacement, same implementation as PATCH for compatibility)
-app.put('/entities/:entityName/:id', authenticateToken, (req, res) => {
+app.put('/entities/:entityName/:id', authenticateToken, blockInternalEntities, (req, res) => {
   const { entityName, id } = req.params;
   const updates = req.body || {};
   if (!entities[entityName]) {
@@ -1947,7 +1947,7 @@ app.put('/entities/:entityName/:id', authenticateToken, (req, res) => {
 });
 
 // Query via POST body
-app.post('/entities/:entityName/query', authenticateToken, (req, res) => {
+app.post('/entities/:entityName/query', authenticateToken, blockInternalEntities, (req, res) => {
   const { entityName } = req.params;
   if (!entities[entityName]) {
     return res.status(404).json({ error: `Entity ${entityName} not found` });
@@ -1983,7 +1983,7 @@ app.post('/entities/:entityName/query', authenticateToken, (req, res) => {
   res.json(data);
 });
 
-app.delete('/entities/:entityName/:id', authenticateToken, (req, res) => {
+app.delete('/entities/:entityName/:id', authenticateToken, blockInternalEntities, (req, res) => {
   const { entityName, id } = req.params;
   
   if (!entities[entityName]) {
@@ -2013,7 +2013,7 @@ app.delete('/entities/:entityName/:id', authenticateToken, (req, res) => {
 });
 
 // Archive/Unarchive endpoints (Admin only)
-app.post('/entities/:entityName/:id/archive', authenticateToken, requireAdmin, (req, res) => {
+app.post('/entities/:entityName/:id/archive', authenticateToken, blockInternalEntities, requireAdmin, (req, res) => {
   const { entityName, id } = req.params;
   const { reason } = req.body;
   
@@ -2063,7 +2063,7 @@ app.post('/entities/:entityName/:id/archive', authenticateToken, requireAdmin, (
   sendSuccess(res, entities[entityName][index]);
 });
 
-app.post('/entities/:entityName/:id/unarchive', authenticateToken, requireAdmin, (req, res) => {
+app.post('/entities/:entityName/:id/unarchive', authenticateToken, blockInternalEntities, requireAdmin, (req, res) => {
   const { entityName, id } = req.params;
   
   if (!entities[entityName]) {
