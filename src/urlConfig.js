@@ -106,3 +106,32 @@ export function createSubcontractorDashboardLink(subId) {
   const baseUrl = getFrontendBaseUrl();
   return `${baseUrl}/subcontractor-dashboard?id=${subId}`;
 }
+
+/**
+ * Create a broker upload COI link with token and action
+ * @param {string} coiToken - COI token for authentication
+ * @param {string} action - Action type (default: 'sign')
+ * @param {number} step - Step number (default: 3)
+ */
+export function createBrokerUploadCOILink(coiToken, action = 'sign', step = 3) {
+  const baseUrl = getFrontendBaseUrl();
+  return `${baseUrl}/broker-upload-coi?token=${coiToken}&action=${action}&step=${step}`;
+}
+
+/**
+ * Create a COI review link
+ * @param {string} coiId - COI ID
+ */
+export function createCOIReviewLink(coiId) {
+  const baseUrl = getFrontendBaseUrl();
+  return `${baseUrl}/coi-review?id=${coiId}`;
+}
+
+/**
+ * Create a project details link
+ * @param {string} projectId - Project ID
+ */
+export function createProjectDetailsLink(projectId) {
+  const baseUrl = getFrontendBaseUrl();
+  return `${baseUrl}/project-details?id=${projectId}`;
+}
