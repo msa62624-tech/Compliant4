@@ -137,7 +137,7 @@ export async function notifySubPolicyRenewal(subcontractor, oldPolicy, newPolicy
   await sendEmailWithErrorHandling({
     to: subcontractor.email,
     subject: `Policy Renewed - ${formatInsuranceType(newPolicy.insurance_type)}`,
-    body: `Dear ${subcontractor.contact_person || subcontractor.company_name},
+    body: `${createEmailGreeting('subcontractor', subcontractor.contact_person || subcontractor.company_name)}
 
 Great news! Your insurance policy has been renewed.
 

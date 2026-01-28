@@ -88,7 +88,7 @@ async function notifySubPolicyExpiring(document, subcontractor, daysUntilExpiry)
   await sendEmailWithErrorHandling({
     to: subcontractor.email,
     subject,
-    body: `Dear ${subcontractor.contact_person || subcontractor.company_name},
+    body: `${createEmailGreeting('subcontractor', subcontractor.contact_person || subcontractor.company_name)}
 
 Your ${formatInsuranceType(document.insurance_type)} policy is expiring ${timeframe}.
 
