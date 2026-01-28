@@ -33,15 +33,15 @@ The system tracks hold harmless agreements through a multi-step signature workfl
 └──────────┬──────────┘
            ↓
 ┌─────────────────────┐
-│   signed_by_sub     │ → Subcontractor has signed and uploaded agreement
+│   signed_by_sub     │ → Subcontractor has signed, awaiting broker signature
 └──────────┬──────────┘
            ↓
 ┌─────────────────────┐
-│pending_gc_signature │ → GC needs to review and countersign
+│pending_gc_signature │ → Broker has signed, GC needs to countersign
 └──────────┬──────────┘
            ↓
 ┌─────────────────────┐
-│      signed         │ → Fully executed (both parties signed)
+│      signed         │ → Fully executed (all parties signed)
 └─────────────────────┘
 ```
 
@@ -50,8 +50,8 @@ The system tracks hold harmless agreements through a multi-step signature workfl
 | Status | Description | Next Action Required |
 |--------|-------------|---------------------|
 | `pending_signature` | Agreement generated and ready for subcontractor | Subcontractor must download, sign, and upload |
-| `signed_by_sub` | Subcontractor has signed and uploaded | GC must review and countersign |
-| `pending_gc_signature` | Awaiting GC signature | GC must sign the agreement |
+| `signed_by_sub` | Subcontractor has signed and uploaded | Broker must review and sign |
+| `pending_gc_signature` | Broker has signed, awaiting GC signature | GC must sign the agreement |
 | `signed` | Fully executed agreement | Work can proceed - no further action needed |
 
 ---
@@ -112,11 +112,51 @@ The system tracks hold harmless agreements through a multi-step signature workfl
    - Saves signed agreement with signature embedded
    - `hold_harmless_sub_signed_date` → entered date
    - `hold_harmless_status` → `signed_by_sub`
-9. **GC is notified via email** to digitally sign
+9. **Broker is notified via email** to digitally sign
+
+**Email to Broker Includes:**
+- Subcontractor name and trade
+- Project name
+- Link to digitally sign agreement
+- Portal link to broker dashboard
+
+**Important:** No download/upload required - all signing done within the portal using digital signature
+
+---
+
+### Step 3: Broker Reviews and Signs (Digital Signature)
+
+**When:** After receiving notification that subcontractor signed
+
+**Who:** Insurance Broker
+
+**Portal Location:** Broker Dashboard → Certificates → Pending Hold Harmless Signatures
+
+**What to do:**
+1. Log into Broker Portal
+2. Navigate to the certificate request
+3. Click on "Hold Harmless Agreement" pending signature
+4. Review the subcontractor-signed agreement on screen:
+   - Address (auto-filled)
+   - Additional insureds (auto-filled)
+   - GC information (auto-filled)
+   - Owner information (auto-filled)
+   - Subcontractor's signature
+5. **Complete signature form within portal:**
+   - Enter full legal name of entity (broker company name)
+   - Enter signature date
+   - Add digital signature (type name or draw signature)
+6. Click "Submit Signature"
+7. System updates:
+   - Saves agreement with both sub and broker signatures
+   - `hold_harmless_broker_signed_date` → entered date
+   - `hold_harmless_status` → `pending_gc_signature`
+8. **GC is notified via email** to digitally sign
 
 **Email to GC Includes:**
 - Subcontractor name and trade
 - Project name
+- Broker has signed confirmation
 - Link to digitally sign agreement
 - Portal link to GC project view
 
@@ -124,9 +164,9 @@ The system tracks hold harmless agreements through a multi-step signature workfl
 
 ---
 
-### Step 3: GC Reviews and Countersigns (Digital Signature)
+### Step 4: GC Reviews and Countersigns (Digital Signature)
 
-**When:** After receiving notification that subcontractor signed
+**When:** After receiving notification that broker signed
 
 **Who:** General Contractor
 
@@ -136,8 +176,8 @@ The system tracks hold harmless agreements through a multi-step signature workfl
 1. Log into GC Portal
 2. Navigate to the project
 3. Review the **Pending Hold Harmless Signatures** section
-4. Click to view the subcontractor-signed agreement
-5. **Verify** the subcontractor's signature and information
+4. Click to view the subcontractor and broker-signed agreement
+5. **Verify** the subcontractor's and broker's signatures and information
 6. Click **"Sign Hold Harmless Agreement"** button
 7. **Complete signature form within portal:**
    - Enter full legal name of entity (GC company name)
@@ -145,7 +185,7 @@ The system tracks hold harmless agreements through a multi-step signature workfl
    - Add digital signature (type name or draw signature)
 8. Click "Submit Signature"
 9. System updates:
-   - Saves fully signed agreement with both signatures
+   - Saves fully signed agreement with all three signatures
    - `hold_harmless_gc_signed_date` → entered date
    - `hold_harmless_status` → `signed`
    - **Project marked as compliant**
@@ -164,7 +204,7 @@ The system tracks hold harmless agreements through a multi-step signature workfl
 
 ---
 
-### Step 4: Work Can Proceed
+### Step 5: Work Can Proceed
 
 **When:** After GC signs (status = `signed`)
 
@@ -190,8 +230,9 @@ The system tracks hold harmless agreements through a multi-step signature workfl
 - ⏱️ Complete within specified timeframe (typically 3-5 business days)
 
 ### General Contractor (GC)
-- ✅ Review subcontractor-signed agreement in portal
+- ✅ Review subcontractor and broker-signed agreement in portal
 - ✅ Verify all information is correct
+- ✅ Verify broker has signed before GC signs
 - ✅ Enter full legal entity name
 - ✅ Add digital signature within portal
 - ✅ Enter signature date
@@ -205,12 +246,18 @@ The system tracks hold harmless agreements through a multi-step signature workfl
 - ✅ Monitor signature progress on dashboard
 - ✅ Track compliance status
 - ✅ Send reminders if signatures are delayed
-- ✅ Verify project marked compliant after both signatures
+- ✅ Verify project marked compliant after all three signatures
 
 ### Broker
+- ✅ Log into Broker Portal when notified
+- ✅ Review the subcontractor-signed agreement
+- ✅ Verify all information is correct
+- ✅ Enter full legal entity name (broker company name)
+- ✅ Add digital signature within portal
+- ✅ Enter signature date
+- ✅ Submit signature (no download/upload needed)
+- ⏱️ Review and sign within 2-3 business days of receiving notification
 - ℹ️ Receives notification when agreement is fully executed
-- ℹ️ Can view agreement status for their clients
-- ℹ️ No signature required from broker
 
 ---
 
@@ -225,11 +272,15 @@ The system tracks hold harmless agreements through a multi-step signature workfl
   "hold_harmless_template_name": "Hold Harmless - BuildCorp - Project XYZ.pdf",
   
   // Status Tracking
-  "hold_harmless_status": "signed_by_sub",  // pending_signature | signed_by_sub | pending_gc_signature | signed
+  "hold_harmless_status": "pending_gc_signature",  // pending_signature | signed_by_sub | pending_gc_signature | signed
   
   // Subcontractor Signature
   "hold_harmless_sub_signed_url": "https://storage.../signed-sub-abc123.pdf",
   "hold_harmless_sub_signed_date": "2026-01-20T15:30:00.000Z",
+  
+  // Broker Signature
+  "hold_harmless_broker_signed_url": "https://storage.../signed-broker-abc123.pdf",
+  "hold_harmless_broker_signed_date": "2026-01-20T18:45:00.000Z",
   
   // GC Signature
   "hold_harmless_gc_signed_date": "2026-01-21T10:15:00.000Z",
@@ -238,6 +289,7 @@ The system tracks hold harmless agreements through a multi-step signature workfl
   "project_id": "proj-001",
   "subcontractor_id": "sub-001",
   "gc_id": "gc-001"
+}
 }
 ```
 
@@ -346,28 +398,39 @@ const handleGCDigitalSignature = async (coiId, signatureData) => {
 **Content:**
 - Your COI has been approved
 - Hold Harmless Agreement is required before work can proceed
-- Download template link
-- Instructions on signing and uploading
-- Portal link to upload signed copy
+- Portal link to digitally sign the agreement
+- Instructions on completing digital signature
+- No download required - all done within the system
 
-### Email 2: GC - "Hold Harmless Agreement Ready for Review"
-**Sent when:** Subcontractor uploads signed agreement  
-**To:** General Contractor  
+### Email 2: Broker - "Hold Harmless Agreement - Your Signature Required"
+**Sent when:** Subcontractor signs agreement  
+**To:** Insurance Broker  
 **Content:**
 - Subcontractor [Name] has signed the Hold Harmless Agreement
+- Project: [Project Name]
+- Your signature is now required
+- Portal link to review and digitally sign
+- Reminder that GC will sign after broker
+
+### Email 3: GC - "Hold Harmless Agreement Ready for Review"
+**Sent when:** Broker signs agreement  
+**To:** General Contractor  
+**Content:**
+- Subcontractor [Name] and broker have signed the Hold Harmless Agreement
 - Project: [Project Name]
 - View signed agreement link
 - Portal link to review and countersign
 - Reminder of approval timeline
 
-### Email 3: All Parties - "Hold Harmless Agreement Fully Executed"
+### Email 4: All Parties - "Hold Harmless Agreement Fully Executed"
 **Sent when:** GC countersigns agreement  
 **To:** Subcontractor, GC, Admin, Broker  
 **Content:**
 - Hold Harmless Agreement is fully executed
 - Subcontractor cleared to work
-- Both parties signed confirmation
+- All parties signed confirmation
 - Subcontractor signed: [Date]
+- Broker signed: [Date]
 - GC signed: [Date]
 - View final agreement link
 
@@ -394,11 +457,20 @@ const handleGCDigitalSignature = async (coiId, signatureData) => {
 - Browser console for errors
 - Check that Insurance Program has a template uploaded
 
+### Issue: Broker doesn't see pending signature
+
+**Check:**
+- Subcontractor must have signed first
+- Status should be `signed_by_sub`
+- Broker must be logged into correct broker account
+- Check Broker Dashboard → Certificates → Pending Hold Harmless Signatures section
+- Verify broker email is correctly stored in COI record
+
 ### Issue: GC doesn't see pending signature
 
 **Check:**
-- Subcontractor must have uploaded signed copy first
-- Status should be `signed_by_sub`
+- Subcontractor AND broker must have signed first
+- Status should be `pending_gc_signature`
 - GC must be logged into correct GC account
 - Check GC Project View → Pending Hold Harmless Signatures section
 
@@ -423,7 +495,7 @@ const handleGCDigitalSignature = async (coiId, signatureData) => {
 - ✅ Monitor signature progress on compliance dashboard
 - ✅ Send reminders if signatures delayed beyond 5 business days
 - ✅ Keep program templates updated for legal compliance
-- ✅ Verify project marked compliant after both signatures
+- ✅ Verify project marked compliant after all three signatures
 
 ### For Subcontractors
 - ✅ Sign agreements digitally within portal (within 3 business days)
@@ -433,13 +505,22 @@ const handleGCDigitalSignature = async (coiId, signatureData) => {
 - ✅ Verify submission successful before logging out
 - ✅ Download final signed copy for your records (optional)
 
+### For Brokers
+- ✅ Sign agreements digitally within portal (within 2 business days after subcontractor signs)
+- ✅ Enter full legal entity name (broker company name) accurately
+- ✅ Ensure digital signature is clear and legible
+- ✅ Review subcontractor signature before adding your own
+- ✅ Enter correct signature date
+- ✅ Verify submission successful before logging out
+- ✅ Monitor your dashboard for pending hold harmless signatures
+
 ### For GCs
-- ✅ Review and digitally sign within 2 business days
+- ✅ Review and digitally sign within 2 business days after broker signs
 - ✅ Verify all auto-populated details are correct
 - ✅ Enter full legal entity name accurately
-- ✅ Confirm subcontractor signature before signing
+- ✅ Confirm both subcontractor and broker signatures before signing
 - ✅ Verify project marked compliant after signing
-- ✅ Don't allow work to proceed without signed agreement
+- ✅ Don't allow work to proceed without fully signed agreement
 
 ---
 
