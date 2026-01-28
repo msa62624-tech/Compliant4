@@ -111,12 +111,20 @@ cd backend
 
 # Install backend dependencies with error checking
 if ! npm install > /dev/null 2>&1; then
-    echo "⚠️  Backend npm install had issues, trying with output..."
-    npm install
-    if [ $? -ne 0 ]; then
+    echo "⚠️  Backend npm install had issues, retrying..."
+    # Capture output from retry attempt to a temporary file
+    TEMP_LOG=$(mktemp)
+    npm install > "$TEMP_LOG" 2>&1
+    INSTALL_EXIT_CODE=$?
+    if [ $INSTALL_EXIT_CODE -ne 0 ]; then
         echo "❌ Failed to install backend dependencies"
+        cat "$TEMP_LOG"
+        rm -f "$TEMP_LOG"
         cd ..
         exit 1
+    else
+        echo "✅ Backend dependencies installed successfully on retry"
+        rm -f "$TEMP_LOG"
     fi
 fi
 
@@ -142,12 +150,20 @@ echo "🎨 Starting frontend..."
 
 # Install frontend dependencies with error checking
 if ! npm install > /dev/null 2>&1; then
-    echo "⚠️  Frontend npm install had issues, trying with output..."
-    npm install
-    if [ $? -ne 0 ]; then
+    echo "⚠️  Frontend npm install had issues, retrying..."
+    # Capture output from retry attempt to a temporary file
+    TEMP_LOG=$(mktemp)
+    npm install > "$TEMP_LOG" 2>&1
+    INSTALL_EXIT_CODE=$?
+    if [ $INSTALL_EXIT_CODE -ne 0 ]; then
         echo "❌ Failed to install frontend dependencies"
+        cat "$TEMP_LOG"
+        rm -f "$TEMP_LOG"
         kill $BACKEND_PID 2>/dev/null
         exit 1
+    else
+        echo "✅ Frontend dependencies installed successfully on retry"
+        rm -f "$TEMP_LOG"
     fi
 fi
 
