@@ -9,29 +9,83 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSearchParams } from "react-router-dom";
 
-export default function UploadDocuments() {
+interface COIRecord {
+  id: string | number;
+  subcontractor_name: string;
+  first_coi_url?: string;
+  first_coi_uploaded?: boolean;
+  first_coi_upload_date?: string;
+  gl_policy_url?: string;
+  wc_policy_url?: string;
+  umbrella_policy_url?: string;
+  auto_policy_url?: string;
+  gl_policy_number?: string;
+  gl_effective_date?: string;
+  gl_expiration_date?: string;
+  gl_aggregate?: number;
+  gl_each_occurrence?: number;
+  wc_policy_number?: string;
+  wc_effective_date?: string;
+  wc_expiration_date?: string;
+  umbrella_policy_number?: string;
+  umbrella_effective_date?: string;
+  umbrella_expiration_date?: string;
+  umbrella_aggregate?: number;
+  auto_policy_number?: string;
+  auto_effective_date?: string;
+  auto_expiration_date?: string;
+  status?: string;
+}
+
+interface UploadResult {
+  file_url: string;
+}
+
+interface ExtractionResult {
+  status: string;
+  output?: any;
+}
+
+interface COIUpdateData {
+  first_coi_url?: string;
+  first_coi_uploaded?: boolean;
+  first_coi_upload_date?: string;
+  status?: string;
+  gl_policy_url?: string;
+  wc_policy_url?: string;
+  umbrella_policy_url?: string;
+  auto_policy_url?: string;
+  [key: string]: any;
+}
+
+interface UpdateMutationParams {
+  id: string | number;
+  data: COIUpdateData;
+}
+
+export default function UploadDocuments(): JSX.Element {
   const [searchParams] = useSearchParams();
-  const subName = searchParams.get('sub');
+  const subName: string | null = searchParams.get('sub');
   const queryClient = useQueryClient();
 
-  const [isProcessingUpload, setIsProcessingUpload] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState('');
+  const [isProcessingUpload, setIsProcessingUpload] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
 
-  const { data: allCOIs = [] } = useQuery({
+  const { data: allCOIs = [] } = useQuery<COIRecord[]>({
     queryKey: ['all-cois'],
     queryFn: () => compliant.entities.GeneratedCOI.list('-created_date'),
   });
 
-  const subCOI = allCOIs.find(c => c.subcontractor_name === subName);
+  const subCOI: COIRecord | undefined = allCOIs.find((c: COIRecord) => c.subcontractor_name === subName);
 
-  const updateCOIMutation = useMutation({
-    mutationFn: ({ id, data }) => compliant.entities.GeneratedCOI.update(id, data),
+  const updateCOIMutation = useMutation<void, Error, UpdateMutationParams>({
+    mutationFn: ({ id, data }: UpdateMutationParams) => compliant.entities.GeneratedCOI.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries(['all-cois']);
     },
   });
 
-  const extractCOIData = async (fileUrl) => {
+  const extractCOIData = async (fileUrl: string): Promise<any | null> => {
     setIsProcessingUpload(true);
     setUploadProgress('🤖 Analyzing COI with AI...');
 
@@ -55,7 +109,7 @@ export default function UploadDocuments() {
     };
 
     try {
-      const extractionResult = await compliant.integrations.Core.ExtractDataFromUploadedFile({
+      const extractionResult: ExtractionResult = await compliant.integrations.Core.ExtractDataFromUploadedFile({
         file_url: fileUrl,
         json_schema: schema
       });
@@ -66,7 +120,7 @@ export default function UploadDocuments() {
       }
       setUploadProgress('⚠️ Failed to extract COI data.');
       return null;
-    } catch (error) {
+    } catch (error: any) {
       setUploadProgress('❌ Error during COI extraction.');
       console.error("Error extracting COI data:", error);
       return null;
@@ -75,7 +129,7 @@ export default function UploadDocuments() {
     }
   };
 
-  const extractPolicyData = async (fileUrl, policyType) => {
+  const extractPolicyData = async (fileUrl: string, policyType: string): Promise<any | null> => {
     setIsProcessingUpload(true);
     setUploadProgress(`🤖 Analyzing ${policyType.toUpperCase()} policy with AI...`);
 
@@ -89,7 +143,7 @@ export default function UploadDocuments() {
       : { policy_details: "string" };
 
     try {
-      const extractionResult = await compliant.integrations.Core.ExtractDataFromUploadedFile({
+      const extractionResult: ExtractionResult = await compliant.integrations.Core.ExtractDataFromUploadedFile({
         file_url: fileUrl,
         json_schema: schema
       });
@@ -100,7 +154,7 @@ export default function UploadDocuments() {
       }
       setUploadProgress('⚠️ Failed to extract policy data.');
       return null;
-    } catch (error) {
+    } catch (error: any) {
       setUploadProgress('❌ Error during policy extraction.');
       console.error("Error extracting policy data:", error);
       return null;
@@ -109,21 +163,21 @@ export default function UploadDocuments() {
     }
   };
 
-  const handleUploadCOI = async (file) => {
+  const handleUploadCOI = async (file: File): Promise<void> => {
     if (!subCOI) return;
 
     try {
       setUploadProgress('📤 Uploading COI...');
-      const uploadResult = await compliant.integrations.Core.UploadFile({ file });
+      const uploadResult: UploadResult = await compliant.integrations.Core.UploadFile({ file });
       
       // Validate upload result has file_url
       if (!uploadResult || !uploadResult.file_url) {
         throw new Error('File upload failed - no URL returned');
       }
       
-      const extractedData = await extractCOIData(uploadResult.file_url);
+      const extractedData: any | null = await extractCOIData(uploadResult.file_url);
       
-      const updateData = {
+      const updateData: COIUpdateData = {
         first_coi_url: uploadResult.file_url,
         first_coi_uploaded: true,
         first_coi_upload_date: new Date().toISOString(),
@@ -141,29 +195,29 @@ export default function UploadDocuments() {
       
       setUploadProgress('');
       alert('✅ COI uploaded successfully' + (extractedData ? ' and data extracted!' : '!'));
-    } catch (error) {
+    } catch (error: any) {
       setUploadProgress('');
-      const errorMessage = error?.message || 'Unknown error';
+      const errorMessage: string = error?.message || 'Unknown error';
       alert(`❌ Failed to upload COI: ${errorMessage}`);
       console.error("Error uploading COI:", error);
     }
   };
 
-  const handleUploadPolicy = async (file, policyType) => {
+  const handleUploadPolicy = async (file: File, policyType: string): Promise<void> => {
     if (!subCOI) return;
 
     try {
       setUploadProgress(`📤 Uploading ${policyType.toUpperCase()} policy...`);
-      const uploadResult = await compliant.integrations.Core.UploadFile({ file });
+      const uploadResult: UploadResult = await compliant.integrations.Core.UploadFile({ file });
       
       // Validate upload result has file_url
       if (!uploadResult || !uploadResult.file_url) {
         throw new Error('File upload failed - no URL returned');
       }
       
-      const extractedData = await extractPolicyData(uploadResult.file_url, policyType);
+      const extractedData: any | null = await extractPolicyData(uploadResult.file_url, policyType);
       
-      const updateData = { [`${policyType}_policy_url`]: uploadResult.file_url };
+      const updateData: COIUpdateData = { [`${policyType}_policy_url`]: uploadResult.file_url };
       
       if (extractedData) {
         Object.assign(updateData, extractedData);
@@ -176,9 +230,9 @@ export default function UploadDocuments() {
       
       setUploadProgress('');
       alert(`✅ ${policyType.toUpperCase()} Policy uploaded successfully!`);
-    } catch (error) {
+    } catch (error: any) {
       setUploadProgress('');
-      const errorMessage = error?.message || 'Unknown error';
+      const errorMessage: string = error?.message || 'Unknown error';
       alert(`❌ Failed to upload ${policyType.toUpperCase()} policy: ${errorMessage}`);
       console.error(`Error uploading ${policyType} policy:`, error);
     }
@@ -234,11 +288,11 @@ export default function UploadDocuments() {
                     id="coi_upload"
                     type="file"
                     accept=".pdf"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      const file: File | undefined = e.target.files?.[0];
                       if (file) {
                         handleUploadCOI(file);
-                        e.target.value = null;
+                        e.target.value = '';
                       }
                     }}
                     className="border-4 border-red-400 h-16 text-lg font-bold cursor-pointer hover:border-red-600 transition-all"
@@ -280,11 +334,11 @@ export default function UploadDocuments() {
                     id="gl_policy_upload"
                     type="file"
                     accept=".pdf"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      const file: File | undefined = e.target.files?.[0];
                       if (file) {
                         handleUploadPolicy(file, 'gl');
-                        e.target.value = null;
+                        e.target.value = '';
                       }
                     }}
                     className="border-4 border-purple-400 h-16 text-lg font-bold cursor-pointer hover:border-purple-600 transition-all"
@@ -318,11 +372,11 @@ export default function UploadDocuments() {
                     id="wc_policy_upload"
                     type="file"
                     accept=".pdf"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      const file: File | undefined = e.target.files?.[0];
                       if (file) {
                         handleUploadPolicy(file, 'wc');
-                        e.target.value = null;
+                        e.target.value = '';
                       }
                     }}
                     className="border-4 border-amber-400 h-16 text-lg font-bold cursor-pointer hover:border-amber-600 transition-all"
@@ -356,11 +410,11 @@ export default function UploadDocuments() {
                     id="umbrella_policy_upload"
                     type="file"
                     accept=".pdf"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      const file: File | undefined = e.target.files?.[0];
                       if (file) {
                         handleUploadPolicy(file, 'umbrella');
-                        e.target.value = null;
+                        e.target.value = '';
                       }
                     }}
                     className="border-4 border-teal-400 h-16 text-lg font-bold cursor-pointer hover:border-teal-600 transition-all"
@@ -394,11 +448,11 @@ export default function UploadDocuments() {
                     id="auto_policy_upload"
                     type="file"
                     accept=".pdf"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      const file: File | undefined = e.target.files?.[0];
                       if (file) {
                         handleUploadPolicy(file, 'auto');
-                        e.target.value = null;
+                        e.target.value = '';
                       }
                     }}
                     className="border-4 border-indigo-400 h-16 text-lg font-bold cursor-pointer hover:border-indigo-600 transition-all"
