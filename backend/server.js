@@ -33,6 +33,7 @@ import { validateEnvironment } from './middleware/envValidation.js';
 import { errorHandler, notFoundHandler, asyncHandler, ApplicationError, ValidationError, AuthenticationError, NotFoundError } from './middleware/errorHandler.js';
 import { metricsMiddleware, metricsHandler, recordMetrics } from './middleware/metrics.js';
 import idempotency from './middleware/idempotency.js';
+import cacheControl from './middleware/cacheControl.js';
 import compression from 'compression';
 
 // Import Swagger documentation
@@ -1058,6 +1059,9 @@ app.use(requestLogger);
 
 // Input sanitization middleware
 app.use(sanitizeInput());
+
+// Cache control headers
+app.use(cacheControl());
 
 // =======================
 // RATE LIMITING MIDDLEWARE
