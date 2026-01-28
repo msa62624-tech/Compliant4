@@ -130,8 +130,8 @@ export interface ComplianceIssue {
   type: string;
   field: string;
   severity: IssueSeverity;
-  required?: number;
-  provided?: number;
+  required?: number | unknown;
+  provided?: number | unknown;
   endorsement?: string;
   detail?: string;
   expirationDate?: string;
@@ -576,7 +576,7 @@ export async function validateCOICompliance(
         issues.push({
           type: 'MISSING_ADDITIONAL_INSURED',
           field: 'GL Additional Insured',
-          required: project.additional_insured || ['Project Owner'],
+          required: (project.additional_insured || ['Project Owner']) as unknown,
           severity: 'error',
         });
       } else {
@@ -591,7 +591,7 @@ export async function validateCOICompliance(
               type: 'MISSING_NAMED_INSURED',
               field: 'GL Additional Insured',
               missing: insured,
-              provided: coi.gl_additional_insured,
+              provided: coi.gl_additional_insured as unknown,
               severity: 'warning',
             });
           }
@@ -738,7 +738,7 @@ export async function validateCOICompliance(
   const today = new Date();
   const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  const checkExpiration = (expirationStr, policyType) => {
+  const checkExpiration = (expirationStr: string | undefined, policyType: string) => {
     if (!expirationStr) return;
     const expDate = new Date(expirationStr);
     if (expDate < today) {
@@ -753,7 +753,7 @@ export async function validateCOICompliance(
         type: 'POLICY_EXPIRING_SOON',
         field: `${policyType} Expiration`,
         expirationDate: expirationStr,
-        daysUntilExpiry: Math.ceil((expDate - today) / (24 * 60 * 60 * 1000)),
+        daysUntilExpiry: Math.ceil((expDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000)),
         severity: 'warning',
       });
     }
@@ -772,14 +772,22 @@ export async function validateCOICompliance(
   };
 }
 
+interface RequirementsMap {
+  gl?: GLRequirements;
+  umbrella?: UmbrellaRequirements;
+  wc?: WCRequirements;
+  auto?: AutoRequirements;
+  [key: string]: GLRequirements | UmbrellaRequirements | WCRequirements | AutoRequirements | undefined;
+}
+
 /**
  * Build all applicable insurance requirements for a project/subcontractor combination
  */
 function buildApplicableRequirements(
   project: Project,
   subTrades: string[] = []
-): Record<string, unknown> {
-  const requirements: Record<string, unknown> = {};
+): RequirementsMap {
+  const requirements: RequirementsMap = {};
 
   // Start with universal requirements
   requirements.gl = { ...UNIVERSAL_REQUIREMENTS.gl };
@@ -811,17 +819,24 @@ function buildApplicableRequirements(
   // Apply project-specific modifiers
   if (project.project_type === 'condo') {
     const condoMod = PROJECT_MODIFIERS.condo;
-    requirements.gl = { ...requirements.gl, ...condoMod.gl };
+    if (requirements.gl) {
+      requirements.gl = { ...requirements.gl, ...condoMod.gl } as GLRequirements;
+    }
   }
 
   if (project.project_type === 'high_rise') {
     const highRiseMod = PROJECT_MODIFIERS.highRise;
     for (const insType in requirements) {
-      if (requirements[insType]?.minimumLimits) {
-        for (const limitType in requirements[insType].minimumLimits) {
-          requirements[insType].minimumLimits[limitType] = Math.ceil(
-            requirements[insType].minimumLimits[limitType] * highRiseMod.minimumLimitIncrease
-          );
+      const req = requirements[insType];
+      if (req && 'minimumLimits' in req && req.minimumLimits) {
+        for (const limitType in req.minimumLimits) {
+          const limitKey = limitType as keyof MinimumLimits;
+          const currentValue = req.minimumLimits[limitKey];
+          if (typeof currentValue === 'number') {
+            (req.minimumLimits[limitKey] as number) = Math.ceil(
+              currentValue * highRiseMod.minimumLimitIncrease
+            );
+          }
         }
       }
     }

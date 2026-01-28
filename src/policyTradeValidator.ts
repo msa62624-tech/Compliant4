@@ -296,7 +296,7 @@ export function validatePolicyTradeCoverage(
 
   // Check auto policy for hired/non-owned coverage
   if (requiredTrades.some(t => ['carpentry', 'roofing', 'excavation', 'crane_operator'].includes(t))) {
-    if (!coi.auto_hired_coverage || coi.auto_hired_coverage === false) {
+    if (!coi.auto_hired_coverage || coi.auto_hired_coverage !== true) {
       warnings.push({
         type: 'warning',
         message: 'Hired auto not covered - required for construction trades',
@@ -304,7 +304,7 @@ export function validatePolicyTradeCoverage(
       });
     }
 
-    if (!coi.auto_nonowned_coverage || coi.auto_nonowned_coverage === false) {
+    if (!coi.auto_nonowned_coverage || coi.auto_nonowned_coverage !== true) {
       warnings.push({
         type: 'warning',
         message: 'Non-owned auto not covered - typically required for construction',

@@ -28,7 +28,8 @@ export async function handlePolicyRenewal(
     // For each project, trigger new COI generation
     for (const projectSub of projectSubs) {
       try {
-        const project = await apiClient.entities.Project.read(projectSub.project_id);
+        const projectSubData = projectSub as { project_id: string; [key: string]: unknown };
+        const project = await apiClient.entities.Project.read(projectSubData.project_id) as Project;
         
         // Generate new COI from renewed policy
         await generateRenewalCOI(subcontractor, newPolicy, project, projectSub);
@@ -39,7 +40,7 @@ export async function handlePolicyRenewal(
         // Notify GC of policy renewal
         await notifyGCPolicyRenewal(project, subcontractor, newPolicy);
       } catch (err) {
-        console.error('Error processing renewal for project:', projectSub.project_id, err);
+        console.error('Error processing renewal for project:', (projectSub as { project_id?: string }).project_id, err);
       }
     }
   } catch (error) {
@@ -113,8 +114,8 @@ A policy has been renewed for your client ${subcontractor.company_name} and requ
 • Insurance Carrier: ${newPolicy.insurance_carrier || 'N/A'}
 • Old Policy Number: ${oldPolicy?.policy_number || 'N/A'}
 • New Policy Number: ${newPolicy.policy_number}
-• New Effective Date: ${new Date(newPolicy.policy_effective_date).toLocaleDateString()}
-• New Expiration Date: ${new Date(newPolicy.policy_expiration_date).toLocaleDateString()}
+• New Effective Date: ${new Date(newPolicy.policy_effective_date as string).toLocaleDateString()}
+• New Expiration Date: ${new Date(newPolicy.policy_expiration_date as string).toLocaleDateString()}
 • Subcontractor: ${subcontractor.company_name}
 • Project: ${project?.project_name || 'Multiple Projects'}
 

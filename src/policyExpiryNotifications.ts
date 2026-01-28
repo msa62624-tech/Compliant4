@@ -17,21 +17,22 @@ export async function checkAndNotifyExpiringPolicies(): Promise<void> {
     const notificationThresholds = [30, 14, 7, 0]; // Day-of-expiry is also included
     
     for (const doc of documents) {
-      if (!doc.policy_expiration_date) continue;
+      const docData = doc as InsuranceDocument;
+      if (!docData.policy_expiration_date) continue;
       
-      const daysUntilExpiry = calculateDaysUntilExpiry(doc.policy_expiration_date);
+      const daysUntilExpiry = calculateDaysUntilExpiry(docData.policy_expiration_date);
       
       // Check if this policy should be notified
       if (notificationThresholds.includes(daysUntilExpiry)) {
         // Get subcontractor info
-        const subcontractor = await apiClient.entities.Contractor.read(doc.contractor_id);
+        const subcontractor = await apiClient.entities.Contractor.read(docData.contractor_id) as Subcontractor;
         
         if (subcontractor?.broker_email) {
-          await notifyBrokerPolicyExpiring(doc, subcontractor, daysUntilExpiry);
+          await notifyBrokerPolicyExpiring(docData, subcontractor, daysUntilExpiry);
         }
         
         if (subcontractor?.email) {
-          await notifySubPolicyExpiring(doc, subcontractor, daysUntilExpiry);
+          await notifySubPolicyExpiring(docData, subcontractor, daysUntilExpiry);
         }
         
         // Mark notification as sent (add to notification history if tracking needed)
@@ -132,19 +133,20 @@ export async function getExpiringPoliciesSummary() {
     };
     
     for (const doc of documents) {
-      if (!doc.policy_expiration_date) continue;
+      const docData = doc as InsuranceDocument;
+      if (!docData.policy_expiration_date) continue;
       
-      const daysUntilExpiry = calculateDaysUntilExpiry(doc.policy_expiration_date);
+      const daysUntilExpiry = calculateDaysUntilExpiry(docData.policy_expiration_date);
       
       if (daysUntilExpiry < 0) {
         // Policy already expired
         continue;
       } else if (daysUntilExpiry === 0) {
-        upcoming.expiringToday.push(doc);
+        upcoming.expiringToday.push(docData);
       } else if (daysUntilExpiry <= 7) {
-        upcoming.expiringWeek.push(doc);
+        upcoming.expiringWeek.push(docData);
       } else if (daysUntilExpiry <= 30) {
-        upcoming.expiringMonth.push(doc);
+        upcoming.expiringMonth.push(docData);
       }
     }
     

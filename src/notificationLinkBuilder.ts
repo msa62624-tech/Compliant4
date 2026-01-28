@@ -9,7 +9,7 @@
 
 export interface EmailSection {
   title: string;
-  content: string;
+  content?: string;
   actionLink?: string;
   actionText?: string;
 }
