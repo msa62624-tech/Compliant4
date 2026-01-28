@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -142,36 +142,38 @@ export default function GCDashboard() {
     return latestCoi.status || sub.compliance_status || 'pending_broker';
   };
 
-  // Filter projects and subs based on search
-  const filteredProjects = projects.filter(project => {
-    const searchLower = searchTerm.toLowerCase();
-    
-    if (!searchTerm) return true;
-    
-    if (searchType === 'all') {
-      const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
-      const hasMatchingSub = projectSubsList.some(ps => 
-        ps.subcontractor_name?.toLowerCase().includes(searchLower)
-      );
-      return (
-        project.project_name?.toLowerCase().includes(searchLower) ||
-        project.project_address?.toLowerCase().includes(searchLower) ||
-        hasMatchingSub
-      );
-    } else if (searchType === 'job') {
-      return (
-        project.project_name?.toLowerCase().includes(searchLower) ||
-        project.project_address?.toLowerCase().includes(searchLower)
-      );
-    } else if (searchType === 'subcontractor') {
-      const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
-      return projectSubsList.some(ps => 
-        ps.subcontractor_name?.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    return true;
-  });
+  // Memoize expensive filter computation for performance
+  const filteredProjects = useMemo(() => {
+    return projects.filter(project => {
+      const searchLower = searchTerm.toLowerCase();
+      
+      if (!searchTerm) return true;
+      
+      if (searchType === 'all') {
+        const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
+        const hasMatchingSub = projectSubsList.some(ps => 
+          ps.subcontractor_name?.toLowerCase().includes(searchLower)
+        );
+        return (
+          project.project_name?.toLowerCase().includes(searchLower) ||
+          project.project_address?.toLowerCase().includes(searchLower) ||
+          hasMatchingSub
+        );
+      } else if (searchType === 'job') {
+        return (
+          project.project_name?.toLowerCase().includes(searchLower) ||
+          project.project_address?.toLowerCase().includes(searchLower)
+        );
+      } else if (searchType === 'subcontractor') {
+        const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
+        return projectSubsList.some(ps => 
+          ps.subcontractor_name?.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      return true;
+    });
+  }, [projects, projectSubs, searchTerm, searchType]);
 
   // Log COI data for debugging
   useEffect(() => {

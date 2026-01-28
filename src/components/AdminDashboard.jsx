@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { apiClient } from "@/api/apiClient";
 import { compliant } from "@/api/compliantClient";
 import { useQuery } from "@tanstack/react-query";
@@ -274,22 +274,30 @@ export default function AdminDashboard() {
     }
   };
 
-  const expiringSoon = activeCOIs.filter((coi) => {
-    if (!coi.gl_expiration_date) return false;
-    const daysUntil = differenceInDays(new Date(coi.gl_expiration_date), new Date());
-    return daysUntil >= 0 && daysUntil <= 30;
-  });
+  // Memoized expensive computations for performance
+  const expiringSoon = useMemo(() => {
+    return activeCOIs.filter((coi) => {
+      if (!coi.gl_expiration_date) return false;
+      const daysUntil = differenceInDays(new Date(coi.gl_expiration_date), new Date());
+      return daysUntil >= 0 && daysUntil <= 30;
+    });
+  }, [activeCOIs]);
 
-  const projectsNeedingSetup = Array.isArray(projects) ? projects.filter((p) => p.needs_admin_setup) : [];
-  const unreadMessages = Array.isArray(messages) ? messages.filter((m) => !m.is_read).length : 0;
+  const projectsNeedingSetup = useMemo(() => {
+    return Array.isArray(projects) ? projects.filter((p) => p.needs_admin_setup) : [];
+  }, [projects]);
 
-  const stats = {
+  const unreadMessages = useMemo(() => {
+    return Array.isArray(messages) ? messages.filter((m) => !m.is_read).length : 0;
+  }, [messages]);
+
+  const stats = useMemo(() => ({
     pendingReviews: pendingCOIs.length,
     expiringSoon: expiringSoon.length,
     projectsNeedingSetup: projectsNeedingSetup.length,
     totalSubs: allSubs.length,
     unreadMessages,
-  };
+  }), [pendingCOIs.length, expiringSoon.length, projectsNeedingSetup.length, allSubs.length, unreadMessages]);
 
   // Check for loading or errors
   const isLoading = pendingLoading || activeLoading || projectsLoading || subsLoading || messagesLoading;
