@@ -47,7 +47,7 @@ describe('Data Extraction Logic - Context-Aware Extraction', () => {
     
     // Extract all dates
     const allDates = [];
-    const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/g;
+    const datePattern = /(\d{1,2}[/-]\d{1,2}[/-]\d{4})/g;
     let match;
     while ((match = datePattern.exec(mockACORD25WithMissingCoverages)) !== null) {
       allDates.push(match[1]);
@@ -66,20 +66,20 @@ describe('Data Extraction Logic - Context-Aware Extraction', () => {
     
     // NEW CONTEXT-AWARE BEHAVIOR extracts from coverage sections:
     // GL section
-    const glSection = mockACORD25WithMissingCoverages.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,500}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const glSection = mockACORD25WithMissingCoverages.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,500}?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
     expect(glSection).not.toBeNull();
     expect(glSection[1]).toBe('01/15/2024');
     
-    const glSectionExp = mockACORD25WithMissingCoverages.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,500}?(?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const glSectionExp = mockACORD25WithMissingCoverages.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,500}?(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
     expect(glSectionExp).not.toBeNull();
     expect(glSectionExp[1]).toBe('01/15/2025');
     
     // WC section
-    const wcSection = mockACORD25WithMissingCoverages.match(/WORKERS\s+COMPENSATION[\s\S]{0,500}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const wcSection = mockACORD25WithMissingCoverages.match(/WORKERS\s+COMPENSATION[\s\S]{0,500}?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
     expect(wcSection).not.toBeNull();
     expect(wcSection[1]).toBe('03/20/2024');
     
-    const wcSectionExp = mockACORD25WithMissingCoverages.match(/WORKERS\s+COMPENSATION[\s\S]{0,500}?(?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const wcSectionExp = mockACORD25WithMissingCoverages.match(/WORKERS\s+COMPENSATION[\s\S]{0,500}?(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
     expect(wcSectionExp).not.toBeNull();
     expect(wcSectionExp[1]).toBe('03/20/2025');
   });
@@ -155,7 +155,7 @@ POLICY EXP 02/01/2025
     const wcMatch = reorderedDoc.match(/WORKERS\s+COMPENSATION[^\n]*(?:\n[^\n]*){0,3}/i);
     expect(wcMatch).not.toBeNull();
     const wcSection = wcMatch[0];
-    const wcDateMatches = wcSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+    const wcDateMatches = wcSection.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/g);
     // Note: Only 4 lines captured (0,3), so only the first date is in the section
     expect(wcDateMatches).toEqual(['01/01/2024']);
     
@@ -163,7 +163,7 @@ POLICY EXP 02/01/2025
     const glMatch = reorderedDoc.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[^\n]*(?:\n[^\n]*){0,3}/i);
     expect(glMatch).not.toBeNull();
     const glSection = glMatch[0];
-    const glDateMatches = glSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+    const glDateMatches = glSection.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/g);
     // Note: Only 4 lines captured (0,3), so only the first date is in the section
     expect(glDateMatches).toEqual(['02/01/2024']);
   });
@@ -244,12 +244,12 @@ describe('Fallback Logic Order for GL Dates', () => {
     `;
     
     // Extract GL section specifically
-    const glSection = mockDocument.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,500}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const glSection = mockDocument.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,500}?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
     expect(glSection).not.toBeNull();
     expect(glSection[1]).toBe('01/15/2024');  // Should get date from GL section, not the first POLICY EFF
     
     // Extract the first generic POLICY EFF (which would be wrong for GL)
-    const genericMatch = mockDocument.match(/POLICY\s+EFF\s*[:.]?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const genericMatch = mockDocument.match(/POLICY\s+EFF\s*[:.]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
     expect(genericMatch).not.toBeNull();
     expect(genericMatch[1]).toBe('12/31/2023');  // This would be wrong!
     

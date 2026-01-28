@@ -30,8 +30,8 @@ import { healthCheckHandler, readinessCheckHandler, livenessCheckHandler } from 
 import { trackConnection, setupGracefulShutdown } from './middleware/gracefulShutdown.js';
 import { sanitizeInput, escapeHtml } from './middleware/inputSanitization.js';
 import { validateEnvironment } from './middleware/envValidation.js';
-import { errorHandler, notFoundHandler, asyncHandler, ApplicationError, ValidationError, AuthenticationError, NotFoundError } from './middleware/errorHandler.js';
-import { metricsMiddleware, metricsHandler, recordMetrics } from './middleware/metrics.js';
+import { errorHandler, notFoundHandler, ValidationError } from './middleware/errorHandler.js';
+import { metricsMiddleware, metricsHandler } from './middleware/metrics.js';
 import idempotency from './middleware/idempotency.js';
 import cacheControl from './middleware/cacheControl.js';
 import compression from 'compression';
@@ -6091,7 +6091,6 @@ function hasNonNegatedKeyword(text, keywordPattern) {
 function extractFieldsWithRegex(text, schema) {
   console.log('🔧 Starting AGGRESSIVE regex extraction with schema fields:', Object.keys(schema));
   const extracted = {};
-  const upper = (text || '').toUpperCase();
   
   // Constants for extraction patterns
   const COVERAGE_SECTION_CHAR_LIMIT = 500; // Max chars to search within a coverage section
@@ -6420,7 +6419,7 @@ function extractFieldsWithRegex(text, schema) {
         coverages.gl.policy_number = policyMatch[1].trim();
       }
       // Extract dates from GL section
-      const dateMatches = glSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+      const dateMatches = glSection.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/g);
       if (dateMatches && dateMatches.length >= 1) {
         coverages.gl.effective_date = dateMatches[0];
         if (dateMatches.length >= 2) {
@@ -6440,7 +6439,7 @@ function extractFieldsWithRegex(text, schema) {
       if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.auto.policy_number = policyMatch[1].trim();
       }
-      const dateMatches = autoSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+      const dateMatches = autoSection.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/g);
       if (dateMatches && dateMatches.length >= 1) {
         coverages.auto.effective_date = dateMatches[0];
         if (dateMatches.length >= 2) {
@@ -6460,7 +6459,7 @@ function extractFieldsWithRegex(text, schema) {
       if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.wc.policy_number = policyMatch[1].trim();
       }
-      const dateMatches = wcSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+      const dateMatches = wcSection.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/g);
       if (dateMatches && dateMatches.length >= 1) {
         coverages.wc.effective_date = dateMatches[0];
         if (dateMatches.length >= 2) {
@@ -6480,7 +6479,7 @@ function extractFieldsWithRegex(text, schema) {
       if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.umbrella.policy_number = policyMatch[1].trim();
       }
-      const dateMatches = umbrellaSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+      const dateMatches = umbrellaSection.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/g);
       if (dateMatches && dateMatches.length >= 1) {
         coverages.umbrella.effective_date = dateMatches[0];
         if (dateMatches.length >= 2) {
@@ -6500,7 +6499,7 @@ function extractFieldsWithRegex(text, schema) {
       if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.excess.policy_number = policyMatch[1].trim();
       }
-      const dateMatches = excessSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+      const dateMatches = excessSection.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/g);
       if (dateMatches && dateMatches.length >= 1) {
         coverages.excess.effective_date = dateMatches[0];
         if (dateMatches.length >= 2) {

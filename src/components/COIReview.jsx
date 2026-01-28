@@ -280,7 +280,7 @@ export default function COIReview() {
     }
   };
 
-  const signCOIAsAdmin = async () => {
+  const _signCOIAsAdmin = async () => {
     if (!coi) return;
     if (!coi.first_coi_url) {
       alert('No COI PDF found to sign. Please generate first.');
@@ -336,7 +336,7 @@ export default function COIReview() {
         throw new Error(errorData.error || 'Failed to approve with waivers');
       }
 
-      const result = await response.json();
+      await response.json();
       queryClient.invalidateQueries(['coi', coi.id]);
       alert('COI approved with deficiency waivers. Stakeholders have been notified.');
       navigate(createPageUrl("AdminDashboard"));
