@@ -234,7 +234,7 @@ const fetchWithFallback = async (
           base,
           attempt,
           maxRetries,
-          error: err.message,
+          error: err instanceof Error ? err.message : 'Unknown error',
           isRetryable: isRetryable(err)
         });
         

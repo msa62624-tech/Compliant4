@@ -5,6 +5,7 @@ import { getFrontendBaseUrl, createBrokerDashboardLink, createSubcontractorDashb
 import { generateSecureToken } from "@/utils/tokenGenerator";
 import logger from './utils/logger';
 import type { Subcontractor, Project, GeneratedCOI } from '@/notification-types';
+import { getErrorMessage, getErrorStack } from '@/api-types';
 
 /**
  * Send notification emails when broker is assigned or changed for a subcontractor
@@ -100,7 +101,7 @@ InsureTrack System`
       }
       
     } catch (error) {
-      logger.error('Error sending broker notification email', { error: error?.message, stack: error?.stack });
+      logger.error('Error sending broker notification email', { error: getErrorMessage(error), stack: getErrorStack(error) });
       throw error; // Re-throw so caller knows it failed
     }
   }
@@ -131,7 +132,7 @@ Best regards,
 InsureTrack System`
       });
     } catch (error) {
-      logger.error('Error sending old broker notification', { error: error?.message, stack: error?.stack });
+      logger.error('Error sending old broker notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
     }
   }
 
@@ -188,7 +189,7 @@ InsureTrack System`
       }
       
     } catch (error) {
-      logger.error('Error sending subcontractor notification', { error: error?.message, stack: error?.stack });
+      logger.error('Error sending subcontractor notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
     }
   }
 
@@ -235,7 +236,7 @@ InsureTrack System`
       });
     }
   } catch (error) {
-    logger.error('Error creating portal entries', { error: error?.message, stack: error?.stack });
+    logger.error('Error creating portal entries', { error: getErrorMessage(error), stack: getErrorStack(error) });
   }
 }
 
@@ -347,7 +348,7 @@ You have been added to a new construction project!
       }
       
     } catch (error) {
-      logger.error('Error sending subcontractor project notification', { error: error?.message, stack: error?.stack });
+      logger.error('Error sending subcontractor project notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
     }
   }
 
@@ -531,7 +532,7 @@ InsureTrack System`
       });
       
     } catch (error) {
-      logger.error('Error sending broker project notification', { error: error?.message, stack: error?.stack });
+      logger.error('Error sending broker project notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
       // Don't throw - continue to notify other brokers
     }
   }
@@ -583,7 +584,7 @@ Best regards,
 InsureTrack System`
       });
     } catch (error) {
-      logger.error('Error sending COI pending notification', { error: error?.message, stack: error?.stack });
+      logger.error('Error sending COI pending notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
     }
   }
 }
@@ -623,7 +624,7 @@ Best regards,
 InsureTrack System`
       });
     } catch (error) {
-      logger.error('Error sending COI approved notification', { error: error?.message, stack: error?.stack });
+      logger.error('Error sending COI approved notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
     }
   }
 }

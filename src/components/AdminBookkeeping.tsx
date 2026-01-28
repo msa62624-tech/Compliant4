@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Subscription, Contractor, Project } from "@/api-types";
 import { 
   DollarSign, 
   CreditCard, 
@@ -42,33 +43,33 @@ export default function AdminBookkeeping() {
   const [emailStatus, setEmailStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const { data: rawSubscriptions = [], isLoading } = useQuery({
+  const { data: rawSubscriptions = [], isLoading } = useQuery<Subscription[]>({
     queryKey: ['all-subscriptions'],
     queryFn: () => compliant.entities.Subscription.list('-created_date'),
   });
 
-  const subscriptions = rawSubscriptions.filter(sub => sub && sub.id);
+  const subscriptions = rawSubscriptions.filter((sub): sub is Subscription => !!sub && !!sub.id);
 
-  const { data: contractors = [] } = useQuery({
+  const { data: contractors = [] } = useQuery<Contractor[]>({
     queryKey: ['contractors'],
     queryFn: () => compliant.entities.Contractor.list(),
   });
 
-  const { data: projects = [] } = useQuery({
+  const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['projects'],
     queryFn: () => compliant.entities.Project.list(),
   });
 
-  const getContractor = (gcId) => {
+  const getContractor = (gcId: string) => {
     return contractors.find(c => c.id === gcId);
   };
 
-  const getGCProjects = (gcId) => {
+  const getGCProjects = (gcId: string) => {
     return projects.filter(p => p.gc_id === gcId && p.status === 'active').length;
   };
 
   //subscriptions by date range
-  const filterByDateRange = (sub) => {
+  const filterByDateRange = (sub: Subscription) => {
     if (!sub || !sub.id) return false;
     if (dateRange === 'all_time') return true;
     if (!sub.payment_date) return false;

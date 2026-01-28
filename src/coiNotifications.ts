@@ -7,6 +7,7 @@ import { fetchAdminEmails } from "@/utils/adminEmails";
 import { prepareAttachments } from "@/utils/notificationUtils";
 import logger from './utils/logger';
 import type { GeneratedCOI, Subcontractor, Project, SampleCOIData } from '@/notification-types';
+import { getErrorMessage, getErrorStack } from '@/api-types';
 
 /**
  * COI Upload & Approval Notification System
@@ -153,10 +154,10 @@ InsureTrack System`,
         created_at: new Date().toISOString(),
       });
     } catch (error) {
-      logger.error('Error creating admin message', { error: error?.message, stack: error?.stack });
+      logger.error('Error creating admin message', { error: getErrorMessage(error), stack: getErrorStack(error) });
     }
   } catch (error) {
-    logger.error('Error sending admin COI upload notification', { error: error?.message, stack: error?.stack });
+    logger.error('Error sending admin COI upload notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
   }
 }
 
@@ -258,10 +259,10 @@ InsureTrack System`
         created_at: new Date().toISOString(),
       });
     } catch (error) {
-      logger.error('Error creating sub message', { error: error?.message, stack: error?.stack });
+      logger.error('Error creating sub message', { error: getErrorMessage(error), stack: getErrorStack(error) });
     }
   } catch (error) {
-    logger.error('Error sending sub COI approved notification', { error: error?.message, stack: error?.stack });
+    logger.error('Error sending sub COI approved notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
   }
 }
 
@@ -313,7 +314,7 @@ Best regards,
 InsureTrack System`,
     });
   } catch (error) {
-    logger.error('Error sending GC COI approved notification', { error: error?.message, stack: error?.stack });
+    logger.error('Error sending GC COI approved notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
   }
 }
 
@@ -485,10 +486,10 @@ export async function notifyCOIDeficiencies(
         created_at: new Date().toISOString(),
       });
     } catch (error) {
-      logger.error('Error creating deficiency message', { error: error?.message, stack: error?.stack });
+      logger.error('Error creating deficiency message', { error: getErrorMessage(error), stack: getErrorStack(error) });
     }
   } catch (error) {
-    logger.error('Error sending COI deficiencies notification', { error: error?.message, stack: error?.stack });
+    logger.error('Error sending COI deficiencies notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
   }
 }
 
@@ -552,7 +553,7 @@ Best regards,
 InsureTrack System`,
     });
   } catch (error) {
-    logger.error('Error sending broker COI review notification', { error: error?.message, stack: error?.stack });
+    logger.error('Error sending broker COI review notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
   }
 }
 
@@ -610,10 +611,10 @@ InsureTrack System`,
         created_at: new Date().toISOString(),
       });
     } catch (error) {
-      logger.error('Error creating sub approval message', { error: error?.message, stack: error?.stack });
+      logger.error('Error creating sub approval message', { error: getErrorMessage(error), stack: getErrorStack(error) });
     }
   } catch (error) {
-    logger.error('Error sending subcontractor COI approved notification', { error: error?.message, stack: error?.stack });
+    logger.error('Error sending subcontractor COI approved notification', { error: getErrorMessage(error), stack: getErrorStack(error) });
   }
 }
 
@@ -640,7 +641,7 @@ export async function notifyAllStakeholdersCOIApproved(coi, subcontractor, proje
       created_at: new Date().toISOString(),
     });
   } catch (error) {
-    logger.error('Error logging approval', { error: error?.message, stack: error?.stack });
+    logger.error('Error logging approval', { error: getErrorMessage(error), stack: getErrorStack(error) });
   }
 }
 /**
@@ -699,6 +700,6 @@ Please review the attached broker information and generate new COI upload reques
     }
 
   } catch (error) {
-    logger.error('Error notifying admin of broker change', { error: error?.message, stack: error?.stack });
+    logger.error('Error notifying admin of broker change', { error: getErrorMessage(error), stack: getErrorStack(error) });
   }
 }

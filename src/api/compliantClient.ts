@@ -20,6 +20,7 @@
 
 import { getAuthHeader, clearToken, refreshAccessToken } from '../auth';
 import logger from '../utils/logger';
+import type * as ApiTypes from '../api-types';
 
 const envUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL)
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')
@@ -200,7 +201,7 @@ async function doFetch(url: string, opts: RequestInit = {}, { retries = 2, timeo
           attempt++;
           // If we've exhausted all attempts, throw the error
           if (attempt >= maxAttempts) {
-            if (err.name === 'AbortError') {
+            if (err instanceof Error && err.name === 'AbortError') {
               throw new Error('Request timeout');
             }
             throw err;
@@ -286,8 +287,36 @@ function makeEntityAdapter<T = unknown>(entityName: string): EntityAdapter<T> {
   };
 }
 
+// ============================================================================
+// TYPED ENTITY ADAPTERS
+// ============================================================================
+
+interface TypedEntities {
+  Contractor: EntityAdapter<ApiTypes.Contractor>;
+  Project: EntityAdapter<ApiTypes.Project>;
+  ProjectSubcontractor: EntityAdapter<ApiTypes.ProjectSubcontractor>;
+  Subscription: EntityAdapter<ApiTypes.Subscription>;
+  GeneratedCOI: EntityAdapter<ApiTypes.GeneratedCOI>;
+  InsuranceProgram: EntityAdapter<ApiTypes.InsuranceProgram>;
+  SubInsuranceRequirement: EntityAdapter<ApiTypes.SubInsuranceRequirement>;
+  StateRequirement: EntityAdapter<ApiTypes.StateRequirement>;
+  InsuranceDocument: EntityAdapter<ApiTypes.InsuranceDocument>;
+  PolicyDocument: EntityAdapter<ApiTypes.PolicyDocument>;
+  COIDocument: EntityAdapter<ApiTypes.COIDocument>;
+  Broker: EntityAdapter<ApiTypes.Broker>;
+  BrokerUploadRequest: EntityAdapter<ApiTypes.BrokerUploadRequest>;
+  ComplianceCheck: EntityAdapter<ApiTypes.ComplianceCheck>;
+  Portal: EntityAdapter<ApiTypes.Portal>;
+  User: EntityAdapter<ApiTypes.User>;
+  Message: EntityAdapter<ApiTypes.Message>;
+  ProgramTemplate: EntityAdapter<ApiTypes.ProgramTemplate>;
+  Trade: EntityAdapter<ApiTypes.Trade>;
+  GCInsurancePolicy: EntityAdapter;
+  [key: string]: EntityAdapter;
+}
+
 const shim = {
-  entities: new Proxy({} as Record<string, EntityAdapter>, {
+  entities: new Proxy({} as TypedEntities, {
     get(_target, name: string | symbol) {
       if (typeof name === 'string') {
         return makeEntityAdapter(name);
@@ -436,11 +465,13 @@ const shim = {
             lastError = error;
             
             // Don't retry on validation errors or abort errors
-            if (error.name === 'AbortError') {
-              throw new Error(`Upload timeout after ${timeout}ms`);
-            }
-            if (error.message.includes('Invalid') || error.message.includes('missing')) {
-              throw error;
+            if (error instanceof Error) {
+              if (error.name === 'AbortError') {
+                throw new Error(`Upload timeout after ${timeout}ms`);
+              }
+              if (error.message.includes('Invalid') || error.message.includes('missing')) {
+                throw error;
+              }
             }
             
             // Retry on network errors with exponential backoff
