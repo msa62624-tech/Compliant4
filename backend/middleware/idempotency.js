@@ -21,16 +21,34 @@ const cleanupInterval = setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
+// Allow process to exit if this is the only active resource
+// but keep running when other resources are active
+cleanupInterval.unref();
+
+let isCleanedUp = false;
+
 /**
  * Cleanup function to stop the interval and prevent memory leak
  * Call this during graceful shutdown
  */
 export function cleanupIdempotency() {
-  if (cleanupInterval) {
-    clearInterval(cleanupInterval);
-    idempotencyStore.clear();
-    logger.info('Idempotency cleanup completed');
+  if (isCleanedUp) {
+    return;
   }
+  
+  isCleanedUp = true;
+  clearInterval(cleanupInterval);
+  idempotencyStore.clear();
+  logger.info('Idempotency cleanup completed');
+}
+
+/**
+ * Reset cleanup state (for testing purposes only)
+ * @private
+ */
+export function resetIdempotencyForTesting() {
+  isCleanedUp = false;
+  idempotencyStore.clear();
 }
 
 /**

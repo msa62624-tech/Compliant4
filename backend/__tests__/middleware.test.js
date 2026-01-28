@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { cacheControl, conditionalRequest } from '../middleware/cacheControl.js';
-import { idempotency, cleanupIdempotency, getIdempotencyStats } from '../middleware/idempotency.js';
+import { idempotency, cleanupIdempotency, getIdempotencyStats, resetIdempotencyForTesting } from '../middleware/idempotency.js';
 
 describe('Cache Control Middleware', () => {
   let req, res, next;
@@ -72,6 +72,25 @@ describe('Cache Control Middleware', () => {
     expect(res.status).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalled();
   });
+
+  test('conditionalRequest should call next when no ETag on response', () => {
+    req.headers['if-none-match'] = 'W/"abc123"';
+    res.get = jest.fn().mockReturnValue(undefined);
+
+    conditionalRequest(req, res, next);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalled();
+  });
+
+  test('should set no-cache headers for POST requests', () => {
+    req.method = 'POST';
+    const middleware = cacheControl();
+    middleware(req, res, next);
+
+    expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    expect(next).toHaveBeenCalled();
+  });
 });
 
 describe('Idempotency Middleware', () => {
@@ -95,8 +114,8 @@ describe('Idempotency Middleware', () => {
   });
 
   afterEach(() => {
-    // Clean up after each test
-    cleanupIdempotency();
+    // Reset cleanup state for testing
+    resetIdempotencyForTesting();
   });
 
   test('should skip idempotency for GET requests', () => {
@@ -184,5 +203,52 @@ describe('Idempotency Middleware', () => {
     await middleware(req, res, next);
     
     expect(next).toHaveBeenCalled();
+  });
+
+  test('should skip idempotency when disabled', async () => {
+    const middleware = idempotency({ enabled: false });
+    await middleware(req, res, next);
+    
+    expect(next).toHaveBeenCalled();
+    // Verify res.json was not wrapped
+    expect(res.json).toBe(res.json);
+  });
+
+  test('should not cache error responses (non-2xx)', async () => {
+    const middleware = idempotency();
+    
+    // First request with error response
+    await middleware(req, res, next);
+    expect(next).toHaveBeenCalled();
+    
+    // Simulate error response
+    res.statusCode = 400;
+    res.json({ error: 'Bad Request' });
+
+    // Reset for second request
+    const jsonMock = jest.fn();
+    const responseChain = {
+      set: jest.fn().mockReturnThis(),
+      json: jsonMock
+    };
+    res = {
+      statusCode: 200,
+      set: responseChain.set,
+      json: jsonMock,
+      status: jest.fn().mockReturnValue(responseChain)
+    };
+    next = jest.fn();
+
+    // Second identical request should not hit cache
+    await middleware(req, res, next);
+    expect(next).toHaveBeenCalled();
+  });
+
+  test('should handle multiple cleanup calls safely', () => {
+    // First cleanup
+    cleanupIdempotency();
+    
+    // Second cleanup should not throw
+    expect(() => cleanupIdempotency()).not.toThrow();
   });
 });

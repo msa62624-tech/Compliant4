@@ -80,9 +80,7 @@ export async function gracefulShutdown(signal) {
   
   // Cleanup idempotency interval
   try {
-    logger.info('Cleaning up idempotency resources...');
     cleanupIdempotency();
-    logger.info('Idempotency cleanup successful');
   } catch (error) {
     logger.error('Error cleaning up idempotency', { error: error.message, stack: error.stack });
   }
