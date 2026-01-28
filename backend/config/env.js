@@ -114,7 +114,7 @@ export const ADMIN_PASSWORD_HASH = (() => {
   
   // Development fallback with warning
   console.warn('⚠️ WARNING: Using default admin password hash for development. Set ADMIN_PASSWORD_HASH in production!');
-  // This is bcrypt hash of: "INsure2026!" - Only for development
+  // Default development password hash - DO NOT use in production
   return '$2b$10$SdlYpKRtZWyeRtelxZazJ.E34HJK70pJCuAy4qXely62Z/LAvAzBO';
 })();
 
@@ -126,3 +126,53 @@ export const BINDER_WINDOW_DAYS = Number(process.env.BINDER_WINDOW_DAYS || 30);
 export const PORT = process.env.PORT || 3001;
 export const FRONTEND_URL = process.env.FRONTEND_URL || process.env.VITE_FRONTEND_URL || 'http://localhost:5175';
 export const NODE_ENV = process.env.NODE_ENV || 'development';
+
+/**
+ * Validates required environment variables for production
+ * Call this before starting the server to fail fast on misconfiguration
+ */
+export function validateProductionEnvironment() {
+  const isProduction = NODE_ENV === 'production' || NODE_ENV === 'prod' || NODE_ENV === 'live';
+  
+  if (!isProduction) {
+    return; // Skip validation in development
+  }
+  
+  const errors = [];
+  
+  // Critical security requirements
+  if (!process.env.JWT_SECRET) {
+    errors.push('JWT_SECRET is required in production');
+  }
+  
+  if (!process.env.ADMIN_PASSWORD_HASH) {
+    errors.push('ADMIN_PASSWORD_HASH is required in production');
+  }
+  
+  // Warn about missing optional but recommended configs
+  const warnings = [];
+  
+  if (!process.env.FRONTEND_URL && !process.env.VITE_FRONTEND_URL) {
+    warnings.push('FRONTEND_URL not set - using default (may cause CORS issues)');
+  }
+  
+  if (!process.env.ADMIN_EMAILS) {
+    warnings.push('ADMIN_EMAILS not set - no email notifications will be sent');
+  }
+  
+  // Log warnings
+  warnings.forEach(warning => {
+    console.warn(`⚠️ WARNING: ${warning}`);
+  });
+  
+  // Fail if critical errors exist
+  if (errors.length > 0) {
+    console.error('❌ Production environment validation failed:');
+    errors.forEach(error => {
+      console.error(`   - ${error}`);
+    });
+    throw new Error('Production environment validation failed. Check logs for details.');
+  }
+  
+  console.log('✅ Production environment validation passed');
+}

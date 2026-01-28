@@ -15,23 +15,19 @@ export function initializeAuthMiddleware(jwtSecret) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    console.log('🔐 Auth check:', {
-      hasAuthHeader: !!authHeader,
-      hasToken: !!token,
-      path: req.path
-    });
+    // Removed console.log to prevent information leakage in production
+    // In production, use proper logging service instead
 
     if (!token) {
-      console.log('❌ No token provided');
-      return sendError(res, 401, 'Authentication token required');
+      // Generic error message to prevent timing attacks
+      return sendError(res, 401, 'Authentication failed');
     }
 
     jwt.verify(token, jwtSecret, (err, user) => {
       if (err) {
-        console.log('❌ Token verification failed:', err.message);
-        return sendError(res, 403, 'Invalid or expired token');
+        // Generic error message to prevent timing attacks
+        return sendError(res, 401, 'Authentication failed');
       }
-      console.log('✅ Token verified for user:', user.username);
       req.user = user;
       next();
     });
