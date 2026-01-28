@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Building2, FileText, Upload, CheckCircle2, AlertCircle, Clock, 
-  User, Shield, Calendar, Eye, Edit2, Save, X, Search
+  User as UserIcon, Shield, Calendar, Eye, Edit2, Save, X, Search
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -867,7 +867,7 @@ InsureTrack System`
               <CardHeader className="border-b">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
-                    <User className="w-5 h-5" />
+                    <UserIcon className="w-5 h-5" />
                     Company Profile
                   </CardTitle>
                   {!isEditingProfile ? (

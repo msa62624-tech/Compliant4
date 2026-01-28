@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Building2, FileText, Users, Home, LogOut, Menu, X, Zap, Clock, AlertTriangle, Archive, MessageSquare, LucideIcon } from 'lucide-react'
+import { Building2, FileText, Users, Home, LogOut, Menu, X, Zap, Clock, AlertTriangle, Archive, MessageSquare } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import type React from 'react'
 import auth from '@/auth'
@@ -38,19 +38,20 @@ import ResetPassword from '@/components/ResetPassword.tsx'
 import MessagingCenter from '@/components/MessagingCenter.tsx'
 import SubEnterBrokerInfo from '@/components/SubEnterBrokerInfo.tsx'
 
-interface NavItem {
-  path: string
-  label: string
-  icon: LucideIcon
-}
+// Unused interfaces - kept for future use
+// interface NavItem {
+//   path: string
+//   label: string
+//   icon: LucideIcon
+// }
 
-interface SidebarProps {
-  onLogout: () => void
-}
+// interface SidebarProps {
+//   onLogout: () => void
+// }
 
-interface PagesProps {
-  onLogout: () => void
-}
+// interface PagesProps {
+//   onLogout: () => void
+// }
 
 interface GCData {
   id: string

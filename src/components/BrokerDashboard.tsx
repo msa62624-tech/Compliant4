@@ -63,12 +63,13 @@ interface BrokerMessage {
   created_date?: string;
 }
 
-interface CurrentUser {
-  user_type: string;
-  id?: string;
-  name?: string;
-  email?: string;
-}
+// Unused interfaces - kept for future use
+// interface CurrentUser {
+//   user_type: string;
+//   id?: string;
+//   name?: string;
+//   email?: string;
+// }
 
 interface StatusConfig {
   label: string;
@@ -76,13 +77,13 @@ interface StatusConfig {
   icon: LucideIcon;
 }
 
-interface StatCardProps {
-  icon: LucideIcon;
-  label: string;
-  value: number;
-  colorClass: 'blue' | 'amber' | 'emerald' | 'red';
-  highlight?: boolean;
-}
+// interface StatCardProps {
+//   icon: LucideIcon;
+//   label: string;
+//   value: number;
+//   colorClass: 'blue' | 'amber' | 'emerald' | 'red';
+//   highlight?: boolean;
+// }
 
 export default function BrokerDashboard(): JSX.Element {
   // SECURITY: Get authenticated broker info from session, not URL parameters

@@ -1,5 +1,4 @@
 import { describe, test, expect } from '@jest/globals';
-import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
