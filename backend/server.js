@@ -9189,110 +9189,33 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
         ...coi,
         hold_harmless_sub_signed_url: signed_url,
         hold_harmless_sub_signed_date: now,
-        hold_harmless_status: coi.hold_harmless_status && coi.hold_harmless_status.startsWith('signed') ? coi.hold_harmless_status : 'signed_by_sub'
-      };
-    } else if (signer === 'broker') {
-      // WORKFLOW REQUIREMENT: Broker can only sign AFTER subcontractor has signed
-      if (!coi.hold_harmless_sub_signed_url) {
-        return sendError(res, 400, 'Subcontractor must sign the hold harmless agreement before broker can sign');
-      }
-      
-      entities.GeneratedCOI[idx] = {
-        ...coi,
-        hold_harmless_broker_signed_url: signed_url,
-        hold_harmless_broker_signed_date: now,
-        hold_harmless_status: coi.hold_harmless_status && coi.hold_harmless_status.startsWith('signed') ? coi.hold_harmless_status : 'pending_gc_signature'
+        hold_harmless_status: 'signed_by_sub'
       };
     } else if (signer === 'gc' || signer === 'general_contractor') {
-      // WORKFLOW REQUIREMENT: GC can only sign AFTER subcontractor AND broker have signed
+      // WORKFLOW REQUIREMENT: GC can only sign AFTER subcontractor has signed
       if (!coi.hold_harmless_sub_signed_url) {
         return sendError(res, 400, 'Subcontractor must sign the hold harmless agreement before GC can sign');
-      }
-      if (!coi.hold_harmless_broker_signed_url) {
-        return sendError(res, 400, 'Broker must sign the hold harmless agreement before GC can sign');
       }
       
       entities.GeneratedCOI[idx] = {
         ...coi,
         hold_harmless_gc_signed_url: signed_url,
         hold_harmless_gc_signed_date: now,
-        hold_harmless_status: coi.hold_harmless_status && coi.hold_harmless_status.startsWith('signed') ? coi.hold_harmless_status : 'signed_by_gc'
+        hold_harmless_status: 'signed_by_gc'
       };
     } else {
       return sendError(res, 400, 'Unknown signer type');
     }
 
-    // If all three parties have signed (sub, broker, gc), mark hold_harmless_status as fully signed
+    // If both sub and gc have signed, mark hold_harmless_status as fully signed
     const updated = entities.GeneratedCOI[idx];
-    if (updated.hold_harmless_sub_signed_url && updated.hold_harmless_broker_signed_url && updated.hold_harmless_gc_signed_url) {
+    if (updated.hold_harmless_sub_signed_url && updated.hold_harmless_gc_signed_url) {
       entities.GeneratedCOI[idx].hold_harmless_status = 'signed';
     }
     
-    // WORKFLOW: After subcontractor signs, send hold harmless to BROKER for their signature
+    // WORKFLOW: After subcontractor signs, send hold harmless to GC for their signature
     if (signer === 'sub' || signer === 'subcontractor') {
-      if (updated.hold_harmless_sub_signed_url && !updated.hold_harmless_broker_signed_url) {
-        try {
-          // Find project and broker contact info
-          const coi = entities.GeneratedCOI[idx];
-          const brokerEmail = coi.broker_email;
-          const brokerName = coi.broker_name || 'Insurance Broker';
-          
-          if (brokerEmail && coi.hold_harmless_template_url) {
-            console.log(`📧 Sending hold harmless to broker for signature after sub signed: ${brokerEmail}`);
-            
-            const brokerSignUrl = `${req.protocol}://${req.get('host')}/public/sign-hold-harmless?token=${encodeURIComponent(token)}&signer=broker`;
-            const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
-            
-            await fetch(internalUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                to: brokerEmail,
-                subject: `✍️ Hold Harmless Agreement - Your Signature Required - ${coi.subcontractor_name || 'Subcontractor'}`,
-                html: `
-                  <h3>Hold Harmless Agreement - Your Signature Required</h3>
-                  <p>Dear ${brokerName},</p>
-                  
-                  <p>The subcontractor <strong>${coi.subcontractor_name || 'N/A'}</strong> has signed the Hold Harmless Agreement for:</p>
-                  
-                  <ul>
-                    <li><strong>Project:</strong> ${coi.project_name || 'N/A'}</li>
-                    <li><strong>Trade:</strong> ${coi.trade_type || 'N/A'}</li>
-                    <li><strong>Job Location:</strong> ${coi.project_address || coi.project_location || 'N/A'}</li>
-                  </ul>
-                  
-                  <p>As the insurance broker for this project, your signature is now required on the Hold Harmless Agreement.</p>
-                  
-                  <p><strong><a href="${brokerSignUrl}" style="background-color: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Review & Sign Agreement</a></strong></p>
-                  
-                  <p>Or copy this link: ${brokerSignUrl}</p>
-                  
-                  <p>Once you sign, the agreement will be forwarded to the General Contractor for final signature.</p>
-                  
-                  <p>Best regards,<br>InsureTrack Compliance System</p>
-                `,
-                body: `Hold Harmless Agreement - Your Signature Required\n\n` +
-                  `The subcontractor ${coi.subcontractor_name || 'N/A'} has signed the Hold Harmless Agreement.\n\n` +
-                  `Project: ${coi.project_name || 'N/A'}\n` +
-                  `Trade: ${coi.trade_type || 'N/A'}\n\n` +
-                  `Please review and sign: ${brokerSignUrl}\n\n` +
-                  `Best regards,\nInsureTrack System`
-              })
-            });
-            
-            console.log('✅ Hold harmless sent to broker for signature');
-          } else {
-            console.warn('⚠️ Could not send hold harmless to broker - missing email or template URL');
-          }
-        } catch (emailErr) {
-          console.error('❌ Failed to send hold harmless to broker:', emailErr?.message || emailErr);
-        }
-      }
-    }
-
-    // WORKFLOW: After broker signs, send hold harmless to GC for their signature
-    if (signer === 'broker') {
-      if (updated.hold_harmless_broker_signed_url && !updated.hold_harmless_gc_signed_url) {
+      if (updated.hold_harmless_sub_signed_url && !updated.hold_harmless_gc_signed_url) {
         try {
           // Find project and GC contact info
           const coi = entities.GeneratedCOI[idx];
@@ -9301,7 +9224,7 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
           const gcName = project?.gc_name || coi.gc_name || 'General Contractor';
           
           if (gcEmail && coi.hold_harmless_template_url) {
-            console.log(`📧 Sending hold harmless to GC for signature after broker signed: ${gcEmail}`);
+            console.log(`📧 Sending hold harmless to GC for signature after sub signed: ${gcEmail}`);
             
             const gcSignUrl = `${req.protocol}://${req.get('host')}/public/sign-hold-harmless?token=${encodeURIComponent(token)}&signer=gc`;
             const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
@@ -9316,7 +9239,7 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
                   <h3>Hold Harmless Agreement Ready for Your Signature</h3>
                   <p>Dear ${gcName},</p>
                   
-                  <p>The subcontractor <strong>${coi.subcontractor_name || 'N/A'}</strong> and their broker have signed the Hold Harmless Agreement for:</p>
+                  <p>The subcontractor <strong>${coi.subcontractor_name || 'N/A'}</strong> has signed the Hold Harmless Agreement for:</p>
                   
                   <ul>
                     <li><strong>Project:</strong> ${coi.project_name || 'N/A'}</li>
@@ -9324,7 +9247,7 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
                     <li><strong>Job Location:</strong> ${coi.project_address || coi.project_location || 'N/A'}</li>
                   </ul>
                   
-                  <p>The agreement is now ready for your final review and signature.</p>
+                  <p>The agreement is now ready for your review and signature.</p>
                   
                   <p><strong><a href="${gcSignUrl}" style="background-color: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Review & Sign Agreement</a></strong></p>
                   
@@ -9335,7 +9258,7 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
                   <p>Best regards,<br>InsureTrack Compliance System</p>
                 `,
                 body: `Hold Harmless Agreement - Your Signature Required\n\n` +
-                  `The subcontractor ${coi.subcontractor_name || 'N/A'} and their broker have signed the Hold Harmless Agreement.\n\n` +
+                  `The subcontractor ${coi.subcontractor_name || 'N/A'} has signed the Hold Harmless Agreement.\n\n` +
                   `Project: ${coi.project_name || 'N/A'}\n` +
                   `Trade: ${coi.trade_type || 'N/A'}\n\n` +
                   `Please review and sign: ${gcSignUrl}\n\n` +
