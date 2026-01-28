@@ -24,6 +24,7 @@ export interface Subscription {
   per_project?: number;
   monthly?: number;
   annual?: number;
+  next_billing_date?: string;
   [key: string]: unknown;
 }
 
@@ -63,6 +64,7 @@ export interface Contractor {
   zip_code?: string;
   created_date?: string;
   updated_date?: string;
+  assigned_admin_email?: string;
   gcLogin?: {
     username?: string;
     password?: string;
@@ -103,6 +105,8 @@ export interface Project {
   unit_count?: number;
   height_stories?: number;
   custom_pricing?: boolean;
+  needs_admin_setup?: boolean;
+  assigned_admin_email?: string;
   [key: string]: unknown;
 }
 
@@ -161,6 +165,7 @@ export interface GeneratedCOI {
   created_date?: string;
   updated_date?: string;
   needs_admin_setup?: boolean;
+  assigned_admin_email?: string;
   [key: string]: unknown;
 }
 
@@ -326,6 +331,8 @@ export interface Message {
   message?: string;
   status?: string;
   created_date?: string;
+  is_read?: boolean;
+  project_id?: string;
   [key: string]: unknown;
 }
 
