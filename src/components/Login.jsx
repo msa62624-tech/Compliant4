@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import auth from '@/auth.js';
+import { validateLoginCredentials } from '@/utils/validation';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Button } from '@/components/ui/button';
@@ -11,12 +12,40 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [validationErrors, setValidationErrors] = useState({});
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  const validateForm = () => {
+    // Clear previous validation errors
+    setValidationErrors({});
+
+    // Validate using Zod schema
+    const result = validateLoginCredentials({ username, password });
+    
+    if (!result.success) {
+      const errors = {};
+      result.errors.forEach(err => {
+        errors[err.field] = err.message;
+      });
+      setValidationErrors(errors);
+      return false;
+    }
+
+    return true;
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    
+    // Validate form before submission
+    if (!validateForm()) {
+      setLoading(false);
+      setError('Please fix the validation errors below');
+      return;
+    }
+
     try {
       await auth.login({ username, password });
       // No need to call onLogin - auth.login triggers 'auth-changed' event
@@ -51,11 +80,33 @@ export default function Login() {
         <div className="space-y-6">
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">Username</label>
-            <Input value={username} onChange={e => setUsername(e.target.value)} className="h-12 text-base border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-200" disabled={loading} placeholder="Enter your username" />
+            <Input 
+              value={username} 
+              onChange={e => setUsername(e.target.value)} 
+              className={`h-12 text-base border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-200 ${validationErrors.username ? 'border-red-500' : ''}`}
+              disabled={loading} 
+              placeholder="Enter your username"
+              aria-invalid={!!validationErrors.username}
+              aria-describedby={validationErrors.username ? "username-error" : undefined}
+            />
+            {validationErrors.username && (
+              <p id="username-error" className="text-sm text-red-600 mt-1">{validationErrors.username}</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">Password</label>
-            <PasswordInput value={password} onChange={e => setPassword(e.target.value)} className="h-12 text-base border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-200" disabled={loading} placeholder="Enter your password" />
+            <PasswordInput 
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
+              className={`h-12 text-base border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-200 ${validationErrors.password ? 'border-red-500' : ''}`}
+              disabled={loading} 
+              placeholder="Enter your password"
+              aria-invalid={!!validationErrors.password}
+              aria-describedby={validationErrors.password ? "password-error" : undefined}
+            />
+            {validationErrors.password && (
+              <p id="password-error" className="text-sm text-red-600 mt-1">{validationErrors.password}</p>
+            )}
           </div>
           <div className="flex justify-end">
             <button

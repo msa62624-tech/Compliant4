@@ -1,99 +1,352 @@
 /**
- * Direct REST API Client - replaces legacy client with native fetch calls
- * Uses the Express backend endpoints directly
+ * Enterprise-grade REST API Client
+ * 
+ * Features:
+ * - Automatic token refresh on 401 errors
+ * - Configurable request timeouts
+ * - Retry logic with exponential backoff
+ * - Structured error handling
+ * - Request/response logging
+ * - Correlation ID tracking
  */
 
 import * as auth from '../auth.js';
+import logger from '../utils/logger.js';
+
+// Configuration constants
+const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1000; // Initial retry delay
+const RETRY_STATUS_CODES = [408, 429, 500, 502, 503, 504]; // Retryable HTTP status codes
 
 // Use centralized auth module for consistent token management
 export const getAuthHeader = () => auth.getAuthHeader();
 
 // Build the API base URLs we should attempt, ordered by priority
 const getApiBaseCandidates = () => {
-  // Highest priority: explicit base URL
+  // Highest priority: explicit base URL from environment
   const envBase = import.meta.env.VITE_API_BASE_URL;
-  if (envBase) return [envBase.replace(/\/$/, '')];
+  if (envBase) {
+    const cleanUrl = envBase.replace(/\/$/, '');
+    logger.debug('Using configured API base URL', { url: cleanUrl });
+    return [cleanUrl];
+  }
 
+  // Check for cached base URL from previous successful request
   const cachedBase = typeof window !== 'undefined' ? window.__API_BASE_CACHE__ : null;
   const bases = [];
-  if (cachedBase) bases.push(cachedBase);
+  if (cachedBase) {
+    logger.debug('Found cached API base URL', { url: cachedBase });
+    bases.push(cachedBase);
+  }
 
-  // Respect an overridable backend port, default to 3001
+  // Determine ports to try based on configuration
   const preferredPort = String(import.meta.env.VITE_API_PORT || '3001');
   const portsToTry = [preferredPort];
 
-  // Common fallback for Codespaces when 3001 is occupied
+  // Common fallback for Codespaces when primary port is occupied
   if (!portsToTry.includes('3002')) portsToTry.push('3002');
 
   // Ensure 3001 is present even if env overrides a different port
   if (!portsToTry.includes('3001')) portsToTry.push('3001');
 
+  // Build URLs based on current location
+  if (typeof window === 'undefined') {
+    return bases.length > 0 ? bases : ['http://localhost:3001'];
+  }
+
   const { protocol, host, origin } = window.location;
 
   const deriveBaseForPort = (port) => {
+    // GitHub Codespaces pattern
     const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-    if (withPortMatch) return `${protocol}//${withPortMatch[1]}-${port}${withPortMatch[3]}`;
+    if (withPortMatch) {
+      return `${protocol}//${withPortMatch[1]}-${port}${withPortMatch[3]}`;
+    }
 
+    // GitHub Codespaces pattern (alternative)
     if (host.endsWith('.github.dev') && !host.endsWith('.app.github.dev')) {
       return `${protocol}//${host.replace(/\.github\.dev$/, `-${port}.app.github.dev`)}`;
     }
 
-    if (origin.includes(':5173')) return origin.replace(/:\d+$/, `:${port}`);
-    if (origin.includes(':5175')) return origin.replace(/:\d+$/, `:${port}`);
-    if (origin.includes(':5176')) return origin.replace(/:\d+$/, `:${port}`);
+    // Local development patterns
+    const localDevPorts = ['5173', '5175', '5176'];
+    for (const devPort of localDevPorts) {
+      if (origin.includes(`:${devPort}`)) {
+        return origin.replace(/:\d+$/, `:${port}`);
+      }
+    }
 
+    // Default to localhost
     return `http://localhost:${port}`;
   };
 
   const derivedBases = portsToTry.map(deriveBaseForPort).filter(Boolean);
-  return Array.from(new Set([...bases, ...derivedBases]));
+  const allBases = Array.from(new Set([...bases, ...derivedBases]));
+  
+  logger.debug('Generated API base candidates', { candidates: allBases });
+  return allBases;
 };
 
-export const getApiBase = () => getApiBaseCandidates()[0] || 'http://localhost:3001';
+export const getApiBase = () => {
+  const candidates = getApiBaseCandidates();
+  return candidates[0] || 'http://localhost:3001';
+};
+
+/**
+ * Sleep for specified duration
+ * @param {number} ms - Milliseconds to sleep
+ * @returns {Promise} - Promise that resolves after delay
+ */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Calculate exponential backoff delay
+ * @param {number} attempt - Current attempt number (0-indexed)
+ * @param {number} baseDelay - Base delay in milliseconds
+ * @returns {number} - Delay in milliseconds
+ */
+const getRetryDelay = (attempt, baseDelay = RETRY_DELAY_MS) => {
+  const exponentialDelay = baseDelay * Math.pow(2, attempt);
+  const jitter = Math.random() * 0.3 * exponentialDelay; // Add 0-30% jitter
+  return Math.min(exponentialDelay + jitter, 10000); // Cap at 10 seconds
+};
+
+/**
+ * Check if error/status is retryable
+ * @param {Error|number} errorOrStatus - Error object or HTTP status code
+ * @returns {boolean} - True if should retry
+ */
+const isRetryable = (errorOrStatus) => {
+  // Network errors are retryable
+  if (errorOrStatus instanceof Error) {
+    const isNetworkError = errorOrStatus instanceof TypeError || 
+                          errorOrStatus.name === 'TypeError' ||
+                          errorOrStatus.name === 'AbortError' ||
+                          errorOrStatus.name === 'TimeoutError';
+    return isNetworkError;
+  }
+  
+  // Check if HTTP status is retryable
+  if (typeof errorOrStatus === 'number') {
+    return RETRY_STATUS_CODES.includes(errorOrStatus);
+  }
+  
+  return false;
+};
 
 // Fetch wrapper that retries across candidate bases on network/CORS failures
-const fetchWithFallback = async (buildRequest) => {
+const fetchWithFallback = async (buildRequest, options = {}) => {
   const bases = getApiBaseCandidates();
+  const maxRetries = options.retries !== undefined ? options.retries : MAX_RETRIES;
   let lastError;
+  let attempt = 0;
 
   for (const base of bases) {
-    try {
-      const response = await buildRequest(base);
-      if (typeof window !== 'undefined') {
-        window.__API_BASE_CACHE__ = base;
+    attempt = 0;
+    
+    while (attempt <= maxRetries) {
+      try {
+        const startTime = performance.now();
+        const response = await buildRequest(base);
+        const duration = Math.round(performance.now() - startTime);
+        
+        // Log successful request
+        logger.debug('API request successful', {
+          base,
+          attempt,
+          duration,
+          status: response.status
+        });
+        
+        // Cache successful base URL
+        if (typeof window !== 'undefined') {
+          window.__API_BASE_CACHE__ = base;
+        }
+        
+        return { response, base };
+      } catch (err) {
+        lastError = err;
+        
+        // Log failed attempt
+        logger.warn('API request attempt failed', {
+          base,
+          attempt,
+          maxRetries,
+          error: err.message,
+          isRetryable: isRetryable(err)
+        });
+        
+        // Check if we should retry
+        if (attempt < maxRetries && isRetryable(err)) {
+          const delay = getRetryDelay(attempt);
+          logger.debug('Retrying request after delay', { delay, attempt: attempt + 1 });
+          await sleep(delay);
+          attempt++;
+          continue;
+        }
+        
+        // If not retryable or max retries reached, try next base
+        break;
       }
-      return { response, base };
-    } catch (err) {
-      lastError = err;
-      const isNetworkError = err instanceof TypeError || err?.name === 'TypeError';
-      if (!isNetworkError) throw err;
-      // Network/CORS issues: try next base
     }
   }
 
-  throw lastError || new Error('API unreachable');
+  logger.error('All API request attempts failed', {
+    totalBases: bases.length,
+    maxRetriesPerBase: maxRetries,
+    lastError: lastError?.message
+  });
+  
+  throw lastError || new Error('API unreachable after all retry attempts');
 };
 
-// Generic fetch wrapper
+// Generic fetch wrapper with automatic token refresh and comprehensive error handling
 const apiFetch = async (endpoint, options = {}) => {
-  const { response, base } = await fetchWithFallback((apiBase) =>
-    fetch(`${apiBase}${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeader(),
-        ...options.headers
+  const timeout = options.timeout || DEFAULT_TIMEOUT_MS;
+  const retries = options.retries !== undefined ? options.retries : MAX_RETRIES;
+  const correlationId = options.correlationId || `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  logger.debug('API request initiated', {
+    endpoint,
+    method: options.method || 'GET',
+    correlationId
+  });
+
+  try {
+    const { response, base } = await fetchWithFallback(
+      async (apiBase) => {
+        // Create abort controller for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        
+        try {
+          // Get authentication header
+          const authHeader = await getAuthHeader();
+          
+          const fetchResponse = await fetch(`${apiBase}${endpoint}`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Correlation-ID': correlationId,
+              ...authHeader,
+              ...options.headers
+            },
+            credentials: 'include',
+            signal: controller.signal,
+            ...options
+          });
+          
+          clearTimeout(timeoutId);
+          return fetchResponse;
+        } catch (error) {
+          clearTimeout(timeoutId);
+          throw error;
+        }
       },
-      credentials: 'include',
-      ...options
-    })
-  );
+      { retries }
+    );
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`API Error (${response.status}) via ${base}: ${error}`);
+    // Handle authentication errors with automatic token refresh
+    if (response.status === 401) {
+      logger.info('Received 401, attempting token refresh', { endpoint, correlationId });
+      
+      // Try to refresh token
+      const newToken = await auth.refreshAccessToken();
+      
+      if (newToken) {
+        // Retry request with new token (without retries to avoid infinite loop)
+        logger.debug('Retrying request with refreshed token', { endpoint, correlationId });
+        return apiFetch(endpoint, { ...options, retries: 0 });
+      } else {
+        // Refresh failed, clear auth and throw
+        logger.warn('Token refresh failed, clearing authentication', { endpoint, correlationId });
+        auth.clearToken();
+        throw new Error('Authentication failed. Please log in again.');
+      }
+    }
+
+    // Handle other error status codes
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      
+      logger.error('API request failed', {
+        endpoint,
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+        correlationId,
+        base
+      });
+      
+      // Provide user-friendly error messages for common scenarios
+      let errorMessage;
+      switch (response.status) {
+        case 400:
+          errorMessage = `Invalid request: ${errorText || response.statusText}`;
+          break;
+        case 403:
+          errorMessage = 'Access denied. You do not have permission to perform this action.';
+          break;
+        case 404:
+          errorMessage = `Resource not found: ${endpoint}`;
+          break;
+        case 409:
+          errorMessage = `Conflict: ${errorText || 'The resource already exists or conflicts with existing data'}`;
+          break;
+        case 422:
+          errorMessage = `Validation failed: ${errorText || response.statusText}`;
+          break;
+        case 429:
+          errorMessage = 'Too many requests. Please slow down and try again later.';
+          break;
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          errorMessage = 'Server error. Please try again later.';
+          break;
+        default:
+          errorMessage = `Request failed (${response.status}): ${errorText || response.statusText}`;
+      }
+      
+      const error = new Error(errorMessage);
+      error.status = response.status;
+      error.statusText = response.statusText;
+      error.correlationId = correlationId;
+      error.endpoint = endpoint;
+      throw error;
+    }
+
+    // Parse and return successful response
+    const data = await response.json().catch(() => ({}));
+    
+    logger.debug('API request completed successfully', {
+      endpoint,
+      status: response.status,
+      correlationId
+    });
+    
+    return data;
+  } catch (error) {
+    // Handle timeout errors
+    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+      logger.error('API request timed out', {
+        endpoint,
+        timeout,
+        correlationId
+      });
+      const timeoutError = new Error(`Request timed out after ${timeout}ms`);
+      timeoutError.isTimeout = true;
+      timeoutError.correlationId = correlationId;
+      throw timeoutError;
+    }
+    
+    // Re-throw with correlation ID if not already attached
+    if (!error.correlationId) {
+      error.correlationId = correlationId;
+    }
+    throw error;
   }
-
-  return response.json();
 };
 
 // Entity operations

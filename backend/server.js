@@ -44,7 +44,7 @@ import swaggerSpec from './config/swagger.js';
 import { timingSafeEqual, DUMMY_PASSWORD_HASH } from './services/authService.js';
 
 // Import utilities
-import { validateAndSanitizeFilename, verifyPathWithinDirectory, validateEmail } from './utils/helpers.js';
+import { validateAndSanitizeFilename, verifyPathWithinDirectory, validateEmail, maskEmail } from './utils/helpers.js';
 import { getBroker, getOrCreateBroker } from './utils/brokerHelpers.js';
 import { users, passwordResetTokens } from './utils/users.js';
 import { getPasswordResetEmail, getDocumentReplacementNotificationEmail, createEmailTemplate } from './utils/emailTemplates.js';
@@ -106,9 +106,25 @@ app.set('trust proxy', 1);
 
 /**
  * Data migration: Move broker passwords from COI records to centralized Broker table
- * This runs once on startup to ensure data consistency
+ * This migration is idempotent and can be run multiple times safely
+ * 
+ * Migration state is tracked to prevent redundant processing:
+ * - Check if migration has already been completed
+ * - Only process brokers that haven't been migrated yet
+ * - Mark migration as complete when finished
  */
 function migrateBrokerPasswords() {
+  // Check if migration has already been completed
+  if (!entities._migrations) {
+    entities._migrations = {};
+  }
+
+  // Skip if already migrated
+  if (entities._migrations.brokerPasswordsMigrated) {
+    logger.debug('Broker password migration already completed, skipping');
+    return;
+  }
+
   let migratedCount = 0;
   let cleanupSuccessful = false;
 
@@ -131,15 +147,7 @@ function migrateBrokerPasswords() {
           existing.uniquePasswords.add(coi.broker_password);
 
           if (existing.uniquePasswords.size > 1 && !existing.conflictLogged) {
-            let maskedEmail = email || 'unknown';
-            if (email && email.includes('@')) {
-              const parts = email.split('@');
-              const localPart = parts[0] || '';
-              const domain = parts[1] || 'unknown';
-              maskedEmail = localPart.length > 3
-                ? `${localPart.substring(0, 3)}***@${domain}`
-                : `***@${domain}`;
-            }
+            const maskedEmail = maskEmail(email);
             logger.warn('Password conflict detected for broker', {
               maskedEmail,
               uniquePasswordsCount: existing.uniquePasswords.size,
@@ -161,15 +169,7 @@ function migrateBrokerPasswords() {
           migratedCount++;
 
           if (data.count > 1) {
-            let maskedEmail = email || 'unknown';
-            if (email && email.includes('@')) {
-              const parts = email.split('@');
-              const localPart = parts[0] || '';
-              const domain = parts[1] || 'unknown';
-              maskedEmail = localPart.length > 3
-                ? `${localPart.substring(0, 3)}***@${domain}`
-                : `***@${domain}`;
-            }
+            const maskedEmail = maskEmail(email);
             logger.info('Migrated broker password', {
               maskedEmail,
               recordCount: data.count,
@@ -200,12 +200,18 @@ function migrateBrokerPasswords() {
         return coi;
       });
 
+      // Mark migration as complete
+      entities._migrations.brokerPasswordsMigrated = true;
+      entities._migrations.brokerPasswordsMigratedAt = new Date().toISOString();
+
       if (migratedCount > 0) {
         logger.info('Broker password migration completed', {
           migratedCount,
           action: 'migrated to centralized Broker table'
         });
         debouncedSave();
+      } else {
+        logger.debug('Broker password migration completed with no new migrations');
       }
     } catch (cleanupError) {
       logger.error('Error during migration cleanup', {

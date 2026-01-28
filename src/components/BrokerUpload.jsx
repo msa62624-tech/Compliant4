@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { apiClient } from "@/api/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,22 +9,57 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, AlertCircle, User, Mail } from "lucide-react";
 import { notifyBrokerAssignment } from "@/brokerNotifications";
 import { getBackendBaseUrl } from "@/urlConfig";
+import { validateUrlParams, validate, brokerSchemas } from "@/utils/validation";
+import logger from "@/utils/logger";
 
 export default function BrokerUpload() {
+  // Validate URL parameters
   const urlParams = new URLSearchParams(window.location.search);
-  const uploadType = urlParams.get('type'); // 'global' or 'per-policy'
-  const subId = urlParams.get('subId');
-  const token = urlParams.get('token');
+  
+  // Validate and sanitize URL parameters
+  const validatedParams = useMemo(() => {
+    const paramObject = {
+      type: urlParams.get('type'),
+      subId: urlParams.get('subId'),
+      token: urlParams.get('token')
+    };
+    
+    const result = validateUrlParams(paramObject, 
+      validate.schemas.urlParam.brokerUploadParams
+    );
+    
+    if (!result.success) {
+      logger.error('Invalid URL parameters for BrokerUpload', {
+        errors: result.errors,
+        params: paramObject
+      });
+      // Return safe defaults
+      return { type: null, subId: null, token: null, isValid: false };
+    }
+    
+    logger.debug('BrokerUpload URL parameters validated', {
+      params: result.data
+    });
+    
+    return { ...result.data, isValid: true };
+  }, [urlParams]);
+
+  const { type: uploadType, subId, token, isValid: paramsValid } = validatedParams;
 
   const queryClient = useQueryClient();
 
-  // Public access handling
+  // Store token in memory instead of session storage for better security
+  const [publicAccessToken, setPublicAccessToken] = useState(token);
+
   React.useEffect(() => {
     if (token) {
-      sessionStorage.setItem('public_access_enabled', 'true');
-      sessionStorage.setItem('public_access_token', token);
+      logger.info('Public access token received for BrokerUpload', {
+        subId,
+        hasToken: true
+      });
+      setPublicAccessToken(token);
     }
-  }, [token]);
+  }, [token, subId]);
 
   // For global broker
   const [globalBroker, setGlobalBroker] = useState({
@@ -76,7 +111,10 @@ export default function BrokerUpload() {
         // Try to read directly by ID first
         return await apiClient.entities.Contractor.read(subId);
       } catch (err) {
-        console.warn('⚠️ BrokerUpload: Authenticated read failed, trying public fallback:', err?.message || err);
+        logger.warn('Authenticated read failed, trying public fallback', {
+          subId,
+          error: err?.message
+        });
         try {
           // Public/token-based fallback: fetch without auth
           const backendBase = getBackendBaseUrl();
@@ -92,7 +130,10 @@ export default function BrokerUpload() {
           }
           throw new Error('Public fetch failed: ' + response.status);
         } catch (publicErr) {
-          console.error('❌ BrokerUpload: Public fallback also failed:', publicErr?.message || publicErr);
+          logger.error('Public fallback also failed', {
+            subId,
+            error: publicErr?.message
+          });
           // Return a placeholder so form can still work with just the ID
           return { id: subId, company_name: 'Unknown', contractor_type: 'subcontractor' };
         }
@@ -107,19 +148,29 @@ export default function BrokerUpload() {
       
       // Validate based on upload type
       if (uploadType === 'global') {
-        if (!globalBroker.broker_name?.trim()) throw new Error('Broker name is required');
-        if (!globalBroker.broker_email?.trim() || !globalBroker.broker_email.includes('@')) {
-          throw new Error('Valid broker email is required');
+        // Validate global broker using Zod schema
+        const result = validate(brokerSchemas.globalBroker, globalBroker);
+        if (!result.success) {
+          const firstError = result.errors[0];
+          logger.error('Global broker validation failed', { errors: result.errors });
+          throw new Error(firstError.message);
         }
       } else {
         // Per-policy: validate all brokers have required fields
-        if (brokers.length === 0) throw new Error('Add at least one broker');
+        if (brokers.length === 0) {
+          throw new Error('Add at least one broker');
+        }
+        
         for (const broker of brokers) {
-          if (!broker.name?.trim()) throw new Error('All brokers must have a name');
-          if (!broker.email?.trim() || !broker.email.includes('@')) {
-            throw new Error('All brokers must have a valid email');
+          const result = validate(brokerSchemas.perPolicyBroker, broker);
+          if (!result.success) {
+            const firstError = result.errors[0];
+            logger.error('Per-policy broker validation failed', {
+              errors: result.errors,
+              broker: broker.name
+            });
+            throw new Error(`Broker ${broker.name}: ${firstError.message}`);
           }
-          if (broker.policies.length === 0) throw new Error('All brokers must be assigned at least one policy');
         }
       }
       
@@ -153,11 +204,20 @@ export default function BrokerUpload() {
         }
       }
       
+      logger.info('Saving broker information', {
+        subId,
+        brokerType: uploadType,
+        hasToken: !!publicAccessToken
+      });
+      
       // Update Contractor record - try authenticated first, then public fallback
       try {
         await apiClient.entities.Contractor.update(subId, updateData);
+        logger.info('Broker information saved via authenticated endpoint');
       } catch (authErr) {
-        console.warn('⚠️ Authenticated update failed, trying public endpoint:', authErr?.message);
+        logger.warn('Authenticated update failed, trying public endpoint', {
+          error: authErr?.message
+        });
         try {
           const backendBase = getBackendBaseUrl();
           
@@ -189,7 +249,9 @@ export default function BrokerUpload() {
         }
         coiUpdateSuccess = true;
       } catch (coiError) {
-        console.warn('⚠️ Authenticated COI update failed, trying public endpoint:', coiError?.message);
+        logger.warn('Authenticated COI update failed, trying public endpoint', {
+          error: coiError?.message
+        });
         try {
           // Public fallback: Update COIs via public endpoint
           const backendBase = getBackendBaseUrl();
@@ -205,7 +267,9 @@ export default function BrokerUpload() {
           }
           coiUpdateSuccess = true;
         } catch (publicCoiError) {
-          console.error('❌ Both COI update methods failed:', publicCoiError);
+          logger.error('Both COI update methods failed', {
+            error: publicCoiError?.message
+          });
           coiUpdateError = publicCoiError;
           // Don't throw - contractor/broker assignment worked, just COI sync failed
           // But store the error to show a warning to the user
@@ -214,6 +278,9 @@ export default function BrokerUpload() {
       
       // Show warning if COI sync failed
       if (!coiUpdateSuccess && coiUpdateError) {
+        logger.warn('COI sync failed after broker assignment', {
+          error: coiUpdateError.message
+        });
         setError(`⚠️ Warning: Broker assignment saved, but failed to sync with existing certificates. Error: ${coiUpdateError.message}`);
       }
       
@@ -248,7 +315,9 @@ export default function BrokerUpload() {
           }
         }
       } catch (emailError) {
-        console.error('❌ Failed to send broker notification:', emailError);
+        logger.error('Failed to send broker notification', {
+          error: emailError?.message
+        });
       }
     },
     onSuccess: () => {
@@ -259,9 +328,27 @@ export default function BrokerUpload() {
       }, 2000);
     },
     onError: (err) => {
+      logger.error('Failed to save broker information', {
+        error: err?.message
+      });
       setError(err?.message || 'Failed to save broker information');
     },
   });
+
+  // Show error if URL parameters are invalid
+  if (!paramsValid) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="w-16 h-16 mx-auto text-red-500 mb-4" />
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Invalid Parameters</h2>
+            <p className="text-slate-600">The URL parameters are invalid or missing. Please use the link from your email.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!subId || !uploadType) {
     return (
