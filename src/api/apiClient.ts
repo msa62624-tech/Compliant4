@@ -334,7 +334,7 @@ const apiFetch = async <T = unknown>(endpoint: string, options: FetchOptions = {
         endpoint,
         status: response.status,
         statusText: response.statusText,
-        error: errorText,
+        errorMessage: errorText,
         correlationId,
         base
       });

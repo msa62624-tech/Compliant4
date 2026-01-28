@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import logger from './logger.js';
+import logger from './logger';
 
 // Common validation patterns
 const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;

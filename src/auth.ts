@@ -43,7 +43,7 @@ function decodeJWT(token: string): JWTPayload | null {
     const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
     return decoded;
   } catch (error) {
-    logger.error('Failed to decode JWT token', { error: (error as Error).message });
+    logger.error('Failed to decode JWT token', { error: error as Error });
     return null;
   }
 }
@@ -100,7 +100,7 @@ export function getToken(): string | null {
     
     return token;
   } catch (e) {
-    logger.error('Failed to retrieve authentication token from storage', { error: (e as Error).message });
+    logger.error('Failed to retrieve authentication token from storage', { error: e as Error });
     // Fall back to memory storage
     useMemoryStorage = true;
     const token = memoryStorage.token;
@@ -155,7 +155,7 @@ export function setToken(token: string | null, refreshToken: string | null = nul
       }
     } catch (e) {
       // Log storage errors and switch to memory-only mode
-      logger.error('Failed to store token in localStorage', { error: (e as Error).message });
+      logger.error('Failed to store token in localStorage', { error: e as Error });
       logger.warn('Switching to in-memory storage mode (tokens will not persist across page reloads)');
       useMemoryStorage = true;
     }
@@ -279,7 +279,7 @@ export async function refreshAccessToken(): Promise<string | null> {
         try {
           refreshToken = localStorage.getItem(REFRESH_KEY);
         } catch (e) {
-          logger.error('Failed to retrieve refresh token from localStorage', { error: (e as Error).message });
+          logger.error('Failed to retrieve refresh token from localStorage', { error: e as Error });
           // Fall back to memory if localStorage fails
           useMemoryStorage = true;
           refreshToken = memoryStorage.refreshToken;
@@ -334,8 +334,7 @@ export async function refreshAccessToken(): Promise<string | null> {
       }
       
       logger.error('Token refresh failed with exception', {
-        error: (error as Error).message,
-        name: (error as Error).name
+        error: error as Error
       });
       return null;
     } finally {

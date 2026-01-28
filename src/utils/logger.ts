@@ -9,18 +9,46 @@
  * - Performance monitoring hooks
  */
 
+// Type definitions
+interface ErrorTrackingService {
+  captureException: (error: Error, options?: { extra?: Record<string, unknown> }) => void;
+  captureMessage: (message: string, options?: { level?: string; extra?: Record<string, unknown> }) => void;
+}
+
+interface LoggerOptions {
+  errorTracking?: ErrorTrackingService;
+}
+
+interface LogContext {
+  [key: string]: unknown;
+  correlationId?: string;
+  includeCorrelationId?: boolean;
+  error?: Error;
+  important?: boolean;
+  level?: string;
+}
+
+interface StructuredLog {
+  timestamp: string;
+  level: string;
+  message: string;
+  environment: string;
+  correlationId?: string;
+  [key: string]: unknown;
+}
+
+type LogLevel = 'info' | 'warn' | 'error' | 'debug' | 'performance';
+
 const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
 const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production';
 
 // Store reference to external error tracking service (set via initialize())
-let errorTrackingService = null;
+let errorTrackingService: ErrorTrackingService | null = null;
 
 /**
  * Initialize logger with external services
- * @param {object} options - Configuration options
- * @param {object} options.errorTracking - Error tracking service (e.g., Sentry)
  */
-export const initializeLogger = (options = {}) => {
+export const initializeLogger = (options: LoggerOptions = {}): void => {
   if (options.errorTracking) {
     errorTrackingService = options.errorTracking;
     logger.info('Logger initialized with error tracking service');
@@ -29,27 +57,22 @@ export const initializeLogger = (options = {}) => {
 
 /**
  * Generate correlation ID for request tracking
- * @returns {string} - Unique correlation ID
  */
-const generateCorrelationId = () => {
+const generateCorrelationId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
 /**
  * Format log message with structured context
- * @param {string} level - Log level (info, warn, error, etc.)
- * @param {string} message - The log message
- * @param {object} context - Additional context data
- * @returns {object} - Structured log object
  */
-const createStructuredLog = (level, message, context = {}) => {
+const createStructuredLog = (level: string, message: string, context: LogContext = {}): StructuredLog => {
   const timestamp = new Date().toISOString();
-  const structuredLog = {
+  const structuredLog: StructuredLog = {
     timestamp,
     level,
     message,
     ...context,
-    environment: import.meta.env.MODE,
+    environment: import.meta.env.MODE as string,
     // Include correlation ID if available in context or generate new one
     correlationId: context.correlationId || (context.includeCorrelationId ? generateCorrelationId() : undefined)
   };
@@ -66,11 +89,8 @@ const createStructuredLog = (level, message, context = {}) => {
 
 /**
  * Format message for console output
- * @param {string} message - The log message
- * @param {object} context - Additional context data
- * @returns {Array} - Formatted arguments for console
  */
-const formatMessage = (message, context) => {
+const formatMessage = (message: string, context?: LogContext): [string, LogContext?] | [string] => {
   if (context && Object.keys(context).length > 0) {
     return [message, context];
   }
@@ -79,10 +99,8 @@ const formatMessage = (message, context) => {
 
 /**
  * Send error to external tracking service
- * @param {string} message - Error message
- * @param {object} context - Error context
  */
-const sendToErrorTracking = (message, context = {}) => {
+const sendToErrorTracking = (message: string, context: LogContext = {}): void => {
   if (!errorTrackingService || !isProduction) {
     return;
   }
@@ -109,10 +127,8 @@ const sendToErrorTracking = (message, context = {}) => {
 export const logger = {
   /**
    * Log informational messages
-   * @param {string} message - Log message
-   * @param {object} context - Optional context data
    */
-  log: (message, context) => {
+  log: (message: string, context?: LogContext): void => {
     if (isDevelopment) {
       console.log(...formatMessage(message, context));
     }
@@ -121,10 +137,8 @@ export const logger = {
 
   /**
    * Log info messages
-   * @param {string} message - Log message
-   * @param {object} context - Optional context data
    */
-  info: (message, context) => {
+  info: (message: string, context?: LogContext): void => {
     const _structured = createStructuredLog('info', message, context);
     
     if (isDevelopment) {
@@ -140,10 +154,8 @@ export const logger = {
 
   /**
    * Log warnings (always logged)
-   * @param {string} message - Log message
-   * @param {object} context - Optional context data
    */
-  warn: (message, context) => {
+  warn: (message: string, context?: LogContext): void => {
     const _structured = createStructuredLog('warn', message, context);
     console.warn(...formatMessage(message, context));
     
@@ -155,10 +167,8 @@ export const logger = {
 
   /**
    * Log errors (always logged)
-   * @param {string} message - Log message
-   * @param {object} context - Optional context data
    */
-  error: (message, context) => {
+  error: (message: string, context?: LogContext): void => {
     const _structured = createStructuredLog('error', message, context);
     console.error(...formatMessage(message, context));
     
@@ -168,10 +178,8 @@ export const logger = {
 
   /**
    * Log debug information (development only)
-   * @param {string} message - Log message
-   * @param {object} context - Optional context data
    */
-  debug: (message, context) => {
+  debug: (message: string, context?: LogContext): void => {
     if (isDevelopment) {
       console.debug(...formatMessage(message, context));
     }
@@ -179,9 +187,8 @@ export const logger = {
 
   /**
    * Log table data (development only)
-   * @param {any} data - Data to display in table format
    */
-  table: (data) => {
+  table: (data: unknown): void => {
     if (isDevelopment) {
       console.table(data);
     }
@@ -189,11 +196,8 @@ export const logger = {
 
   /**
    * Log performance metrics
-   * @param {string} operation - Operation name
-   * @param {number} duration - Duration in milliseconds
-   * @param {object} context - Optional context data
    */
-  performance: (operation, duration, context = {}) => {
+  performance: (operation: string, duration: number, context: LogContext = {}): void => {
     const _structured = createStructuredLog('performance', `${operation} completed`, {
       operation,
       duration,
@@ -214,12 +218,10 @@ export const logger = {
 
   /**
    * Create a timer for performance measurement
-   * @param {string} operation - Operation name
-   * @returns {Function} - Function to call when operation completes
    */
-  startTimer: (operation) => {
+  startTimer: (operation: string): ((context?: LogContext) => number) => {
     const startTime = performance.now();
-    return (context = {}) => {
+    return (context: LogContext = {}): number => {
       const duration = Math.round(performance.now() - startTime);
       logger.performance(operation, duration, context);
       return duration;
@@ -228,13 +230,23 @@ export const logger = {
 
   /**
    * Log with correlation ID for request tracking
-   * @param {string} correlationId - Correlation ID
-   * @param {string} level - Log level
-   * @param {string} message - Log message
-   * @param {object} context - Optional context data
    */
-  withCorrelation: (correlationId, level, message, context = {}) => {
-    logger[level](message, { ...context, correlationId });
+  withCorrelation: (correlationId: string, level: Exclude<LogLevel, 'performance'>, message: string, context: LogContext = {}): void => {
+    const enrichedContext = { ...context, correlationId };
+    switch (level) {
+      case 'info':
+        logger.info(message, enrichedContext);
+        break;
+      case 'warn':
+        logger.warn(message, enrichedContext);
+        break;
+      case 'error':
+        logger.error(message, enrichedContext);
+        break;
+      case 'debug':
+        logger.debug(message, enrichedContext);
+        break;
+    }
   }
 };
 

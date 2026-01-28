@@ -177,7 +177,7 @@ async function doFetch(url: string, opts: RequestInit = {}, { retries = 2, timeo
                 logger.info('Token refreshed successfully, retrying request');
                 continue; // Retry with new token without counting toward attempt limit
               } catch (err) {
-                logger.error('Token refresh failed', { error: (err as Error)?.message });
+                logger.error('Token refresh failed', { error: err as Error });
                 try { clearToken(); } catch (e) { /* ignore */ }
                 const e = new Error('Your session has expired. Please log in again.') as Error & { status?: number };
                 e.status = 401;
