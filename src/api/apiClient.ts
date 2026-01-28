@@ -76,12 +76,12 @@ interface AnalyzePolicyPayload {
 }
 
 interface EntityAPI<T = unknown> {
-  list: (sortBy?: string) => Promise<T[]>;
-  filter: (conditions: EntityConditions) => Promise<T[]>;
-  read: (id: string) => Promise<T>;
-  create: (data: Partial<T>) => Promise<T>;
-  update: (id: string, data: Partial<T>) => Promise<T>;
-  delete: (id: string) => Promise<void>;
+  list: (_sortBy?: string) => Promise<T[]>;
+  filter: (_conditions: EntityConditions) => Promise<T[]>;
+  read: (_id: string) => Promise<T>;
+  create: (_data: Partial<T>) => Promise<T>;
+  update: (_id: string, _data: Partial<T>) => Promise<T>;
+  delete: (_id: string) => Promise<void>;
 }
 
 // Use centralized auth module for consistent token management

@@ -27,14 +27,14 @@ interface BulkOperationResult {
 }
 
 interface ApiClient {
-  update: (id: string, updates: Record<string, any>) => Promise<any>;
-  delete: (id: string) => Promise<void>;
+  update: (_id: string, _updates: Record<string, any>) => Promise<any>;
+  delete: (_id: string) => Promise<void>;
 }
 
 interface ExportColumn {
   label: string;
   key?: string;
-  accessor?: (item: any) => any;
+  accessor?: (_item: any) => any;
 }
 
 interface VisibleRange {
@@ -49,7 +49,7 @@ interface ErrorAlertProps {
 
 interface SearchBarProps {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (_value: string) => void;
   placeholder?: string;
   disabled?: boolean;
 }
@@ -274,8 +274,8 @@ export const PerformanceUtils = {
   /**
    * Debounce function calls
    */
-  debounce: <T extends (...args: any[]) => any>(func: T, delay: number = 300): ((...args: Parameters<T>) => void) => {
-    let timeoutId: NodeJS.Timeout;
+  debounce: <T extends (..._args: any[]) => any>(func: T, delay: number = 300): ((..._args: Parameters<T>) => void) => {
+    let timeoutId: ReturnType<typeof setTimeout>;
     return (...args: Parameters<T>) => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => func(...args), delay);
@@ -285,7 +285,7 @@ export const PerformanceUtils = {
   /**
    * Memoize expensive computations
    */
-  memoize: <T extends (...args: any[]) => any>(fn: T): ((...args: Parameters<T>) => ReturnType<T>) => {
+  memoize: <T extends (..._args: any[]) => any>(fn: T): ((..._args: Parameters<T>) => ReturnType<T>) => {
     const cache = new Map<string, ReturnType<T>>();
     return (...args: Parameters<T>): ReturnType<T> => {
       const key = JSON.stringify(args);
@@ -303,11 +303,11 @@ export const ReportingUtils = {
   /**
    * Generate summary statistics
    */
-  generateSummary: (items: any[] = [], metrics: Record<string, (items: any[]) => any> = {}): Record<string, any> => {
+  generateSummary: (_items: any[] = [], metrics: Record<string, (_items: any[]) => any> = {}): Record<string, any> => {
     return {
-      totalCount: items.length,
+      totalCount: _items.length,
       ...Object.entries(metrics).reduce((acc, [key, fn]) => {
-        acc[key] = fn(items);
+        acc[key] = fn(_items);
         return acc;
       }, {} as Record<string, any>)
     };
