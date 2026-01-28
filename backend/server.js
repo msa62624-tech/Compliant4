@@ -334,12 +334,15 @@ function ensureDefaultGC() {
 
   // SECURITY FIX: Use environment variable for default GC password
   // Require in production, fallback to secure default in development only
+  const isProduction = process.env.NODE_ENV === 'production' || 
+                       process.env.NODE_ENV === 'prod' ||
+                       process.env.NODE_ENV === 'live';
+  
+  if (!process.env.DEFAULT_GC_PASSWORD && isProduction) {
+    throw new Error('DEFAULT_GC_PASSWORD environment variable is required in production');
+  }
+  
   const defaultPassword = process.env.DEFAULT_GC_PASSWORD || (() => {
-    if (process.env.NODE_ENV === 'production' || 
-        process.env.NODE_ENV === 'prod' ||
-        process.env.NODE_ENV === 'live') {
-      throw new Error('DEFAULT_GC_PASSWORD environment variable is required in production');
-    }
     console.warn('⚠️ WARNING: Using default GC password for development. Set DEFAULT_GC_PASSWORD in production!');
     return 'GCpassword123!';
   })();
