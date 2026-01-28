@@ -50,6 +50,7 @@ export function cleanupIdempotency() {
   
   isCleanedUp = true;
   clearInterval(cleanupInterval);
+  cleanupInterval = null;
   idempotencyStore.clear();
   logger.info('Idempotency cleanup completed');
 }
@@ -65,10 +66,7 @@ export function resetIdempotencyForTesting() {
   
   // Restart the cleanup interval if it was stopped
   // This ensures test isolation when tests call cleanupIdempotency()
-  if (cleanupInterval) {
-    clearInterval(cleanupInterval);
-  }
-  
+  clearInterval(cleanupInterval);
   cleanupInterval = startCleanupInterval();
   
   // Allow process to exit if this is the only active resource
