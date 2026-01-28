@@ -15,6 +15,7 @@ import { createPageUrl } from "@/utils";
 import { createEmailTemplate, getBrokerCOIConfirmationEmail } from "@/emailTemplates";
 import { escapeHtml } from "@/utils/htmlEscaping";
 import logger from '../utils/logger';
+import type * as ApiTypes from '@/api-types';
 
 export default function BrokerUploadCOI() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -1227,7 +1228,7 @@ export default function BrokerUploadCOI() {
 
       setUploadProgress('Notifying GC...');
       try {
-        const projects = await apiClient.entities.Project.list();
+        const projects = await apiClient.entities.Project.list() as ApiTypes.Project[];
         const project = projects.find(p => p.id === coiRecord.project_id);
         if (project?.gc_email) {
           try {

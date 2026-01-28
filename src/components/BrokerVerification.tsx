@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { notifyBrokerAssignment } from "@/brokerNotifications";
+import type * as ApiTypes from '@/api-types';
 
 export default function BrokerVerification() {
   const queryClient = useQueryClient();
@@ -38,7 +39,7 @@ export default function BrokerVerification() {
   const { data: coi, isLoading: coiLoading } = useQuery({
     queryKey: ['coi-verification', coiId],
     queryFn: async () => {
-      const cois = await compliant.entities.GeneratedCOI.list();
+      const cois = await compliant.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[];
       return cois.find(c => c.id === coiId);
     },
     enabled: !!coiId,
@@ -49,7 +50,7 @@ export default function BrokerVerification() {
     queryKey: ['subcontractor-for-verification', coi?.subcontractor_id],
     queryFn: async () => {
       if (!coi?.subcontractor_id) return null;
-      const contractors = await compliant.entities.Contractor.list();
+      const contractors = await compliant.entities.Contractor.list() as ApiTypes.Contractor[];
       return contractors.find(c => c.id === coi.subcontractor_id);
     },
     enabled: !!coi?.subcontractor_id,

@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getBackendBaseUrl } from "@/urlConfig";
+import type * as ApiTypes from '@/api-types';
 
 const US_STATES = [
   { code: 'AL', name: 'Alabama' }, { code: 'AK', name: 'Alaska' }, { code: 'AZ', name: 'Arizona' },
@@ -84,7 +85,7 @@ export default function Contractors() {
 
   const { data: allContractors = [], isLoading } = useQuery({
     queryKey: ['contractors'],
-    queryFn: () => compliant.entities.Contractor.list(),
+    queryFn: () => compliant.entities.Contractor.list() as ApiTypes.Contractor[],
   });
 
   const { data: allUsers = [] } = useQuery({
@@ -796,7 +797,7 @@ InsureTrack Team`
                       </TableCell>
                     </TableRow>
                   ) : (
-                    contractors.map((contractor) => {
+                    contractors.map((contractor: ApiTypes.Contractor) => {
                       const hasCustomPricing = contractor.custom_pricing && 
                         (contractor.custom_pricing.per_project || contractor.custom_pricing.monthly || contractor.custom_pricing.annual);
                       

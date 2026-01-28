@@ -26,12 +26,12 @@
     "allowSyntheticDefaultImports": true,
     
     /* Enable these for better type safety */
-    "strictNullChecks": false,
+    "strictNullChecks": true,
     "strictFunctionTypes": false,
     "strictBindCallApply": false,
     "strictPropertyInitialization": false,
     "noImplicitThis": false,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
 
     /* Path mapping */
     "baseUrl": ".",

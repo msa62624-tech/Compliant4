@@ -21,6 +21,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import type * as ApiTypes from '@/api-types';
 
 export default function SubRequirements() {
   const navigate = useNavigate();
@@ -231,7 +232,7 @@ export default function SubRequirements() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {reqs.map((req) => (
+                      {reqs.map((req: ApiTypes.SubInsuranceRequirement) => (
                         <TableRow key={req.id} className="hover:bg-slate-50 transition-colors">
                           <TableCell className="font-medium text-slate-900">
                             {req.insurance_type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}

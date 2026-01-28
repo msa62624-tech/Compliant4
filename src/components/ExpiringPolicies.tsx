@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { format, differenceInDays } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import type * as ApiTypes from '@/api-types';
 
 export default function ExpiringPolicies(): JSX.Element {
   const navigate = useNavigate();
@@ -16,7 +17,7 @@ export default function ExpiringPolicies(): JSX.Element {
   const { data: activeCOIs = [], isLoading: _isLoading } = useQuery({
     queryKey: ['active-cois'],
     queryFn: async () => {
-      const cois = await compliant.entities.GeneratedCOI.list();
+      const cois = await compliant.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[];
       return cois.filter(c => c.status === 'active');
     },
   });

@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInDays } from "date-fns";
 import { createPageUrl } from "@/utils";
 import StatsCard from "../components/insurance/StatsCard";
+import type * as ApiTypes from '@/api-types';
 
 export default function BrokerRequestsTracking() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -24,7 +25,7 @@ export default function BrokerRequestsTracking() {
 
   const { data: projects = [] } = useQuery({
     queryKey: ['projects'],
-    queryFn: () => apiClient.entities.Project.list(),
+    queryFn: () => apiClient.entities.Project.list() as ApiTypes.Project[],
   });
 
   const getRequestAge = (sentDate) => {

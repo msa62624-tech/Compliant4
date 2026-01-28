@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { format, addMonths, addYears } from "date-fns";
 import StatsCard from "../components/insurance/StatsCard";
+import type * as ApiTypes from '@/api-types';
 
 const SUBSCRIPTION_PLANS = [
   {
@@ -104,7 +105,7 @@ export default function GCSubscription() {
   const { data: contractor } = useQuery({
     queryKey: ['my-contractor', user?.email],
     queryFn: async () => {
-      const contractors = await compliant.entities.Contractor.list();
+      const contractors = await compliant.entities.Contractor.list() as ApiTypes.Contractor[];
       return contractors.find(c => c.email === user.email && c.contractor_type === 'general_contractor');
     },
     enabled: !!user?.email,

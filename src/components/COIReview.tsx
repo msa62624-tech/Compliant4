@@ -21,6 +21,8 @@ import { createPageUrl } from "@/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import logger from '../utils/logger';
+import type { GeneratedCOI, Project, SubInsuranceRequirement, InsuranceProgram } from "@/api-types";
+import type * as ApiTypes from '@/api-types';
 
 export default function COIReview() {
   const navigate = useNavigate();
@@ -77,16 +79,16 @@ export default function COIReview() {
     broker_phone: '',
   });
 
-  const { data: coi, isLoading: coiLoading } = useQuery({
+  const { data: coi, isLoading: coiLoading } = useQuery<GeneratedCOI | undefined>({
     queryKey: ['coi', coiId],
     queryFn: async () => {
-      const cois = await apiClient.entities.GeneratedCOI.list();
+      const cois = await apiClient.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[] as GeneratedCOI[];
       return cois.find(c => c.id === coiId);
     },
     enabled: !!coiId,
   });
 
-  const { data: project, isLoading: projectLoading } = useQuery({
+  const { data: project, isLoading: projectLoading } = useQuery<Project | null>({
     queryKey: ['project', coi?.project_id],
     queryFn: async () => {
       if (!coi?.project_id) {
@@ -95,7 +97,7 @@ export default function COIReview() {
       }
       
       logger.info('Looking for project', { context: 'COIReview', projectId: coi.project_id });
-      const projects = await apiClient.entities.Project.list();
+      const projects = await apiClient.entities.Project.list() as ApiTypes.Project[] as Project[];
       logger.info('Total projects found', { context: 'COIReview', projectsCount: projects.length, projectIds: projects.map(p => p.id) });
       
       const foundProject = projects.find(p => p.id === coi.project_id);
@@ -129,11 +131,11 @@ export default function COIReview() {
   });
 
   // Check if this is a renewal (existing COI for same subcontractor on same project)
-  const { data: existingCOIs = [] } = useQuery({
+  const { data: existingCOIs = [] } = useQuery<GeneratedCOI[]>({
     queryKey: ['existing-cois', coi?.subcontractor_id, coi?.project_id],
     queryFn: async () => {
       if (!coi?.subcontractor_id || !coi?.project_id) return [];
-      const allCois = await apiClient.entities.GeneratedCOI.list();
+      const allCois = await apiClient.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[] as GeneratedCOI[];
       return allCois.filter(c => 
         c.subcontractor_id === coi.subcontractor_id && 
         c.project_id === coi.project_id &&
@@ -147,14 +149,14 @@ export default function COIReview() {
   // Determine if this is a renewal
   const isRenewal = existingCOIs.length > 0;
 
-  const { data: requirements = [] } = useQuery({
+  const { data: requirements = [] } = useQuery<SubInsuranceRequirement[]>({
     queryKey: ['requirements', project?.program_id, coi?.trade_type],
     queryFn: async () => {
       if (!project?.program_id || !coi?.trade_type) return [];
       const allReqs = await apiClient.entities.SubInsuranceRequirement.filter({
         program_id: project.program_id
-      });
-      const normalize = (list) => (Array.isArray(list) ? list : [])
+      }) as SubInsuranceRequirement[];
+      const normalize = (list: unknown) => (Array.isArray(list) ? list : [])
         .map(t => String(t).trim().toLowerCase())
         .filter(Boolean);
       const trades = String(coi.trade_type || '')
@@ -178,14 +180,14 @@ export default function COIReview() {
     enabled: !!project?.program_id && !!coi?.trade_type,
   });
 
-  const { data: program } = useQuery({
+  const { data: program } = useQuery<InsuranceProgram | null>({
     queryKey: ['program', project?.program_id],
     queryFn: async () => {
       if (!project?.program_id) return null;
       try {
-        return await apiClient.entities.InsuranceProgram.read(project.program_id);
+        return await apiClient.entities.InsuranceProgram.read(project.program_id) as InsuranceProgram;
       } catch (err) {
-        logger.error('Failed to load program', { context: 'COIReview', error: err.message });
+        logger.error('Failed to load program', { context: 'COIReview', error: err instanceof Error ? err.message : 'Unknown' });
         return null;
       }
     },

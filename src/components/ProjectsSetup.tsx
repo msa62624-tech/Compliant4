@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import type * as ApiTypes from '@/api-types';
 
 export default function ProjectsSetup() {
   const navigate = useNavigate();
@@ -25,12 +26,12 @@ export default function ProjectsSetup() {
 
   const { data: programs = [] } = useQuery({
     queryKey: ['programs'],
-    queryFn: () => apiClient.entities.InsuranceProgram.list(),
+    queryFn: () => apiClient.entities.InsuranceProgram.list() as ApiTypes.InsuranceProgram[],
   });
 
   const { data: contractors = [] } = useQuery({
     queryKey: ['contractors'],
-    queryFn: () => apiClient.entities.Contractor.list(),
+    queryFn: () => apiClient.entities.Contractor.list() as ApiTypes.Contractor[],
   });
 
   // Get unique GCs from projects

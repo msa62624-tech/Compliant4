@@ -15,6 +15,7 @@ import { notificationLinks } from "@/notificationLinkBuilder";
 import { validateCOICompliance } from "@/insuranceRequirements";
 import { notifyCOIDeficiencies, notifyAllStakeholdersCOIApproved } from "@/coiNotifications";
 import UserProfile from "@/components/UserProfile.tsx";
+import type * as ApiTypes from '@/api-types';
 
 /**
  * AdminCOIApprovalDashboard Component
@@ -37,18 +38,18 @@ export default function AdminCOIApprovalDashboard() {
     queryKey: ['allCOIs', filterStatus],
     queryFn: async () => {
       try {
-        const allCois = await apiClient.entities.GeneratedCOI.list();
+        const allCois = await apiClient.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[];
         if (filterStatus === 'all') return allCois;
         if (filterStatus === 'pending') {
-          return allCois.filter((c) => c.status === 'pending' || c.status === 'awaiting_admin_review');
+          return allCois.filter((c: ApiTypes.GeneratedCOI) => c.status === 'pending' || c.status === 'awaiting_admin_review');
         }
-        return allCois.filter((c) => c.status === filterStatus);
+        return allCois.filter((c: ApiTypes.GeneratedCOI) => c.status === filterStatus);
       } catch (err) {
         // Fallback for public sessions without auth
         const publicPending = await apiClient.integrations.Public.ListPendingCOIs();
         if (filterStatus === 'all') return publicPending;
         if (filterStatus === 'pending') return publicPending;
-        return publicPending.filter((c) => c.status === filterStatus);
+        return publicPending.filter((c: ApiTypes.GeneratedCOI) => c.status === filterStatus);
       }
     },
   });
@@ -74,7 +75,7 @@ export default function AdminCOIApprovalDashboard() {
     queryKey: ['projects'],
     queryFn: async () => {
       try {
-        const prjs = await apiClient.entities.Project.list();
+        const prjs = await apiClient.entities.Project.list() as ApiTypes.Project[];
         const map = {};
         prjs.forEach((p) => (map[p.id] = p));
         return map;
@@ -146,9 +147,9 @@ export default function AdminCOIApprovalDashboard() {
   });
 
   // Stats
-  const pendingCount = cois.filter((c) => c.status === 'pending' || c.status === 'awaiting_admin_review').length;
-  const approvedCount = cois.filter((c) => c.status === 'active').length;
-  const rejectedCount = cois.filter((c) => c.status === 'pending_correction').length;
+  const pendingCount = cois.filter((c: ApiTypes.GeneratedCOI) => c.status === 'pending' || c.status === 'awaiting_admin_review').length;
+  const approvedCount = cois.filter((c: ApiTypes.GeneratedCOI) => c.status === 'active').length;
+  const rejectedCount = cois.filter((c: ApiTypes.GeneratedCOI) => c.status === 'pending_correction').length;
 
   return (
     <div className="space-y-6">
@@ -212,7 +213,7 @@ export default function AdminCOIApprovalDashboard() {
                 Loading COIs...
               </CardContent>
             </Card>
-          ) : cois.filter((c) => c.status === 'pending' || c.status === 'awaiting_admin_review').length === 0 ? (
+          ) : cois.filter((c: ApiTypes.GeneratedCOI) => c.status === 'pending' || c.status === 'awaiting_admin_review').length === 0 ? (
             <Card>
               <CardContent className="pt-6 text-center text-gray-500">
                 No pending COIs for review
@@ -221,7 +222,7 @@ export default function AdminCOIApprovalDashboard() {
           ) : (
             <div className="grid gap-4">
               {cois
-                .filter((c) => c.status === 'pending' || c.status === 'awaiting_admin_review')
+                .filter((c: ApiTypes.GeneratedCOI) => c.status === 'pending' || c.status === 'awaiting_admin_review')
                 .map((coi) => (
                   <COICard
                     key={coi.id}
@@ -240,7 +241,7 @@ export default function AdminCOIApprovalDashboard() {
 
         {/* Approved Tab */}
         <TabsContent value="active" className="space-y-4">
-          {cois.filter((c) => c.status === 'active').length === 0 ? (
+          {cois.filter((c: ApiTypes.GeneratedCOI) => c.status === 'active').length === 0 ? (
             <Card>
               <CardContent className="pt-6 text-center text-gray-500">
                 No approved COIs yet
@@ -249,7 +250,7 @@ export default function AdminCOIApprovalDashboard() {
           ) : (
             <div className="grid gap-4">
               {cois
-                .filter((c) => c.status === 'active')
+                .filter((c: ApiTypes.GeneratedCOI) => c.status === 'active')
                 .map((coi) => (
                   <COICard
                     key={coi.id}
@@ -266,7 +267,7 @@ export default function AdminCOIApprovalDashboard() {
 
         {/* Needs Correction Tab */}
         <TabsContent value="pending_correction" className="space-y-4">
-          {cois.filter((c) => c.status === 'pending_correction').length === 0 ? (
+          {cois.filter((c: ApiTypes.GeneratedCOI) => c.status === 'pending_correction').length === 0 ? (
             <Card>
               <CardContent className="pt-6 text-center text-gray-500">
                 No COIs pending correction
@@ -275,7 +276,7 @@ export default function AdminCOIApprovalDashboard() {
           ) : (
             <div className="grid gap-4">
               {cois
-                .filter((c) => c.status === 'pending_correction')
+                .filter((c: ApiTypes.GeneratedCOI) => c.status === 'pending_correction')
                 .map((coi) => (
                   <COICard
                     key={coi.id}

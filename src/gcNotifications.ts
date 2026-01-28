@@ -1,4 +1,5 @@
 import { generateSecurePassword } from "@/passwordUtils";
+import { getErrorMessage, getErrorStack } from '@/api-types';
 import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl } from "@/urlConfig";
 import { sendEmailWithErrorHandling } from "@/utils/notificationUtils";
@@ -117,7 +118,7 @@ export async function sendGCWelcomeEmail(gc: GeneralContractor): Promise<boolean
     });
     return true;
   } catch (error) {
-    logger.error('Failed to send GC welcome email', { error: error?.message, stack: error?.stack });
+    logger.error('Failed to send GC welcome email', { error: getErrorMessage(error), stack: getErrorStack(error) });
     return false;
   }
 }

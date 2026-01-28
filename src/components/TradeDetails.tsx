@@ -9,6 +9,7 @@ import { ArrowLeft, Users, FolderOpen, Clock, ListChecks } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import type * as ApiTypes from '@/api-types';
 
 export default function TradeDetails() {
   const navigate = useNavigate();
@@ -53,17 +54,17 @@ export default function TradeDetails() {
 
   const { data: allProjectSubs = [], isLoading: allProjectSubsLoading } = useQuery({
     queryKey: ['all-project-subs'],
-    queryFn: () => compliant.entities.ProjectSubcontractor.list(),
+    queryFn: () => compliant.entities.ProjectSubcontractor.list() as ApiTypes.ProjectSubcontractor[],
   });
 
   const { data: allProjects = [], isLoading: allProjectsLoading } = useQuery({
     queryKey: ['all-projects'],
-    queryFn: () => compliant.entities.Project.list(),
+    queryFn: () => compliant.entities.Project.list() as ApiTypes.Project[],
   });
 
   const { data: allCOIs = [], isLoading: allCOIsLoading } = useQuery({
     queryKey: ['all-generated-cois'],
-    queryFn: () => compliant.entities.GeneratedCOI.list(),
+    queryFn: () => compliant.entities.GeneratedCOI.list() as ApiTypes.GeneratedCOI[],
   });
 
   const { data: tradeRequirements = [], isLoading: tradeRequirementsLoading } = useQuery({

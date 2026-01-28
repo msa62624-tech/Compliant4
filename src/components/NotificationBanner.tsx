@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Bell, X, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
+import type * as ApiTypes from '@/api-types';
 
 export default function NotificationBanner({ gcEmail }): JSX.Element {
   const queryClient = useQueryClient();

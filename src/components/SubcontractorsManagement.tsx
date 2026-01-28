@@ -20,6 +20,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import type * as ApiTypes from '@/api-types';
 
 interface Contractor {
   id: string;
@@ -107,7 +108,7 @@ export default function SubcontractorsManagement(): JSX.Element {
 
   const { data: allProjectSubs = [] } = useQuery<ProjectSubcontractor[]>({
     queryKey: ['all-project-subs'],
-    queryFn: () => compliant.entities.ProjectSubcontractor.list(),
+    queryFn: () => compliant.entities.ProjectSubcontractor.list() as ApiTypes.ProjectSubcontractor[],
   });
 
   const { data: allCOIs = [] } = useQuery<GeneratedCOI[]>({
@@ -117,7 +118,7 @@ export default function SubcontractorsManagement(): JSX.Element {
 
   const { data: allProjects = [] } = useQuery<Project[]>({
     queryKey: ['all-projects'],
-    queryFn: () => compliant.entities.Project.list(),
+    queryFn: () => compliant.entities.Project.list() as ApiTypes.Project[],
   });
 
   const updateCOIMutation = useMutation({

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Subscription, Contractor, Project } from "@/api-types";
 import { 
   DollarSign, 
   CreditCard, 
@@ -33,6 +34,7 @@ import {
 import { format, startOfMonth, endOfMonth, startOfYear, isWithinInterval, subMonths, eachMonthOfInterval, differenceInDays } from "date-fns";
 import { BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type * as ApiTypes from '@/api-types';
 
 export default function AdminBookkeeping() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,33 +44,33 @@ export default function AdminBookkeeping() {
   const [emailStatus, setEmailStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const { data: rawSubscriptions = [], isLoading } = useQuery({
+  const { data: rawSubscriptions = [], isLoading } = useQuery<Subscription[]>({
     queryKey: ['all-subscriptions'],
     queryFn: () => compliant.entities.Subscription.list('-created_date'),
   });
 
-  const subscriptions = rawSubscriptions.filter(sub => sub && sub.id);
+  const subscriptions = rawSubscriptions.filter((sub): sub is Subscription => !!sub && !!sub.id);
 
-  const { data: contractors = [] } = useQuery({
+  const { data: contractors = [] } = useQuery<Contractor[]>({
     queryKey: ['contractors'],
-    queryFn: () => compliant.entities.Contractor.list(),
+    queryFn: () => compliant.entities.Contractor.list() as ApiTypes.Contractor[],
   });
 
-  const { data: projects = [] } = useQuery({
+  const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['projects'],
-    queryFn: () => compliant.entities.Project.list(),
+    queryFn: () => compliant.entities.Project.list() as ApiTypes.Project[],
   });
 
-  const getContractor = (gcId) => {
+  const getContractor = (gcId: string) => {
     return contractors.find(c => c.id === gcId);
   };
 
-  const getGCProjects = (gcId) => {
+  const getGCProjects = (gcId: string) => {
     return projects.filter(p => p.gc_id === gcId && p.status === 'active').length;
   };
 
   //subscriptions by date range
-  const filterByDateRange = (sub) => {
+  const filterByDateRange = (sub: Subscription) => {
     if (!sub || !sub.id) return false;
     if (dateRange === 'all_time') return true;
     if (!sub.payment_date) return false;
@@ -215,7 +217,7 @@ export default function AdminBookkeeping() {
     };
   }, [subscriptions, contractors, revenueByPlan]);
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     const colors = {
       active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       trial: 'bg-red-50 text-red-700 border-red-200',
@@ -223,10 +225,10 @@ export default function AdminBookkeeping() {
       cancelled: 'bg-slate-100 text-slate-700 border-slate-300',
       expired: 'bg-red-50 text-red-700 border-red-200',
     };
-    return colors[status] || colors.pending_payment;
+    return colors[status as keyof typeof colors] || colors.pending_payment;
   };
 
-  const getPaymentStatusIcon = (status) => {
+  const getPaymentStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
         return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
@@ -267,11 +269,11 @@ export default function AdminBookkeeping() {
   };
 
   // Send renewal reminder
-  const sendRenewalReminder = async (subscription) => {
+  const sendRenewalReminder = async (subscription: ApiTypes.Subscription) => {
     const gc = contractors.find(c => c.id === subscription.gc_id);
     if (!gc?.email) return;
 
-    const daysUntil = differenceInDays(new Date(subscription.next_billing_date), new Date());
+    const daysUntil = differenceInDays(new Date(subscription.next_billing_date || ''), new Date());
     
     await sendEmail({
       to: gc.email,
@@ -281,8 +283,8 @@ export default function AdminBookkeeping() {
 Your subscription is renewing soon.
 
 Plan: ${subscription.plan_name}
-Amount: $${(subscription.amount || 0).toLocaleString()}
-Next Billing Date: ${format(new Date(subscription.next_billing_date), 'MMM d, yyyy')}
+Amount: $${(subscription.amount_paid || 0).toLocaleString()}
+Next Billing Date: ${format(new Date(subscription.next_billing_date || ''), 'MMM d, yyyy')}
 Days Until Renewal: ${daysUntil}
 
 Your payment method on file will be charged automatically.
@@ -293,7 +295,7 @@ InsureTrack Billing Team`
   };
 
   // Send payment confirmation
-  const sendPaymentConfirmation = async (subscription) => {
+  const sendPaymentConfirmation = async (subscription: ApiTypes.Subscription) => {
     const gc = contractors.find(c => c.id === subscription.gc_id);
     if (!gc?.email) return;
 
