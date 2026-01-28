@@ -12,7 +12,8 @@ const IDEMPOTENCY_TTL = 15 * 60 * 1000;
 
 // Cleanup expired keys every 5 minutes
 // Store interval reference to allow cleanup and prevent memory leak
-const cleanupInterval = setInterval(() => {
+// Use let instead of const to allow restart in testing
+let cleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [key, value] of idempotencyStore.entries()) {
     if (now - value.timestamp > IDEMPOTENCY_TTL) {
@@ -44,11 +45,30 @@ export function cleanupIdempotency() {
 
 /**
  * Reset cleanup state (for testing purposes only)
+ * Restarts the cleanup interval to ensure proper test isolation
  * @private
  */
 export function resetIdempotencyForTesting() {
   isCleanedUp = false;
   idempotencyStore.clear();
+  
+  // Restart the cleanup interval if it was stopped
+  // This ensures test isolation when tests call cleanupIdempotency()
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+  }
+  
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of idempotencyStore.entries()) {
+      if (now - value.timestamp > IDEMPOTENCY_TTL) {
+        idempotencyStore.delete(key);
+      }
+    }
+  }, 5 * 60 * 1000);
+  
+  // Allow process to exit if this is the only active resource
+  cleanupInterval.unref();
 }
 
 /**

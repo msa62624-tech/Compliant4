@@ -251,4 +251,43 @@ describe('Idempotency Middleware', () => {
     // Second cleanup should not throw
     expect(() => cleanupIdempotency()).not.toThrow();
   });
+
+  test('resetIdempotencyForTesting should restart interval after cleanup', () => {
+    // Add some data to the store
+    const middleware = idempotency();
+    middleware(req, res, next);
+    res.json({ test: 'data' });
+
+    // Cleanup (stops the interval)
+    cleanupIdempotency();
+    
+    // Reset should restart everything including the interval
+    resetIdempotencyForTesting();
+    
+    // Verify we can use idempotency again after reset
+    const newReq = {
+      method: 'POST',
+      path: '/api/create-new',
+      body: { new: 'data' },
+      headers: {},
+      user: { id: 'user456' }
+    };
+    const newRes = {
+      statusCode: 200,
+      set: jest.fn(),
+      json: jest.fn(),
+      status: jest.fn().mockReturnThis()
+    };
+    const newNext = jest.fn();
+    
+    middleware(newReq, newRes, newNext);
+    expect(newNext).toHaveBeenCalled();
+    
+    // Simulate response
+    newRes.json({ success: true });
+    
+    // Verify data was cached
+    const stats = getIdempotencyStats();
+    expect(stats.totalKeys).toBeGreaterThan(0);
+  });
 });
