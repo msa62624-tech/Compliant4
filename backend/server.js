@@ -4180,12 +4180,53 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
                 const gcNameForHH = sourceProject?.gc_name || gc_name || '';
                 const subName = subcontractor_name || newCOI.subcontractor_name || '';
                 const trade = trade_type || newCOI.trade_type || '';
-                templateText = templateText.replace(/{{\s*project_name\s*}}/gi, projectName)
+                
+                // Build list of indemnified parties
+                const indemnifiedParties = [];
+                if (gcNameForHH) indemnifiedParties.push(gcNameForHH);
+                if (Array.isArray(newCOI.additional_insureds)) {
+                  indemnifiedParties.push(...newCOI.additional_insureds.filter(Boolean));
+                }
+                if (Array.isArray(newCOI.manually_entered_additional_insureds)) {
+                  indemnifiedParties.push(...newCOI.manually_entered_additional_insureds.filter(Boolean));
+                }
+                const indemnifiedPartiesList = indemnifiedParties.length > 0 
+                  ? indemnifiedParties.join(', ')
+                  : '[List of Indemnified Parties]';
+                
+                // Replace placeholders
+                templateText = templateText
+                  .replace(/{{\s*project_name\s*}}/gi, projectName)
                   .replace(/{{\s*project_address\s*}}/gi, projectAddressForHH)
+                  .replace(/{{\s*job_location\s*}}/gi, projectAddressForHH || '[Job Location]')
+                  .replace(/{{\s*project_location\s*}}/gi, projectAddressForHH || '[Project Location]')
                   .replace(/{{\s*gc_name\s*}}/gi, gcNameForHH)
                   .replace(/{{\s*subcontractor_name\s*}}/gi, subName)
                   .replace(/{{\s*trade\s*}}/gi, trade)
-                  .replace(/{{\s*date\s*}}/gi, new Date().toLocaleDateString());
+                  .replace(/{{\s*date\s*}}/gi, new Date().toLocaleDateString())
+                  .replace(/{{\s*indemnified_parties\s*}}/gi, indemnifiedPartiesList)
+                  .replace(/{{\s*certificate_holder\s*}}/gi, gcNameForHH || '[Certificate Holder]');
+                
+                // Add signature field markers if not present
+                if (!templateText.includes('{{sub_signature}}') && !templateText.includes('data-signature="sub"')) {
+                  const subSignatureMarker = '\n\n<div style="margin-top: 40px; border-top: 1px solid #000; width: 300px;">' +
+                    '<p style="margin: 5px 0 0 0; font-size: 10px;" data-signature="sub">Subcontractor Signature & Date</p></div>';
+                  const gcSignatureMarker = '\n\n<div style="margin-top: 40px; border-top: 1px solid #000; width: 300px;">' +
+                    '<p style="margin: 5px 0 0 0; font-size: 10px;" data-signature="gc">General Contractor/Owner Signature & Date</p></div>';
+                  
+                  if (templateText.includes('</body>')) {
+                    templateText = templateText.replace('</body>', subSignatureMarker + gcSignatureMarker + '</body>');
+                  } else {
+                    templateText += subSignatureMarker + gcSignatureMarker;
+                  }
+                }
+                
+                // Replace signature placeholders
+                templateText = templateText
+                  .replace(/{{\s*sub_signature\s*}}/gi, '<span data-signature="sub">[Subcontractor Signature]</span>')
+                  .replace(/{{\s*gc_signature\s*}}/gi, '<span data-signature="gc">[GC/Owner Signature]</span>')
+                  .replace(/{{\s*subcontractor_signature\s*}}/gi, '<span data-signature="sub">[Subcontractor Signature]</span>')
+                  .replace(/{{\s*owner_signature\s*}}/gi, '<span data-signature="gc">[Owner/GC Signature]</span>');
 
                 // Persist as an HTML file in uploads
                 const hhFilename = `hold-harmless-${newCOI.id}-${Date.now()}.html`;
@@ -4663,12 +4704,55 @@ app.patch('/public/coi-by-token', publicApiLimiter, async (req, res) => {
                 const gcName = proj?.gc_name || applied.gc_name || '';
                 const subName = applied.subcontractor_name || '';
                 const trade = applied.trade_type || '';
-                templateText = templateText.replace(/{{\s*project_name\s*}}/gi, projectName)
+                
+                // Build list of indemnified parties (Certificate Holder + Additional Insureds)
+                const indemnifiedParties = [];
+                if (gcName) indemnifiedParties.push(gcName);
+                if (Array.isArray(applied.additional_insureds)) {
+                  indemnifiedParties.push(...applied.additional_insureds.filter(Boolean));
+                }
+                if (Array.isArray(applied.manually_entered_additional_insureds)) {
+                  indemnifiedParties.push(...applied.manually_entered_additional_insureds.filter(Boolean));
+                }
+                const indemnifiedPartiesList = indemnifiedParties.length > 0 
+                  ? indemnifiedParties.join(', ')
+                  : '[List of Indemnified Parties]';
+                
+                // Replace placeholders with actual values
+                templateText = templateText
+                  .replace(/{{\s*project_name\s*}}/gi, projectName)
                   .replace(/{{\s*project_address\s*}}/gi, projectAddress)
+                  .replace(/{{\s*job_location\s*}}/gi, projectAddress || '[Job Location]')
+                  .replace(/{{\s*project_location\s*}}/gi, projectAddress || '[Project Location]')
                   .replace(/{{\s*gc_name\s*}}/gi, gcName)
                   .replace(/{{\s*subcontractor_name\s*}}/gi, subName)
                   .replace(/{{\s*trade\s*}}/gi, trade)
-                  .replace(/{{\s*date\s*}}/gi, new Date().toLocaleDateString());
+                  .replace(/{{\s*date\s*}}/gi, new Date().toLocaleDateString())
+                  .replace(/{{\s*indemnified_parties\s*}}/gi, indemnifiedPartiesList)
+                  .replace(/{{\s*certificate_holder\s*}}/gi, gcName || '[Certificate Holder]');
+                
+                // Add signature field markers if not already present
+                if (!templateText.includes('{{sub_signature}}') && !templateText.includes('data-signature="sub"')) {
+                  // Add HTML markers for signature locations at the end of document
+                  const subSignatureMarker = '\n\n<div style="margin-top: 40px; border-top: 1px solid #000; width: 300px;">' +
+                    '<p style="margin: 5px 0 0 0; font-size: 10px;" data-signature="sub">Subcontractor Signature & Date</p></div>';
+                  const gcSignatureMarker = '\n\n<div style="margin-top: 40px; border-top: 1px solid #000; width: 300px;">' +
+                    '<p style="margin: 5px 0 0 0; font-size: 10px;" data-signature="gc">General Contractor/Owner Signature & Date</p></div>';
+                  
+                  // Insert before closing body tag if present, otherwise append
+                  if (templateText.includes('</body>')) {
+                    templateText = templateText.replace('</body>', subSignatureMarker + gcSignatureMarker + '</body>');
+                  } else {
+                    templateText += subSignatureMarker + gcSignatureMarker;
+                  }
+                }
+                
+                // Replace signature placeholders if they exist in template
+                templateText = templateText
+                  .replace(/{{\s*sub_signature\s*}}/gi, '<span data-signature="sub">[Subcontractor Signature]</span>')
+                  .replace(/{{\s*gc_signature\s*}}/gi, '<span data-signature="gc">[GC/Owner Signature]</span>')
+                  .replace(/{{\s*subcontractor_signature\s*}}/gi, '<span data-signature="sub">[Subcontractor Signature]</span>')
+                  .replace(/{{\s*owner_signature\s*}}/gi, '<span data-signature="gc">[Owner/GC Signature]</span>');
 
                 // Persist as an HTML file in uploads
                 const filename = `hold-harmless-${applied.id}-${Date.now()}.html`;
@@ -8817,6 +8901,69 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
     const updated = entities.GeneratedCOI[idx];
     if (updated.hold_harmless_sub_signed_url && updated.hold_harmless_gc_signed_url) {
       entities.GeneratedCOI[idx].hold_harmless_status = 'signed';
+    }
+    
+    // WORKFLOW: After subcontractor signs, send hold harmless to GC for their signature
+    if (signer === 'sub' || signer === 'subcontractor') {
+      if (updated.hold_harmless_sub_signed_url && !updated.hold_harmless_gc_signed_url) {
+        try {
+          // Find project and GC contact info
+          const coi = entities.GeneratedCOI[idx];
+          const project = (entities.Project || []).find(p => p.id === coi.project_id || p.project_name === coi.project_name);
+          const gcEmail = project?.gc_email || project?.contact_email;
+          const gcName = project?.gc_name || coi.gc_name || 'General Contractor';
+          
+          if (gcEmail && coi.hold_harmless_template_url) {
+            console.log(`📧 Sending hold harmless to GC for signature after sub signed: ${gcEmail}`);
+            
+            const gcSignUrl = `${req.protocol}://${req.get('host')}/public/sign-hold-harmless?token=${encodeURIComponent(token)}&signer=gc`;
+            const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
+            
+            await fetch(internalUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: gcEmail,
+                subject: `✍️ Hold Harmless Agreement - Your Signature Required - ${coi.subcontractor_name || 'Subcontractor'}`,
+                html: `
+                  <h3>Hold Harmless Agreement Ready for Your Signature</h3>
+                  <p>Dear ${gcName},</p>
+                  
+                  <p>The subcontractor <strong>${coi.subcontractor_name || 'N/A'}</strong> has signed the Hold Harmless Agreement for:</p>
+                  
+                  <ul>
+                    <li><strong>Project:</strong> ${coi.project_name || 'N/A'}</li>
+                    <li><strong>Trade:</strong> ${coi.trade_type || 'N/A'}</li>
+                    <li><strong>Job Location:</strong> ${coi.project_address || coi.project_location || 'N/A'}</li>
+                  </ul>
+                  
+                  <p>The agreement is now ready for your review and signature.</p>
+                  
+                  <p><strong><a href="${gcSignUrl}" style="background-color: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Review & Sign Agreement</a></strong></p>
+                  
+                  <p>Or copy this link: ${gcSignUrl}</p>
+                  
+                  <p>Once you sign, the agreement will be complete and all parties will receive a fully executed copy.</p>
+                  
+                  <p>Best regards,<br>InsureTrack Compliance System</p>
+                `,
+                body: `Hold Harmless Agreement - Your Signature Required\n\n` +
+                  `The subcontractor ${coi.subcontractor_name || 'N/A'} has signed the Hold Harmless Agreement.\n\n` +
+                  `Project: ${coi.project_name || 'N/A'}\n` +
+                  `Trade: ${coi.trade_type || 'N/A'}\n\n` +
+                  `Please review and sign: ${gcSignUrl}\n\n` +
+                  `Best regards,\nInsureTrack System`
+              })
+            });
+            
+            console.log('✅ Hold harmless sent to GC for signature');
+          } else {
+            console.warn('⚠️ Could not send hold harmless to GC - missing email or template URL');
+          }
+        } catch (emailErr) {
+          console.error('❌ Failed to send hold harmless to GC:', emailErr?.message || emailErr);
+        }
+      }
     }
 
     debouncedSave();
