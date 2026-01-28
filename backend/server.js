@@ -4266,11 +4266,13 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           umbrella_effective_date: reusable.umbrella_effective_date,
           umbrella_expiration_date: reusable.umbrella_expiration_date,
           umbrella_form_type: reusable.umbrella_form_type || 'OCCUR',
-          description_of_operations: reusable.description_of_operations || '',
-          additional_insureds: reusable.additional_insureds || [],
+          // Clear old description_of_operations when reusing for a new project
+          // This allows the default description + current job location to be used
+          description_of_operations: '',
+          additional_insureds: additional_insureds || reusable.additional_insureds || [],
           updated_project_address: projectAddress || '',
           updated_project_name: project_name || '',
-          certificate_holder_name: reusable.certificate_holder_name || reusable.gc_name || gc_name || '',
+          certificate_holder_name: certificate_holder || reusable.certificate_holder_name || reusable.gc_name || gc_name || '',
           manually_entered_additional_insureds: []
         };
 
@@ -4326,7 +4328,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           gc_id,
           gc_name,
           certificate_holder: gc_name || reusable.certificate_holder,
-          certificate_holder_address: reusable.certificate_holder_address || '',
+          certificate_holder_address: certificate_holder_address || reusable.certificate_holder_address || '',
           trade_type,
           status: 'pending_broker_signature',
           admin_approved: true,
@@ -4340,7 +4342,12 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           is_reused: true,
           reused_for_project_id: project_id,
           linked_projects: Array.from(new Set([...(reusable.linked_projects || []), project_id])),
-          pdf_generation_note: pdfGenerationNote
+          pdf_generation_note: pdfGenerationNote,
+          // Clear old project-specific fields when reusing for new project
+          description_of_operations: '',
+          updated_project_address: projectAddress || '',
+          updated_project_name: project_name || '',
+          additional_insureds: additional_insureds || reusable.additional_insureds || []
         };
 
         if (!entities.GeneratedCOI) entities.GeneratedCOI = [];
