@@ -4,52 +4,12 @@ import { apiClient } from "@/api/apiClient";
 import { createEmailTemplate } from "@/emailTemplates";
 import { escapeHtml } from "@/utils/htmlEscaping";
 import { fetchAdminEmails } from "@/utils/adminEmails";
+import { prepareAttachments, sendEmailWithErrorHandling } from "@/utils/notificationUtils";
 
 /**
  * COI Upload & Approval Notification System
  * Handles notifications when COI is uploaded or approved
  */
-
-/**
- * Prepare COI and Hold Harmless Agreement attachments for email
- * @param {Object} coi - COI record
- * @param {Object} subcontractor - Subcontractor record
- * @param {Object} project - Project record
- * @returns {Array} Array of attachment objects
- */
-function prepareAttachments(coi, subcontractor, project) {
-  const attachments = [];
-  
-  // Sanitize company and project names for filename, with fallbacks
-  const sanitizeName = (name) => {
-    if (!name || typeof name !== 'string') return 'Unknown';
-    // Replace filesystem-unsafe characters but preserve readability
-    return name.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
-  };
-  
-  const companyName = sanitizeName(subcontractor?.company_name);
-  const projectName = sanitizeName(project?.project_name);
-  
-  // Attach the actual issued COI PDF if it exists
-  const coiPdfUrl = coi?.pdf_url || coi?.regenerated_coi_url || coi?.first_coi_url;
-  if (coiPdfUrl) {
-    attachments.push({
-      filename: `COI_${companyName}_${projectName}.pdf`,
-      path: coiPdfUrl
-    });
-  }
-  
-  // Attach the Hold Harmless Agreement if it exists and is signed
-  const holdHarmlessUrl = coi?.hold_harmless_sub_signed_url || coi?.hold_harmless_template_url;
-  if (holdHarmlessUrl) {
-    attachments.push({
-      filename: `HoldHarmless_${companyName}_${projectName}.pdf`,
-      path: holdHarmlessUrl
-    });
-  }
-  
-  return attachments;
-}
 
 /**
  * Generate sample COI data from program requirements

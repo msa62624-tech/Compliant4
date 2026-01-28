@@ -1,6 +1,7 @@
 import { generateSecurePassword } from "@/passwordUtils";
 import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl } from "@/urlConfig";
+import { sendEmailWithErrorHandling } from "@/utils/notificationUtils";
 
 /**
  * Send welcome email when GC first joins the system
@@ -131,11 +132,10 @@ export async function notifyGCProjectCreated(project) {
   const baseUrl = getFrontendBaseUrl();
   const gcProjectLink = `${baseUrl}/gc-project?project=${project.id}&id=${project.gc_id}`;
   
-  try {
-    await sendEmail({
-      to: project.gc_email,
-      subject: `New Project Created - ${project.project_name}`,
-      body: `Dear ${project.gc_name},
+  await sendEmailWithErrorHandling({
+    to: project.gc_email,
+    subject: `New Project Created - ${project.project_name}`,
+    body: `Dear ${project.gc_name},
 
 A new project has been created in the InsureTrack system.
 
@@ -166,10 +166,7 @@ You will receive notifications as subcontractors are added and insurance approva
 
 Best regards,
 InsureTrack System`
-    });
-  } catch (error) {
-    console.error('Error sending GC project creation notification:', error);
-  }
+  }, 'GC project creation notification', sendEmail);
 }
 
 /**
@@ -181,11 +178,10 @@ export async function notifyGCSubcontractorAdded(project, subcontractor) {
   const baseUrl = getFrontendBaseUrl();
   const gcProjectLink = `${baseUrl}/gc-project?project=${project.id}&id=${project.gc_id}`;
   
-  try {
-    await sendEmail({
-      to: project.gc_email,
-      subject: `Subcontractor Added - ${subcontractor.company_name} on ${project.project_name}`,
-      body: `Dear ${project.gc_name},
+  await sendEmailWithErrorHandling({
+    to: project.gc_email,
+    subject: `Subcontractor Added - ${subcontractor.company_name} on ${project.project_name}`,
+    body: `Dear ${project.gc_name},
 
 A new subcontractor has been added to your project.
 
@@ -213,10 +209,7 @@ Insurance approval process has been initiated. You will receive notifications as
 
 Best regards,
 InsureTrack System`
-    });
-  } catch (error) {
-    console.error('Error sending GC subcontractor notification:', error);
-  }
+  }, 'GC subcontractor notification', sendEmail);
 }
 
 /**
@@ -228,11 +221,10 @@ export async function notifyGCCOIApproved(project, subcontractor, coi) {
   const baseUrl = getFrontendBaseUrl();
   const gcProjectLink = `${baseUrl}/gc-project?project=${project.id}&id=${project.gc_id}`;
   
-  try {
-    await sendEmail({
-      to: project.gc_email,
-      subject: `✅ Insurance Approved - ${subcontractor.company_name} on ${project.project_name}`,
-      body: `Dear ${project.gc_name},
+  await sendEmailWithErrorHandling({
+    to: project.gc_email,
+    subject: `✅ Insurance Approved - ${subcontractor.company_name} on ${project.project_name}`,
+    body: `Dear ${project.gc_name},
 
 Good news! Insurance has been approved for ${subcontractor.company_name}.
 
@@ -256,10 +248,7 @@ Continue to monitor for any compliance issues or policy expirations.`}
 
 Best regards,
 InsureTrack System`
-    });
-  } catch (error) {
-    console.error('Error sending GC COI approval notification:', error);
-  }
+  }, 'GC COI approval notification', sendEmail);
 }
 
 /**
@@ -272,30 +261,29 @@ export async function notifyGCComplianceIssue(project, subcontractor, issueType,
   const gcProjectLink = `${baseUrl}/gc-project?project=${project.id}&id=${project.gc_id}`;
   const urgency = issueType === 'policy_expired' ? 'URGENT' : 'ATTENTION REQUIRED';
   
-  try {
-    let issueMessage = '';
-    
-    switch(issueType) {
-      case 'policy_expired':
-        issueMessage = `Insurance Policy EXPIRED\n\n${details}`;
-        break;
-      case 'policy_expiring_soon':
-        issueMessage = `Insurance Policy EXPIRING SOON\n\nPolicy will expire on: ${details}`;
-        break;
-      case 'coi_pending_approval':
-        issueMessage = `Certificate of Insurance PENDING APPROVAL\n\nCOI is awaiting admin review.`;
-        break;
-      case 'missing_documents':
-        issueMessage = `Missing Insurance Documents\n\n${details}`;
-        break;
-      default:
-        issueMessage = details;
-    }
+  let issueMessage = '';
+  
+  switch(issueType) {
+    case 'policy_expired':
+      issueMessage = `Insurance Policy EXPIRED\n\n${details}`;
+      break;
+    case 'policy_expiring_soon':
+      issueMessage = `Insurance Policy EXPIRING SOON\n\nPolicy will expire on: ${details}`;
+      break;
+    case 'coi_pending_approval':
+      issueMessage = `Certificate of Insurance PENDING APPROVAL\n\nCOI is awaiting admin review.`;
+      break;
+    case 'missing_documents':
+      issueMessage = `Missing Insurance Documents\n\n${details}`;
+      break;
+    default:
+      issueMessage = details;
+  }
 
-    await sendEmail({
-      to: project.gc_email,
-      subject: `${urgency}: ${subcontractor.company_name} - ${project.project_name}`,
-      body: `Dear ${project.gc_name},
+  await sendEmailWithErrorHandling({
+    to: project.gc_email,
+    subject: `${urgency}: ${subcontractor.company_name} - ${project.project_name}`,
+    body: `Dear ${project.gc_name},
 
 ⚠️ ${urgency}
 
@@ -319,10 +307,7 @@ Contact Information:
 
 Best regards,
 InsureTrack System`
-    });
-  } catch (error) {
-    console.error('Error sending GC compliance issue notification:', error);
-  }
+  }, 'GC compliance issue notification', sendEmail);
 }
 
 /**
@@ -338,11 +323,10 @@ export async function notifyGCDocumentReplaced(project, subcontractor, documentI
   const baseUrl = getFrontendBaseUrl();
   const gcProjectLink = `${baseUrl}/gc-project?project=${project.id}&id=${project.gc_id}`;
   
-  try {
-    await sendEmail({
-      to: project.gc_email,
-      subject: `⚠️ Document Re-Review Required - ${subcontractor.company_name} - ${project.project_name}`,
-      body: `Dear ${project.gc_name || 'General Contractor'},
+  await sendEmailWithErrorHandling({
+    to: project.gc_email,
+    subject: `⚠️ Document Re-Review Required - ${subcontractor.company_name} - ${project.project_name}`,
+    body: `Dear ${project.gc_name || 'General Contractor'},
 
 ⚠️ ACTION REQUIRED: Document Replacement Alert
 
@@ -372,8 +356,5 @@ Contact Information:
 
 Best regards,
 InsureTrack System`
-    });
-  } catch (error) {
-    console.error('Error sending GC document replacement notification:', error);
-  }
+  }, 'GC document replacement notification', sendEmail);
 }
