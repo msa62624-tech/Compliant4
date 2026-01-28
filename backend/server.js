@@ -5403,6 +5403,7 @@ async function extractTextFromPDF(filePath) {
 
 // Helper function to extract common fields using regex patterns (fallback when AI is not configured)
 function extractFieldsWithRegex(text, schema) {
+  console.log('🔧 Starting regex extraction with schema fields:', Object.keys(schema));
   const extracted = {};
   const upper = (text || '').toUpperCase();
   
@@ -5630,6 +5631,10 @@ function extractFieldsWithRegex(text, schema) {
     }
   }
 
+  console.log('📊 Regex extraction results:', { 
+    fieldsExtracted: Object.keys(extracted).length,
+    fields: Object.keys(extracted)
+  });
   return extracted;
 }
 
@@ -5644,6 +5649,8 @@ function buildExtractionPrompt(schema, extractedText) {
 
 // Helper function for extraction logic
 async function performExtraction({ file_url, json_schema, prompt, response_json_schema }) {
+  console.log('🔍 Starting extraction:', { file_url, hasSchema: !!json_schema, hasPrompt: !!prompt });
+  
   // Extract file path from URL
   const urlParts = file_url.split('/uploads/');
   if (urlParts.length < 2) {
@@ -5668,24 +5675,31 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
   
   if (ext === '.pdf') {
     extractedText = await extractTextFromPDF(filePath);
+    console.log(`📄 Extracted ${extractedText.length} characters from PDF`);
   } else {
     extractedText = 'Image OCR not yet implemented. Please upload PDF files for automatic extraction.';
+    console.log('⚠️  Non-PDF file, skipping text extraction');
   }
 
   // If we have a prompt and response schema, use AI to extract structured data
   if (prompt && response_json_schema) {
     try {
+      console.log('🤖 Using AI extraction with custom prompt');
       const fullPrompt = `${prompt}\n\nEXTRACTED TEXT FROM DOCUMENT:\n${extractedText.substring(0, 8000)}`;
       const analysis = await aiAnalysis.callAI(fullPrompt);
       const parsedResult = aiAnalysis.parseJSON(analysis);
       
-      return parsedResult || {
-        status: 'success',
-        output: {},
-        message: 'AI analysis completed'
-      };
+      if (parsedResult && Object.keys(parsedResult).length > 0) {
+        console.log('✅ AI extraction successful:', Object.keys(parsedResult));
+        return {
+          status: 'success',
+          output: parsedResult,
+          raw_text: extractedText.substring(0, 500),
+          extraction_method: 'ai_custom_prompt'
+        };
+      }
     } catch (aiErr) {
-      console.error('AI extraction error:', aiErr);
+      console.error('❌ AI extraction error:', aiErr);
       // Fall through to schema-based extraction
     }
   }
@@ -5694,48 +5708,61 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
   if (json_schema && extractedText) {
     try {
       const schema = typeof json_schema === 'string' ? JSON.parse(json_schema) : json_schema;
+      console.log('📋 Schema fields:', Object.keys(schema));
       
       // First try AI extraction if available
       if (aiAnalysis.enabled) {
+        console.log('🤖 Attempting AI extraction with schema...');
         const extractionPrompt = buildExtractionPrompt(schema, extractedText);
         
         const aiResult = await aiAnalysis.callAI(extractionPrompt);
         const extracted = aiAnalysis.parseJSON(aiResult);
         
         if (extracted && Object.keys(extracted).length > 0) {
+          console.log('✅ AI extraction successful:', Object.keys(extracted));
           return {
             status: 'success',
             output: extracted,
-            raw_text: extractedText.substring(0, 500)
+            raw_text: extractedText.substring(0, 500),
+            extraction_method: 'ai'
           };
+        } else {
+          console.log('⚠️  AI extraction returned empty results');
         }
+      } else {
+        console.log('⚠️  AI service not enabled (set AI_API_KEY environment variable)');
       }
       
-      // Fallback to regex-based extraction when AI is not configured
-      console.log('⚠️  Using regex-based extraction (AI service not configured)');
+      // Fallback to regex-based extraction when AI is not configured or fails
+      console.log('🔧 Attempting regex-based extraction...');
       const regexExtracted = extractFieldsWithRegex(extractedText, schema);
       
       if (Object.keys(regexExtracted).length > 0) {
+        console.log('✅ Regex extraction found:', Object.keys(regexExtracted));
         return {
           status: 'success',
           output: regexExtracted,
           raw_text: extractedText.substring(0, 500),
           extraction_method: 'regex',
-          message: 'Extracted using pattern matching. AI service not configured for better accuracy.'
+          message: 'Extracted using pattern matching. Configure AI_API_KEY for better accuracy.'
         };
+      } else {
+        console.log('⚠️  Regex extraction found no matching fields');
       }
     } catch (extractErr) {
-      console.error('Schema-based extraction error:', extractErr);
+      console.error('❌ Schema-based extraction error:', extractErr);
     }
   }
 
-  // Return empty output if no extraction was successful
+  // Return extracted text even if structured extraction failed
+  console.log('⚠️  No structured data extracted, returning raw text');
   return {
-    status: 'success',
+    status: 'partial',
     output: {},
-    data: { extracted: extractedText.substring(0, 1000) },
-    raw_text: extractedText.substring(0, 500),
-    message: 'Text extracted but structured data extraction failed. Configure AI service for better results.'
+    raw_text: extractedText.substring(0, 1500),
+    full_text: extractedText,
+    message: 'Text extracted from document, but structured data extraction failed. Please review the raw text below and enter data manually if needed.',
+    extraction_method: 'text_only'
   };
 }
 
