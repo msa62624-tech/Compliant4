@@ -207,9 +207,13 @@ InsureTrack System`
  * Notify all stakeholders that renewal COI has been approved
  */
 export async function notifyRenewalCOIApproved(subcontractor, project, newCOI) {
+  const baseUrl = getFrontendBaseUrl();
+  
   try {
     // Notify subcontractor
     if (subcontractor.email) {
+      const subDashboardLink = createSubcontractorDashboardLink(subcontractor.id);
+      
       await sendEmail({
         to: subcontractor.email,
         subject: `Renewed Certificate Approved - ${project.project_name}`,
@@ -223,7 +227,7 @@ Your renewed Certificate of Insurance has been approved and is now active.
 • GL Coverage: $${newCOI.gl_coverage_amount?.toLocaleString() || 'N/A'}
 
 🔗 View Dashboard:
-${window.location.origin}/subcontractor-dashboard?id=${subcontractor.id}
+${subDashboardLink}
 
 You are cleared to continue work on this project with your renewed coverage.
 
