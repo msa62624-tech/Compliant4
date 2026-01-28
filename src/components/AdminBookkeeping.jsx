@@ -124,23 +124,63 @@ export default function AdminBookkeeping() {
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  // Calculate stats
-  const stats = {
-    totalRevenue: subscriptions
-      .filter(s => s && s.id && s.payment_status === 'completed' && filterByDateRange(s))
-      .reduce((sum, s) => sum + (s.amount_paid || 0), 0),
-    activeSubscriptions: subscriptions.filter(s => s && s.id && s.status === 'active').length,
-    totalTransactions: subscriptions.filter(s => s && s.id && s.payment_status === 'completed' && filterByDateRange(s)).length,
-    pendingPayments: subscriptions.filter(s => s && s.id && s.payment_status === 'pending').length,
-  };
+  // Calculate stats with memoization (performance optimization: single pass instead of multiple filters)
+  const stats = useMemo(() => {
+    const filterByDateRangeLocal = (sub) => {
+      if (!sub || !sub.id) return false;
+      if (dateRange === 'all_time') return true;
+      if (!sub.payment_date) return false;
 
-  const revenueByPlan = subscriptions
-    .filter(s => s && s.id && s.payment_status === 'completed' && filterByDateRange(s))
-    .reduce((acc, sub) => {
-      const key = sub.plan_type;
-      acc[key] = (acc[key] || 0) + (sub.amount_paid || 0);
-      return acc;
-    }, {});
+      const paymentDate = new Date(sub.payment_date);
+      const now = new Date();
+
+      switch (dateRange) {
+        case 'this_month':
+          return isWithinInterval(paymentDate, {
+            start: startOfMonth(now),
+            end: endOfMonth(now)
+          });
+        case 'this_year':
+          return isWithinInterval(paymentDate, {
+            start: startOfYear(now),
+            end: now
+          });
+        default:
+          return true;
+      }
+    };
+
+    let totalRevenue = 0;
+    let activeSubscriptions = 0;
+    let totalTransactions = 0;
+    let pendingPayments = 0;
+    const revenueByPlanAcc = {};
+
+    subscriptions.forEach(s => {
+      if (!s || !s.id) return;
+      
+      const matchesDate = filterByDateRangeLocal(s);
+      
+      if (s.status === 'active') activeSubscriptions++;
+      if (s.payment_status === 'pending') pendingPayments++;
+      if (s.payment_status === 'completed' && matchesDate) {
+        totalRevenue += s.amount_paid || 0;
+        totalTransactions++;
+        const key = s.plan_type;
+        revenueByPlanAcc[key] = (revenueByPlanAcc[key] || 0) + (s.amount_paid || 0);
+      }
+    });
+
+    return {
+      totalRevenue,
+      activeSubscriptions,
+      totalTransactions,
+      pendingPayments,
+      revenueByPlan: revenueByPlanAcc,
+    };
+  }, [subscriptions, dateRange]);
+
+  const revenueByPlan = stats.revenueByPlan;
 
   // Advanced Analytics
   const analytics = useMemo(() => {
