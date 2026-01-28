@@ -264,6 +264,9 @@ describe('Idempotency Middleware', () => {
     // Reset should restart everything including the interval
     resetIdempotencyForTesting();
     
+    // Create a fresh middleware instance after reset
+    const freshMiddleware = idempotency();
+    
     // Verify we can use idempotency again after reset
     const newReq = {
       method: 'POST',
@@ -280,7 +283,7 @@ describe('Idempotency Middleware', () => {
     };
     const newNext = jest.fn();
     
-    middleware(newReq, newRes, newNext);
+    freshMiddleware(newReq, newRes, newNext);
     expect(newNext).toHaveBeenCalled();
     
     // Simulate response
