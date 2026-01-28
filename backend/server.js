@@ -30,6 +30,15 @@ import { healthCheckHandler, readinessCheckHandler, livenessCheckHandler } from 
 import { trackConnection, setupGracefulShutdown } from './middleware/gracefulShutdown.js';
 import { sanitizeInput, escapeHtml } from './middleware/inputSanitization.js';
 import { validateEnvironment } from './middleware/envValidation.js';
+import { errorHandler, notFoundHandler, asyncHandler, ApplicationError, ValidationError, AuthenticationError, NotFoundError } from './middleware/errorHandler.js';
+import { metricsMiddleware, metricsHandler, recordMetrics } from './middleware/metrics.js';
+import idempotency from './middleware/idempotency.js';
+import cacheControl from './middleware/cacheControl.js';
+import compression from 'compression';
+
+// Import Swagger documentation
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpec from './config/swagger.js';
 
 // Import services
 import { timingSafeEqual, DUMMY_PASSWORD_HASH } from './services/authService.js';
@@ -1024,17 +1033,35 @@ app.use(express.json({ limit: '10mb' }));
 // ENTERPRISE MIDDLEWARE
 // =======================
 
+// Response compression (gzip) for bandwidth optimization
+app.use(compression({
+  filter: (req, res) => {
+    // Don't compress responses with Cache-Control: no-transform
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6, // Compression level (0-9, 6 is default balance)
+}));
+
 // Add correlation ID to all requests for tracing
 app.use(correlationId);
 
 // Track active connections for graceful shutdown
 app.use(trackConnection);
 
+// Prometheus metrics collection
+app.use(metricsMiddleware);
+
 // Request logging (morgan + winston)
 app.use(requestLogger);
 
 // Input sanitization middleware
 app.use(sanitizeInput());
+
+// Cache control headers
+app.use(cacheControl());
 
 // =======================
 // RATE LIMITING MIDDLEWARE
@@ -1060,13 +1087,175 @@ console.log('✅ Serving uploads from:', UPLOADS_DIR);
 // (Response formatters and validation now imported from middleware/validation.js)
 // (Auth middleware now imported from middleware/auth.js)
 
+// =======================
+// API DOCUMENTATION
+// =======================
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: API Information
+ *     description: Returns basic API information and links to documentation
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: API information
+ */
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Compliant4 API',
+    version: '1.0.0',
+    description: 'Insurance tracking application for General Contractors',
+    documentation: '/api-docs',
+    health: '/health',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Swagger UI - Enterprise API Documentation
+app.use('/api-docs', swaggerUi.serve);
+app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'Compliant4 API Documentation',
+  customfavIcon: '/favicon.ico',
+  customCss: '.swagger-ui .topbar { display: none }',
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    filter: true,
+    tryItOutEnabled: true,
+  },
+}));
+
+// Swagger JSON endpoint
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+logger.info('API documentation available at /api-docs');
+
 // Enhanced health check endpoints
 // Health endpoint with optional authentication for detailed metrics
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Health Check
+ *     description: Returns the health status of the API. Use ?detailed=true with authentication for detailed metrics
+ *     tags: [Health]
+ *     parameters:
+ *       - in: query
+ *         name: detailed
+ *         schema:
+ *           type: boolean
+ *         description: Include detailed system metrics (requires authentication)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Service is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/HealthResponse'
+ */
 app.get('/health', optionalAuthentication, healthCheckHandler);
+
+/**
+ * @swagger
+ * /health/readiness:
+ *   get:
+ *     summary: Readiness Probe
+ *     description: Kubernetes readiness probe - checks if service is ready to accept traffic
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Service is ready
+ *       503:
+ *         description: Service is not ready
+ */
 app.get('/health/readiness', readinessCheckHandler);
+
+/**
+ * @swagger
+ * /health/liveness:
+ *   get:
+ *     summary: Liveness Probe
+ *     description: Kubernetes liveness probe - checks if service is alive
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: Service is alive
+ */
 app.get('/health/liveness', livenessCheckHandler);
 
+/**
+ * @swagger
+ * /metrics:
+ *   get:
+ *     summary: Prometheus Metrics
+ *     description: Returns metrics in Prometheus format for monitoring and alerting
+ *     tags: [Health]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Metrics in Prometheus format
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ */
+app.get('/metrics', authenticateToken, metricsHandler);
+
 // Auth endpoints with validation
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     summary: Login
+ *     description: Authenticate user and receive JWT tokens
+ *     tags: [Authentication]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: Username or email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken:
+ *                   type: string
+ *                   description: JWT access token (24h expiry)
+ *                 refreshToken:
+ *                   type: string
+ *                   description: JWT refresh token (7d expiry)
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       429:
+ *         description: Too many login attempts
+ */
 app.post('/auth/login',
   authLimiter,
   [
@@ -1551,7 +1740,7 @@ app.get('/entities/:entityName/query', authenticateToken, (req, res) => {
 });
 
 // Create
-app.post('/entities/:entityName', authenticateToken, async (req, res) => {
+app.post('/entities/:entityName', authenticateToken, idempotency(), async (req, res) => {
   const { entityName } = req.params;
   const data = req.body;
   if (!entities[entityName]) {
@@ -9105,35 +9294,20 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
 app.use(errorLogger);
 
 // 404 handler for undefined routes
-app.use((req, res) => {
-  sendError(res, 404, `Route ${req.method} ${req.path} not found`);
-});
+app.use(notFoundHandler);
 
-// Global error handler
-app.use((err, req, res, _next) => {
-  logger.error('Global error handler', {
-    error: err.message,
-    stack: err.stack,
-    correlationId: req.correlationId,
-    method: req.method,
-    url: req.url,
-  });
-  
-  // Multer file upload errors
+// Global error handler - Enterprise-grade centralized error handling
+app.use((err, req, res, next) => {
+  // Handle Multer file upload errors
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return sendError(res, 400, 'File too large. Maximum size is 10MB');
+      return errorHandler(new ValidationError('File too large. Maximum size is 10MB', { maxSize: '10MB' }), req, res, next);
     }
-    return sendError(res, 400, err.message);
+    return errorHandler(new ValidationError(err.message, { code: err.code }), req, res, next);
   }
   
-  // Other known errors
-  if (err.message) {
-    return sendError(res, err.statusCode || 500, err.message);
-  }
-  
-  // Unknown errors
-  sendError(res, 500, 'Internal server error');
+  // Use centralized error handler for all other errors
+  errorHandler(err, req, res, next);
 });
 
 // Renewal processing: scan for expiring policies and notify brokers/admins

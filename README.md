@@ -60,6 +60,24 @@ For email configuration, see [docs/EMAIL_SETUP.md](docs/EMAIL_SETUP.md).
 
 For production deployment, see [docs/DEPLOY.md](docs/DEPLOY.md) for complete instructions.
 
+## 🌟 Enterprise-Grade Features
+
+Compliant4 includes production-ready enterprise features:
+
+- **API Documentation** - Interactive Swagger UI at `/api-docs` ([OpenAPI 3.0](http://localhost:3001/api-docs))
+- **Prometheus Metrics** - Production monitoring at `/metrics` (requires authentication)
+- **Request Idempotency** - Prevents duplicate operations from retries
+- **Response Compression** - Gzip compression (60-80% bandwidth reduction)
+- **Cache Control** - Intelligent HTTP caching for performance
+- **Centralized Error Handling** - Consistent error responses with correlation IDs
+- **Structured Logging** - Winston-based logging with correlation tracking
+- **Security Headers** - Helmet with CSP, HSTS, and security best practices
+- **Rate Limiting** - Multiple tiers (API, auth, upload, email)
+- **Graceful Shutdown** - Zero-downtime deployments
+- **Health Checks** - Kubernetes-ready liveness/readiness probes
+
+📖 **See [docs/ENTERPRISE_BACKEND_IMPROVEMENTS.md](docs/ENTERPRISE_BACKEND_IMPROVEMENTS.md) for complete documentation**
+
 ## 📚 Documentation
 
 ### Configuration & Setup
@@ -77,6 +95,8 @@ For production deployment, see [docs/DEPLOY.md](docs/DEPLOY.md) for complete ins
 - [docs/INSURANCE_REQUIREMENTS_SYSTEM.md](docs/INSURANCE_REQUIREMENTS_SYSTEM.md) - Insurance requirements & COI approval
 
 ### Technical Reference
+- [docs/ENTERPRISE_BACKEND_IMPROVEMENTS.md](docs/ENTERPRISE_BACKEND_IMPROVEMENTS.md) - **🚀 Enterprise features guide (NEW)**
+- [docs/ENTERPRISE_FEATURES.md](docs/ENTERPRISE_FEATURES.md) - **⭐ Complete enterprise features documentation**
 - [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md) - Full API reference
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md) - Database schema and entities
 - [docs/SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) - System design and architecture

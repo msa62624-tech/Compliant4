@@ -6,6 +6,112 @@ This document describes the enterprise-ready features implemented in the Complia
 
 The application has been enhanced with production-grade features for observability, security, reliability, and operational excellence.
 
+## 🆕 Latest Enterprise Enhancements (2026-01)
+
+### API Documentation (Swagger/OpenAPI)
+
+**Interactive API documentation** with full OpenAPI 3.0 specification:
+
+- **Swagger UI** at `/api-docs` - Browse and test API endpoints
+- **OpenAPI Spec** at `/api-docs.json` - Machine-readable API documentation
+- **Authentication Support** - Test authenticated endpoints directly in UI
+- **Full Coverage** - All endpoints documented with schemas and examples
+
+**Access Documentation**:
+```bash
+# Open in browser
+http://localhost:3001/api-docs
+
+# Get OpenAPI JSON spec
+curl http://localhost:3001/api-docs.json
+```
+
+### Prometheus Metrics
+
+**Production-grade metrics** for monitoring and alerting:
+
+- **Endpoint**: `/metrics` (requires authentication)
+- **Default Metrics**: CPU, memory, event loop, GC stats
+- **Business Metrics**: 
+  - HTTP request duration and totals
+  - Active connections
+  - Authentication attempts
+  - Entity operations (create, update, delete)
+  - COI generations
+  - Document uploads
+  - Compliance checks
+  - Email sends
+  - Error counts
+
+**Usage**:
+```bash
+# Get metrics (requires auth token)
+curl -H "Authorization: Bearer <token>" http://localhost:3001/metrics
+```
+
+### Centralized Error Handling
+
+**Enterprise-grade error management**:
+
+- **Custom Error Classes**: ValidationError, AuthenticationError, NotFoundError, etc.
+- **Consistent Format**: All errors return same structure with correlation ID
+- **Security**: Stack traces only in development
+- **Logging**: All errors logged with full context
+
+**Error Response Format**:
+```json
+{
+  "error": "Resource not found",
+  "correlationId": "abc123-uuid-456",
+  "details": { "id": "entity-789" }
+}
+```
+
+### Request Idempotency
+
+**Prevents duplicate operations** from client retries:
+
+- **Automatic Detection**: Generates idempotency key from request
+- **Explicit Keys**: Support for `Idempotency-Key` header
+- **15-Minute Cache**: Duplicate requests return cached response
+- **Response Headers**: `X-Idempotency-Hit`, `X-Idempotency-Age`
+
+**Example**:
+```bash
+# First request creates entity
+curl -X POST /entities/Project \
+  -H "Idempotency-Key: unique-key-123" \
+  -d '{"name":"New Project"}'
+# Returns: X-Idempotency-Hit: false
+
+# Retry returns cached response
+curl -X POST /entities/Project \
+  -H "Idempotency-Key: unique-key-123" \
+  -d '{"name":"New Project"}'
+# Returns: X-Idempotency-Hit: true
+```
+
+### Response Compression
+
+**Gzip compression** for bandwidth optimization:
+
+- **Automatic**: All responses compressed if client supports it
+- **60-80% Reduction**: Significant bandwidth savings
+- **Configurable**: Compression level and filtering
+- **Smart**: Skips small responses and already-compressed content
+
+### Intelligent Cache Control
+
+**HTTP caching** for performance:
+
+- **Smart Caching**: Different strategies per endpoint type
+  - Health checks: 30 seconds
+  - API docs: 1 hour
+  - Static assets: 1 year (immutable)
+  - API data: No cache
+- **CDN-Ready**: Proper cache headers for CDN integration
+- **ETag Support**: Conditional requests with 304 Not Modified
+
 ## 🔍 Observability & Monitoring
 
 ### Structured Logging
