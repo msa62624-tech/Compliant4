@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import auth from '@/auth.js';
+import auth from '@/auth';
 import { validateLoginCredentials } from '@/utils/validation';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';

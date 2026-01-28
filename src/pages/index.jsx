@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } f
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Building2, FileText, Users, Home, LogOut, Menu, X, Zap, Clock, AlertTriangle, Archive, MessageSquare } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import auth from '@/auth.js'
+import auth from '@/auth'
 
 // Import all your pages
 import Contractors from '@/components/Contractors.jsx'
