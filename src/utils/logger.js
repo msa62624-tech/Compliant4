@@ -7,43 +7,71 @@
 
 const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
+/**
+ * Format log message with optional context
+ * @param {string} message - The log message
+ * @param {object} context - Additional context data
+ * @returns {Array} - Formatted arguments for console
+ */
+const formatMessage = (message, context) => {
+  if (context && Object.keys(context).length > 0) {
+    return [message, context];
+  }
+  return [message];
+};
+
 export const logger = {
   /**
    * Log informational messages (development only)
-   * @param {...any} args - Arguments to log
+   * @param {string} message - Log message
+   * @param {object} context - Optional context data
    */
-  log: (...args) => {
+  log: (message, context) => {
     if (isDevelopment) {
-      console.log(...args);
+      console.log(...formatMessage(message, context));
+    }
+  },
+
+  /**
+   * Log info messages (development only)
+   * @param {string} message - Log message
+   * @param {object} context - Optional context data
+   */
+  info: (message, context) => {
+    if (isDevelopment) {
+      console.log(...formatMessage(message, context));
     }
   },
 
   /**
    * Log warnings (always logged)
-   * @param {...any} args - Arguments to log
+   * @param {string} message - Log message
+   * @param {object} context - Optional context data
    */
-  warn: (...args) => {
-    console.warn(...args);
+  warn: (message, context) => {
+    console.warn(...formatMessage(message, context));
     // TODO: Send to error tracking service in production
   },
 
   /**
    * Log errors (always logged)
-   * @param {...any} args - Arguments to log
+   * @param {string} message - Log message
+   * @param {object} context - Optional context data
    */
-  error: (...args) => {
-    console.error(...args);
+  error: (message, context) => {
+    console.error(...formatMessage(message, context));
     // TODO: Send to error tracking service in production
-    // Example: Sentry.captureException(args[0]);
+    // Example: Sentry.captureException(context?.error || new Error(message));
   },
 
   /**
    * Log debug information (development only)
-   * @param {...any} args - Arguments to log
+   * @param {string} message - Log message
+   * @param {object} context - Optional context data
    */
-  debug: (...args) => {
+  debug: (message, context) => {
     if (isDevelopment) {
-      console.debug(...args);
+      console.debug(...formatMessage(message, context));
     }
   },
 
