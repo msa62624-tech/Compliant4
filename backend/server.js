@@ -4654,6 +4654,81 @@ app.patch('/public/coi-by-token', publicApiLimiter, async (req, res) => {
       console.warn('Error during hold-harmless generation on COI update:', hhErr?.message || hhErr);
     }
 
+    // Extract policy data and compare to COI if policy URLs are provided
+    if (updates.gl_policy_url || updates.wc_policy_url || updates.auto_policy_url || updates.umbrella_policy_url) {
+      const coiRecord = entities.GeneratedCOI[idx];
+      const policyComparisons = [];
+      const allExclusions = [];
+      
+      // Extract and compare each policy type
+      for (const [policyType, url] of Object.entries(policyUrlFields)) {
+        if (url) {
+          try {
+            // Extract policy data
+            const policyExtraction = await extractIfNeeded(policyType, url);
+            
+            // Extract exclusions from policy
+            const policyText = policyExtraction.raw_text || policyExtraction.full_text || '';
+            if (policyText) {
+              const exclusions = extractExclusions(policyText);
+              allExclusions.push(...exclusions.map(e => ({ ...e, source: policyType })));
+            }
+            
+            // Compare policy to COI
+            if (Object.keys(policyExtraction).length > 0) {
+              const coverageType = policyType.replace('_policy', '');
+              const discrepancies = comparePolicyToCOI(policyExtraction, coiRecord, coverageType);
+              if (discrepancies.length > 0) {
+                policyComparisons.push({
+                  policy_type: policyType,
+                  discrepancies
+                });
+              }
+            }
+          } catch (err) {
+            console.warn(`Policy analysis failed for ${policyType}:`, err?.message || err);
+          }
+        }
+      }
+      
+      // Compare exclusions to requirements and project data
+      if (allExclusions.length > 0) {
+        try {
+          const project = (entities.Project || []).find(p => p.id === coiRecord.project_id);
+          const programId = project?.program_id || null;
+          const requirements = (entities.SubInsuranceRequirement || []).filter(r => r.program_id === programId);
+          
+          const exclusionConflicts = compareExclusionsToRequirements(allExclusions, requirements, project);
+          
+          // Store analysis results
+          entities.GeneratedCOI[idx] = {
+            ...entities.GeneratedCOI[idx],
+            policy_analysis: {
+              ...(entities.GeneratedCOI[idx].policy_analysis || {}),
+              policy_comparisons: policyComparisons,
+              exclusions: allExclusions,
+              exclusion_conflicts: exclusionConflicts,
+              analyzed_at: new Date().toISOString()
+            }
+          };
+          
+          console.log(`✅ Policy analysis complete: ${policyComparisons.length} comparisons, ${allExclusions.length} exclusions, ${exclusionConflicts.length} conflicts`);
+        } catch (err) {
+          console.warn('Exclusion analysis failed:', err?.message || err);
+        }
+      } else if (policyComparisons.length > 0) {
+        // Store comparison results even if no exclusions found
+        entities.GeneratedCOI[idx] = {
+          ...entities.GeneratedCOI[idx],
+          policy_analysis: {
+            ...(entities.GeneratedCOI[idx].policy_analysis || {}),
+            policy_comparisons: policyComparisons,
+            analyzed_at: new Date().toISOString()
+          }
+        };
+      }
+    }
+
     debouncedSave();
     return res.json(entities.GeneratedCOI[idx]);
   } catch (err) {
@@ -6550,6 +6625,294 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
     message: 'Text extracted from document, but structured data extraction failed. Please review the raw text below and enter data manually if needed.',
     extraction_method: 'text_only'
   };
+}
+
+// Helper function to extract exclusions from policy or endorsement text
+function extractExclusions(text) {
+  console.log('🔍 Extracting exclusions from document text...');
+  const exclusions = [];
+  
+  if (!text) return exclusions;
+  
+  const lines = text.split('\n');
+  const exclusionPatterns = [
+    // Common exclusion markers
+    /(?:EXCLUSION|EXCLUDED|DOES\s+NOT\s+COVER|NOT\s+COVERED|EXCLUDED\s+(?:FROM\s+)?COVERAGE)/i,
+    // Specific types of exclusions
+    /(?:RESIDENTIAL|HABITATIONAL)\s+EXCLUSION/i,
+    /(?:NY|NEW\s+YORK)\s+LABOR\s+LAW\s+EXCLUSION/i,
+    /ASBESTOS\s+EXCLUSION/i,
+    /LEAD\s+(?:PAINT\s+)?EXCLUSION/i,
+    /MOLD\s+EXCLUSION/i,
+    /POLLUTION\s+EXCLUSION/i,
+    /UNDERGROUND\s+(?:STORAGE\s+)?TANK\s+EXCLUSION/i,
+    /PROFESSIONAL\s+(?:LIABILITY\s+)?EXCLUSION/i,
+    /AIRCRAFT\s+EXCLUSION/i,
+    /WATERCRAFT\s+EXCLUSION/i,
+    /NUCLEAR\s+EXCLUSION/i,
+    /WAR\s+EXCLUSION/i,
+    /CYBER\s+(?:LIABILITY\s+)?EXCLUSION/i
+  ];
+  
+  // Search for exclusion sections and nearby text
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Check if this line contains exclusion language
+    for (const pattern of exclusionPatterns) {
+      if (pattern.test(line)) {
+        // Extract context: 2 lines before and 3 lines after
+        const startIdx = Math.max(0, i - 2);
+        const endIdx = Math.min(lines.length, i + 4);
+        const contextLines = lines.slice(startIdx, endIdx);
+        const context = contextLines.join(' ').trim();
+        
+        // Determine exclusion type
+        let type = 'general';
+        if (/residential|habitational/i.test(line)) type = 'residential';
+        else if (/labor\s+law/i.test(line)) type = 'labor_law';
+        else if (/asbestos/i.test(line)) type = 'asbestos';
+        else if (/lead/i.test(line)) type = 'lead';
+        else if (/mold/i.test(line)) type = 'mold';
+        else if (/pollution/i.test(line)) type = 'pollution';
+        else if (/professional/i.test(line)) type = 'professional_liability';
+        else if (/cyber/i.test(line)) type = 'cyber';
+        
+        exclusions.push({
+          type,
+          text: line.trim(),
+          context: context.substring(0, 300), // Limit context to 300 chars
+          line_number: i + 1
+        });
+        
+        console.log(`  ✅ Found exclusion (${type}): ${line.trim().substring(0, 100)}`);
+        break; // Don't double-count same line
+      }
+    }
+  }
+  
+  console.log(`📊 Extracted ${exclusions.length} exclusions from document`);
+  return exclusions;
+}
+
+// Helper function to compare policy data to COI data
+function comparePolicyToCOI(policyData, coiData, coverageType) {
+  console.log(`🔍 Comparing ${coverageType} policy to COI data...`);
+  const discrepancies = [];
+  
+  // Field mapping by coverage type
+  const fieldMaps = {
+    gl: {
+      policy_number: ['policy_number_gl', 'Policy Number'],
+      carrier: ['insurance_carrier_gl', 'Insurance Carrier'],
+      each_occurrence: ['gl_each_occurrence', 'Each Occurrence Limit'],
+      general_aggregate: ['gl_general_aggregate', 'General Aggregate'],
+      products_ops: ['gl_products_completed_ops', 'Products/Completed Ops'],
+      effective_date: ['gl_effective_date', 'Effective Date'],
+      expiration_date: ['gl_expiration_date', 'Expiration Date']
+    },
+    wc: {
+      policy_number: ['policy_number_wc', 'Policy Number'],
+      carrier: ['insurance_carrier_wc', 'Insurance Carrier'],
+      each_accident: ['wc_each_accident', 'Each Accident'],
+      disease_policy_limit: ['wc_disease_policy_limit', 'Disease Policy Limit'],
+      disease_each_employee: ['wc_disease_each_employee', 'Disease Each Employee'],
+      effective_date: ['wc_effective_date', 'Effective Date'],
+      expiration_date: ['wc_expiration_date', 'Expiration Date']
+    },
+    auto: {
+      policy_number: ['policy_number_auto', 'Policy Number'],
+      carrier: ['insurance_carrier_auto', 'Insurance Carrier'],
+      combined_single_limit: ['auto_combined_single_limit', 'Combined Single Limit'],
+      effective_date: ['auto_effective_date', 'Effective Date'],
+      expiration_date: ['auto_expiration_date', 'Expiration Date']
+    },
+    umbrella: {
+      policy_number: ['policy_number_umbrella', 'Policy Number'],
+      carrier: ['insurance_carrier_umbrella', 'Insurance Carrier'],
+      each_occurrence: ['umbrella_each_occurrence', 'Each Occurrence'],
+      aggregate: ['umbrella_aggregate', 'Aggregate'],
+      effective_date: ['umbrella_effective_date', 'Effective Date'],
+      expiration_date: ['umbrella_expiration_date', 'Expiration Date']
+    }
+  };
+  
+  const fieldMap = fieldMaps[coverageType];
+  if (!fieldMap) {
+    console.warn(`⚠️ Unknown coverage type: ${coverageType}`);
+    return discrepancies;
+  }
+  
+  // Compare each field
+  for (const [policyField, [coiField, displayName]] of Object.entries(fieldMap)) {
+    const policyValue = policyData[policyField];
+    const coiValue = coiData[coiField];
+    
+    // Skip if both are missing
+    if (!policyValue && !coiValue) continue;
+    
+    // Check for mismatches
+    if (policyValue && coiValue) {
+      // Normalize values for comparison
+      let policyNorm = String(policyValue).trim().toUpperCase();
+      let coiNorm = String(coiValue).trim().toUpperCase();
+      
+      // For numbers, parse and compare
+      if (typeof policyValue === 'number' || !isNaN(parseFloat(policyValue))) {
+        const policyNum = parseFloat(String(policyValue).replace(/[$,]/g, ''));
+        const coiNum = parseFloat(String(coiValue).replace(/[$,]/g, ''));
+        
+        if (!isNaN(policyNum) && !isNaN(coiNum) && Math.abs(policyNum - coiNum) > 0.01) {
+          discrepancies.push({
+            field: coiField,
+            display_name: displayName,
+            policy_value: policyNum,
+            coi_value: coiNum,
+            severity: policyNum < coiNum ? 'high' : 'medium',
+            message: policyNum < coiNum 
+              ? `Policy limit ($${policyNum.toLocaleString()}) is lower than COI limit ($${coiNum.toLocaleString()})`
+              : `COI limit ($${coiNum.toLocaleString()}) doesn't match policy limit ($${policyNum.toLocaleString()})`
+          });
+        }
+      } else if (policyNorm !== coiNorm) {
+        // String comparison
+        discrepancies.push({
+          field: coiField,
+          display_name: displayName,
+          policy_value: policyValue,
+          coi_value: coiValue,
+          severity: 'medium',
+          message: `Policy ${displayName} (${policyValue}) doesn't match COI (${coiValue})`
+        });
+      }
+    } else if (policyValue && !coiValue) {
+      discrepancies.push({
+        field: coiField,
+        display_name: displayName,
+        policy_value: policyValue,
+        coi_value: null,
+        severity: 'low',
+        message: `${displayName} found in policy but missing from COI`
+      });
+    } else if (!policyValue && coiValue) {
+      discrepancies.push({
+        field: coiField,
+        display_name: displayName,
+        policy_value: null,
+        coi_value: coiValue,
+        severity: 'high',
+        message: `${displayName} on COI (${coiValue}) cannot be verified - not found in policy`
+      });
+    }
+  }
+  
+  console.log(`📊 Found ${discrepancies.length} discrepancies between policy and COI`);
+  return discrepancies;
+}
+
+// Helper function to compare exclusions against requirements
+function compareExclusionsToRequirements(exclusions, requirements, projectData) {
+  console.log('🔍 Comparing exclusions to requirements and project data...');
+  const conflicts = [];
+  
+  if (!exclusions || exclusions.length === 0) {
+    console.log('✅ No exclusions to check');
+    return conflicts;
+  }
+  
+  // Check project type conflicts
+  if (projectData) {
+    const projectType = (projectData.project_type || '').toLowerCase();
+    const projectState = (projectData.state || '').toUpperCase();
+    
+    // Residential project conflicts
+    if (projectType.includes('residential') || projectType.includes('habitational')) {
+      const residentialExclusions = exclusions.filter(e => 
+        e.type === 'residential' || /residential|habitational/i.test(e.text)
+      );
+      
+      for (const excl of residentialExclusions) {
+        conflicts.push({
+          severity: 'critical',
+          category: 'project_conflict',
+          exclusion_type: excl.type,
+          exclusion_text: excl.text,
+          conflict_reason: 'Residential/Habitational exclusion conflicts with residential project type',
+          project_field: 'project_type',
+          project_value: projectType,
+          required_action: 'Remove residential exclusion or provide endorsement covering residential work'
+        });
+      }
+    }
+    
+    // NY Labor Law conflicts
+    if (projectState === 'NY') {
+      const laborLawExclusions = exclusions.filter(e => 
+        e.type === 'labor_law' || /labor\s+law/i.test(e.text)
+      );
+      
+      for (const excl of laborLawExclusions) {
+        conflicts.push({
+          severity: 'high',
+          category: 'project_conflict',
+          exclusion_type: excl.type,
+          exclusion_text: excl.text,
+          conflict_reason: 'NY Labor Law exclusion may conflict with New York project requirements',
+          project_field: 'state',
+          project_value: projectState,
+          required_action: 'Verify coverage includes NY Labor Law or provide appropriate endorsement'
+        });
+      }
+    }
+  }
+  
+  // Check requirement conflicts
+  if (requirements && requirements.length > 0) {
+    for (const req of requirements) {
+      const insuranceType = req.insurance_type || '';
+      
+      // Check if professional liability exclusion conflicts with requirement
+      if (insuranceType.includes('professional')) {
+        const professionalExclusions = exclusions.filter(e => 
+          e.type === 'professional_liability' || /professional.*(?:liability|services)/i.test(e.text)
+        );
+        
+        for (const excl of professionalExclusions) {
+          conflicts.push({
+            severity: 'high',
+            category: 'requirement_conflict',
+            exclusion_type: excl.type,
+            exclusion_text: excl.text,
+            conflict_reason: 'Professional liability exclusion conflicts with program requirement',
+            requirement_type: insuranceType,
+            required_action: 'Remove professional liability exclusion or provide separate professional liability coverage'
+          });
+        }
+      }
+      
+      // Check pollution exclusion if environmental work is required
+      if (req.requires_pollution_coverage || /pollution|environmental/i.test(req.notes || '')) {
+        const pollutionExclusions = exclusions.filter(e => 
+          e.type === 'pollution' || /pollution|environmental/i.test(e.text)
+        );
+        
+        for (const excl of pollutionExclusions) {
+          conflicts.push({
+            severity: 'high',
+            category: 'requirement_conflict',
+            exclusion_type: excl.type,
+            exclusion_text: excl.text,
+            conflict_reason: 'Pollution exclusion conflicts with environmental coverage requirement',
+            requirement_type: insuranceType,
+            required_action: 'Provide separate pollution liability coverage or endorsement'
+          });
+        }
+      }
+    }
+  }
+  
+  console.log(`📊 Found ${conflicts.length} exclusion conflicts`);
+  return conflicts;
 }
 
 // Extract text from uploaded file and return structured data
