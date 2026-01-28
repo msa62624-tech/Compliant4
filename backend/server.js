@@ -6650,6 +6650,34 @@ function extractFieldsWithRegex(text, schema) {
     }
   }
   
+  // Helper function to check if any occurrence of a keyword is not negated
+  const NEGATION_LOOKBACK_CHARS = 50;
+  const NEGATION_PATTERN = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i;
+  
+  function hasNonNegatedKeyword(text, keywordPattern) {
+    const matchIndices = [];
+    let match;
+    const regex = new RegExp(keywordPattern.source, 'gi');
+    
+    while ((match = regex.exec(text)) !== null) {
+      matchIndices.push(match.index);
+    }
+    
+    // If we find any occurrence, check if at least one is not negated
+    for (const matchIndex of matchIndices) {
+      const startPos = Math.max(0, matchIndex - NEGATION_LOOKBACK_CHARS);
+      const precedingText = text.substring(startPos, matchIndex);
+      const hasNegation = NEGATION_PATTERN.test(precedingText);
+      
+      // If this occurrence is not negated, we found a valid keyword
+      if (!hasNegation) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+  
   // ENDORSEMENT EXTRACTION - Additional Insured and Waiver of Subrogation
   if ('gl_additional_insured' in schema && extracted.gl_additional_insured == null) {
     // Look for keywords indicating additional insured endorsement
@@ -6661,35 +6689,17 @@ function extractFieldsWithRegex(text, schema) {
       /primary\s+&\s+non-contributory/i
     ];
     
-    // Check for negation words within 50 chars before "ADDITIONAL INSURED"
-    // Find ALL keyword occurrences and check if at least one is not negated
-    let hasAddlInsured = false;
-    const allMatches = [];
-    let match;
-    const regex = /ADDITIONAL\s+INSURED/gi;
-    while ((match = regex.exec(text)) !== null) {
-      allMatches.push(match.index);
-    }
+    // Check if "ADDITIONAL INSURED" appears without negation
+    let hasAddlInsured = hasNonNegatedKeyword(text, /ADDITIONAL\s+INSURED/);
     
-    // If we find any occurrence, check if at least one is not negated
-    if (allMatches.length > 0) {
-      for (const matchIndex of allMatches) {
-        const startPos = Math.max(0, matchIndex - 50);
-        const precedingText = text.substring(startPos, matchIndex);
-        const hasNegation = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i.test(precedingText);
-        
-        // If this occurrence is not negated, we found a valid endorsement
-        if (!hasNegation) {
-          hasAddlInsured = true;
-          break;
-        }
-      }
-    }
-    
-    // If no "ADDITIONAL INSURED" found, check other patterns
+    // If not found, check other indicator patterns
     if (!hasAddlInsured) {
       for (const pattern of addlInsuredIndicators) {
-        if (pattern !== /ADDITIONAL\s+INSURED/i && pattern.test(text)) {
+        // Skip the main pattern we already checked
+        if (pattern.source === /ADDITIONAL\s+INSURED/i.source) {
+          continue;
+        }
+        if (pattern.test(text)) {
           hasAddlInsured = true;
           break;
         }
@@ -6709,35 +6719,17 @@ function extractFieldsWithRegex(text, schema) {
       /subrogation.*waived/i
     ];
     
-    // Check for negation words within 50 chars before "WAIVER" or "SUBROGATION"
-    // Find ALL keyword occurrences and check if at least one is not negated
-    let hasWaiver = false;
-    const allMatches = [];
-    let match;
-    const regex = /(?:WAIVER|SUBROGATION)/gi;
-    while ((match = regex.exec(text)) !== null) {
-      allMatches.push(match.index);
-    }
+    // Check if "WAIVER" or "SUBROGATION" appears without negation
+    let hasWaiver = hasNonNegatedKeyword(text, /(?:WAIVER|SUBROGATION)/);
     
-    // If we find any occurrence, check if at least one is not negated
-    if (allMatches.length > 0) {
-      for (const matchIndex of allMatches) {
-        const startPos = Math.max(0, matchIndex - 50);
-        const precedingText = text.substring(startPos, matchIndex);
-        const hasNegation = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i.test(precedingText);
-        
-        // If this occurrence is not negated, we found a valid waiver
-        if (!hasNegation) {
-          hasWaiver = true;
-          break;
-        }
-      }
-    }
-    
-    // If no "WAIVER" or "SUBROGATION" found non-negated, check other patterns
+    // If not found, check other indicator patterns
     if (!hasWaiver) {
       for (const pattern of waiverIndicators) {
-        if (!/(WAIVER|SUBROGATION)/i.test(pattern.source) && pattern.test(text)) {
+        // Skip patterns that contain WAIVER or SUBROGATION (already checked)
+        if (/WAIVER|SUBROGATION/i.test(pattern.source)) {
+          continue;
+        }
+        if (pattern.test(text)) {
           hasWaiver = true;
           break;
         }
