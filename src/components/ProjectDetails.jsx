@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
 import { getBackendBaseUrl } from "@/urlConfig";
+import { generateSecureToken } from "@/utils/tokenGenerator";
 import {
   Dialog,
   DialogContent,
@@ -583,9 +584,7 @@ export default function ProjectDetails() {
       };
 
       // Generate secure COI token using crypto
-      const tokenBytes = new Uint8Array(24);
-      crypto.getRandomValues(tokenBytes);
-      const coiToken = Array.from(tokenBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+      const coiToken = generateSecureToken();
 
       const umbrellaText = requiresUmbrella ? ' & Umbrella' : '';
       const professionalText = requiresProfessionalLiability ? ', Professional Liability' : '';
@@ -748,9 +747,7 @@ export default function ProjectDetails() {
       const baseUrl = window.location.origin.replace(/\/$/, '');
       
       // Generate secure portal token using crypto
-      const portalTokenBytes = new Uint8Array(24);
-      crypto.getRandomValues(portalTokenBytes);
-      const portalToken = Array.from(portalTokenBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+      const portalToken = generateSecureToken();
       
       const portalUrl = `${baseUrl}${createPageUrl('SubcontractorDashboard')}?id=${subId}`;
 
@@ -790,9 +787,7 @@ export default function ProjectDetails() {
 
             // Create Portal for broker (async, don't block)
             // Generate secure broker portal token using crypto
-            const brokerPortalTokenBytes = new Uint8Array(24);
-            crypto.getRandomValues(brokerPortalTokenBytes);
-            const brokerPortalToken = Array.from(brokerPortalTokenBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+            const brokerPortalToken = generateSecureToken();
             
             const brokerPortalUrl = `${baseUrl}${createPageUrl('BrokerDashboard')}?id=${broker.id}`;
             const brokerDashboardLink = brokerPortalUrl;

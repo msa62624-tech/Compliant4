@@ -2,6 +2,7 @@ import { compliant } from "@/api/compliantClient";
 import { generateSecurePassword, formatLoginCredentialsForEmail, createUserCredentials } from "@/passwordUtils";
 import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl, createBrokerDashboardLink, createSubcontractorDashboardLink } from "@/urlConfig";
+import { generateSecureToken } from "@/utils/tokenGenerator";
 
 /**
  * Send notification emails when broker is assigned or changed for a subcontractor
@@ -194,9 +195,7 @@ InsureTrack System`
 
     if (existingBrokerPortals.length === 0) {
       // Generate secure random token using crypto
-      const brokerTokenBytes = new Uint8Array(24);
-      crypto.getRandomValues(brokerTokenBytes);
-      const brokerAccessToken = Array.from(brokerTokenBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+      const brokerAccessToken = generateSecureToken();
       
       await compliant.entities.Portal.create({
         user_type: 'broker',
@@ -216,9 +215,7 @@ InsureTrack System`
 
     if (existingSubPortals.length === 0) {
       // Generate secure random token using crypto
-      const subTokenBytes = new Uint8Array(24);
-      crypto.getRandomValues(subTokenBytes);
-      const subAccessToken = Array.from(subTokenBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+      const subAccessToken = generateSecureToken();
       
       await compliant.entities.Portal.create({
         user_type: 'subcontractor',

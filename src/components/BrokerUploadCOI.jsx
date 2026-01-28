@@ -13,24 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createPageUrl } from "@/utils";
 import { createEmailTemplate, getBrokerCOIConfirmationEmail } from "@/emailTemplates";
-
-/**
- * Escape HTML to prevent XSS attacks
- * @param {string} text - The text to escape
- * @returns {string} - The escaped text safe for HTML insertion
- */
-function escapeHtml(text) {
-  if (text == null) return '';
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#x27;',
-    '/': '&#x2F;',
-  };
-  return String(text).replace(/[&<>"'/]/g, (char) => map[char]);
-}
+import { escapeHtml } from "@/utils/htmlEscaping";
 
 export default function BrokerUploadCOI() {
   const urlParams = new URLSearchParams(window.location.search);

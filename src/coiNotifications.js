@@ -2,29 +2,13 @@ import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl } from "@/urlConfig";
 import { apiClient } from "@/api/apiClient";
 import { createEmailTemplate } from "@/emailTemplates";
+import { escapeHtml } from "@/utils/htmlEscaping";
+import { fetchAdminEmails } from "@/utils/adminEmails";
 
 /**
  * COI Upload & Approval Notification System
  * Handles notifications when COI is uploaded or approved
  */
-
-/**
- * Escape HTML to prevent XSS attacks
- * @param {string} text - The text to escape
- * @returns {string} - The escaped text safe for HTML insertion
- */
-function escapeHtml(text) {
-  if (text == null) return '';
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#x27;',
-    '/': '&#x2F;',
-  };
-  return String(text).replace(/[&<>"'/]/g, (char) => map[char]);
-}
 
 /**
  * Generate sample COI data from program requirements
@@ -100,16 +84,7 @@ export async function notifyAdminCOIUploaded(coi, subcontractor, project) {
 
   try {
     // Fetch admin emails from backend
-    let adminEmails = ['admin@insuretrack.com']; // Default fallback
-    try {
-      const response = await fetch(`${baseUrl.replace(':5175', ':3001').replace(':5176', ':3001')}/public/admin-emails`);
-      if (response.ok) {
-        const data = await response.json();
-        adminEmails = data.emails || adminEmails;
-      }
-    } catch (fetchError) {
-      console.warn('Could not fetch admin emails, using default:', fetchError.message);
-    }
+    const adminEmails = await fetchAdminEmails(baseUrl);
     
     // Send email to all admin emails
     for (const adminEmail of adminEmails) {
@@ -630,16 +605,7 @@ export async function notifyAdminBrokerChanged(subcontractor, newBrokers, oldBro
   
   try {
     // Fetch admin emails from backend
-    let adminEmails = ['admin@insuretrack.com']; // Default fallback
-    try {
-      const response = await fetch(`${baseUrl.replace(':5175', ':3001').replace(':5176', ':3001')}/public/admin-emails`);
-      if (response.ok) {
-        const data = await response.json();
-        adminEmails = data.emails || adminEmails;
-      }
-    } catch (fetchError) {
-      console.warn('Could not fetch admin emails, using default:', fetchError.message);
-    }
+    const adminEmails = await fetchAdminEmails(baseUrl);
 
     // Build notification details
     const oldBrokersList = (oldBrokers || []).map(b => `${b.name} (${b.email})`).join(', ') || 'None';

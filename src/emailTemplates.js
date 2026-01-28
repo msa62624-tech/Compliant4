@@ -1,25 +1,9 @@
 /**
  * Standardized email templates that match InsureTrack system UI
- * Color scheme: #14b8a6 (teal), #3b82f6 (blue) - matching app's gradient theme
+ * Color scheme: #dc2626 (red), #991b1b (dark red) - matching app's red theme
  */
 
-/**
- * Escape HTML to prevent XSS attacks
- * @param {string} text - The text to escape
- * @returns {string} - The escaped text safe for HTML insertion
- */
-function escapeHtml(text) {
-  if (text == null) return '';
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#x27;',
-    '/': '&#x2F;',
-  };
-  return String(text).replace(/[&<>"'/]/g, (char) => map[char]);
-}
+import { escapeHtml } from '@/utils/htmlEscaping';
 
 export const EMAIL_STYLES = `
   <style>
@@ -39,7 +23,7 @@ export const EMAIL_STYLES = `
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .header { 
-      background: linear-gradient(135deg, #14b8a6 0%, #3b82f6 100%);
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
       color: white; 
       padding: 30px 20px; 
       text-align: center;
@@ -63,7 +47,7 @@ export const EMAIL_STYLES = `
       margin: 20px 0; 
       padding: 15px; 
       background-color: #f5f5f5; 
-      border-left: 4px solid #14b8a6;
+      border-left: 4px solid #dc2626;
       border-radius: 4px;
       color: #333;
     }
@@ -71,7 +55,7 @@ export const EMAIL_STYLES = `
       font-weight: 600; 
       font-size: 15px; 
       margin: 0 0 12px 0;
-      color: #14b8a6; 
+      color: #dc2626; 
     }
     .field { 
       margin: 8px 0; 
@@ -80,15 +64,15 @@ export const EMAIL_STYLES = `
     }
     .label { 
       font-weight: 600; 
-      color: #14b8a6; 
+      color: #dc2626; 
       display: inline-block;
       min-width: 120px;
     }
     .credentials { 
-      background-color: #f0fdfa; 
+      background-color: #fef2f2; 
       padding: 15px; 
       border-radius: 6px; 
-      border-left: 4px solid #14b8a6;
+      border-left: 4px solid #dc2626;
       margin: 15px 0;
       color: #333;
       font-family: 'Courier New', monospace;
@@ -99,13 +83,13 @@ export const EMAIL_STYLES = `
     }
     .credentials-label {
       font-weight: 600;
-      color: #0f766e;
+      color: #991b1b;
       display: inline-block;
       min-width: 140px;
     }
     .alert {
-      background-color: #dbeafe;
-      border-left: 4px solid #3b82f6;
+      background-color: #fee2e2;
+      border-left: 4px solid #dc2626;
       padding: 15px;
       border-radius: 4px;
       margin: 15px 0;
@@ -113,11 +97,11 @@ export const EMAIL_STYLES = `
     }
     .alert-title {
       font-weight: 600;
-      color: #1d4ed8;
+      color: #991b1b;
       margin: 0 0 8px 0;
     }
     .button { 
-      background: linear-gradient(135deg, #14b8a6 0%, #3b82f6 100%);
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
       color: white; 
       padding: 12px 28px; 
       text-decoration: none; 
@@ -135,7 +119,7 @@ export const EMAIL_STYLES = `
     }
     .button-secondary {
       background-color: #f3f4f6;
-      color: #14b8a6;
+      color: #dc2626;
       padding: 12px 28px;
       text-decoration: none;
       border-radius: 6px;
@@ -159,19 +143,19 @@ export const EMAIL_STYLES = `
     }
     .list-item:before {
       content: "✓ ";
-      color: #14b8a6;
+      color: #dc2626;
       font-weight: bold;
       margin-left: -20px;
       margin-right: 8px;
     }
     h2 { 
-      color: #14b8a6; 
+      color: #dc2626; 
       margin: 20px 0 15px 0;
       font-size: 18px;
       font-weight: 600;
     }
     h3 {
-      color: #14b8a6;
+      color: #dc2626;
       margin: 15px 0 10px 0;
       font-size: 15px;
       font-weight: 600;
