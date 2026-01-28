@@ -125,7 +125,7 @@ export const logger = {
    * @param {object} context - Optional context data
    */
   info: (message, context) => {
-    const structured = createStructuredLog('info', message, context);
+    const _structured = createStructuredLog('info', message, context);
     
     if (isDevelopment) {
       console.log(...formatMessage(message, context));
@@ -134,7 +134,7 @@ export const logger = {
     // In production, send structured logs to aggregation service
     if (isProduction && context?.important) {
       // Hook for log aggregation service (e.g., CloudWatch, Datadog)
-      // logAggregationService.info(structured);
+      // logAggregationService.info(_structured);
     }
   },
 
@@ -144,7 +144,7 @@ export const logger = {
    * @param {object} context - Optional context data
    */
   warn: (message, context) => {
-    const structured = createStructuredLog('warn', message, context);
+    const _structured = createStructuredLog('warn', message, context);
     console.warn(...formatMessage(message, context));
     
     // Send warnings to error tracking in production
@@ -159,7 +159,7 @@ export const logger = {
    * @param {object} context - Optional context data
    */
   error: (message, context) => {
-    const structured = createStructuredLog('error', message, context);
+    const _structured = createStructuredLog('error', message, context);
     console.error(...formatMessage(message, context));
     
     // Always send errors to error tracking service
@@ -194,7 +194,7 @@ export const logger = {
    * @param {object} context - Optional context data
    */
   performance: (operation, duration, context = {}) => {
-    const structured = createStructuredLog('performance', `${operation} completed`, {
+    const _structured = createStructuredLog('performance', `${operation} completed`, {
       operation,
       duration,
       durationMs: `${duration}ms`,

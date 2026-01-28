@@ -13,11 +13,9 @@ import { validateUrlParams, validate, brokerSchemas } from "@/utils/validation";
 import logger from "@/utils/logger";
 
 export default function BrokerUpload() {
-  // Validate URL parameters
-  const urlParams = new URLSearchParams(window.location.search);
-  
   // Validate and sanitize URL parameters
   const validatedParams = useMemo(() => {
+    const urlParams = new URLSearchParams(window.location.search);
     const paramObject = {
       type: urlParams.get('type'),
       subId: urlParams.get('subId'),
@@ -42,7 +40,7 @@ export default function BrokerUpload() {
     });
     
     return { ...result.data, isValid: true };
-  }, [urlParams]);
+  }, []);
 
   const { type: uploadType, subId, token, isValid: paramsValid } = validatedParams;
 

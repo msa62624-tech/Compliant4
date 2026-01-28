@@ -19,6 +19,12 @@ import { getJWTSecret, initializeJWTSecret, PORT, DEFAULT_ADMIN_EMAILS, RENEWAL_
 import { entities, loadEntities, saveEntities, debouncedSave, findValidCOIForSub, UPLOADS_DIR } from './config/database.js';
 import { upload } from './config/upload.js';
 
+// Import advanced enterprise configurations
+import { setupHealthChecks } from './config/healthCheck.js';
+import { setupVersioning } from './config/apiVersioning.js';
+import { requestTracker, performanceMonitor as _performanceMonitor, errorTracker as _errorTracker, businessMetrics, getMonitoringDashboard } from './config/monitoring.js';
+import { additionalSecurityHeaders } from './config/security.js';
+
 // Import middleware
 import { apiLimiter, authLimiter, uploadLimiter, emailLimiter, publicApiLimiter } from './middleware/rateLimiting.js';
 import { sendError, sendSuccess, handleValidationErrors } from './middleware/validation.js';
@@ -1095,8 +1101,14 @@ app.use(compression({
 // Add correlation ID to all requests for tracing
 app.use(correlationId);
 
+// Apply request tracking for advanced monitoring
+app.use(requestTracker);
+
 // Track active connections for graceful shutdown
 app.use(trackConnection);
+
+// Apply additional security headers from advanced security config
+app.use(additionalSecurityHeaders);
 
 // Prometheus metrics collection
 app.use(metricsMiddleware);
@@ -1236,6 +1248,23 @@ app.get('/health/readiness', readinessCheckHandler);
  */
 app.get('/health/liveness', livenessCheckHandler);
 
+// Setup advanced Kubernetes health probes
+setupHealthChecks(app);
+
+// Setup API versioning system
+setupVersioning(app, express, { enableLogging: false });
+
+// Advanced monitoring dashboard (protected by authentication)
+app.get('/monitoring/dashboard', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const dashboard = getMonitoringDashboard();
+    res.json(dashboard);
+  } catch (error) {
+    logger.error('Error fetching monitoring dashboard', { error: error.message });
+    res.status(500).json({ error: 'Failed to fetch monitoring dashboard' });
+  }
+});
+
 /**
  * @swagger
  * /debug/health:
@@ -1356,6 +1385,10 @@ app.post('/auth/login',
       const isPasswordValid = await bcrypt.compare(password, passwordToCheck);
       
       if (!user || !isPasswordValid) {
+        // Track failed login in business metrics
+        businessMetrics.increment('loginAttempts');
+        businessMetrics.increment('loginFailures');
+        
         // Audit failed login attempt
         logAuth(AuditEventType.LOGIN_FAILURE, username, false, {
           ip: req.ip || req.socket.remoteAddress,
@@ -1376,6 +1409,10 @@ app.post('/auth/login',
         getJWTSecret(),
         { expiresIn: '7d' }
       );
+
+      // Track successful login in business metrics
+      businessMetrics.increment('loginAttempts');
+      businessMetrics.increment('loginSuccesses');
 
       // Audit successful login
       logAuth(AuditEventType.LOGIN_SUCCESS, username, true, {
@@ -4819,7 +4856,7 @@ app.get('/public/project-subcontractors/:subId', (req, res) => {
     const projectSubs = (entities.ProjectSubcontractor || []).filter(ps => ps.subcontractor_id === subId);
     return res.json(projectSubs);
   } catch (err) {
-    logger.error('Error fetching project subcontractors for subcontractor', { subId, error: err?.message, stack: err?.stack });
+    logger.error('Error fetching project subcontractors for subcontractor', { subId: req.params.subId, error: err?.message, stack: err?.stack });
     return res.status(500).json({ error: 'Failed to load project subcontractors' });
   }
 });
@@ -9625,7 +9662,18 @@ if (!process.env.VERCEL) {
         logger.info(`compliant.team Backend running on http://localhost:${p}`);
         logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
         logger.info(`CORS allowed: ${process.env.FRONTEND_URL || '*'}`);
-        logger.info(`✅ Security: Helmet enabled, Rate limiting active`);
+        
+        // Mark application as fully started (for Kubernetes startup probe)
+        global.appStarted = true;
+        
+        // Display enterprise features
+        logger.info(`✅ Security: Advanced CSP, Multi-tier rate limiting, CORS whitelist`);
+        logger.info(`🏥 Kubernetes: Liveness, Readiness, Startup probes available`);
+        logger.info(`📊 Monitoring: Request tracking, Performance monitoring, Distributed tracing`);
+        logger.info(`🔄 API Versioning: Multi-version support with deprecation handling`);
+        logger.info(`📚 Documentation: http://localhost:${p}/api-docs`);
+        logger.info(`📈 Metrics: http://localhost:${p}/metrics (authenticated)`);
+        logger.info(`🔍 Dashboard: http://localhost:${p}/monitoring/dashboard (admin only)`);
 
         const hasSmtpConfig = (process.env.SMTP_HOST || process.env.SMTP_SERVICE) && 
                               process.env.SMTP_USER && 

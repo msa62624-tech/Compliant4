@@ -134,7 +134,6 @@ describe('Idempotency Middleware', () => {
     expect(res.json).toBeDefined();
 
     // Simulate response
-    const originalJson = res.json;
     res.json({ success: true });
 
     // Check that headers were set
