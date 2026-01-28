@@ -20,7 +20,7 @@ if [ ! -f ".env" ]; then
     echo "⚠️  Frontend .env file missing - creating..."
     if [ -n "$CODESPACE_NAME" ] && [ -n "$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN" ]; then
         cat > .env << EOF
-VITE_API_BASE_URL=${FRONTEND_URL_DEFAULT}
+VITE_API_BASE_URL=${BACKEND_URL_DEFAULT}
 VITE_FRONTEND_URL=${FRONTEND_URL_DEFAULT}
 VITE_PROXY_TARGET=http://localhost:3001
 EOF
@@ -35,9 +35,9 @@ EOF
 else
     if [ -n "$CODESPACE_NAME" ] && [ -n "$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN" ]; then
         if grep -q "^VITE_API_BASE_URL=" .env; then
-            sed -i "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${FRONTEND_URL_DEFAULT}|" .env
+            sed -i "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${BACKEND_URL_DEFAULT}|" .env
         else
-            echo "VITE_API_BASE_URL=${FRONTEND_URL_DEFAULT}" >> .env
+            echo "VITE_API_BASE_URL=${BACKEND_URL_DEFAULT}" >> .env
         fi
     else
         if grep -q "^VITE_API_BASE_URL=" .env; then
