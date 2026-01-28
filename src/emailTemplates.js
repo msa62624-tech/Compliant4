@@ -3,23 +3,7 @@
  * Color scheme: #14b8a6 (teal), #3b82f6 (blue) - matching app's gradient theme
  */
 
-/**
- * Escape HTML to prevent XSS attacks
- * @param {string} text - The text to escape
- * @returns {string} - The escaped text safe for HTML insertion
- */
-function escapeHtml(text) {
-  if (text == null) return '';
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#x27;',
-    '/': '&#x2F;',
-  };
-  return String(text).replace(/[&<>"'/]/g, (char) => map[char]);
-}
+import { escapeHtml } from '@/utils/htmlEscaping';
 
 export const EMAIL_STYLES = `
   <style>
