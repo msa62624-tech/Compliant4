@@ -30,7 +30,6 @@ import {
   AlertDescription,
 } from "@/components/ui/alert";
 import SendBrokerRequestDialog from "./SendBrokerRequest";
-import { format } from 'date-fns'; // Added import for date formatting
 import TradeSelectionComponent from "./TradeSelectionComponent";
 
 export default function ProjectDetails() {
@@ -559,9 +558,6 @@ export default function ProjectDetails() {
       // Get master insurance from subcontractor record
       const masterInsurance = existingSub?.master_insurance_data;
 
-      // Force a fresh, project-specific COI (do not treat prior insurance as "on file")
-      const hasReusableInsurance = false;
-
       // If no master insurance, try to get from the most recent COI (any state)
       let sourceData = masterInsurance || existingActiveCOI;
       if (!sourceData) {
@@ -604,12 +600,6 @@ export default function ProjectDetails() {
       const tradesText = formData.trade_types.join(', ');
       
       const description = `Certificate holder, ${project.owner_entity ? project.owner_entity + ',' : ''} entities listed on page 2 and all other parties indemnified in the contract are included as additional insureds on the GL${umbrellaText} policies for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement. General Liability${umbrellaText}${professionalText}${pollutionText} & Workers Compensation policies include endorsement for waiver of subrogation.`;
-
-      // Get required limits from highest tier
-      const glReq = allReqs.find(r => r.insurance_type === 'general_liability');
-      const umbReq = allReqs.find(r => r.insurance_type === 'umbrella_policy');
-      const wcReq = allReqs.find(r => r.insurance_type === 'workers_compensation');
-      const autoReq = allReqs.find(r => r.insurance_type === 'auto_liability');
 
       // Generate sample COI in backend (PDF for broker reference)
       let sampleCoiUrl = null;

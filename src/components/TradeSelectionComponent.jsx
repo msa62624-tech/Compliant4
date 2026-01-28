@@ -195,7 +195,6 @@ function TradeGroup({
   onToggleTrade,
   disabled,
   description,
-  requirements,
 }) {
   const tierColors = {
     1: "bg-red-50 border-red-200",
