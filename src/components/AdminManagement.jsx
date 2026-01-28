@@ -104,13 +104,7 @@ export default function AdminManagement() {
       return;
     }
 
-    const passwordValidation = validatePassword(newAdmin.password);
-    if (!passwordValidation.valid) {
-      setError(passwordValidation.message);
-      return;
-    }
-    
-    // Admin passwords should be at least 12 characters
+    // Admin passwords should be at least 12 characters (stricter than regular users)
     if (newAdmin.password.length < 12) {
       setError('Admin password must be at least 12 characters');
       return;

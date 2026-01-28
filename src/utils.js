@@ -74,12 +74,15 @@ export function normalizeSubcontractorTrades(subcontractor) {
 
 /**
  * Validate email format
+ * Basic validation that checks for @ symbol and proper structure
  * @param {string} email - The email to validate
- * @returns {boolean} - True if email is valid
+ * @returns {boolean} - True if email has basic valid format
  */
 export function isValidEmail(email) {
   if (!email || typeof email !== 'string') return false;
-  return email.trim().includes('@') && email.trim().includes('.');
+  const trimmed = email.trim();
+  // Basic email validation: must have @ and at least one character before and after it
+  return trimmed.includes('@') && trimmed.indexOf('@') > 0 && trimmed.indexOf('@') < trimmed.length - 1;
 }
 
 /**

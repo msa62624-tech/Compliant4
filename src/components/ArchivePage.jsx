@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { toast } from "sonner";
+import { getBackendBaseUrl } from "@/urlConfig";
 
 export default function ArchivePage() {
   const _navigate = useNavigate();

@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, FolderOpen, ArrowLeft, Archive } from "lucide-react";
 import { notifyGCProjectCreated } from "@/gcNotifications";
 import { toast } from "sonner";
+import { getBackendBaseUrl } from "@/urlConfig";
 
 const US_STATES = [
   { code: 'AL', name: 'Alabama' },
