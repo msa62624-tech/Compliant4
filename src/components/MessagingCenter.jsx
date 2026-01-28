@@ -165,7 +165,14 @@ export default function MessagingCenter() {
       });
       
       // Execute all email sends in parallel for better performance
-      await Promise.all(emailPromises);
+      // Using allSettled to ensure all emails are attempted even if some fail
+      const results = await Promise.allSettled(emailPromises);
+      
+      // Log any failed email sends for monitoring
+      const failedEmails = results.filter(r => r.status === 'rejected');
+      if (failedEmails.length > 0) {
+        console.error(`Failed to send ${failedEmails.length} email(s):`, failedEmails);
+      }
       
       return message;
     },
