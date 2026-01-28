@@ -5861,8 +5861,9 @@ function extractFieldsWithRegex(text, schema) {
     let block = text.substring(startIdx + label.length);
     if (!block) return null;
 
-    // Trim to first ~800 chars to avoid runaway blocks
-    block = block.substring(0, 800);
+    // Limit to first 10 lines (~400 chars) to avoid runaway blocks
+    const lines = block.split('\n').slice(0, 10);
+    block = lines.join('\n');
 
     // Stop at the next known label
     const stops = stopLabels.map(l => l.toUpperCase());
@@ -5989,8 +5990,8 @@ function extractFieldsWithRegex(text, schema) {
     
     const tableText = text.substring(tableStart, tableStart + 3000);
     
-    // Extract GL coverage row
-    const glMatch = tableText.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,800}?(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[\s\S]{0,200}?(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[\s\S]{0,200}?(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    // Extract GL coverage row - limit to 3 lines after the coverage type
+    const glMatch = tableText.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[^\n]*(?:\n[^\n]*){0,2}(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
     if (glMatch) {
       if (glMatch[1]) coverages.gl.policy_number = glMatch[1].trim();
       if (glMatch[2]) coverages.gl.effective_date = glMatch[2].trim();
@@ -5998,8 +5999,8 @@ function extractFieldsWithRegex(text, schema) {
       console.log('✅ GL Coverage extracted from table:', coverages.gl);
     }
     
-    // Extract Auto coverage row
-    const autoMatch = tableText.match(/AUTOMOBILE\s+LIABILITY[\s\S]{0,800}?(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[\s\S]{0,200}?(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[\s\S]{0,200}?(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    // Extract Auto coverage row - limit to 3 lines after the coverage type
+    const autoMatch = tableText.match(/AUTOMOBILE\s+LIABILITY[^\n]*(?:\n[^\n]*){0,2}(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
     if (autoMatch) {
       if (autoMatch[1]) coverages.auto.policy_number = autoMatch[1].trim();
       if (autoMatch[2]) coverages.auto.effective_date = autoMatch[2].trim();
@@ -6007,8 +6008,8 @@ function extractFieldsWithRegex(text, schema) {
       console.log('✅ Auto Coverage extracted from table:', coverages.auto);
     }
     
-    // Extract WC coverage row
-    const wcMatch = tableText.match(/WORKERS\s+COMPENSATION[\s\S]{0,800}?(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[\s\S]{0,200}?(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[\s\S]{0,200}?(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    // Extract WC coverage row - limit to 3 lines after the coverage type
+    const wcMatch = tableText.match(/WORKERS\s+COMPENSATION[^\n]*(?:\n[^\n]*){0,2}(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
     if (wcMatch) {
       if (wcMatch[1]) coverages.wc.policy_number = wcMatch[1].trim();
       if (wcMatch[2]) coverages.wc.effective_date = wcMatch[2].trim();
@@ -6016,8 +6017,8 @@ function extractFieldsWithRegex(text, schema) {
       console.log('✅ WC Coverage extracted from table:', coverages.wc);
     }
     
-    // Extract Umbrella coverage row
-    const umbrellaMatch = tableText.match(/UMBRELLA\s+LIAB(?:ILITY)?[\s\S]{0,800}?(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[\s\S]{0,200}?(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[\s\S]{0,200}?(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    // Extract Umbrella coverage row - limit to 3 lines after the coverage type
+    const umbrellaMatch = tableText.match(/UMBRELLA\s+LIAB(?:ILITY)?[^\n]*(?:\n[^\n]*){0,2}(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
     if (umbrellaMatch) {
       if (umbrellaMatch[1]) coverages.umbrella.policy_number = umbrellaMatch[1].trim();
       if (umbrellaMatch[2]) coverages.umbrella.effective_date = umbrellaMatch[2].trim();
@@ -6025,8 +6026,8 @@ function extractFieldsWithRegex(text, schema) {
       console.log('✅ Umbrella Coverage extracted from table:', coverages.umbrella);
     }
     
-    // Extract Excess Liability coverage row
-    const excessMatch = tableText.match(/EXCESS\s+LIAB(?:ILITY)?[\s\S]{0,800}?(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[\s\S]{0,200}?(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[\s\S]{0,200}?(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    // Extract Excess Liability coverage row - limit to 3 lines after the coverage type
+    const excessMatch = tableText.match(/EXCESS\s+LIAB(?:ILITY)?[^\n]*(?:\n[^\n]*){0,2}(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
     if (excessMatch) {
       if (excessMatch[1]) coverages.excess.policy_number = excessMatch[1].trim();
       if (excessMatch[2]) coverages.excess.effective_date = excessMatch[2].trim();
@@ -6371,8 +6372,8 @@ function extractFieldsWithRegex(text, schema) {
       /primary\s+&\s+non-contributory/i
     ];
     
-    // Check for negation words that would indicate exclusion
-    const negationPattern = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)\s+.*?ADDITIONAL\s+INSURED/i;
+    // Check for negation words within 50 chars before "ADDITIONAL INSURED"
+    const negationPattern = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)[\s\S]{0,50}ADDITIONAL\s+INSURED/i;
     const hasNegation = negationPattern.test(text);
     
     let hasAddlInsured = false;
@@ -6398,8 +6399,8 @@ function extractFieldsWithRegex(text, schema) {
       /subrogation.*waived/i
     ];
     
-    // Check for negation words
-    const negationPattern = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)\s+.*?(?:WAIVER|SUBROGATION)/i;
+    // Check for negation words within 50 chars before "WAIVER" or "SUBROGATION"
+    const negationPattern = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)[\s\S]{0,50}(?:WAIVER|SUBROGATION)/i;
     const hasNegation = negationPattern.test(text);
     
     let hasWaiver = false;
