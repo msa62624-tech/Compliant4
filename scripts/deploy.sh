@@ -317,9 +317,13 @@ run_smoke_tests() {
     log_info "Running smoke tests..."
     
     # Test authentication endpoint
+    # NOTE: In production, credentials should be in environment variables
+    local admin_user="${ADMIN_USERNAME:-admin}"
+    local admin_pass="${ADMIN_PASSWORD:-INsure2026!}"
+    
     local login_response=$(curl -s -X POST "http://localhost:$BACKEND_PORT/auth/login" \
         -H "Content-Type: application/json" \
-        -d '{"username":"admin","password":"INsure2026!"}')
+        -d "{\"username\":\"$admin_user\",\"password\":\"$admin_pass\"}")
     
     if echo "$login_response" | grep -q "accessToken"; then
         log_success "Authentication: OK"

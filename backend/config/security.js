@@ -6,18 +6,24 @@
 /**
  * Content Security Policy Configuration
  * Prevents XSS, clickjacking, and other code injection attacks
+ * 
+ * NOTE: 'unsafe-inline' is used for Swagger UI compatibility.
+ * In production, consider:
+ * 1. Using nonces or hashes for inline scripts
+ * 2. Serving Swagger UI from a separate subdomain
+ * 3. Implementing a stricter CSP for main application routes
  */
 const cspConfig = {
   directives: {
     defaultSrc: ["'self'"],
     scriptSrc: [
       "'self'",
-      "'unsafe-inline'", // Required for Swagger UI
+      "'unsafe-inline'", // Required for Swagger UI - consider nonces in production
       "https://cdn.jsdelivr.net", // Swagger UI CDN
     ],
     styleSrc: [
       "'self'",
-      "'unsafe-inline'", // Required for Swagger UI and inline styles
+      "'unsafe-inline'", // Required for Swagger UI - consider nonces in production
       "https://cdn.jsdelivr.net",
     ],
     imgSrc: [
@@ -93,6 +99,12 @@ const helmetConfig = {
 /**
  * CORS Configuration
  * Restricts cross-origin requests to trusted domains
+ * 
+ * NOTE: Requests with no origin (e.g., mobile apps, Postman) are allowed.
+ * In production environments with stricter requirements:
+ * 1. Remove the no-origin check
+ * 2. Require API keys for non-browser clients
+ * 3. Use separate authentication for mobile apps
  */
 const corsConfig = {
   origin: function (origin, callback) {
@@ -105,6 +117,7 @@ const corsConfig = {
     ];
     
     // Allow requests with no origin (mobile apps, Postman, etc.)
+    // For stricter security, remove this check and require API keys
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {

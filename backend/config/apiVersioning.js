@@ -172,12 +172,7 @@ const FEATURE_FLAGS = {
     webhooks: false,
     advancedFiltering: false,
   },
-  v2: {
-    oauth2: true,
-    graphql: true,
-    webhooks: true,
-    advancedFiltering: true,
-  },
+  // v2 feature flags will be added when v2 is released
 };
 
 /**
@@ -197,18 +192,7 @@ const transformResponseForVersion = (version, data) => {
     return data;
   }
   
-  if (version === 'v2') {
-    // V2 might have different response structure
-    // Example: wrap in data envelope
-    return {
-      data,
-      meta: {
-        version: 'v2',
-        timestamp: new Date().toISOString(),
-      },
-    };
-  }
-  
+  // Future versions can add their own transformations
   return data;
 };
 
@@ -218,22 +202,7 @@ const transformResponseForVersion = (version, data) => {
  */
 const getMigrationGuide = (fromVersion, toVersion) => {
   const guides = {
-    'v1-v2': {
-      breaking: [
-        'Authentication now requires OAuth2 tokens',
-        'Pagination format changed from offset to cursor',
-        'Error response structure updated',
-      ],
-      new: [
-        'GraphQL endpoint available at /api/v2/graphql',
-        'Webhook support for real-time notifications',
-        'Advanced filtering and sorting options',
-      ],
-      deprecated: [
-        'Basic authentication will be removed',
-        'Old pagination parameters (?page=1&limit=10) deprecated',
-      ],
-    },
+    // Migration guides will be added as new versions are released
   };
   
   const key = `${fromVersion}-${toVersion}`;
@@ -254,17 +223,6 @@ const getVersionChangelog = (version) => {
         'RESTful endpoints for all entities',
         'File upload support',
         'OpenAPI documentation',
-      ],
-    },
-    v2: {
-      version: '2.0.0',
-      released: 'TBD',
-      changes: [
-        'OAuth2 authentication',
-        'GraphQL support',
-        'Webhook notifications',
-        'Enhanced error responses',
-        'Cursor-based pagination',
       ],
     },
   };
@@ -293,21 +251,24 @@ const negotiateVersion = (acceptedVersions) => {
 /**
  * Setup API versioning
  */
-const setupVersioning = (app, express) => {
+const setupVersioning = (app, express, options = {}) => {
+  const enableLogging = options.enableLogging || process.env.API_VERSION_LOGGING === 'true';
+  
   // Apply version middleware globally
   app.use('/api', versionMiddleware);
   
   // Version info routes
   app.use('/api', createVersionedRouter(express));
   
-  // Log version usage
-  app.use('/api', (req, res, next) => {
-    // Could log to analytics service
-    console.log(`API ${req.apiVersion} accessed: ${req.method} ${req.path}`);
-    next();
-  });
+  // Optional: Log version usage (disabled by default for performance)
+  if (enableLogging) {
+    app.use('/api', (req, res, next) => {
+      // Could log to analytics service
+      console.log(`API ${req.apiVersion} accessed: ${req.method} ${req.path}`);
+      next();
+    });
+  }
 };
-
 module.exports = {
   API_VERSIONS,
   getCurrentVersion,
