@@ -12,9 +12,60 @@ import { getBackendBaseUrl } from "@/urlConfig";
 import { validateUrlParams, validate, brokerSchemas } from "@/utils/validation";
 import logger from "@/utils/logger";
 
-export default function BrokerUpload() {
+interface GlobalBroker {
+  broker_name: string;
+  broker_email: string;
+  broker_phone: string;
+  broker_company: string;
+}
+
+interface BrokerForm {
+  name: string;
+  email: string;
+  phone: string;
+}
+
+interface PolicySelections {
+  gl: boolean;
+  umbrella: boolean;
+  auto: boolean;
+  wc: boolean;
+}
+
+interface Broker {
+  name: string;
+  email: string;
+  phone: string;
+  policies: string[];
+}
+
+interface PolicyInfo {
+  key: string;
+  label: string;
+  icon: string;
+}
+
+interface Subcontractor {
+  id?: string;
+  company_name?: string;
+  contractor_type?: string;
+  broker_email?: string;
+  broker_name?: string;
+  [key: string]: any;
+}
+
+interface ValidatedParams {
+  type: string | null;
+  subId: string | null;
+  token: string | null;
+  isValid: boolean;
+}
+
+type StepType = 'add-broker' | 'select-policies';
+
+export default function BrokerUpload(): JSX.Element {
   // Validate and sanitize URL parameters
-  const validatedParams = useMemo(() => {
+  const validatedParams: ValidatedParams = useMemo(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const paramObject = {
       type: urlParams.get('type'),
@@ -23,7 +74,7 @@ export default function BrokerUpload() {
     };
     
     const result = validateUrlParams(paramObject, 
-      validate.schemas.urlParam.brokerUploadParams
+      (validate as any).schemas.urlParam.brokerUploadParams
     );
     
     if (!result.success) {
@@ -47,7 +98,7 @@ export default function BrokerUpload() {
   const queryClient = useQueryClient();
 
   // Store token in memory instead of session storage for better security
-  const [publicAccessToken, setPublicAccessToken] = useState(token);
+  const [publicAccessToken, setPublicAccessToken] = useState<string | null>(token);
 
   React.useEffect(() => {
     if (token) {
@@ -60,7 +111,7 @@ export default function BrokerUpload() {
   }, [token, subId]);
 
   // For global broker
-  const [globalBroker, setGlobalBroker] = useState({
+  const [globalBroker, setGlobalBroker] = useState<GlobalBroker>({
     broker_name: '',
     broker_email: '',
     broker_phone: '',
@@ -68,25 +119,25 @@ export default function BrokerUpload() {
   });
   
   // For per-policy: array of brokers with assigned policies
-  const [brokers, setBrokers] = useState([]);
-  const [currentBrokerForm, setCurrentBrokerForm] = useState({
+  const [brokers, setBrokers] = useState<Broker[]>([]);
+  const [currentBrokerForm, setCurrentBrokerForm] = useState<BrokerForm>({
     name: '',
     email: '',
     phone: '',
   });
-  const [currentBrokerPolicies, setCurrentBrokerPolicies] = useState({
+  const [currentBrokerPolicies, setCurrentBrokerPolicies] = useState<PolicySelections>({
     gl: false,
     umbrella: false,
     auto: false,
     wc: false,
   });
-  const [step, setStep] = useState('add-broker'); // 'add-broker' or 'select-policies'
+  const [step, setStep] = useState<StepType>('add-broker'); // 'add-broker' or 'select-policies'
   
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<boolean>(false);
 
   // All available policies
-  const allPolicies = [
+  const allPolicies: PolicyInfo[] = [
     { key: 'gl', label: 'General Liability', icon: '📋' },
     { key: 'umbrella', label: 'Umbrella/Excess', icon: '☔' },
     { key: 'auto', label: 'Auto Liability', icon: '🚗' },
@@ -94,24 +145,25 @@ export default function BrokerUpload() {
   ];
 
   // Get already assigned policies
-  const assignedPolicies = new Set();
-  brokers.forEach(b => {
-    b.policies.forEach(p => assignedPolicies.add(p));
+  const assignedPolicies = new Set<string>();
+  brokers.forEach((b: Broker) => {
+    b.policies.forEach((p: string) => assignedPolicies.add(p));
   });
 
   // Get available policies for next broker
-  const availablePolicies = allPolicies.filter(p => !assignedPolicies.has(p.key));
+  const availablePolicies: PolicyInfo[] = allPolicies.filter((p: PolicyInfo) => !assignedPolicies.has(p.key));
 
-  const { data: subcontractor, isLoading, error: queryError } = useQuery({
+  const { data: subcontractor, isLoading, error: queryError } = useQuery<Subcontractor>({
     queryKey: ['subcontractor-broker-form', subId],
-    queryFn: async () => {
+    queryFn: async (): Promise<Subcontractor> => {
       try {
         // Try to read directly by ID first
-        return await apiClient.entities.Contractor.read(subId);
+        const result = await apiClient.entities.Contractor.read(subId || '');
+        return result as Subcontractor;
       } catch (err) {
         logger.warn('Authenticated read failed, trying public fallback', {
           subId,
-          error: err?.message
+          error: (err as Error)?.message
         });
         try {
           // Public/token-based fallback: fetch without auth
@@ -124,16 +176,16 @@ export default function BrokerUpload() {
           
           if (response.ok) {
             const data = await response.json();
-            return data;
+            return data as Subcontractor;
           }
-          throw new Error('Public fetch failed: ' + response.status);
+          throw new Error('Public fetch failed: ' + response.status) as any;
         } catch (publicErr) {
           logger.error('Public fallback also failed', {
             subId,
-            error: publicErr?.message
+            error: (publicErr as Error)?.message
           });
           // Return a placeholder so form can still work with just the ID
-          return { id: subId, company_name: 'Unknown', contractor_type: 'subcontractor' };
+          return { id: subId || '', company_name: 'Unknown', contractor_type: 'subcontractor' };
         }
       }
     },
@@ -141,7 +193,7 @@ export default function BrokerUpload() {
   });
 
   const saveBrokerMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<void> => {
       setError('');
       
       // Validate based on upload type
@@ -149,9 +201,9 @@ export default function BrokerUpload() {
         // Validate global broker using Zod schema
         const result = validate(brokerSchemas.globalBroker, globalBroker);
         if (!result.success) {
-          const firstError = result.errors[0];
+          const firstError = result.errors?.[0];
           logger.error('Global broker validation failed', { errors: result.errors });
-          throw new Error(firstError.message);
+          throw new Error(firstError?.message || 'Validation failed');
         }
       } else {
         // Per-policy: validate all brokers have required fields
@@ -162,17 +214,17 @@ export default function BrokerUpload() {
         for (const broker of brokers) {
           const result = validate(brokerSchemas.perPolicyBroker, broker);
           if (!result.success) {
-            const firstError = result.errors[0];
+            const firstError = result.errors?.[0];
             logger.error('Per-policy broker validation failed', {
               errors: result.errors,
               broker: broker.name
             });
-            throw new Error(`Broker ${broker.name}: ${firstError.message}`);
+            throw new Error(`Broker ${broker.name}: ${firstError?.message || 'Validation failed'}`);
           }
         }
       }
       
-      let updateData = {};
+      let updateData: Record<string, string> = {};
       
       if (uploadType === 'global') {
         updateData = {
@@ -184,9 +236,9 @@ export default function BrokerUpload() {
         };
       } else {
         // Per-policy: assign each broker to their policies
-        const brokerMap = {};
+        const brokerMap: Record<string, string> = {};
         for (const broker of brokers) {
-          broker.policies.forEach(policyKey => {
+          broker.policies.forEach((policyKey: string) => {
             brokerMap[`broker_${policyKey}_name`] = broker.name.trim();
             brokerMap[`broker_${policyKey}_email`] = broker.email.trim();
             brokerMap[`broker_${policyKey}_phone`] = broker.phone?.trim() || '';
@@ -196,9 +248,9 @@ export default function BrokerUpload() {
         
         // Also set primary broker (first one)
         if (brokers.length > 0) {
-          updateData.broker_name = brokers[0].name.trim();
-          updateData.broker_email = brokers[0].email.trim();
-          updateData.broker_phone = brokers[0].phone?.trim() || '';
+          updateData.broker_name = brokers[0]?.name?.trim() || '';
+          updateData.broker_email = brokers[0]?.email?.trim() || '';
+          updateData.broker_phone = brokers[0]?.phone?.trim() || '';
         }
       }
       
@@ -210,11 +262,11 @@ export default function BrokerUpload() {
       
       // Update Contractor record - try authenticated first, then public fallback
       try {
-        await apiClient.entities.Contractor.update(subId, updateData);
+        await apiClient.entities.Contractor.update(subId || '', updateData);
         logger.info('Broker information saved via authenticated endpoint');
       } catch (authErr) {
         logger.warn('Authenticated update failed, trying public endpoint', {
-          error: authErr?.message
+          error: (authErr as Error)?.message
         });
         try {
           const backendBase = getBackendBaseUrl();
@@ -225,30 +277,30 @@ export default function BrokerUpload() {
             body: JSON.stringify(updateData)
           });
           
-          if (!response.ok) throw new Error('Public update failed: ' + response.status);
+          if (!response.ok) throw new Error('Public update failed: ' + response.status) as any;
         } catch (publicErr) {
           console.error('❌ Both update methods failed:', publicErr);
-          throw new Error('Failed to update broker assignment: ' + publicErr.message);
+          throw new Error('Failed to update broker assignment: ' + (publicErr as Error).message) as any;
         }
       }
       
       // Update all GeneratedCOI records - try authenticated first, then public fallback
       let coiUpdateSuccess = false;
-      let coiUpdateError = null;
+      let coiUpdateError: Error | null = null;
       try {
         const allCOIs = await apiClient.entities.GeneratedCOI.list();
-        const subCOIs = allCOIs.filter(c => 
-          c.subcontractor_name === subcontractor.company_name ||
+        const subCOIs = allCOIs.filter((c: any) => 
+          c.subcontractor_name === subcontractor?.company_name ||
           c.subcontractor_id === subId
         );
         
         for (const coi of subCOIs) {
-          await apiClient.entities.GeneratedCOI.update(coi.id, updateData);
+          await apiClient.entities.GeneratedCOI.update((coi as any).id, updateData);
         }
         coiUpdateSuccess = true;
       } catch (coiError) {
         logger.warn('Authenticated COI update failed, trying public endpoint', {
-          error: coiError?.message
+          error: (coiError as Error)?.message
         });
         try {
           // Public fallback: Update COIs via public endpoint
@@ -261,14 +313,14 @@ export default function BrokerUpload() {
           });
           
           if (!response.ok) {
-            throw new Error('Public COI update failed: ' + response.status);
+            throw new Error('Public COI update failed: ' + response.status) as any;
           }
           coiUpdateSuccess = true;
         } catch (publicCoiError) {
           logger.error('Both COI update methods failed', {
-            error: publicCoiError?.message
+            error: (publicCoiError as Error)?.message
           });
-          coiUpdateError = publicCoiError;
+          coiUpdateError = publicCoiError as Error;
           // Don't throw - contractor/broker assignment worked, just COI sync failed
           // But store the error to show a warning to the user
         }
@@ -285,23 +337,23 @@ export default function BrokerUpload() {
       // Send notification emails
       try {
         if (uploadType === 'global') {
-          const brokerData = {
+          const brokerData: Subcontractor = {
             ...subcontractor,
             broker_email: globalBroker.broker_email.trim(),
             broker_name: globalBroker.broker_name.trim(),
           };
-          await notifyBrokerAssignment(brokerData, null, true);
+          await notifyBrokerAssignment(brokerData as any, null, true);
         } else {
           // For per-policy, notify each broker
           for (const broker of brokers) {
-            const brokerData = {
+            const brokerData: Subcontractor = {
               ...subcontractor,
               broker_email: broker.email.trim(),
               broker_name: broker.name.trim(),
             };
             // Map policy keys to display names
-            const policyNames = broker.policies.map(key => {
-              const policyMap = {
+            const policyNames: string[] = broker.policies.map((key: string) => {
+              const policyMap: Record<string, string> = {
                 'gl': 'General Liability (GL)',
                 'wc': 'Workers Compensation (WC)',
                 'auto': 'Auto Liability',
@@ -309,23 +361,23 @@ export default function BrokerUpload() {
               };
               return policyMap[key] || key;
             });
-            await notifyBrokerAssignment(brokerData, null, false, policyNames);
+            await notifyBrokerAssignment(brokerData as any, null, false, policyNames);
           }
         }
       } catch (emailError) {
         logger.error('Failed to send broker notification', {
-          error: emailError?.message
+          error: (emailError as Error)?.message
         });
       }
     },
-    onSuccess: () => {
+    onSuccess: (): void => {
       setSuccess(true);
-      queryClient.invalidateQueries(['subcontractor-broker-form', subId]);
+      queryClient.invalidateQueries({ queryKey: ['subcontractor-broker-form', subId] });
       setTimeout(() => {
         window.location.href = `/subcontractor-dashboard?id=${subId}`;
       }, 2000);
     },
-    onError: (err) => {
+    onError: (err: any): void => {
       logger.error('Failed to save broker information', {
         error: err?.message
       });
@@ -385,7 +437,7 @@ export default function BrokerUpload() {
             <h2 className="text-xl font-bold text-slate-900 mb-2">Subcontractor Not Found</h2>
             <p className="text-slate-600 mb-4">ID: {subId}</p>
             <p className="text-sm text-slate-500">
-              {queryError ? `Error: ${queryError.message}` : 'This link may have expired or the subcontractor record was not found in the system.'}
+              {queryError ? `Error: ${(queryError as Error).message}` : 'This link may have expired or the subcontractor record was not found in the system.'}
             </p>
             <p className="text-sm text-slate-600 mt-4">
               Please contact your admin to resend the broker setup link.
@@ -452,7 +504,7 @@ export default function BrokerUpload() {
 
               {/* Form */}
               <form
-                onSubmit={(e) => {
+                onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
                   e.preventDefault();
                   saveBrokerMutation.mutate();
                 }}
@@ -471,7 +523,7 @@ export default function BrokerUpload() {
                         id="broker_name"
                         placeholder="e.g., John Smith or ABC Insurance Brokers"
                         value={globalBroker.broker_name}
-                        onChange={(e) => setGlobalBroker({ ...globalBroker, broker_name: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGlobalBroker({ ...globalBroker, broker_name: e.target.value })}
                         className="mt-2"
                         disabled={saveBrokerMutation.isPending}
                       />
@@ -487,7 +539,7 @@ export default function BrokerUpload() {
                         type="email"
                         placeholder="broker@example.com"
                         value={globalBroker.broker_email}
-                        onChange={(e) => setGlobalBroker({ ...globalBroker, broker_email: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGlobalBroker({ ...globalBroker, broker_email: e.target.value })}
                         className="mt-2"
                         disabled={saveBrokerMutation.isPending}
                       />
@@ -503,7 +555,7 @@ export default function BrokerUpload() {
                         type="tel"
                         placeholder="(555) 123-4567"
                         value={globalBroker.broker_phone}
-                        onChange={(e) => setGlobalBroker({ ...globalBroker, broker_phone: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGlobalBroker({ ...globalBroker, broker_phone: e.target.value })}
                         className="mt-2"
                         disabled={saveBrokerMutation.isPending}
                       />
@@ -517,7 +569,7 @@ export default function BrokerUpload() {
                         id="broker_company"
                         placeholder="e.g., ABC Insurance Brokers"
                         value={globalBroker.broker_company}
-                        onChange={(e) => setGlobalBroker({ ...globalBroker, broker_company: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGlobalBroker({ ...globalBroker, broker_company: e.target.value })}
                         className="mt-2"
                         disabled={saveBrokerMutation.isPending}
                       />
@@ -543,7 +595,7 @@ export default function BrokerUpload() {
                             <Input
                               placeholder="e.g., John Smith"
                               value={currentBrokerForm.name}
-                              onChange={(e) => setCurrentBrokerForm({ ...currentBrokerForm, name: e.target.value })}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentBrokerForm({ ...currentBrokerForm, name: e.target.value })}
                               className="mt-2"
                               disabled={saveBrokerMutation.isPending}
                             />
@@ -558,7 +610,7 @@ export default function BrokerUpload() {
                               type="email"
                               placeholder="broker@example.com"
                               value={currentBrokerForm.email}
-                              onChange={(e) => setCurrentBrokerForm({ ...currentBrokerForm, email: e.target.value })}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentBrokerForm({ ...currentBrokerForm, email: e.target.value })}
                               className="mt-2"
                               disabled={saveBrokerMutation.isPending}
                             />
@@ -570,7 +622,7 @@ export default function BrokerUpload() {
                               type="tel"
                               placeholder="(555) 123-4567"
                               value={currentBrokerForm.phone}
-                              onChange={(e) => setCurrentBrokerForm({ ...currentBrokerForm, phone: e.target.value })}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentBrokerForm({ ...currentBrokerForm, phone: e.target.value })}
                               className="mt-2"
                               disabled={saveBrokerMutation.isPending}
                             />
@@ -578,7 +630,7 @@ export default function BrokerUpload() {
                         </div>
                         
                         <Button
-                          onClick={() => {
+                          onClick={(): void => {
                             if (!currentBrokerForm.name?.trim()) {
                               setError('Broker name is required');
                               return;
@@ -607,12 +659,12 @@ export default function BrokerUpload() {
                         <p className="text-sm text-slate-600">Select which policies this broker manages:</p>
                         
                         <div className="space-y-3">
-                          {availablePolicies.map(({ key, label, icon }) => (
+                          {availablePolicies.map(({ key, label, icon }: PolicyInfo) => (
                             <label key={key} className="flex items-center gap-3 p-3 bg-white rounded border border-slate-200 hover:bg-slate-50 cursor-pointer">
                               <input
                                 type="checkbox"
-                                checked={currentBrokerPolicies[key]}
-                                onChange={(e) => setCurrentBrokerPolicies(prev => ({
+                                checked={currentBrokerPolicies[key as keyof PolicySelections]}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentBrokerPolicies(prev => ({
                                   ...prev,
                                   [key]: e.target.checked
                                 }))}
@@ -627,7 +679,7 @@ export default function BrokerUpload() {
                         <div className="flex gap-3 pt-4">
                           <Button
                             variant="outline"
-                            onClick={() => {
+                            onClick={(): void => {
                               setCurrentBrokerForm({ name: '', email: '', phone: '' });
                               setCurrentBrokerPolicies({ gl: false, umbrella: false, auto: false, wc: false });
                               setStep('add-broker');
@@ -638,8 +690,8 @@ export default function BrokerUpload() {
                             Back
                           </Button>
                           <Button
-                            onClick={() => {
-                              const selectedPolicies = Object.entries(currentBrokerPolicies)
+                            onClick={(): void => {
+                              const selectedPolicies: string[] = Object.entries(currentBrokerPolicies)
                                 .filter(([_, checked]) => checked)
                                 .map(([key, _]) => key);
                               
@@ -673,22 +725,22 @@ export default function BrokerUpload() {
                     {brokers.length > 0 && (
                       <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200 space-y-3">
                         <h3 className="font-semibold text-emerald-900">Assigned Brokers</h3>
-                        {brokers.map((broker, idx) => (
+                        {brokers.map((broker: Broker, idx: number) => (
                           <div key={idx} className="p-3 bg-white rounded border border-emerald-200">
                             <div className="flex items-start justify-between">
                               <div>
                                 <p className="font-medium text-slate-900">{broker.name}</p>
                                 <p className="text-sm text-slate-600">{broker.email}</p>
                                 <p className="text-xs text-slate-500 mt-2">
-                                  Policies: {broker.policies.map(p => 
-                                    allPolicies.find(ap => ap.key === p)?.label
+                                  Policies: {broker.policies.map((p: string) => 
+                                    allPolicies.find((ap: PolicyInfo) => ap.key === p)?.label
                                   ).join(', ')}
                                 </p>
                               </div>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => {
+                                onClick={(): void => {
                                   setBrokers(brokers.filter((_, i) => i !== idx));
                                 }}
                                 className="text-red-600 hover:text-red-700"
@@ -706,7 +758,7 @@ export default function BrokerUpload() {
                       <Alert className="bg-amber-50 border-amber-200">
                         <AlertCircle className="h-4 w-4 text-amber-600" />
                         <AlertDescription className="text-amber-900">
-                          <strong>Remaining policies:</strong> {availablePolicies.map(p => p.label).join(', ')}
+                          <strong>Remaining policies:</strong> {availablePolicies.map((p: PolicyInfo) => p.label).join(', ')}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -716,7 +768,7 @@ export default function BrokerUpload() {
                       <div className="flex gap-3">
                         {availablePolicies.length > 0 && (
                           <Button
-                            onClick={() => saveBrokerMutation.mutate()}
+                            onClick={(): void => saveBrokerMutation.mutate()}
                             variant="outline"
                             className="flex-1"
                             disabled={saveBrokerMutation.isPending}
@@ -726,7 +778,7 @@ export default function BrokerUpload() {
                         )}
                         {availablePolicies.length === 0 && (
                           <Button
-                            onClick={() => saveBrokerMutation.mutate()}
+                            onClick={(): void => saveBrokerMutation.mutate()}
                             className="flex-1 bg-green-600 hover:bg-green-700"
                             disabled={saveBrokerMutation.isPending}
                           >
@@ -735,7 +787,7 @@ export default function BrokerUpload() {
                         )}
                         {step === 'add-broker' && availablePolicies.length > 0 && (
                           <Button
-                            onClick={() => setStep('add-broker')}
+                            onClick={(): void => setStep('add-broker')}
                             className="flex-1 bg-red-600 hover:bg-red-700"
                             disabled={saveBrokerMutation.isPending}
                           >
