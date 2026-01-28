@@ -36,13 +36,15 @@ describe('Internal Entity Access Control Tests', () => {
         password: 'INsure2026!'
       });
     
-    if (adminResponse.status === 200) {
-      adminToken = adminResponse.body.accessToken;
+    if (adminResponse.status !== 200) {
+      throw new Error(`Failed to login as admin: ${adminResponse.status} ${JSON.stringify(adminResponse.body)}`);
     }
+    adminToken = adminResponse.body.accessToken;
 
-    // Create a non-admin user for testing
+    // Create a non-admin user for testing with unique email to avoid conflicts
+    const timestamp = Date.now();
     const regularUserData = {
-      email: 'testuser@example.com',
+      email: `testuser-${timestamp}@example.com`,
       name: 'Test User',
       password: 'TestPassword123!',
       role: 'user'
@@ -53,24 +55,24 @@ describe('Internal Entity Access Control Tests', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send(regularUserData);
 
-    if (createUserResponse.status === 201) {
-      console.log('Test user created successfully');
-      
-      // Login as the regular user to get their token
-      const regularUserResponse = await request(BASE_URL)
-        .post('/auth/login')
-        .send({
-          username: 'testuser@example.com',
-          password: 'TestPassword123!'
-        });
-      
-      if (regularUserResponse.status === 200) {
-        regularUserToken = regularUserResponse.body.accessToken;
-        console.log('Regular user token obtained');
-      }
-    } else {
-      console.error('Failed to create test user:', createUserResponse.status, createUserResponse.body);
+    if (createUserResponse.status !== 201) {
+      throw new Error(`Failed to create test user: ${createUserResponse.status} ${JSON.stringify(createUserResponse.body)}`);
     }
+    console.log('Test user created successfully');
+    
+    // Login as the regular user to get their token
+    const regularUserResponse = await request(BASE_URL)
+      .post('/auth/login')
+      .send({
+        username: regularUserData.email,
+        password: 'TestPassword123!'
+      });
+    
+    if (regularUserResponse.status !== 200) {
+      throw new Error(`Failed to login as regular user: ${regularUserResponse.status} ${JSON.stringify(regularUserResponse.body)}`);
+    }
+    regularUserToken = regularUserResponse.body.accessToken;
+    console.log('Regular user token obtained');
   }, 30000);
 
   afterAll(() => {
@@ -82,7 +84,11 @@ describe('Internal Entity Access Control Tests', () => {
 
   describe('Access to _migrations entity', () => {
     test('GET /entities/_migrations - should block access for non-admin users', async () => {
-      // This test validates that regularUserToken is a non-admin user
+      // This test verifies that non-admin users are blocked from accessing internal entities
+      if (!regularUserToken) {
+        throw new Error('Test setup failed - no regular user token available');
+      }
+
       const response = await request(BASE_URL)
         .get('/entities/_migrations')
         .set('Authorization', `Bearer ${regularUserToken}`);
@@ -109,6 +115,10 @@ describe('Internal Entity Access Control Tests', () => {
     });
 
     test('PUT /entities/_migrations/test - should block modification for non-admin users', async () => {
+      if (!regularUserToken) {
+        throw new Error('Test setup failed - no regular user token available');
+      }
+
       const response = await request(BASE_URL)
         .put('/entities/_migrations/test')
         .set('Authorization', `Bearer ${regularUserToken}`)
@@ -121,6 +131,10 @@ describe('Internal Entity Access Control Tests', () => {
     });
 
     test('POST /entities/_migrations - should block creation for non-admin users', async () => {
+      if (!regularUserToken) {
+        throw new Error('Test setup failed - no regular user token available');
+      }
+
       const response = await request(BASE_URL)
         .post('/entities/_migrations')
         .set('Authorization', `Bearer ${regularUserToken}`)
@@ -133,6 +147,10 @@ describe('Internal Entity Access Control Tests', () => {
     });
 
     test('DELETE /entities/_migrations/test - should block deletion for non-admin users', async () => {
+      if (!regularUserToken) {
+        throw new Error('Test setup failed - no regular user token available');
+      }
+
       const response = await request(BASE_URL)
         .delete('/entities/_migrations/test')
         .set('Authorization', `Bearer ${regularUserToken}`);
@@ -146,6 +164,10 @@ describe('Internal Entity Access Control Tests', () => {
 
   describe('Access to regular entities should still work', () => {
     test('GET /entities/Contractor - should work normally with auth', async () => {
+      if (!regularUserToken) {
+        throw new Error('Test setup failed - no regular user token available');
+      }
+
       const response = await request(BASE_URL)
         .get('/entities/Contractor')
         .set('Authorization', `Bearer ${regularUserToken}`)
@@ -155,6 +177,10 @@ describe('Internal Entity Access Control Tests', () => {
     });
 
     test('GET /entities/Project - should work normally with auth', async () => {
+      if (!regularUserToken) {
+        throw new Error('Test setup failed - no regular user token available');
+      }
+
       const response = await request(BASE_URL)
         .get('/entities/Project')
         .set('Authorization', `Bearer ${regularUserToken}`)
