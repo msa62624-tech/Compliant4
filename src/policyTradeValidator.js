@@ -140,15 +140,25 @@ export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
   }
 
   // Check GL policy for exclusions
+  // Performance optimization: Process policy text once instead of nested loops
   if (coi.gl_policy_notes || coi.gl_exclusions) {
     const policyText = `${coi.gl_policy_notes || ''} ${coi.gl_exclusions || ''}`.toLowerCase();
 
+    // Create a map of pattern -> trade for efficient lookup
+    const patternToTradeMap = new Map();
     for (const trade of requiredTrades) {
       const tradeLower = trade.toLowerCase();
       const patterns = TRADE_EXCLUSION_PATTERNS[tradeLower] || [];
-
       for (const pattern of patterns) {
-        if (policyText.includes(pattern)) {
+        patternToTradeMap.set(pattern, trade);
+      }
+    }
+
+    // Single pass through the policy text to find all exclusions
+    for (const [pattern, trade] of patternToTradeMap) {
+      if (policyText.includes(pattern)) {
+        // Check if this trade was already flagged (multiple patterns may match)
+        if (!excludedTrades.some(et => et.trade === trade)) {
           excludedTrades.push({
             trade,
             exclusion: pattern,
@@ -160,7 +170,6 @@ export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
             message: `GL policy excludes ${trade} (${pattern})`,
             severity: 'high',
           });
-          break;
         }
       }
     }

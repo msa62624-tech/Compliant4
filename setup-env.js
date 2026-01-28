@@ -8,6 +8,7 @@
  */
 
 import fs from 'fs';
+import { promises as fsPromises } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import readline from 'readline';
@@ -127,8 +128,8 @@ async function setupEnvironment() {
 }
 
 async function setupFrontend() {
-  // Read the example file
-  let envContent = fs.readFileSync(ENV_EXAMPLE, 'utf-8');
+  // Read the example file asynchronously
+  let envContent = await fsPromises.readFile(ENV_EXAMPLE, 'utf-8');
 
   log('📝 Frontend Configuration Options:\n', colors.bright);
   log('1. Local development (backend at http://localhost:3001)', colors.cyan);
@@ -176,8 +177,8 @@ async function setupFrontend() {
     );
   }
 
-  // Write the .env file
-  fs.writeFileSync(ENV_FILE, envContent);
+  // Write the .env file asynchronously
+  await fsPromises.writeFile(ENV_FILE, envContent);
   
   log('\n✅ Frontend environment file created successfully!', colors.bright + colors.green);
   log(`📄 Configuration saved to: ${ENV_FILE}`, colors.blue);
@@ -191,8 +192,8 @@ async function setupFrontend() {
 }
 
 async function setupBackend() {
-  // Read the backend example file
-  let backendEnvContent = fs.readFileSync(BACKEND_ENV_EXAMPLE, 'utf-8');
+  // Read the backend example file asynchronously
+  let backendEnvContent = await fsPromises.readFile(BACKEND_ENV_EXAMPLE, 'utf-8');
 
   log('📝 Backend Configuration:\n', colors.bright);
   log('Do you want to configure email (SMTP) now?', colors.cyan);
@@ -410,8 +411,8 @@ async function setupBackend() {
     log('✅ Using default frontend URL: http://localhost:5175', colors.green);
   }
 
-  // Write the backend .env file
-  fs.writeFileSync(BACKEND_ENV_FILE, backendEnvContent);
+  // Write the backend .env file asynchronously
+  await fsPromises.writeFile(BACKEND_ENV_FILE, backendEnvContent);
   
   log('\n✅ Backend environment file created successfully!', colors.bright + colors.green);
   log(`📄 Configuration saved to: ${BACKEND_ENV_FILE}`, colors.blue);
@@ -421,24 +422,31 @@ async function setupBackend() {
 const isInteractive = process.stdin.isTTY;
 
 if (!isInteractive) {
-  log('Running in non-interactive mode...', colors.blue);
-  checkEnvExample();
-  
-  if (!envFileExists()) {
-    // Just copy the example file
-    fs.copyFileSync(ENV_EXAMPLE, ENV_FILE);
-    log('✅ Created frontend .env from .env.example', colors.green);
-  } else {
-    log('ℹ️  Frontend .env file already exists, skipping setup', colors.blue);
-  }
-  
-  // Also setup backend in non-interactive mode
-  if (backendDirExists() && !backendEnvExists()) {
-    fs.copyFileSync(BACKEND_ENV_EXAMPLE, BACKEND_ENV_FILE);
-    log('✅ Created backend/.env from backend/.env.example', colors.green);
-  } else if (backendEnvExists()) {
-    log('ℹ️  Backend .env file already exists, skipping setup', colors.blue);
-  }
+  (async () => {
+    try {
+      log('Running in non-interactive mode...', colors.blue);
+      checkEnvExample();
+      
+      if (!envFileExists()) {
+        // Just copy the example file asynchronously
+        await fsPromises.copyFile(ENV_EXAMPLE, ENV_FILE);
+        log('✅ Created frontend .env from .env.example', colors.green);
+      } else {
+        log('ℹ️  Frontend .env file already exists, skipping setup', colors.blue);
+      }
+      
+      // Also setup backend in non-interactive mode
+      if (backendDirExists() && !backendEnvExists()) {
+        await fsPromises.copyFile(BACKEND_ENV_EXAMPLE, BACKEND_ENV_FILE);
+        log('✅ Created backend/.env from backend/.env.example', colors.green);
+      } else if (backendEnvExists()) {
+        log('ℹ️  Backend .env file already exists, skipping setup', colors.blue);
+      }
+    } catch (error) {
+      log(`\n❌ Error during setup: ${error.message}`, colors.yellow);
+      process.exit(1);
+    }
+  })();
 } else {
   // Run interactive setup
   setupEnvironment().catch((error) => {
