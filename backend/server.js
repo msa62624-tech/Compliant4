@@ -22,7 +22,7 @@ import { upload } from './config/upload.js';
 // Import advanced enterprise configurations
 import { setupHealthChecks } from './config/healthCheck.js';
 import { setupVersioning } from './config/apiVersioning.js';
-import { requestTracker, performanceMonitor as _performanceMonitor, errorTracker as _errorTracker, businessMetrics, getMonitoringDashboard } from './config/monitoring.js';
+import { requestTracker, businessMetrics, getMonitoringDashboard } from './config/monitoring.js';
 import { additionalSecurityHeaders } from './config/security.js';
 
 // Import middleware
@@ -8679,7 +8679,7 @@ app.post('/admin/generate-policy-pdf', apiLimiter, authenticateToken, async (req
     return res.json(entities.InsuranceDocument[docIdx]);
   } catch (err) {
     logger.error('admin generate-policy-pdf error', { error: err?.message || err });
-    return res.status(500).json({ error: 'Failed to generate policy PDF' });
+    return sendError(res, 500, 'Failed to generate policy PDF');
   }
 });
 
@@ -8687,13 +8687,13 @@ app.post('/admin/generate-policy-pdf', apiLimiter, authenticateToken, async (req
 app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
   try {
     const { coi_id, signature_url } = req.body || {};
-    if (!coi_id) return res.status(400).json({ error: 'coi_id is required' });
+    if (!coi_id) return sendError(res, 400, 'coi_id is required');
 
     const coiIdx = (entities.GeneratedCOI || []).findIndex(c => c.id === String(coi_id));
-    if (coiIdx === -1) return res.status(404).json({ error: 'COI not found' });
+    if (coiIdx === -1) return sendError(res, 404, 'COI not found');
 
     const coi = entities.GeneratedCOI[coiIdx];
-    if (!coi.first_coi_url) return res.status(400).json({ error: 'No COI PDF to sign' });
+    if (!coi.first_coi_url) return sendError(res, 400, 'No COI PDF to sign');
 
     const signedUrl = await adobePDF.signPDF(coi.first_coi_url, { signature_url });
     // Mark COI active now that admin has signed the final certificate
@@ -8764,7 +8764,7 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
     return res.json(entities.GeneratedCOI[coiIdx]);
   } catch (err) {
     logger.error('admin sign-coi error', { error: err?.message || err });
-    return res.status(500).json({ error: 'Failed to sign COI' });
+    return sendError(res, 500, 'Failed to sign COI');
   }
 });
 
