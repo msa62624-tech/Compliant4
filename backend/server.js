@@ -3636,16 +3636,47 @@ app.patch('/public/contractor/:id', publicApiLimiter, (req, res) => {
 // Public: Contractor/Subcontractor login with password verification
 app.post('/public/contractor-login', publicApiLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body || {};
+    const { email, password, subId } = req.body || {};
     
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const contractor = (entities.Contractor || []).find(c => 
+    // Find all subcontractors by email
+    const matchingSubs = (entities.Contractor || []).filter(c => 
       (c.email?.toLowerCase() === email.toLowerCase()) && 
       (c.role === 'subcontractor' || c.contractor_type === 'subcontractor')
     );
+
+    // If subId is specified, use that specific sub; otherwise if only one sub, use it; else ask user to choose
+    let contractor;
+    if (subId && matchingSubs.length > 0) {
+      contractor = matchingSubs.find(c => c.id === subId);
+    } else if (matchingSubs.length === 1) {
+      contractor = matchingSubs[0];
+    } else if (matchingSubs.length > 1) {
+      // Verify password for first match before showing selection
+      // This prevents revealing that multiple accounts exist without valid credentials
+      const firstMatch = matchingSubs[0];
+      if (!firstMatch.password) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+      
+      const isPasswordValid = await bcrypt.compare(password, firstMatch.password);
+      if (!isPasswordValid) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      // Multiple subs with same email - return list for user to choose
+      return res.status(200).json({
+        requiresSelection: true,
+        contractors: matchingSubs.map(c => ({
+          id: c.id,
+          company_name: c.company_name,
+          address: c.address
+        }))
+      });
+    }
 
     if (!contractor) {
       // Don't reveal if email exists to prevent user enumeration
