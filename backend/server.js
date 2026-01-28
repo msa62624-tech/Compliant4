@@ -3955,6 +3955,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
         };
 
         let regeneratedUrl = null;
+        let pdfGenerationSuccess = false;
         try {
           console.log('🔄 Generating COI PDF for reused subcontractor:', subcontractor_id);
           const pdfBuffer = await generateGeneratedCOIPDF(regenData);
@@ -3966,25 +3967,33 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           await fsPromises.writeFile(filepath, pdfBuffer);
           const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
           regeneratedUrl = `${backendBase}/uploads/${filename}`;
+          pdfGenerationSuccess = true;
           console.log('✅ COI PDF generated successfully for reuse:', filename);
         } catch (pdfErr) {
           console.error('❌ COI reuse PDF generation failed:', pdfErr?.message || pdfErr);
+          console.error('   Stack:', pdfErr?.stack);
           console.error('   Reuse data:', JSON.stringify({
             hasBrokerName: !!regenData.broker_name,
             hasSubName: !!regenData.subcontractor_name,
             hasGLData: !!regenData.policy_number_gl,
-            hasWCData: !!regenData.policy_number_wc
-          }));
-          // Don't continue with COI creation if PDF generation fails
-          return sendError(res, 500, 'Failed to generate COI PDF for reused subcontractor', { 
-            error: pdfErr.message,
-            subcontractor_id 
-          });
+            hasWCData: !!regenData.policy_number_wc,
+            hasGLLimits: !!regenData.gl_each_occurrence,
+            hasWCLimits: !!regenData.wc_each_accident
+          }, null, 2));
+          // Continue with COI creation but mark that PDF generation failed
+          // The broker can still sign and the PDF can be regenerated later
+          regeneratedUrl = null;
         }
 
         const frontendBase = process.env.FRONTEND_URL || `${req.protocol}://${req.get('host').replace(/:3001$/, ':5175')}`;
         const newToken = `coi-${Date.now()}-${crypto.randomBytes(12).toString('hex')}`;
         const brokerSignUrl = `${frontendBase}/broker-upload-coi?token=${newToken}&action=sign&step=3`;
+        
+        // Add warning note if PDF generation failed
+        const pdfGenerationNote = pdfGenerationSuccess 
+          ? null 
+          : 'Note: COI PDF generation failed during reuse. The PDF will be regenerated when the broker uploads the COI or when policies are updated.';
+        
         const newCOI = {
           ...reusable,
           id: `COI-${Date.now()}`,
@@ -4010,7 +4019,8 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           broker_sign_url: brokerSignUrl,
           is_reused: true,
           reused_for_project_id: project_id,
-          linked_projects: Array.from(new Set([...(reusable.linked_projects || []), project_id]))
+          linked_projects: Array.from(new Set([...(reusable.linked_projects || []), project_id])),
+          pdf_generation_note: pdfGenerationNote
         };
 
         if (!entities.GeneratedCOI) entities.GeneratedCOI = [];
@@ -4152,7 +4162,13 @@ InsureTrack System`
           console.warn('Reuse broker notification failed:', notifyErr?.message || notifyErr);
         }
 
-        return res.json({ reused: true, generated: true, coi: newCOI });
+        return res.json({ 
+          reused: true, 
+          generated: true, 
+          coi: newCOI,
+          pdf_generated: pdfGenerationSuccess,
+          warning: pdfGenerationSuccess ? null : 'COI PDF generation failed but COI record created. PDF can be regenerated later.'
+        });
       }
     }
 
@@ -5546,14 +5562,21 @@ app.post('/integrations/generate-image', authenticateToken, (req, res) => {
 // Helper function to extract text from PDF file
 async function extractTextFromPDF(filePath) {
   try {
+    console.log('📄 Attempting to read PDF file:', filePath);
     const dataBuffer = await fsPromises.readFile(filePath);
+    console.log(`📄 PDF file read successfully, buffer size: ${dataBuffer.length} bytes`);
     const pdfData = await pdfParse(dataBuffer);
     const extractedText = pdfData.text || '';
-    console.log(`📄 Extracted ${extractedText.length} characters from PDF`);
+    console.log(`✅ Extracted ${extractedText.length} characters from PDF`);
+    if (extractedText.length === 0) {
+      console.warn('⚠️  WARNING: PDF text extraction returned empty string - PDF may be image-based or corrupted');
+    }
     return extractedText;
   } catch (pdfErr) {
-    console.error('PDF parsing error:', pdfErr);
-    throw new Error('Failed to parse PDF file');
+    console.error('❌ PDF parsing error:', pdfErr?.message || pdfErr);
+    console.error('   File path:', filePath);
+    console.error('   Error stack:', pdfErr?.stack);
+    throw new Error(`Failed to parse PDF file: ${pdfErr?.message || 'Unknown error'}`);
   }
 }
 
