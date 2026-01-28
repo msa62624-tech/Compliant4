@@ -80,6 +80,7 @@ For production deployment, see [docs/DEPLOY.md](docs/DEPLOY.md) for complete ins
 - [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md) - Full API reference
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md) - Database schema and entities
 - [docs/SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) - System design and architecture
+- [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) - **🧪 Testing guide and test suite documentation**
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) - Version history
 
 ## 🔑 Default Users
@@ -148,7 +149,35 @@ All entities are configured and accessible via REST API:
 - ✅ Portal
 - ✅ Message
 
-## 🧪 Test Backend
+## 🧪 Testing
+
+The application includes comprehensive test coverage for frontend, backend, and end-to-end scenarios.
+
+### Quick Start
+
+```bash
+# Run all frontend tests
+npm test
+
+# Run backend tests
+cd backend && npm test
+
+# Run E2E tests
+npm run test:e2e
+
+# Run all tests
+./run-tests.sh
+```
+
+### Test Coverage
+
+- **Frontend**: 35 tests covering components and utilities
+- **Backend**: API authentication, CRUD operations, entity endpoints
+- **E2E**: Playwright tests for critical user workflows
+
+📖 **Complete guide:** [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)
+
+## 🔧 Test Backend
 
 Run the entity test script to verify all endpoints:
 ```bash

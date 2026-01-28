@@ -34,3 +34,12 @@ backend/uploads/
 
 # Backend test files
 backend/test-pdf-generation.js
+
+# Test coverage and artifacts
+coverage/
+.nyc_output/
+*.lcov
+test-results/
+playwright-report/
+e2e/screenshot-*.png
+e2e/videos/
