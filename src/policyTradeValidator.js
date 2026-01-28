@@ -9,30 +9,15 @@
  * - Warranty exclusions
  */
 
+// ============================================================================
+// TRADE EXCLUSION PATTERNS - Common phrases that indicate trade exclusions
+// ============================================================================
+
 /**
- * Validates that a COI policy covers all required trades
- * 
- * @param {Object} coi - Certificate of Insurance
- * @param {Array<string>} requiredTrades - Trades that must be covered (e.g., ['carpentry', 'roofing'])
- * @returns {Object} { compliant, excludedTrades, classifications, warnings }
+ * Patterns to detect trade exclusions in policy text
+ * Used to match exclusion language in GL policy notes and exclusions
  */
-export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
-  const issues = [];
-  const excludedTrades = [];
-  const classifications = [];
-  const warnings = [];
-
-  if (!coi || !requiredTrades || requiredTrades.length === 0) {
-    return {
-      compliant: true,
-      excludedTrades: [],
-      classifications: [],
-      warnings: [],
-    };
-  }
-
-  // Common trade exclusion phrases to check for in policy
-  const tradeExclusionPatterns = {
+export const TRADE_EXCLUSION_PATTERNS = {
     carpentry: [
       'no carpentry',
       'carpentry excluded',
@@ -88,7 +73,69 @@ export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
       'structural steel excluded',
       'welding excluded',
     ],
-  };
+};
+
+// ============================================================================
+// NCCI CLASSIFICATION CODE MAPPINGS
+// ============================================================================
+
+/**
+ * NCCI classification codes mapped to construction trades
+ * Reference: https://www.ncci.com/pages/classificationcodes.aspx
+ */
+export const NCCI_CLASS_CODE_MAPPINGS = {
+  5402: ['carpentry'],
+  5405: ['carpentry', 'framing'],
+  5474: ['roofing', 'slate roofing'],
+  5403: ['electrical', 'hvac', 'concrete'],
+  5410: ['plumbing'],
+  5478: ['excavation'],
+  5485: ['crane_operator'],
+  5473: ['scaffold'],
+  5480: ['steel'],
+};
+
+/**
+ * Minimum GL limits for high-risk trades (in dollars)
+ */
+export const TRADE_MINIMUM_LIMITS = {
+  excavation: {
+    gl_per_occurrence: 2000000, // $2M
+  },
+  scaffold: {
+    gl_per_occurrence: 3000000, // $3M
+  },
+  crane_operator: {
+    umbrella_required: true,
+    umbrella_minimum: 3000000, // $3M
+  },
+};
+
+// ============================================================================
+// VALIDATION FUNCTIONS
+// ============================================================================
+
+/**
+ * Validates that a COI policy covers all required trades
+ * 
+ * @param {Object} coi - Certificate of Insurance
+ * @param {Array<string>} requiredTrades - Trades that must be covered (e.g., ['carpentry', 'roofing'])
+ * @returns {Object} { compliant, excludedTrades, classifications, warnings }
+ */
+export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
+  const issues = [];
+  const excludedTrades = [];
+  const classifications = [];
+  const warnings = [];
+
+  if (!coi || !requiredTrades || requiredTrades.length === 0) {
+    return {
+      compliant: true,
+      excludedTrades: [],
+      classifications: [],
+      warnings: [],
+    };
+  }
 
   // Check GL policy for exclusions
   if (coi.gl_policy_notes || coi.gl_exclusions) {
@@ -96,7 +143,7 @@ export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
 
     for (const trade of requiredTrades) {
       const tradeLower = trade.toLowerCase();
-      const patterns = tradeExclusionPatterns[tradeLower] || [];
+      const patterns = TRADE_EXCLUSION_PATTERNS[tradeLower] || [];
 
       for (const pattern of patterns) {
         if (policyText.includes(pattern)) {
@@ -192,26 +239,22 @@ export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
   };
 }
 
+// ============================================================================
+// HELPER FUNCTIONS (Internal Use)
+// ============================================================================
+
 /**
  * Validates class codes against required trades
+ * Uses NCCI classification code mappings to determine coverage
+ * 
+ * @private
+ * @param {number} classCode - NCCI classification code
+ * @param {Array<string>} requiredTrades - Trades that need coverage
+ * @returns {Object} { compliant, limitedTrades, issues }
  */
 function validateClassifications(classCode, requiredTrades) {
   const limitedTrades = [];
   const issues = [];
-
-  // NCCI classification code mappings (for reference/documentation)
-  // eslint-disable-next-line no-unused-vars
-  const classCodeTrades = {
-    5402: ['carpentry'],
-    5405: ['carpentry', 'framing'],
-    5474: ['roofing', 'slate roofing'],
-    5403: ['electrical', 'hvac', 'concrete'],
-    5410: ['plumbing'],
-    5478: ['excavation'],
-    5485: ['crane_operator'],
-    5473: ['scaffold'],
-    5480: ['steel'],
-  };
 
   // Check each required trade
   for (const trade of requiredTrades) {
@@ -263,6 +306,11 @@ function validateClassifications(classCode, requiredTrades) {
 
 /**
  * Checks for trade-specific policy restrictions
+ * Validates minimum limits and coverage requirements for high-risk trades
+ * 
+ * @param {Object} coi - Certificate of Insurance
+ * @param {string} trade - Trade type to validate
+ * @returns {Array} Array of restriction objects with type, message, and recommended limits
  */
 export function validateTradeRestrictions(coi, trade) {
   const restrictions = [];
@@ -295,22 +343,24 @@ export function validateTradeRestrictions(coi, trade) {
 
   // Excavation-specific checks
   if (tradeLower.includes('excavat')) {
-    if (coi.gl_limits_per_occurrence < 2000000) {
+    const minLimit = TRADE_MINIMUM_LIMITS.excavation.gl_per_occurrence;
+    if (coi.gl_limits_per_occurrence < minLimit) {
       restrictions.push({
         type: 'warning',
         message: 'GL limits may be insufficient for excavation work',
         trade,
-        recommendedLimit: 2000000,
+        recommendedLimit: minLimit,
       });
     }
   }
 
   // Crane-specific checks
   if (tradeLower.includes('crane')) {
-    if (!coi.umbrella_limit || coi.umbrella_limit < 3000000) {
+    const minUmbrella = TRADE_MINIMUM_LIMITS.crane_operator.umbrella_minimum;
+    if (!coi.umbrella_limit || coi.umbrella_limit < minUmbrella) {
       restrictions.push({
         type: 'error',
-        message: 'Umbrella coverage required and must be at least $3M for crane operations',
+        message: `Umbrella coverage required and must be at least $${(minUmbrella / 1000000)}M for crane operations`,
         trade,
       });
     }
@@ -318,12 +368,13 @@ export function validateTradeRestrictions(coi, trade) {
 
   // Scaffold-specific checks
   if (tradeLower.includes('scaffold')) {
-    if (coi.gl_limits_per_occurrence < 3000000) {
+    const minLimit = TRADE_MINIMUM_LIMITS.scaffold.gl_per_occurrence;
+    if (coi.gl_limits_per_occurrence < minLimit) {
       restrictions.push({
         type: 'warning',
-        message: 'GL limits should be at least $3M for scaffolding',
+        message: `GL limits should be at least $${(minLimit / 1000000)}M for scaffolding`,
         trade,
-        recommendedLimit: 3000000,
+        recommendedLimit: minLimit,
       });
     }
   }
@@ -333,6 +384,12 @@ export function validateTradeRestrictions(coi, trade) {
 
 /**
  * Generates admin review notes from validation results
+ * 
+ * @private
+ * @param {Array} issues - Validation issues found
+ * @param {Array} warnings - Validation warnings
+ * @param {Array} excludedTrades - Trades excluded by policy
+ * @returns {string} Compiled review notes for admin
  */
 function compileReviewNotes(issues, warnings, excludedTrades) {
   const notes = [];
@@ -363,6 +420,12 @@ function compileReviewNotes(issues, warnings, excludedTrades) {
 
 /**
  * Compares trades between different scenarios
+ * Identifies added, removed, and unchanged trades, and validates newly added trades
+ * 
+ * @param {Array<string>} oldTrades - Previously assigned trades
+ * @param {Array<string>} newTrades - Newly assigned trades
+ * @param {Object} coi - Certificate of Insurance
+ * @returns {Object} Comparison results with validation for added trades
  */
 export function compareTradesCoverage(oldTrades, newTrades, coi) {
   const added = newTrades.filter(t => !oldTrades.includes(t));
@@ -390,6 +453,12 @@ export function compareTradesCoverage(oldTrades, newTrades, coi) {
 
 /**
  * Generates detailed broker message about trade coverage issues
+ * Creates a formatted message for brokers explaining validation issues
+ * 
+ * @param {Object} coi - Certificate of Insurance
+ * @param {Array<string>} requiredTrades - Trades that need coverage
+ * @param {Object} validation - Results from validatePolicyTradeCoverage
+ * @returns {string} Formatted message for broker notification
  */
 export function generateBrokerTradeMessage(coi, requiredTrades, validation) {
   const { excludedTrades, warnings, issues } = validation;
