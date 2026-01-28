@@ -143,12 +143,19 @@ export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
   if (coi.gl_policy_notes || coi.gl_exclusions) {
     const policyText = `${coi.gl_policy_notes || ''} ${coi.gl_exclusions || ''}`.toLowerCase();
 
+    // Track which trades have already been excluded to avoid redundant checks
+    const excludedTradeSet = new Set();
+
     for (const trade of requiredTrades) {
+      // Skip if already excluded
+      if (excludedTradeSet.has(trade)) continue;
+
       const tradeLower = trade.toLowerCase();
       const patterns = TRADE_EXCLUSION_PATTERNS[tradeLower] || [];
 
       for (const pattern of patterns) {
         if (policyText.includes(pattern)) {
+          excludedTradeSet.add(trade);
           excludedTrades.push({
             trade,
             exclusion: pattern,
@@ -160,7 +167,7 @@ export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
             message: `GL policy excludes ${trade} (${pattern})`,
             severity: 'high',
           });
-          break;
+          break; // Stop checking other patterns for this trade
         }
       }
     }
