@@ -5007,6 +5007,85 @@ app.post('/public/upload-policy', uploadLimiter, upload.single('file'), async (r
       console.warn('Policy upload admin notify failed:', notifyErr?.message || notifyErr);
     }
 
+    // If the COI has been previously uploaded and approved, trigger COI regeneration
+    // This ensures the COI PDF reflects the new policy information
+    try {
+      const updatedCoi = entities.GeneratedCOI[coiIdx];
+      if (updatedCoi.first_coi_uploaded && updatedCoi.admin_approved) {
+        console.log('🔄 Triggering COI regeneration after policy upload for COI:', updatedCoi.id);
+        
+        // Build regeneration data using existing COI data
+        const regenData = {
+          broker_name: updatedCoi.broker_name || '',
+          broker_email: updatedCoi.broker_email || '',
+          broker_phone: updatedCoi.broker_phone || '',
+          broker_address: updatedCoi.broker_address || '',
+          subcontractor_name: updatedCoi.subcontractor_name || '',
+          subcontractor_address: updatedCoi.subcontractor_address || '',
+          named_insured: updatedCoi.named_insured || updatedCoi.subcontractor_name || '',
+          
+          // All policy data
+          insurance_carrier_gl: updatedCoi.insurance_carrier_gl || '',
+          policy_number_gl: updatedCoi.policy_number_gl || '',
+          gl_each_occurrence: updatedCoi.gl_each_occurrence,
+          gl_general_aggregate: updatedCoi.gl_general_aggregate,
+          gl_products_completed_ops: updatedCoi.gl_products_completed_ops,
+          gl_effective_date: updatedCoi.gl_effective_date,
+          gl_expiration_date: updatedCoi.gl_expiration_date,
+          gl_form_type: updatedCoi.gl_form_type || 'OCCUR',
+          
+          insurance_carrier_auto: updatedCoi.insurance_carrier_auto || '',
+          policy_number_auto: updatedCoi.policy_number_auto || '',
+          auto_combined_single_limit: updatedCoi.auto_combined_single_limit,
+          auto_effective_date: updatedCoi.auto_effective_date,
+          auto_expiration_date: updatedCoi.auto_expiration_date,
+          
+          insurance_carrier_wc: updatedCoi.insurance_carrier_wc || '',
+          policy_number_wc: updatedCoi.policy_number_wc || '',
+          wc_each_accident: updatedCoi.wc_each_accident,
+          wc_disease_each_employee: updatedCoi.wc_disease_each_employee,
+          wc_effective_date: updatedCoi.wc_effective_date,
+          wc_expiration_date: updatedCoi.wc_expiration_date,
+          
+          insurance_carrier_umbrella: updatedCoi.insurance_carrier_umbrella || '',
+          policy_number_umbrella: updatedCoi.policy_number_umbrella || '',
+          umbrella_each_occurrence: updatedCoi.umbrella_each_occurrence,
+          umbrella_aggregate: updatedCoi.umbrella_aggregate,
+          umbrella_effective_date: updatedCoi.umbrella_effective_date,
+          umbrella_expiration_date: updatedCoi.umbrella_expiration_date,
+          
+          description_of_operations: updatedCoi.description_of_operations || '',
+          additional_insureds: updatedCoi.additional_insureds || [],
+          certificate_holder_name: updatedCoi.certificate_holder_name || updatedCoi.gc_name || '',
+          updated_project_address: updatedCoi.updated_project_address || updatedCoi.project_address || '',
+          updated_project_name: updatedCoi.updated_project_name || updatedCoi.project_name || ''
+        };
+        
+        // Generate new COI PDF
+        const pdfBuffer = await generateGeneratedCOIPDF(regenData);
+        const filename = `gen-coi-${updatedCoi.id}-${Date.now()}.pdf`;
+        const filepath = path.join(UPLOADS_DIR, filename);
+        await fsPromises.writeFile(filepath, pdfBuffer);
+        
+        const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+        const generatedFileUrl = `${backendBase}/uploads/${filename}`;
+        
+        // Update COI with regenerated PDF
+        entities.GeneratedCOI[coiIdx] = {
+          ...entities.GeneratedCOI[coiIdx],
+          regenerated_coi_url: generatedFileUrl,
+          regenerated_coi_filename: filename,
+          regenerated_at: now,
+          auto_regenerated_after_policy_upload: true
+        };
+        
+        console.log('✅ COI regenerated successfully after policy upload:', filename);
+      }
+    } catch (regenErr) {
+      console.error('⚠️  COI regeneration after policy upload failed:', regenErr?.message || regenErr);
+      // Don't fail the upload if regeneration fails, just log it
+    }
+
     debouncedSave();
     return res.json({ ok: true, type: 'policy', file_url: fileUrl, coi: entities.GeneratedCOI[coiIdx] });
   } catch (err) {
