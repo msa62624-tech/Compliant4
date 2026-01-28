@@ -1301,7 +1301,7 @@ export default function BrokerUploadCOI() {
             <p className="text-slate-600 mb-6">
               The certificate for <strong>{coiRecord.subcontractor_name}</strong> has been {coiRecord?.status === 'active' ? 'issued and is active' : 'submitted for admin review'}.
             </p>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left mb-6">
               <p className="font-semibold text-red-900 mb-2">Status:</p>
               <ul className="space-y-1 text-sm text-red-800">
                 <li>✓ Certificate uploaded and signed</li>
@@ -1318,6 +1318,26 @@ export default function BrokerUploadCOI() {
                   </>
                 )}
               </ul>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <Button
+                onClick={() => {
+                  setIsComplete(false);
+                  setCurrentStep(1);
+                  setBrokerSignature(null);
+                }}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Issue Another Certificate
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  window.location.href = `${window.location.origin}/broker-dashboard`;
+                }}
+              >
+                Return to Dashboard
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -157,8 +157,30 @@ export async function notifySubCOIApproved(coi, subcontractor, project, complian
   const projectDetailsLink = `${baseUrl}/subcontractor-dashboard?id=${subcontractor.id}&section=projects&projectId=${project.id}`;
 
   try {
+    // Prepare attachments array for issued COI and Hold Harmless Agreement
+    const attachments = [];
+    
+    // Attach the actual issued COI PDF if it exists
+    const coiPdfUrl = coi.pdf_url || coi.regenerated_coi_url || coi.first_coi_url;
+    if (coiPdfUrl) {
+      attachments.push({
+        filename: `COI_${subcontractor.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${project.project_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        path: coiPdfUrl
+      });
+    }
+    
+    // Attach the Hold Harmless Agreement if it exists and is signed
+    const holdHarmlessUrl = coi.hold_harmless_sub_signed_url || coi.hold_harmless_template_url;
+    if (holdHarmlessUrl) {
+      attachments.push({
+        filename: `HoldHarmless_${subcontractor.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${project.project_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        path: holdHarmlessUrl
+      });
+    }
+
     await sendEmail({
       to: subcontractor.email,
+      attachments: attachments.length > 0 ? attachments : undefined,
       subject: `✅ Certificate Approved - ${project.project_name}`,
       body: `Great news! Your Certificate of Insurance has been approved for the project.
 
@@ -176,7 +198,7 @@ ${complianceDetails ? `
 COVERAGE SUMMARY:
 ${complianceDetails}
 ` : ''}
-
+${attachments.length > 0 ? `\n📎 ATTACHED DOCUMENTS:\n${attachments.map(a => `• ${a.filename}`).join('\n')}\n` : ''}
 You are now cleared to proceed with work on this project.
 
 📊 View Your Dashboard:
@@ -198,8 +220,24 @@ InsureTrack System`,
       const uploadEndorsementLink = `${backendBase}/public/upload-endorsement?coi_token=${coi.coi_token}`;
       const uploadEndorsementRegenLink = `${uploadEndorsementLink}&regen_coi=true`;
 
+      // Prepare attachments for broker email too
+      const brokerAttachments = [];
+      if (coiPdfUrl) {
+        brokerAttachments.push({
+          filename: `COI_${subcontractor.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${project.project_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+          path: coiPdfUrl
+        });
+      }
+      if (holdHarmlessUrl) {
+        brokerAttachments.push({
+          filename: `HoldHarmless_${subcontractor.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${project.project_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+          path: holdHarmlessUrl
+        });
+      }
+
       await sendEmail({
         to: subcontractor.broker_email,
+        attachments: brokerAttachments.length > 0 ? brokerAttachments : undefined,
         subject: `⚠️ Action Required: Upload Endorsement or Reply - ${subcontractor.company_name}`,
         body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
 
@@ -208,7 +246,7 @@ You can reply to this message or upload endorsement documents using the links be
 Reply by email: ${replyLink}
 Upload endorsement (no auth): ${uploadEndorsementLink}
 Upload & regenerate COI: ${uploadEndorsementRegenLink}
-
+${brokerAttachments.length > 0 ? `\n📎 ATTACHED DOCUMENTS:\n${brokerAttachments.map(a => `• ${a.filename}`).join('\n')}\n` : ''}
 When you upload the endorsement, the system will attempt to read the endorsement, save the extracted fields, and (optionally) regenerate the COI PDF for the project.
 
 If you prefer to attach files directly to your reply, please send them to the email above or use the upload link to include attachments and trigger regeneration.
@@ -251,8 +289,30 @@ export async function notifyGCCOIApprovedReady(coi, subcontractor, project) {
   const gcProjectLink = `${baseUrl}/ProjectDetails?id=${project.id}&section=subcontractors`;
 
   try {
+    // Prepare attachments array for issued COI and Hold Harmless Agreement
+    const attachments = [];
+    
+    // Attach the actual issued COI PDF if it exists
+    const coiPdfUrl = coi.pdf_url || coi.regenerated_coi_url || coi.first_coi_url;
+    if (coiPdfUrl) {
+      attachments.push({
+        filename: `COI_${subcontractor.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${project.project_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        path: coiPdfUrl
+      });
+    }
+    
+    // Attach the Hold Harmless Agreement if it exists and is signed
+    const holdHarmlessUrl = coi.hold_harmless_sub_signed_url || coi.hold_harmless_template_url;
+    if (holdHarmlessUrl) {
+      attachments.push({
+        filename: `HoldHarmless_${subcontractor.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${project.project_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        path: holdHarmlessUrl
+      });
+    }
+
     await sendEmail({
       to: project.gc_email || 'gc@project.com',
+      attachments: attachments.length > 0 ? attachments : undefined,
       subject: `✅ Insurance Approved - ${subcontractor.company_name} Ready for ${project.project_name}`,
       body: `The Certificate of Insurance for your subcontractor has been approved and is ready.
 
@@ -269,6 +329,7 @@ STATUS:
 ✅ Insurance Certificate: APPROVED
 ✅ Compliance: VERIFIED
 ✅ Ready to Work
+${attachments.length > 0 ? `\n📎 ATTACHED DOCUMENTS:\n${attachments.map(a => `• ${a.filename}`).join('\n')}` : ''}
 
 The subcontractor is now authorized to proceed with work on your project.
 
@@ -470,10 +531,32 @@ export async function notifyBrokerCOIReview(coi, subcontractor, project) {
     // Generate sample COI data from actual program requirements
     const sampleCOIData = await generateSampleCOIFromProgram(project, coi);
 
+    // Prepare attachments array for issued COI and Hold Harmless Agreement
+    const attachments = [];
+    
+    // Attach the actual issued COI PDF if it exists
+    const coiPdfUrl = coi.pdf_url || coi.regenerated_coi_url || coi.first_coi_url;
+    if (coiPdfUrl) {
+      attachments.push({
+        filename: `COI_${subcontractor.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${project.project_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        path: coiPdfUrl
+      });
+    }
+    
+    // Attach the Hold Harmless Agreement if it exists and is signed
+    const holdHarmlessUrl = coi.hold_harmless_sub_signed_url || coi.hold_harmless_template_url;
+    if (holdHarmlessUrl) {
+      attachments.push({
+        filename: `HoldHarmless_${subcontractor.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${project.project_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        path: holdHarmlessUrl
+      });
+    }
+
     await sendEmail({
       to: subcontractor.broker_email,
       includeSampleCOI: true,
       sampleCOIData,
+      attachments: attachments.length > 0 ? attachments : undefined,
       subject: `📋 Certificate Ready for Review & Signature: ${subcontractor.company_name}`,
       body: `A Certificate of Insurance is ready for your review and signature.
 
@@ -489,6 +572,7 @@ CERTIFICATE STATUS:
 • Trade(s): ${coi.trade_types?.join(', ') || 'N/A'}
 • Status: Awaiting Your Signature
 • Created: ${new Date(coi.created_at).toLocaleDateString()}
+${attachments.length > 0 ? `\n📎 ATTACHED DOCUMENTS:\n${attachments.map(a => `• ${a.filename}`).join('\n')}` : ''}
 
 ACTION REQUIRED:
 Please review the certificate details and approve/sign the Certificate of Insurance.
@@ -520,8 +604,30 @@ export async function notifySubcontractorCOIApproved(coi, subcontractor, project
   const subDashboardLink = `${baseUrl}/subcontractor-dashboard?id=${subcontractor.id}&section=active_projects`;
 
   try {
+    // Prepare attachments array for issued COI and Hold Harmless Agreement
+    const attachments = [];
+    
+    // Attach the actual issued COI PDF if it exists
+    const coiPdfUrl = coi.pdf_url || coi.regenerated_coi_url || coi.first_coi_url;
+    if (coiPdfUrl) {
+      attachments.push({
+        filename: `COI_${subcontractor.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${project.project_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        path: coiPdfUrl
+      });
+    }
+    
+    // Attach the Hold Harmless Agreement if it exists and is signed
+    const holdHarmlessUrl = coi.hold_harmless_sub_signed_url || coi.hold_harmless_template_url;
+    if (holdHarmlessUrl) {
+      attachments.push({
+        filename: `HoldHarmless_${subcontractor.company_name.replace(/[^a-zA-Z0-9]/g, '_')}_${project.project_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        path: holdHarmlessUrl
+      });
+    }
+
     await sendEmail({
       to: subcontractor.email,
+      attachments: attachments.length > 0 ? attachments : undefined,
       subject: `✅ Your Certificate is Approved - ${project.project_name}`,
       body: `Your Certificate of Insurance has been approved and submitted.
 
@@ -535,6 +641,7 @@ CERTIFICATE STATUS:
 ✅ Broker Approval: COMPLETE
 ✅ Admin Review: APPROVED
 ✅ Ready for Work
+${attachments.length > 0 ? `\n📎 ATTACHED DOCUMENTS:\n${attachments.map(a => `• ${a.filename}`).join('\n')}` : ''}
 
 You are now authorized to proceed with work on this project.
 
