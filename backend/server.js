@@ -5864,6 +5864,35 @@ async function extractTextFromPDF(filePath) {
   }
 }
 
+// Constants for endorsement negation checking
+const NEGATION_LOOKBACK_CHARS = 50;
+const NEGATION_PATTERN = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i;
+
+// Helper function to check if any occurrence of a keyword is not negated
+function hasNonNegatedKeyword(text, keywordPattern) {
+  const matchIndices = [];
+  let match;
+  const regex = new RegExp(keywordPattern.source, 'gi');
+  
+  while ((match = regex.exec(text)) !== null) {
+    matchIndices.push(match.index);
+  }
+  
+  // If we find any occurrence, check if at least one is not negated
+  for (const matchIndex of matchIndices) {
+    const startPos = Math.max(0, matchIndex - NEGATION_LOOKBACK_CHARS);
+    const precedingText = text.substring(startPos, matchIndex);
+    const hasNegation = NEGATION_PATTERN.test(precedingText);
+    
+    // If this occurrence is not negated, we found a valid keyword
+    if (!hasNegation) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 // Helper function to extract common fields using regex patterns (fallback when AI is not configured)
 function extractFieldsWithRegex(text, schema) {
   console.log('🔧 Starting AGGRESSIVE regex extraction with schema fields:', Object.keys(schema));
@@ -6650,34 +6679,6 @@ function extractFieldsWithRegex(text, schema) {
     }
   }
   
-  // Helper function to check if any occurrence of a keyword is not negated
-  const NEGATION_LOOKBACK_CHARS = 50;
-  const NEGATION_PATTERN = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i;
-  
-  function hasNonNegatedKeyword(text, keywordPattern) {
-    const matchIndices = [];
-    let match;
-    const regex = new RegExp(keywordPattern.source, 'gi');
-    
-    while ((match = regex.exec(text)) !== null) {
-      matchIndices.push(match.index);
-    }
-    
-    // If we find any occurrence, check if at least one is not negated
-    for (const matchIndex of matchIndices) {
-      const startPos = Math.max(0, matchIndex - NEGATION_LOOKBACK_CHARS);
-      const precedingText = text.substring(startPos, matchIndex);
-      const hasNegation = NEGATION_PATTERN.test(precedingText);
-      
-      // If this occurrence is not negated, we found a valid keyword
-      if (!hasNegation) {
-        return true;
-      }
-    }
-    
-    return false;
-  }
-  
   // ENDORSEMENT EXTRACTION - Additional Insured and Waiver of Subrogation
   if ('gl_additional_insured' in schema && extracted.gl_additional_insured == null) {
     // Look for keywords indicating additional insured endorsement
@@ -6689,20 +6690,12 @@ function extractFieldsWithRegex(text, schema) {
       /primary\s+&\s+non-contributory/i
     ];
     
-    // Check if "ADDITIONAL INSURED" appears without negation
-    let hasAddlInsured = hasNonNegatedKeyword(text, /ADDITIONAL\s+INSURED/);
-    
-    // If not found, check other indicator patterns
-    if (!hasAddlInsured) {
-      for (const pattern of addlInsuredIndicators) {
-        // Skip the main pattern we already checked
-        if (pattern.source === /ADDITIONAL\s+INSURED/i.source) {
-          continue;
-        }
-        if (pattern.test(text)) {
-          hasAddlInsured = true;
-          break;
-        }
+    // Check each pattern for non-negated occurrences
+    let hasAddlInsured = false;
+    for (const pattern of addlInsuredIndicators) {
+      if (hasNonNegatedKeyword(text, pattern)) {
+        hasAddlInsured = true;
+        break;
       }
     }
     
@@ -6714,25 +6707,18 @@ function extractFieldsWithRegex(text, schema) {
     // Look for keywords indicating waiver of subrogation
     const waiverIndicators = [
       /WAIVER\s+OF\s+SUBROGATION/i,
+      /(?:WAIVER|SUBROGATION)/i,  // Check standalone keywords
       /SUBR\s+WVD/i,
       /waived\s+in\s+favor/i,
       /subrogation.*waived/i
     ];
     
-    // Check if "WAIVER" or "SUBROGATION" appears without negation
-    let hasWaiver = hasNonNegatedKeyword(text, /(?:WAIVER|SUBROGATION)/);
-    
-    // If not found, check other indicator patterns
-    if (!hasWaiver) {
-      for (const pattern of waiverIndicators) {
-        // Skip patterns that contain WAIVER or SUBROGATION (already checked)
-        if (/WAIVER|SUBROGATION/i.test(pattern.source)) {
-          continue;
-        }
-        if (pattern.test(text)) {
-          hasWaiver = true;
-          break;
-        }
+    // Check each pattern for non-negated occurrences
+    let hasWaiver = false;
+    for (const pattern of waiverIndicators) {
+      if (hasNonNegatedKeyword(text, pattern)) {
+        hasWaiver = true;
+        break;
       }
     }
     
