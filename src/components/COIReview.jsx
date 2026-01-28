@@ -758,6 +758,8 @@ InsureTrack Team`
     }
 
     // Also notify broker asynchronously using dedicated broker notifications
+    // Note: This reuses the subcontractor fetched earlier. If the earlier fetch failed,
+    // broker notifications will be skipped to avoid duplicate API calls
     try {
       if (subcontractor && project?.id) {
         await notifySubCOIApproved(coi, subcontractor, project);

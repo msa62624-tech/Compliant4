@@ -5008,7 +5008,9 @@ app.post('/public/upload-policy', uploadLimiter, upload.single('file'), async (r
     }
 
     // If the COI has been previously uploaded and approved, trigger COI regeneration
-    // This ensures the COI PDF reflects the new policy information
+    // This ensures the COI PDF reflects the latest formatting and data structure
+    // Note: This uses existing COI data, not data extracted from the newly uploaded policy
+    // A future enhancement could extract and incorporate data from the uploaded policy file
     try {
       const updatedCoi = entities.GeneratedCOI[coiIdx];
       if (updatedCoi.first_coi_uploaded && updatedCoi.admin_approved) {
@@ -5838,8 +5840,8 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
   return {
     status: 'partial',
     output: {},
-    raw_text: extractedText.substring(0, 1500),
-    full_text: extractedText,
+    raw_text: extractedText.substring(0, 500),
+    full_text: extractedText.substring(0, 50000), // Limit to 50k chars to avoid performance issues
     message: 'Text extracted from document, but structured data extraction failed. Please review the raw text below and enter data manually if needed.',
     extraction_method: 'text_only'
   };
