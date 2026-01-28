@@ -1338,6 +1338,18 @@ export default function BrokerUploadCOI() {
                   setError(null);
                   setAnalysisResults({});
                   setBrokerContacts({ all: { name: '', email: '', phone: '' } });
+                  // Additional state resets for complete re-submission flow
+                  setIsUploading(false);
+                  setPolicyBrokers({
+                    gl: { name: '', email: '', phone: '' },
+                    auto: { name: '', email: '', phone: '' },
+                    umbrella: { name: '', email: '', phone: '' },
+                    wc: { name: '', email: '', phone: '' },
+                  });
+                  setManualAdminEmails('');
+                  setUseSingleBroker(true);
+                  setCurrentSignatureType(null);
+                  setIsDrawing(false);
                 }}
                 className="bg-red-600 hover:bg-red-700"
               >
