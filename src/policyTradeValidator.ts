@@ -364,7 +364,7 @@ export function validateTradeRestrictions(
   // Excavation-specific checks
   if (tradeLower.includes('excavat')) {
     const minLimit = TRADE_MINIMUM_LIMITS.excavation.gl_per_occurrence;
-    if (coi.gl_limits_per_occurrence < minLimit) {
+    if (minLimit && coi.gl_limits_per_occurrence && coi.gl_limits_per_occurrence < minLimit) {
       restrictions.push({
         type: 'warning',
         message: 'GL limits may be insufficient for excavation work',
@@ -377,10 +377,10 @@ export function validateTradeRestrictions(
   // Crane-specific checks
   if (tradeLower.includes('crane')) {
     const minUmbrella = TRADE_MINIMUM_LIMITS.crane_operator.umbrella_minimum;
-    if (!coi.umbrella_limit || coi.umbrella_limit < minUmbrella) {
+    if (!coi.umbrella_limit || (minUmbrella && coi.umbrella_limit < minUmbrella)) {
       restrictions.push({
         type: 'error',
-        message: `Umbrella coverage required and must be at least $${(minUmbrella / 1000000)}M for crane operations`,
+        message: `Umbrella coverage required and must be at least $${minUmbrella ? (minUmbrella / 1000000) : 'N/A'}M for crane operations`,
         trade,
       });
     }
@@ -389,7 +389,7 @@ export function validateTradeRestrictions(
   // Scaffold-specific checks
   if (tradeLower.includes('scaffold')) {
     const minLimit = TRADE_MINIMUM_LIMITS.scaffold.gl_per_occurrence;
-    if (coi.gl_limits_per_occurrence < minLimit) {
+    if (minLimit && coi.gl_limits_per_occurrence && coi.gl_limits_per_occurrence < minLimit) {
       restrictions.push({
         type: 'warning',
         message: `GL limits should be at least $${(minLimit / 1000000)}M for scaffolding`,
@@ -439,7 +439,7 @@ export function compareTradesCoverage(
  * Creates a formatted message for brokers explaining validation issues
  */
 export function generateBrokerTradeMessage(
-  coi: COIPolicy,
+  _coi: COIPolicy,
   requiredTrades: string[],
   validation: ValidationResult
 ): string {

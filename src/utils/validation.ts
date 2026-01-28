@@ -217,7 +217,7 @@ export function validate<T = any>(
 
     // Unexpected error
     logger.error('Unexpected validation error', {
-      error: error.message,
+      message: error instanceof Error ? error.message : String(error),
       schema: schema.description
     });
 
@@ -248,7 +248,7 @@ export function validateEmail(email: string): EmailValidationResult {
   if (result.success) {
     return { valid: true, email: result.data };
   }
-  return { valid: false, error: result.errors[0]?.message };
+  return { valid: false, error: result.errors?.[0]?.message };
 }
 
 interface UsernameValidationResult {
@@ -267,7 +267,7 @@ export function validateUsername(username: string): UsernameValidationResult {
   if (result.success) {
     return { valid: true, username: result.data };
   }
-  return { valid: false, error: result.errors[0]?.message };
+  return { valid: false, error: result.errors?.[0]?.message };
 }
 
 interface PasswordValidationResult {
@@ -299,7 +299,7 @@ export function validatePassword(password: string, requireStrong: boolean = fals
     return { valid: true, strength };
   }
   
-  return { valid: false, error: result.errors[0]?.message };
+  return { valid: false, error: result.errors?.[0]?.message };
 }
 
 type LoginCredentials = z.infer<typeof authSchemas.login>;

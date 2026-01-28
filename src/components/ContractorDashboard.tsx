@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInDays } from "date-fns";
 import UserProfile from "@/components/UserProfile.tsx";
-import type * as ApiTypes from '@/api-types';
 
 interface User {
   id?: string;

@@ -11,7 +11,6 @@ import { format } from "date-fns";
 import StatusBadge from "@/components/insurance/StatusBadge";
 import ApprovalModal from "@/components/insurance/ApprovalModal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import type * as ApiTypes from '@/api-types';
 
 interface User {
   email: string;

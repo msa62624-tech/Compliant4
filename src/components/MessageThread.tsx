@@ -9,7 +9,6 @@ import { Send, Paperclip, X } from "lucide-react";
 import { format } from "date-fns";
 import { compliant } from "@/api/compliantClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type * as ApiTypes from '@/api-types';
 
 export default function MessageThread({ messages, currentUser, recipientType = "admin" }) {
   const [newMessage, setNewMessage] = useState("");

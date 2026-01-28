@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FileUp, FileText, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { compliant } from "@/api/compliantClient";
-import type * as ApiTypes from '@/api-types';
 
 interface DocumentRequirementsUploaderProps {
   projectId: string;

@@ -9,7 +9,6 @@ import {
   FileText, Download, Eye, AlertTriangle, CheckCircle2, 
   BookOpen, Zap
 } from "lucide-react";
-import type * as ApiTypes from '@/api-types';
 
 /**
  * ProjectRequirementsViewer Component

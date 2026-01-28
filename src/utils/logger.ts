@@ -139,16 +139,16 @@ export const logger = {
    * Log info messages
    */
   info: (message: string, context?: LogContext): void => {
-    const _structured = createStructuredLog('info', message, context);
-    
     if (isDevelopment) {
       console.log(...formatMessage(message, context));
     }
     
     // In production, send structured logs to aggregation service
     if (isProduction && context?.important) {
+      const structured = createStructuredLog('info', message, context);
       // Hook for log aggregation service (e.g., CloudWatch, Datadog)
-      // logAggregationService.info(_structured);
+      // logAggregationService.info(structured);
+      void structured; // Suppress unused warning
     }
   },
 
@@ -156,7 +156,7 @@ export const logger = {
    * Log warnings (always logged)
    */
   warn: (message: string, context?: LogContext): void => {
-    const _structured = createStructuredLog('warn', message, context);
+    createStructuredLog('warn', message, context); // For future log aggregation
     console.warn(...formatMessage(message, context));
     
     // Send warnings to error tracking in production
@@ -169,7 +169,7 @@ export const logger = {
    * Log errors (always logged)
    */
   error: (message: string, context?: LogContext): void => {
-    const _structured = createStructuredLog('error', message, context);
+    createStructuredLog('error', message, context); // For future log aggregation
     console.error(...formatMessage(message, context));
     
     // Always send errors to error tracking service
@@ -198,12 +198,12 @@ export const logger = {
    * Log performance metrics
    */
   performance: (operation: string, duration: number, context: LogContext = {}): void => {
-    const _structured = createStructuredLog('performance', `${operation} completed`, {
+    createStructuredLog('performance', `${operation} completed`, {
       operation,
       duration,
       durationMs: `${duration}ms`,
       ...context
-    });
+    }); // For future log aggregation
     
     if (isDevelopment) {
       console.log(`⏱️ ${operation}: ${duration}ms`, context);
