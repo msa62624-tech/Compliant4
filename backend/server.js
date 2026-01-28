@@ -4786,14 +4786,6 @@ app.patch('/public/coi-by-token', publicApiLimiter, async (req, res) => {
       const policyComparisons = [];
       const allExclusions = [];
       
-      // Redeclare policyUrlFields for this scope
-      const policyUrlFields = {
-        gl_policy: updates.gl_policy_url,
-        wc_policy: updates.wc_policy_url,
-        auto_policy: updates.auto_policy_url,
-        umbrella_policy: updates.umbrella_policy_url
-      };
-      
       // Extract and compare each policy type
       for (const [policyType, url] of Object.entries(policyUrlFields)) {
         if (url) {
@@ -6582,7 +6574,7 @@ function extractFieldsWithRegex(text, schema) {
     ];
     
     // Check for negation words within 50 chars before "ADDITIONAL INSURED"
-    // Use lookbehind to check if negation word appears within 50 chars before the keyword
+    // Use lookahead to check if negation word appears within 50 chars before the keyword
     const negationPattern = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)(?=[\s\S]{0,50}?ADDITIONAL\s+INSURED)/i;
     const hasNegation = negationPattern.test(text);
     
