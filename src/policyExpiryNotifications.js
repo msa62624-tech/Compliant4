@@ -2,6 +2,7 @@ import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { calculateDaysUntilExpiry } from "@/utils/dateCalculations";
 import { calculateUrgency, formatTimeframe, sendEmailWithErrorHandling } from "@/utils/notificationUtils";
+import { EMAIL_SIGNATURE, formatInsuranceType, createEmailGreeting, buildEmailSubject } from "@/utils/emailTemplates";
 
 
 
@@ -49,16 +50,17 @@ export async function checkAndNotifyExpiringPolicies() {
 async function notifyBrokerPolicyExpiring(document, subcontractor, daysUntilExpiry) {
   const urgency = calculateUrgency(daysUntilExpiry);
   const timeframe = formatTimeframe(daysUntilExpiry);
+  const subject = buildEmailSubject(`Policy Expiring ${timeframe} - ${subcontractor.company_name}`, urgency);
   
   await sendEmailWithErrorHandling({
     to: subcontractor.broker_email,
-    subject: `${urgency}: Policy Expiring ${timeframe} - ${subcontractor.company_name}`,
-    body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
+    subject,
+    body: `${createEmailGreeting('broker', subcontractor.broker_name)}
 
 A policy for your client ${subcontractor.company_name} is expiring ${timeframe}.
 
 📋 Policy Details:
-• Policy Type: ${document.insurance_type}
+• Policy Type: ${formatInsuranceType(document.insurance_type)}
 • Policy Number: ${document.policy_number}
 • Expiration Date: ${new Date(document.policy_expiration_date).toLocaleDateString()}
 • Subcontractor: ${subcontractor.company_name}
@@ -71,8 +73,7 @@ ${subcontractor.phone ? `📞 Subcontractor Phone: ${subcontractor.phone}` : ''}
 
 Once renewed, please upload the updated policy document to keep coverage current.
 
-Best regards,
-InsureTrack System`
+${EMAIL_SIGNATURE}`
   }, 'broker policy expiry notification', sendEmail);
 }
 
@@ -82,16 +83,17 @@ InsureTrack System`
 async function notifySubPolicyExpiring(document, subcontractor, daysUntilExpiry) {
   const urgency = calculateUrgency(daysUntilExpiry);
   const timeframe = formatTimeframe(daysUntilExpiry);
+  const subject = buildEmailSubject(`Insurance Policy Expiring ${timeframe}`, urgency);
   
   await sendEmailWithErrorHandling({
     to: subcontractor.email,
-    subject: `${urgency}: Insurance Policy Expiring ${timeframe}`,
+    subject,
     body: `Dear ${subcontractor.contact_person || subcontractor.company_name},
 
-Your ${document.insurance_type.replace(/_/g, ' ')} policy is expiring ${timeframe}.
+Your ${formatInsuranceType(document.insurance_type)} policy is expiring ${timeframe}.
 
 📋 Policy Details:
-• Policy Type: ${document.insurance_type.replace(/_/g, ' ')}
+• Policy Type: ${formatInsuranceType(document.insurance_type)}
 • Policy Number: ${document.policy_number}
 • Expiration Date: ${new Date(document.policy_expiration_date).toLocaleDateString()}
 
@@ -105,8 +107,7 @@ ${subcontractor.broker_phone ? `Phone: ${subcontractor.broker_phone}` : ''}
 
 Once your policy is renewed, your broker will upload the new policy document to keep you compliant with all project requirements.
 
-Best regards,
-InsureTrack System`
+${EMAIL_SIGNATURE}`
   }, 'subcontractor policy expiry notification', sendEmail);
 }
 

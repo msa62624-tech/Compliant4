@@ -2,7 +2,8 @@ import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { generateSecureToken } from "@/utils/tokenGenerator";
 import { sendEmailWithErrorHandling } from "@/utils/notificationUtils";
-import { getFrontendBaseUrl, createBrokerDashboardLink, createSubcontractorDashboardLink } from "@/urlConfig";
+import { createBrokerDashboardLink, createSubcontractorDashboardLink, createProjectDetailsLink } from "@/urlConfig";
+import { EMAIL_SIGNATURE, formatInsuranceType, createEmailGreeting } from "@/utils/emailTemplates";
 
 
 
@@ -94,13 +95,13 @@ export async function notifyBrokerPolicyRenewal(subcontractor, oldPolicy, newPol
       trade: newPolicy.insurance_type,
       program: project?.program_name || project?.program_id
     },
-    subject: `Policy Renewal - Action Required: ${newPolicy.insurance_type.replace(/_/g, ' ')} for ${subcontractor.company_name}`,
-    body: `Dear ${subcontractor.broker_name || 'Insurance Broker'},
+    subject: `Policy Renewal - Action Required: ${formatInsuranceType(newPolicy.insurance_type)} for ${subcontractor.company_name}`,
+    body: `${createEmailGreeting('broker', subcontractor.broker_name)}
 
 A policy has been renewed for your client ${subcontractor.company_name} and requires COI approval.
 
 📋 Policy Renewal Details:
-• Policy Type: ${newPolicy.insurance_type.replace(/_/g, ' ')}
+• Policy Type: ${formatInsuranceType(newPolicy.insurance_type)}
 • Insurance Carrier: ${newPolicy.insurance_carrier || 'N/A'}
 • Old Policy Number: ${oldPolicy?.policy_number || 'N/A'}
 • New Policy Number: ${newPolicy.policy_number}
@@ -113,7 +114,7 @@ A policy has been renewed for your client ${subcontractor.company_name} and requ
 ${brokerDashboardLink}
 
 📌 Action Required:
-1. Review the new ${newPolicy.insurance_type.replace(/_/g, ' ')} policy
+1. Review the new ${formatInsuranceType(newPolicy.insurance_type)} policy
 2. Sign and approve the auto-generated Certificate of Insurance
 3. Submit to activate for all projects
 
@@ -121,8 +122,7 @@ Once approved, the Certificate of Insurance will be updated across all projects 
 
 Note: If you need to make edits or corrections to the certificate, you can do so before approval.
 
-Best regards,
-InsureTrack System`
+${EMAIL_SIGNATURE}`
   }, 'broker policy renewal notification', sendEmail);
 }
 
@@ -136,13 +136,13 @@ export async function notifySubPolicyRenewal(subcontractor, oldPolicy, newPolicy
   
   await sendEmailWithErrorHandling({
     to: subcontractor.email,
-    subject: `Policy Renewed - ${newPolicy.insurance_type.replace(/_/g, ' ')}`,
+    subject: `Policy Renewed - ${formatInsuranceType(newPolicy.insurance_type)}`,
     body: `Dear ${subcontractor.contact_person || subcontractor.company_name},
 
 Great news! Your insurance policy has been renewed.
 
 📋 Policy Renewal Details:
-• Policy Type: ${newPolicy.insurance_type.replace(/_/g, ' ')}
+• Policy Type: ${formatInsuranceType(newPolicy.insurance_type)}
 • Insurance Carrier: ${newPolicy.insurance_carrier || 'N/A'}
 • New Policy Number: ${newPolicy.policy_number}
 • Old Expiration: ${new Date(oldPolicy?.policy_expiration_date).toLocaleDateString()}
@@ -160,8 +160,7 @@ You will receive notification once your Certificate of Insurance is approved and
 
 Keep your broker updated if there are any changes to your coverage or policy details.
 
-Best regards,
-InsureTrack System`
+${EMAIL_SIGNATURE}`
   }, 'subcontractor policy renewal notification', sendEmail);
 }
 
@@ -171,20 +170,19 @@ InsureTrack System`
 export async function notifyGCPolicyRenewal(project, subcontractor, newPolicy) {
   if (!project.gc_email) return;
 
-  const baseUrl = getFrontendBaseUrl();
-  const projectDetailsLink = `${baseUrl}/ProjectDetails?id=${project.id}`;
+  const projectDetailsLink = createProjectDetailsLink(project.id);
   
   await sendEmailWithErrorHandling({
     to: project.gc_email,
-    subject: `Policy Renewed - ${subcontractor.company_name} (${newPolicy.insurance_type.replace(/_/g, ' ')})`,
-    body: `Dear ${project.gc_name},
+    subject: `Policy Renewed - ${subcontractor.company_name} (${formatInsuranceType(newPolicy.insurance_type)})`,
+    body: `${createEmailGreeting('gc', project.gc_name)}
 
 A subcontractor's insurance policy has been renewed. A new Certificate of Insurance is being generated and will be sent for approval.
 
 📋 Policy Renewal Details:
 • Subcontractor: ${subcontractor.company_name}
 • Project: ${project.project_name}
-• Policy Type: ${newPolicy.insurance_type.replace(/_/g, ' ')}
+• Policy Type: ${formatInsuranceType(newPolicy.insurance_type)}
 • Insurance Carrier: ${newPolicy.insurance_carrier || 'N/A'}
 • New Policy Number: ${newPolicy.policy_number}
 • New Expiration Date: ${new Date(newPolicy.policy_expiration_date).toLocaleDateString()}
@@ -198,8 +196,7 @@ Work will continue once the certificate is approved.
 
 You will receive notification once all approvals are complete.
 
-Best regards,
-InsureTrack System`
+${EMAIL_SIGNATURE}`
   }, 'GC policy renewal notification', sendEmail);
 }
 
@@ -215,7 +212,7 @@ export async function notifyRenewalCOIApproved(subcontractor, project, newCOI) {
       await sendEmail({
         to: subcontractor.email,
         subject: `Renewed Certificate Approved - ${project.project_name}`,
-        body: `Dear ${subcontractor.contact_person || subcontractor.company_name},
+        body: `${createEmailGreeting('subcontractor', subcontractor.contact_person || subcontractor.company_name)}
 
 Your renewed Certificate of Insurance has been approved and is now active.
 
@@ -229,8 +226,7 @@ ${subDashboardLink}
 
 You are cleared to continue work on this project with your renewed coverage.
 
-Best regards,
-InsureTrack System`
+${EMAIL_SIGNATURE}`
       });
     }
 
@@ -239,7 +235,7 @@ InsureTrack System`
       await sendEmail({
         to: project.gc_email,
         subject: `✅ Renewed Certificate Approved - ${subcontractor.company_name}`,
-        body: `Dear ${project.gc_name},
+        body: `${createEmailGreeting('gc', project.gc_name)}
 
 The renewed Certificate of Insurance for ${subcontractor.company_name} has been approved.
 
@@ -251,8 +247,7 @@ The renewed Certificate of Insurance for ${subcontractor.company_name} has been 
 
 The subcontractor is cleared to continue work with their renewed coverage.
 
-Best regards,
-InsureTrack System`
+${EMAIL_SIGNATURE}`
       });
     }
   } catch (error) {

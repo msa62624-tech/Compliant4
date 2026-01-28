@@ -93,10 +93,11 @@ export function createBrokerDashboardLink(brokerName, brokerEmail) {
  * Create a broker upload link for COI uploads
  * @param {string} coiToken - The COI token for direct upload access
  * @param {number} step - The step in the upload process (1=COI, 2=Policies, 3=Signature)
+ * @param {string} action - Action type (default: 'upload')
  */
-export function createBrokerUploadLink(coiToken, step = 1) {
+export function createBrokerUploadLink(coiToken, step = 1, action = 'upload') {
   const baseUrl = getFrontendBaseUrl();
-  return `${baseUrl}/broker-upload-coi?token=${coiToken}&step=${step}&action=upload`;
+  return `${baseUrl}/broker-upload-coi?token=${coiToken}&step=${step}&action=${action}`;
 }
 
 /**
@@ -105,4 +106,22 @@ export function createBrokerUploadLink(coiToken, step = 1) {
 export function createSubcontractorDashboardLink(subId) {
   const baseUrl = getFrontendBaseUrl();
   return `${baseUrl}/subcontractor-dashboard?id=${subId}`;
+}
+
+/**
+ * Create a COI review link
+ * @param {string} coiId - COI ID
+ */
+export function createCOIReviewLink(coiId) {
+  const baseUrl = getFrontendBaseUrl();
+  return `${baseUrl}/coi-review?id=${coiId}`;
+}
+
+/**
+ * Create a project details link
+ * @param {string} projectId - Project ID
+ */
+export function createProjectDetailsLink(projectId) {
+  const baseUrl = getFrontendBaseUrl();
+  return `${baseUrl}/project-details?id=${projectId}`;
 }

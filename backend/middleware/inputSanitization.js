@@ -2,6 +2,11 @@
  * Input sanitization middleware to prevent XSS and injection attacks
  */
 
+import { escapeHtml } from '../utils/htmlEscaping.js';
+
+// Re-export escapeHtml for backward compatibility
+export { escapeHtml };
+
 /**
  * Sanitize string input by removing potentially dangerous characters
  */
@@ -15,24 +20,6 @@ export function sanitizeString(str) {
   sanitized = sanitized.trim();
   
   return sanitized;
-}
-
-/**
- * Sanitize HTML by escaping dangerous characters
- */
-export function escapeHtml(str) {
-  if (typeof str !== 'string') return str;
-  
-  const htmlEscapeMap = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#x27;',
-    '/': '&#x2F;',
-  };
-  
-  return str.replace(/[&<>"'/]/g, (char) => htmlEscapeMap[char]);
 }
 
 /**

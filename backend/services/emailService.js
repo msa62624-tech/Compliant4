@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { escapeHtml } from '../utils/htmlEscaping.js';
 
 /**
  * Create an email transporter based on environment configuration
@@ -38,22 +39,6 @@ export function createEmailTransporter() {
   }
   
   return nodemailer.createTransport(config);
-}
-
-/**
- * Simple HTML escape function to prevent XSS
- * @param {string} text - Text to escape
- * @returns {string} HTML-safe text
- */
-function escapeHtml(text) {
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-  return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
 /**
