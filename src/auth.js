@@ -36,7 +36,7 @@ function decodeJWT(token) {
  * @param {number} bufferSeconds - Seconds before expiry to consider token expired (default: 60)
  * @returns {boolean} - True if expired or about to expire
  */
-function isTokenExpired(token, bufferSeconds = 60) {
+export function isTokenExpired(token, bufferSeconds = 60) {
   const decoded = decodeJWT(token);
   if (!decoded || !decoded.exp) {
     logger.warn('Token missing expiration claim');
