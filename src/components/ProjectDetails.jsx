@@ -636,7 +636,8 @@ export default function ProjectDetails() {
       try {
         const allUsers = await compliant.entities.User.list();
         const admins = allUsers.filter(u => u.role === 'admin' || u.role === 'super_admin');
-        adminEmails = admins.map(a => a.email).filter(Boolean);
+        // Optimized: filter first to remove falsy emails
+        adminEmails = admins.filter(a => a.email).map(a => a.email);
       } catch (error) {
         console.error('Failed to fetch admin emails:', error);
         adminEmails = user?.email ? [user.email] : [];

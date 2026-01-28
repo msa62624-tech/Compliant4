@@ -110,11 +110,40 @@ export default function GCDashboard() {
     retry: 1,
   });
 
-  // Helper function to get actual status for a subcontractor
+  // Create optimized COI lookup maps for O(1) access instead of O(n) filtering
+  const coiMaps = useMemo(() => {
+    if (!cois || cois.length === 0) return { bySubId: new Map(), byProjectSubId: new Map() };
+    
+    const bySubId = new Map();
+    const byProjectSubId = new Map();
+    
+    cois.forEach(coi => {
+      // Group COIs by subcontractor_id
+      if (coi.subcontractor_id) {
+        if (!bySubId.has(coi.subcontractor_id)) {
+          bySubId.set(coi.subcontractor_id, []);
+        }
+        bySubId.get(coi.subcontractor_id).push(coi);
+      }
+      
+      // Group COIs by project_sub_id
+      if (coi.project_sub_id) {
+        if (!byProjectSubId.has(coi.project_sub_id)) {
+          byProjectSubId.set(coi.project_sub_id, []);
+        }
+        byProjectSubId.get(coi.project_sub_id).push(coi);
+      }
+    });
+    
+    return { bySubId, byProjectSubId };
+  }, [cois]);
+
+  // Helper function to get actual status for a subcontractor (optimized with Map lookup)
   const getActualStatus = (sub) => {
-    const relatedCois = cois.filter(c => 
-      c.subcontractor_id === sub.subcontractor_id || c.project_sub_id === sub.id
-    );
+    // Use Map lookup instead of filtering entire array - O(1) vs O(n)
+    const subCois = coiMaps.bySubId.get(sub.subcontractor_id) || [];
+    const projectSubCois = coiMaps.byProjectSubId.get(sub.id) || [];
+    const relatedCois = [...subCois, ...projectSubCois];
     
     if (relatedCois.length === 0) {
       console.log(`[${sub.subcontractor_name}] No COIs found, returning: ${sub.compliance_status || 'pending_broker'}`);

@@ -115,12 +115,8 @@ export async function loadEntities() {
         return;
       }
       
-      // Merge loaded data with default entities structure
-      Object.keys(entities).forEach(key => {
-        if (loadedEntities[key]) {
-          entities[key] = loadedEntities[key];
-        }
-      });
+      // Merge loaded data with default entities structure (single pass)
+      Object.assign(entities, loadedEntities);
       
       // Warn about unknown entity types in loaded data
       Object.keys(loadedEntities).forEach(key => {

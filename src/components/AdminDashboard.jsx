@@ -85,12 +85,14 @@ export default function AdminDashboard() {
     queryFn: async () => {
       try {
         const cois = await apiClient.entities.GeneratedCOI.list();
-        // Filter by assigned admin if user is assistant admin, show all if super admin
-        let filtered = cois.filter((c) => c.status === "active");
-        if (currentUser?.role === 'admin' && currentUser?.email) {
-          filtered = filtered.filter(c => !c.assigned_admin_email || c.assigned_admin_email === currentUser.email);
-        }
-        return filtered;
+        // Combine filters in single pass for better performance
+        return cois.filter((c) => {
+          if (c.status !== "active") return false;
+          if (currentUser?.role === 'admin' && currentUser?.email) {
+            if (c.assigned_admin_email && c.assigned_admin_email !== currentUser.email) return false;
+          }
+          return true;
+        });
       } catch (error) {
         console.error('❌ Error fetching active COIs:', error);
         throw error;
@@ -104,7 +106,7 @@ export default function AdminDashboard() {
     queryFn: async () => {
       try {
         const allProjects = await apiClient.entities.Project.list("-created_date");
-        // Filter by assigned admin if user is assistant admin, show all if super admin
+        // Combine filters in single pass
         if (currentUser?.role === 'admin' && currentUser?.email) {
           return allProjects.filter(p => !p.assigned_admin_email || p.assigned_admin_email === currentUser.email);
         }

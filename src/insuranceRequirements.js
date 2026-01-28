@@ -768,7 +768,8 @@ export function getTradesByTier(tier) {
  */
 export function getTiersFromRequirements(requirements = []) {
   if (!Array.isArray(requirements)) return [];
-  const tierSet = new Set(requirements.map(r => r.tier).filter(Boolean));
+  // Optimized: filter first, then map
+  const tierSet = new Set(requirements.filter(r => r.tier).map(r => r.tier));
   if (tierSet.size === 0) return [];
   
   // Sort tiers - handles both letter (A, B, C, D) and numeric (1, 2, 3) tiers
