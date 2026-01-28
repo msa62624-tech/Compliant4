@@ -3956,14 +3956,30 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
 
         let regeneratedUrl = null;
         try {
+          console.log('🔄 Generating COI PDF for reused subcontractor:', subcontractor_id);
           const pdfBuffer = await generateGeneratedCOIPDF(regenData);
+          if (!pdfBuffer || pdfBuffer.length === 0) {
+            throw new Error('PDF buffer is empty');
+          }
           const filename = `gen-coi-${reusable.id}-${Date.now()}.pdf`;
           const filepath = path.join(UPLOADS_DIR, filename);
           await fsPromises.writeFile(filepath, pdfBuffer);
           const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
           regeneratedUrl = `${backendBase}/uploads/${filename}`;
+          console.log('✅ COI PDF generated successfully for reuse:', filename);
         } catch (pdfErr) {
-          console.warn('COI reuse PDF generation failed:', pdfErr?.message || pdfErr);
+          console.error('❌ COI reuse PDF generation failed:', pdfErr?.message || pdfErr);
+          console.error('   Reuse data:', JSON.stringify({
+            hasBrokerName: !!regenData.broker_name,
+            hasSubName: !!regenData.subcontractor_name,
+            hasGLData: !!regenData.policy_number_gl,
+            hasWCData: !!regenData.policy_number_wc
+          }));
+          // Don't continue with COI creation if PDF generation fails
+          return sendError(res, 500, 'Failed to generate COI PDF for reused subcontractor', { 
+            error: pdfErr.message,
+            subcontractor_id 
+          });
         }
 
         const frontendBase = process.env.FRONTEND_URL || `${req.protocol}://${req.get('host').replace(/:3001$/, ':5175')}`;
@@ -4016,6 +4032,65 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
 
         debouncedSave();
         console.log('ℹ️ Auto-generated reused COI for subcontractor:', subcontractor_id, 'coi:', newCOI.id);
+
+        // Generate hold harmless agreement for reused COI if program has a template
+        try {
+          const programId = sourceProject?.program_id || null;
+          const program = programId
+            ? (entities.InsuranceProgram || []).find(p => p.id === programId)
+            : null;
+          const templateUrl = program?.hold_harmless_template_url || program?.hold_harmless_template || null;
+          
+          if (templateUrl && !newCOI.hold_harmless_template_url) {
+            console.log('🔄 Generating hold harmless agreement for reused COI:', newCOI.id);
+            try {
+              const fetchRes = await fetch(templateUrl);
+              if (fetchRes.ok) {
+                let templateText = await fetchRes.text();
+                // Replace common placeholders with COI/project/subcontractor values
+                const projectName = sourceProject?.project_name || project_name || '';
+                const projectAddressForHH = sourceProject?.project_address || sourceProject?.address || projectAddress || '';
+                const gcNameForHH = sourceProject?.gc_name || gc_name || '';
+                const subName = subcontractor_name || newCOI.subcontractor_name || '';
+                const trade = trade_type || newCOI.trade_type || '';
+                templateText = templateText.replace(/{{\s*project_name\s*}}/gi, projectName)
+                  .replace(/{{\s*project_address\s*}}/gi, projectAddressForHH)
+                  .replace(/{{\s*gc_name\s*}}/gi, gcNameForHH)
+                  .replace(/{{\s*subcontractor_name\s*}}/gi, subName)
+                  .replace(/{{\s*trade\s*}}/gi, trade)
+                  .replace(/{{\s*date\s*}}/gi, new Date().toLocaleDateString());
+
+                // Persist as an HTML file in uploads
+                const hhFilename = `hold-harmless-${newCOI.id}-${Date.now()}.html`;
+                const hhFilepath = path.join(UPLOADS_DIR, hhFilename);
+                await fsPromises.writeFile(hhFilepath, templateText, 'utf8');
+                const hhFileUrl = `${req.protocol}://${req.get('host')}/uploads/${hhFilename}`;
+
+                // Update the COI in the array
+                const coiIdx = entities.GeneratedCOI.findIndex(c => c.id === newCOI.id);
+                if (coiIdx !== -1) {
+                  entities.GeneratedCOI[coiIdx] = {
+                    ...entities.GeneratedCOI[coiIdx],
+                    hold_harmless_template_url: hhFileUrl,
+                    hold_harmless_template_filename: hhFilename,
+                    hold_harmless_generated_at: now,
+                    hold_harmless_status: 'pending_signature'
+                  };
+                  // Update newCOI reference for email
+                  newCOI.hold_harmless_template_url = hhFileUrl;
+                }
+                console.log('✅ Generated hold harmless for reused COI:', newCOI.id, hhFileUrl);
+                debouncedSave();
+              } else {
+                console.warn('Could not fetch program hold-harmless template for reuse, status:', fetchRes.status);
+              }
+            } catch (hhGenErr) {
+              console.warn('Failed to generate hold harmless for reused COI:', hhGenErr?.message || hhGenErr);
+            }
+          }
+        } catch (hhErr) {
+          console.warn('Error during hold-harmless generation for reused COI:', hhErr?.message || hhErr);
+        }
 
         try {
           if (newCOI.broker_email) {
