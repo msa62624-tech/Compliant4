@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, AlertCircle, User, Mail } from "lucide-react";
 import { notifyBrokerAssignment } from "@/brokerNotifications";
+import { getBackendBaseUrl } from "@/urlConfig";
 
 export default function BrokerUpload() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -78,12 +79,7 @@ export default function BrokerUpload() {
         console.warn('⚠️ BrokerUpload: Authenticated read failed, trying public fallback:', err?.message || err);
         try {
           // Public/token-based fallback: fetch without auth
-          const { protocol, host, origin } = window.location;
-          const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-          const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
-                             origin.includes(':5175') ? origin.replace(':5175', ':3001') :
-                             origin.includes(':5176') ? origin.replace(':5176', ':3001') :
-                             import.meta?.env?.VITE_API_BASE_URL || '';
+          const backendBase = getBackendBaseUrl();
           
           const response = await fetch(`${backendBase}/public/contractor/${subId}`, {
             method: 'GET',
@@ -163,12 +159,7 @@ export default function BrokerUpload() {
       } catch (authErr) {
         console.warn('⚠️ Authenticated update failed, trying public endpoint:', authErr?.message);
         try {
-          const { protocol, host, origin } = window.location;
-          const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-          const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
-                             origin.includes(':5175') ? origin.replace(':5175', ':3001') :
-                             origin.includes(':5176') ? origin.replace(':5176', ':3001') :
-                             import.meta?.env?.VITE_API_BASE_URL || '';
+          const backendBase = getBackendBaseUrl();
           
           const response = await fetch(`${backendBase}/public/contractor/${subId}`, {
             method: 'PATCH',
@@ -201,12 +192,7 @@ export default function BrokerUpload() {
         console.warn('⚠️ Authenticated COI update failed, trying public endpoint:', coiError?.message);
         try {
           // Public fallback: Update COIs via public endpoint
-          const { protocol, host, origin } = window.location;
-          const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-          const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
-                             origin.includes(':5175') ? origin.replace(':5175', ':3001') :
-                             origin.includes(':5176') ? origin.replace(':5176', ':3001') :
-                             import.meta?.env?.VITE_API_BASE_URL || '';
+          const backendBase = getBackendBaseUrl();
           
           const response = await fetch(`${backendBase}/public/update-cois-for-contractor`, {
             method: 'POST',
