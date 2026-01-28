@@ -29,10 +29,33 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import UserProfile from "@/components/UserProfile.tsx";
 
-export default function BrokerPortal() {
+interface GeneratedCOI {
+  id: string;
+  subcontractor_name?: string;
+  project_name?: string;
+  gc_name?: string;
+  broker_email?: string;
+  trade_type?: string;
+  status?: string;
+  first_coi_uploaded?: boolean;
+  sub_notified_date?: string;
+  sample_coi_pdf_url?: string;
+  coi_token?: string;
+}
+
+interface StatusInfo {
+  label: string;
+  color: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+}
+
+type SearchType = 'all' | 'job' | 'subcontractor' | 'gc';
+
+export default function BrokerPortal(): JSX.Element {
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchType, setSearchType] = useState('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchType, setSearchType] = useState<SearchType>('all');
 
   const { data: user } = useQuery({
     queryKey: ['current-user'],
@@ -43,9 +66,9 @@ export default function BrokerPortal() {
   const testingRole = sessionStorage.getItem('testing_role');
   const isBrokerTest = testingRole === 'broker_hml';
 
-  const { data: myCOIs = [], isLoading } = useQuery({
+  const { data: myCOIs = [], isLoading } = useQuery<GeneratedCOI[]>({
     queryKey: ['broker-cois', user?.email],
-    queryFn: async () => {
+    queryFn: async (): Promise<GeneratedCOI[]> => {
       const allCOIs = await apiClient.entities.GeneratedCOI.list();
       
       // In testing mode, show all COIs for broker testing
@@ -54,7 +77,7 @@ export default function BrokerPortal() {
       }
       
       // In production, filter by broker email
-      return allCOIs.filter(c => 
+      return allCOIs.filter((c: GeneratedCOI) => 
         c.broker_email && 
         c.broker_email.toLowerCase() === user?.email?.toLowerCase()
       );
@@ -62,7 +85,7 @@ export default function BrokerPortal() {
     enabled: !!user,
   });
 
-  const filteredCOIs = myCOIs.filter(coi => {
+  const filteredCOIs = myCOIs.filter((coi: GeneratedCOI) => {
     const searchLower = searchTerm.toLowerCase();
     
     if (!searchTerm) return true;
@@ -84,7 +107,7 @@ export default function BrokerPortal() {
     return true;
   });
 
-  const getStatusInfo = (coi) => {
+  const getStatusInfo = (coi: GeneratedCOI): StatusInfo => {
     if (!coi.first_coi_uploaded) {
       return {
         label: 'Upload Needed',
@@ -131,12 +154,12 @@ export default function BrokerPortal() {
 
   const stats = {
     total: myCOIs.length,
-    pending: myCOIs.filter(c => !c.first_coi_uploaded).length,
-    active: myCOIs.filter(c => c.status === 'active').length,
-    issues: myCOIs.filter(c => c.status === 'deficiency_pending').length,
+    pending: myCOIs.filter((c: GeneratedCOI) => !c.first_coi_uploaded).length,
+    active: myCOIs.filter((c: GeneratedCOI) => c.status === 'active').length,
+    issues: myCOIs.filter((c: GeneratedCOI) => c.status === 'deficiency_pending').length,
   };
 
-  const handleUploadClick = (coi) => {
+  const handleUploadClick = (coi: GeneratedCOI): void => {
     navigate(createPageUrl(`broker-upload-coi?token=${coi.coi_token}&step=1`));
   };
 
@@ -257,7 +280,7 @@ export default function BrokerPortal() {
                   <Input
                     placeholder={`Search ${searchType === 'all' ? 'all fields' : searchType === 'job' ? 'by job/project' : searchType === 'subcontractor' ? 'by subcontractor' : 'by GC'}...`}
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                     className="pl-9"
                   />
                 </div>
@@ -289,7 +312,7 @@ export default function BrokerPortal() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCOIs.map((coi) => {
+                  {filteredCOIs.map((coi: GeneratedCOI) => {
                     const statusInfo = getStatusInfo(coi);
                     const StatusIcon = statusInfo.icon;
 

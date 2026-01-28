@@ -25,25 +25,107 @@ import {
 } from "@/components/ui/dialog";
 import UserProfile from "@/components/UserProfile.tsx";
 
-export default function SubcontractorPortal() {
+interface User {
+  id?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+}
+
+interface Contractor {
+  id: string;
+  company_name?: string;
+  contact_person?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  contractor_type?: string;
+}
+
+interface Project {
+  id: string;
+  project_name?: string;
+  project_address?: string;
+  program_id?: string;
+  gc_name?: string;
+  gc_email?: string;
+}
+
+interface ProjectSubcontractor {
+  id: string;
+  project_id?: string;
+  subcontractor_name?: string;
+  project_details?: Project;
+}
+
+interface GeneratedCOI {
+  id: string;
+  subcontractor_name?: string;
+  project_id?: string;
+  project_name?: string;
+  trade_type?: string;
+  trade_types?: string[];
+  status?: string;
+  first_coi_uploaded?: boolean;
+  first_coi_url?: string;
+  first_coi_upload_date?: string;
+  gl_expiration_date?: string;
+  hold_harmless_sub_signed_url?: string;
+  hold_harmless_sub_signed_date?: string;
+  hold_harmless_status?: string;
+  admin_emails?: string[];
+}
+
+interface SubInsuranceRequirement {
+  id: string;
+  program_id?: string;
+  trade_types?: string[];
+}
+
+interface ProfileForm {
+  contact_person: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  zip_code: string;
+}
+
+interface StatusInfo {
+  label: string;
+  color: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+}
+
+interface ComplianceStatus {
+  status: 'none' | 'good' | 'medium' | 'poor';
+  percentage: number;
+}
+
+export default function SubcontractorPortal(): JSX.Element {
   const queryClient = useQueryClient();
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-  const [selectedCOI, setSelectedCOI] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState<boolean>(false);
+  const [selectedCOI, setSelectedCOI] = useState<GeneratedCOI | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Get current user
-  const { data: user, isLoading: userLoading } = useQuery({
+  const { data: user, isLoading: userLoading } = useQuery<User>({
     queryKey: ['current-user'],
     queryFn: () => compliant.auth.me(),
   });
 
   // Get contractor record for current user
-  const { data: contractor, isLoading: contractorLoading } = useQuery({
+  const { data: contractor, isLoading: contractorLoading } = useQuery<Contractor | undefined>({
     queryKey: ['my-contractor'],
-    queryFn: async () => {
+    queryFn: async (): Promise<Contractor | undefined> => {
       // Check if in testing mode
       const testingRole = sessionStorage.getItem('testing_role');
       
@@ -64,17 +146,17 @@ export default function SubcontractorPortal() {
   });
 
   // Get all projects this subcontractor is on
-  const { data: myProjects = [], isLoading: projectsLoading } = useQuery({
+  const { data: myProjects = [], isLoading: projectsLoading } = useQuery<ProjectSubcontractor[]>({
     queryKey: ['my-projects', contractor?.company_name],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProjectSubcontractor[]> => {
       const projectSubs = await compliant.entities.ProjectSubcontractor.filter({
-        subcontractor_name: contractor.company_name
+        subcontractor_name: contractor!.company_name
       });
       
       // Get project details for each
       const allProjects = await compliant.entities.Project.list();
-      return projectSubs.map(ps => {
-        const project = allProjects.find(p => p.id === ps.project_id);
+      return projectSubs.map((ps: ProjectSubcontractor) => {
+        const project = allProjects.find((p: Project) => p.id === ps.project_id);
         return { ...ps, project_details: project };
       });
     },
@@ -82,22 +164,22 @@ export default function SubcontractorPortal() {
   });
 
   // Get all COIs for this subcontractor
-  const { data: myCOIs = [] } = useQuery({
+  const { data: myCOIs = [] } = useQuery<GeneratedCOI[]>({
     queryKey: ['my-cois', contractor?.company_name],
     queryFn: () => compliant.entities.GeneratedCOI.filter({
-      subcontractor_name: contractor.company_name
+      subcontractor_name: contractor!.company_name
     }),
     enabled: !!contractor?.company_name,
   });
 
   // Get all requirements for my projects
-  const { data: allRequirements = [] } = useQuery({
+  const { data: allRequirements = [] } = useQuery<SubInsuranceRequirement[]>({
     queryKey: ['all-requirements'],
     queryFn: () => compliant.entities.SubInsuranceRequirement.list(),
   });
 
   // Filter projects based on search term
-  const filteredProjects = myProjects.filter(projectSub => {
+  const filteredProjects = myProjects.filter((projectSub: ProjectSubcontractor) => {
     if (!searchTerm) return true;
     
     const searchLower = searchTerm.toLowerCase();
@@ -112,7 +194,7 @@ export default function SubcontractorPortal() {
     );
   });
 
-  const [profileForm, setProfileForm] = useState({
+  const [profileForm, setProfileForm] = useState<ProfileForm>({
     contact_person: '',
     email: '',
     phone: '',
@@ -137,7 +219,8 @@ export default function SubcontractorPortal() {
   }, [contractor, isEditingProfile]);
 
   const updateContractorMutation = useMutation({
-    mutationFn: ({ id, data }) => compliant.entities.Contractor.update(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<Contractor> }) => 
+      compliant.entities.Contractor.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries(['my-contractor']);
       setIsEditingProfile(false);
@@ -145,7 +228,8 @@ export default function SubcontractorPortal() {
   });
 
   const updateCOIMutation = useMutation({
-    mutationFn: ({ id, data }) => compliant.entities.GeneratedCOI.update(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<GeneratedCOI> }) => 
+      compliant.entities.GeneratedCOI.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries(['my-cois']);
       setIsUploadDialogOpen(false);
@@ -153,14 +237,14 @@ export default function SubcontractorPortal() {
     },
   });
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async (): Promise<void> => {
     await updateContractorMutation.mutateAsync({
-      id: contractor.id,
+      id: contractor!.id,
       data: profileForm
     });
   };
 
-  const handleFileUpload = async (file, type) => {
+  const handleFileUpload = async (file: File, type: 'coi' | 'hold_harmless'): Promise<void> => {
     if (!selectedCOI) return;
 
     try {
@@ -304,19 +388,19 @@ InsureTrack System`
     }
   };
 
-  const getProjectRequirements = (projectId, tradeTypes) => {
-    const project = myProjects.find(p => p.project_id === projectId)?.project_details;
+  const getProjectRequirements = (projectId: string, tradeTypes: string[]): SubInsuranceRequirement[] => {
+    const project = myProjects.find((p: ProjectSubcontractor) => p.project_id === projectId)?.project_details;
     if (!project || !project.program_id) return [];
 
-    const programReqs = allRequirements.filter(r => r.program_id === project.program_id);
+    const programReqs = allRequirements.filter((r: SubInsuranceRequirement) => r.program_id === project.program_id);
     
-    return programReqs.filter(req => {
+    return programReqs.filter((req: SubInsuranceRequirement) => {
       if (!req.trade_types || req.trade_types.length === 0) return false;
-      return tradeTypes.some(trade => req.trade_types.includes(trade));
+      return tradeTypes.some((trade: string) => req.trade_types!.includes(trade));
     });
   };
 
-  const getStatusInfo = (coi) => {
+  const getStatusInfo = (coi: GeneratedCOI): StatusInfo => {
     if (!coi.first_coi_uploaded) {
       return {
         label: 'Not Uploaded',
@@ -379,11 +463,11 @@ InsureTrack System`
     };
   };
 
-  const overallCompliance = () => {
+  const overallCompliance = (): ComplianceStatus => {
     const total = myCOIs.length;
     if (total === 0) return { status: 'none', percentage: 0 };
     
-    const active = myCOIs.filter(c => c.status === 'active').length;
+    const active = myCOIs.filter((c: GeneratedCOI) => c.status === 'active').length;
     const percentage = Math.round((active / total) * 100);
     
     if (percentage >= 80) return { status: 'good', percentage };

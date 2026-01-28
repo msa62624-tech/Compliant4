@@ -17,18 +17,34 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+interface User {
+  id: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  is_active?: boolean;
+  created_date?: string;
+}
+
+interface NewAdmin {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+}
+
 export default function AdminManagement(): JSX.Element {
   const queryClient = useQueryClient();
-  const [newAdmin, setNewAdmin] = useState({ name: '', email: '', password: '', role: 'admin' });
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  const [newAdmin, setNewAdmin] = useState<NewAdmin>({ name: '', email: '', password: '', role: 'admin' });
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   // Fetch current user to verify super admin
-  const { data: currentUser } = useQuery({
+  const { data: currentUser } = useQuery<User | null>({
     queryKey: ['current-user'],
-    queryFn: async () => {
+    queryFn: async (): Promise<User | null> => {
       try {
-        return await apiClient.auth.me();
+        return await apiClient.auth.me() as User;
       } catch (error) {
         console.error('Failed to fetch current user:', error);
         return null;
@@ -37,12 +53,12 @@ export default function AdminManagement(): JSX.Element {
   });
 
   // Fetch all admins
-  const { data: admins = [], isLoading } = useQuery({
+  const { data: admins = [], isLoading } = useQuery<User[]>({
     queryKey: ['all-admins'],
-    queryFn: async () => {
+    queryFn: async (): Promise<User[]> => {
       try {
-        const users = await apiClient.entities.User.list();
-        return users.filter(u => u.role === 'admin' || u.role === 'super_admin' || u.role === 'regular_admin');
+        const users = await apiClient.entities.User.list() as User[];
+        return users.filter((u: User) => u.role === 'admin' || u.role === 'super_admin' || u.role === 'regular_admin');
       } catch (error) {
         console.error('Error fetching admins:', error);
         return [];
@@ -52,7 +68,7 @@ export default function AdminManagement(): JSX.Element {
 
   // Create admin mutation
   const createAdminMutation = useMutation({
-    mutationFn: async (adminData) => {
+    mutationFn: async (adminData: NewAdmin): Promise<User> => {
       return await apiClient.entities.User.create({
         ...adminData,
         role: adminData.role || 'admin',
@@ -60,14 +76,14 @@ export default function AdminManagement(): JSX.Element {
         created_date: new Date().toISOString()
       });
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries(['all-admins']);
+    onSuccess: (data: User) => {
+      queryClient.invalidateQueries({ queryKey: ['all-admins'] });
       const roleLabel = data.role === 'admin' ? 'Assistant admin' : 'Regular admin';
       setSuccess(`${roleLabel} created successfully!`);
       setNewAdmin({ name: '', email: '', password: '', role: 'admin' });
       setTimeout(() => setSuccess(null), 3000);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       setError(`Failed to create admin: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
@@ -75,21 +91,21 @@ export default function AdminManagement(): JSX.Element {
 
   // Delete admin mutation
   const deleteAdminMutation = useMutation({
-    mutationFn: async (adminId) => {
+    mutationFn: async (adminId: string): Promise<void> => {
       return await apiClient.entities.User.delete(adminId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['all-admins']);
+      queryClient.invalidateQueries({ queryKey: ['all-admins'] });
       setSuccess('Admin removed successfully!');
       setTimeout(() => setSuccess(null), 3000);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       setError(`Failed to remove admin: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
   });
 
-  const handleCreateAdmin = (e) => {
+  const handleCreateAdmin = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
     setError(null);
 
@@ -111,7 +127,7 @@ export default function AdminManagement(): JSX.Element {
     createAdminMutation.mutate(newAdmin);
   };
 
-  const handleDeleteAdmin = (admin) => {
+  const handleDeleteAdmin = (admin: User): void => {
     if (admin.role === 'super_admin') {
       setError('Cannot delete super admin');
       return;
@@ -173,7 +189,7 @@ export default function AdminManagement(): JSX.Element {
                   <Input
                     id="name"
                     value={newAdmin.name}
-                    onChange={(e) => setNewAdmin(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewAdmin(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="John Doe"
                   />
                 </div>
@@ -183,7 +199,7 @@ export default function AdminManagement(): JSX.Element {
                     id="email"
                     type="email"
                     value={newAdmin.email}
-                    onChange={(e) => setNewAdmin(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewAdmin(prev => ({ ...prev, email: e.target.value }))}
                     placeholder="john@example.com"
                   />
                 </div>
@@ -192,7 +208,7 @@ export default function AdminManagement(): JSX.Element {
                   <PasswordInput
                     id="password"
                     value={newAdmin.password}
-                    onChange={(e) => setNewAdmin(prev => ({ ...prev, password: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewAdmin(prev => ({ ...prev, password: e.target.value }))}
                     placeholder="Min. 8 characters"
                   />
                 </div>
@@ -200,7 +216,7 @@ export default function AdminManagement(): JSX.Element {
                   <Label htmlFor="role">Admin Type</Label>
                   <Select
                     value={newAdmin.role}
-                    onValueChange={(value) => setNewAdmin(prev => ({ ...prev, role: value }))}
+                    onValueChange={(value: string) => setNewAdmin(prev => ({ ...prev, role: value }))}
                   >
                     <SelectTrigger id="role">
                       <SelectValue placeholder="Select role" />
@@ -241,7 +257,7 @@ export default function AdminManagement(): JSX.Element {
               <p className="text-slate-600 text-center py-8">No admins found</p>
             ) : (
               <div className="space-y-3">
-                {admins.map((admin) => (
+                {admins.map((admin: User) => (
                   <div
                     key={admin.id}
                     className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50"

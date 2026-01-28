@@ -15,29 +15,78 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { getBackendBaseUrl } from "@/urlConfig";
 
-export default function GCProjectView() {
+interface Project {
+  id: string;
+  project_name?: string;
+  project_address?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  gc_id?: string;
+  gc_name?: string;
+  program_id?: string;
+  owner_entity?: string;
+  additional_insured_entities?: Array<{ name?: string } | string>;
+  description_of_operations?: string;
+}
+
+interface ProjectSubcontractor {
+  id: string;
+  project_id?: string;
+  subcontractor_id?: string;
+  subcontractor_name?: string;
+  trade_type?: string;
+  trade_types?: string[];
+  contact_email?: string;
+  status?: string;
+}
+
+interface GeneratedCOI {
+  id: string;
+  project_id?: string;
+  linked_projects?: string[];
+  subcontractor_name?: string;
+  status?: string;
+}
+
+interface Subcontractor {
+  id: string;
+  company_name?: string;
+  contact_email?: string;
+  trade_type?: string;
+  trade_types?: string[];
+}
+
+interface SubForm {
+  subcontractor_name: string;
+  trade: string;
+  contact_email: string;
+}
+
+export default function GCProjectView(): JSX.Element {
   const params = new URLSearchParams(window.location.search);
   const projectId = params.get("project");
   const gcId = params.get("id") || sessionStorage.getItem("gcPortalId");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [form, setForm] = useState({ subcontractor_name: "", trade: "", contact_email: "" });
-  const [subError, setSubError] = useState(null);
-  const [suggestions, setSuggestions] = useState([]);
+  const [form, setForm] = useState<SubForm>({ subcontractor_name: "", trade: "", contact_email: "" });
+  const [subError, setSubError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<Subcontractor[]>([]);
 
   useEffect(() => {
     if (gcId) sessionStorage.setItem("gcPortalId", gcId);
   }, [gcId]);
 
-  const { data: project, isLoading: projectLoading, error: projectError } = useQuery({
+  const { data: project, isLoading: projectLoading, error: projectError } = useQuery<Project>({
     queryKey: ["gc-project", projectId],
-    queryFn: async () => {
+    queryFn: async (): Promise<Project> => {
       const backendBase = getBackendBaseUrl();
       const response = await fetch(`${backendBase}/public/projects`);
       if (!response.ok) throw new Error('Failed to fetch projects');
-      const allProjects = await response.json();
-      const found = allProjects.find((p) => p.id === projectId);
+      const allProjects: Project[] = await response.json();
+      const found = allProjects.find((p: Project) => p.id === projectId);
       if (!found) throw new Error("Project not found");
       if (gcId && found.gc_id !== gcId) throw new Error("This project is not assigned to your account");
       return found;
@@ -46,9 +95,9 @@ export default function GCProjectView() {
     retry: 1,
   });
 
-  const { data: subs = [], isLoading: subsLoading } = useQuery({
+  const { data: subs = [], isLoading: subsLoading } = useQuery<ProjectSubcontractor[]>({
     queryKey: ["gc-project-subs", projectId],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProjectSubcontractor[]> => {
       const { protocol, host, origin } = window.location;
       const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
       const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
@@ -57,17 +106,17 @@ export default function GCProjectView() {
                          import.meta?.env?.VITE_API_BASE_URL || '';
       const response = await fetch(`${backendBase}/public/all-project-subcontractors`);
       if (!response.ok) throw new Error('Failed to fetch subcontractors');
-      const allSubs = await response.json();
-      return allSubs.filter((ps) => ps.project_id === projectId && ps.status !== 'archived');
+      const allSubs: ProjectSubcontractor[] = await response.json();
+      return allSubs.filter((ps: ProjectSubcontractor) => ps.project_id === projectId && ps.status !== 'archived');
     },
     enabled: !!projectId,
     retry: 1,
   });
 
   // COIs for this project to reflect more accurate review status per subcontractor
-  const { data: projectCois = [] } = useQuery({
+  const { data: projectCois = [] } = useQuery<GeneratedCOI[]>({
     queryKey: ["gc-project-cois", projectId],
-    queryFn: async () => {
+    queryFn: async (): Promise<GeneratedCOI[]> => {
       const { protocol, host, origin } = window.location;
       const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
       const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
@@ -76,8 +125,8 @@ export default function GCProjectView() {
                          import.meta?.env?.VITE_API_BASE_URL || '';
       const response = await fetch(`${backendBase}/public/all-cois`);
       if (!response.ok) throw new Error('Failed to fetch COIs');
-      const allCois = await response.json();
-      return (allCois || []).filter(c =>
+      const allCois: GeneratedCOI[] = await response.json();
+      return (allCois || []).filter((c: GeneratedCOI) =>
         c.project_id === projectId || (Array.isArray(c.linked_projects) && c.linked_projects.includes(projectId))
       );
     },
@@ -86,9 +135,9 @@ export default function GCProjectView() {
   });
 
   // All subcontractors for typeahead reuse
-  const { data: allSubcontractors = [] } = useQuery({
+  const { data: allSubcontractors = [] } = useQuery<Subcontractor[]>({
     queryKey: ["all-subs-for-typeahead"],
-    queryFn: async () => {
+    queryFn: async (): Promise<Subcontractor[]> => {
       try {
         // Fetch all subcontractors from the public endpoint
         const { protocol, host, origin } = window.location;
@@ -100,14 +149,14 @@ export default function GCProjectView() {
         
         const response = await fetch(`${backendBase}/public/all-project-subcontractors`);
         if (!response.ok) throw new Error('Failed to fetch subcontractors');
-        const subs = await response.json();
+        const subs: ProjectSubcontractor[] = await response.json();
         
         // Deduplicate by subcontractor_id and transform to have company_name field
-        const uniqueSubs = {};
-        subs.forEach(sub => {
-          if (!uniqueSubs[sub.subcontractor_id]) {
-            uniqueSubs[sub.subcontractor_id] = {
-              id: sub.subcontractor_id,
+        const uniqueSubs: Record<string, Subcontractor> = {};
+        subs.forEach((sub: ProjectSubcontractor) => {
+          if (!uniqueSubs[sub.subcontractor_id || '']) {
+            uniqueSubs[sub.subcontractor_id || ''] = {
+              id: sub.subcontractor_id || '',
               company_name: sub.subcontractor_name,
               contact_email: sub.contact_email,
               trade_type: sub.trade_type,
@@ -117,7 +166,7 @@ export default function GCProjectView() {
         
         return Object.values(uniqueSubs);
       } catch (err) {
-        logger.error('Error fetching subcontractors for typeahead', { context: 'GCProjectView', error: err.message });
+        logger.error('Error fetching subcontractors for typeahead', { context: 'GCProjectView', error: (err as Error).message });
         return [];
       }
     },
@@ -125,7 +174,7 @@ export default function GCProjectView() {
   });
 
   const addSubMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<any> => {
       setSubError(null);
       if (!project) throw new Error("Project not loaded");
       if (!form.subcontractor_name || !form.trade || !form.contact_email) {
@@ -193,7 +242,7 @@ export default function GCProjectView() {
       
       return psData;
     },
-    onSuccess: async (created) => {
+    onSuccess: async (created: any): Promise<void> => {
       queryClient.invalidateQueries(["gc-project-subs", projectId]);
       
       const { protocol, host, origin } = window.location;
@@ -650,14 +699,14 @@ export default function GCProjectView() {
       setForm({ subcontractor_name: "", trade: "", contact_email: "" });
       toast.success('Subcontractor added successfully!');
     },
-    onError: (err) => {
-      setSubError(err?.message || "Failed to add subcontractor");
+    onError: (err: Error) => {
+      setSubError((err as any)?.message || "Failed to add subcontractor");
     },
   });
 
   // Mutation for GC to sign hold harmless agreement
   const signHoldHarmlessMutation = useMutation({
-    mutationFn: async (coiId) => {
+    mutationFn: async (coiId: string): Promise<{ id: string; signed: boolean }> => {
       // For public GC portal, we skip actual signing for now
       // In a full implementation, this would call a public endpoint
       return { id: coiId, signed: true };
@@ -707,33 +756,33 @@ export default function GCProjectView() {
     return <Badge variant="outline" className={color}>{label}</Badge>;
   };
 
-  const handleNameInput = (value) => {
-    setForm((prev) => ({ ...prev, subcontractor_name: value }));
+  const handleNameInput = (value: string): void => {
+    setForm((prev: SubForm) => ({ ...prev, subcontractor_name: value }));
     if (!value || value.length < 2) {
       setSuggestions([]);
       return;
     }
     const lower = value.toLowerCase();
     const matches = allSubcontractors
-      .filter((s) => s.company_name?.toLowerCase().includes(lower))
+      .filter((s: Subcontractor) => s.company_name?.toLowerCase().includes(lower))
       .slice(0, 6);
     setSuggestions(matches);
   };
 
-  const handleSuggestionSelect = (sub) => {
+  const handleSuggestionSelect = (sub: Subcontractor): void => {
     const trade = Array.isArray(sub.trade_types) && sub.trade_types.length > 0 ? sub.trade_types[0] : sub.trade_type || "";
     setForm({
       subcontractor_name: sub.company_name || "",
       trade,
-      contact_email: sub.email || sub.contact_email || "",
+      contact_email: (sub as any).email || sub.contact_email || "",
     });
     setSuggestions([]);
   };
 
-  const getLatestCoiForSub = (sub) => {
-    const related = projectCois.filter((c) => c.subcontractor_id === sub.subcontractor_id || c.project_sub_id === sub.id);
+  const getLatestCoiForSub = (sub: ProjectSubcontractor): any | null => {
+    const related = projectCois.filter((c: any) => c.subcontractor_id === sub.subcontractor_id || c.project_sub_id === sub.id);
     if (related.length === 0) return null;
-    return related.sort((a, b) => new Date(b.created_date || b.updatedAt || 0) - new Date(a.created_date || a.updatedAt || 0))[0];
+    return related.sort((a: any, b: any) => new Date(b.created_date || b.updatedAt || 0).getTime() - new Date(a.created_date || a.updatedAt || 0).getTime())[0];
   };
 
   if (!projectId) {
@@ -977,14 +1026,14 @@ export default function GCProjectView() {
                 <Label>Company name</Label>
                 <Input
                   value={form.subcontractor_name}
-                  onChange={(e) => handleNameInput(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNameInput(e.target.value)}
                   placeholder="Subcontractor LLC"
                   required
                   autoComplete="off"
                 />
                 {suggestions.length > 0 && (
                   <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded shadow-sm max-h-48 overflow-auto">
-                    {suggestions.map((s) => (
+                    {suggestions.map((s: Subcontractor) => (
                       <button
                         type="button"
                         key={s.id}
@@ -993,8 +1042,8 @@ export default function GCProjectView() {
                       >
                         <div className="font-medium">{s.company_name}</div>
                         <div className="text-xs text-slate-500">{s.trade_types?.join(', ') || s.trade_type || 'Trade not set'}</div>
-                        {(s.email || s.contact_email) && (
-                          <div className="text-xs text-slate-500">{s.email || s.contact_email}</div>
+                        {((s as any).email || s.contact_email) && (
+                          <div className="text-xs text-slate-500">{(s as any).email || s.contact_email}</div>
                         )}
                       </button>
                     ))}
@@ -1005,7 +1054,7 @@ export default function GCProjectView() {
                 <Label>Trade</Label>
                 <Input
                   value={form.trade}
-                  onChange={(e) => setForm({ ...form, trade: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, trade: e.target.value })}
                   placeholder="e.g., Electrical"
                   required
                 />
@@ -1015,7 +1064,7 @@ export default function GCProjectView() {
                 <Input
                   type="email"
                   value={form.contact_email}
-                  onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, contact_email: e.target.value })}
                   placeholder="contact@company.com"
                   required
                 />

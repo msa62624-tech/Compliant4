@@ -21,53 +21,120 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
-export default function SubcontractorsManagement() {
+interface Contractor {
+  id: string;
+  company_name?: string;
+  trade_types?: string[];
+  trade_type?: string;
+  email?: string;
+  contractor_type?: string;
+}
+
+interface ProjectSubcontractor {
+  id: string;
+  project_id?: string;
+  subcontractor_name?: string;
+  status?: string;
+}
+
+interface GeneratedCOI {
+  id: string;
+  subcontractor_name?: string;
+  broker_name?: string;
+  broker_email?: string;
+  broker_phone?: string;
+  broker_company?: string;
+  project_id?: string;
+  project_name?: string;
+  trade_type?: string;
+  trade_types?: string[];
+  coi_token?: string;
+  sample_coi_pdf_url?: string;
+  status?: string;
+  broker_notified_date?: string;
+  program_name?: string;
+  program_id?: string;
+  description_of_operations?: string;
+  additional_insured_entities?: string[];
+  additional_insureds?: string[];
+}
+
+interface Project {
+  id: string;
+  project_name?: string;
+  project_address?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  owner_entity?: string;
+  additional_insured_entities?: Array<{ name?: string } | string>;
+  gc_name?: string;
+  program_name?: string;
+  program_id?: string;
+  description_of_operations?: string;
+}
+
+interface BrokerForm {
+  broker_name: string;
+  broker_email: string;
+  broker_phone: string;
+  broker_company: string;
+}
+
+interface SelectedSubForBroker {
+  sub: Contractor;
+  coi: GeneratedCOI | null;
+}
+
+export default function SubcontractorsManagement(): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [isBrokerDialogOpen, setIsBrokerDialogOpen] = useState(false);
-  const [selectedSubForBroker, setSelectedSubForBroker] = useState(null);
-  const [brokerForm, setBrokerForm] = useState({
+  const [isBrokerDialogOpen, setIsBrokerDialogOpen] = useState<boolean>(false);
+  const [selectedSubForBroker, setSelectedSubForBroker] = useState<SelectedSubForBroker | null>(null);
+  const [brokerForm, setBrokerForm] = useState<BrokerForm>({
     broker_name: '',
     broker_email: '',
     broker_phone: '',
     broker_company: '',
   });
 
-  const { data: allSubs = [], isLoading: _isLoading } = useQuery({
+  const { data: allSubs = [], isLoading: _isLoading } = useQuery<Contractor[]>({
     queryKey: ['all-subs'],
     queryFn: () => compliant.entities.Contractor.filter({ contractor_type: 'subcontractor' }),
   });
 
-  const { data: allProjectSubs = [] } = useQuery({
+  const { data: allProjectSubs = [] } = useQuery<ProjectSubcontractor[]>({
     queryKey: ['all-project-subs'],
     queryFn: () => compliant.entities.ProjectSubcontractor.list(),
   });
 
-  const { data: allCOIs = [] } = useQuery({
+  const { data: allCOIs = [] } = useQuery<GeneratedCOI[]>({
     queryKey: ['all-cois'],
     queryFn: () => compliant.entities.GeneratedCOI.list('-created_date'),
   });
 
-  const { data: allProjects = [] } = useQuery({
+  const { data: allProjects = [] } = useQuery<Project[]>({
     queryKey: ['all-projects'],
     queryFn: () => compliant.entities.Project.list(),
   });
 
   const updateCOIMutation = useMutation({
-    mutationFn: ({ id, data }) => compliant.entities.GeneratedCOI.update(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<GeneratedCOI> }) => 
+      compliant.entities.GeneratedCOI.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries(['all-cois']);
       setIsBrokerDialogOpen(false);
     },
   });
 
-  const getSubProjects = (subName) => {
-    return allProjectSubs.filter(ps => ps.subcontractor_name === subName);
+  const getSubProjects = (subName: string): ProjectSubcontractor[] => {
+    return allProjectSubs.filter((ps: ProjectSubcontractor) => ps.subcontractor_name === subName);
   };
 
-  const handleEditBroker = (sub) => {
-    const subCOI = allCOIs.find(c => c.subcontractor_name === sub.company_name);
+  const handleEditBroker = (sub: Contractor): void => {
+    const subCOI = allCOIs.find((c: GeneratedCOI) => c.subcontractor_name === sub.company_name);
     setSelectedSubForBroker({ sub, coi: subCOI || null });
     setBrokerForm({
       broker_name: subCOI?.broker_name || '',
@@ -78,7 +145,7 @@ export default function SubcontractorsManagement() {
     setIsBrokerDialogOpen(true);
   };
 
-  const handleSaveBroker = async () => {
+  const handleSaveBroker = async (): Promise<void> => {
     if (!selectedSubForBroker?.coi) {
       alert('This subcontractor needs to be added to a project first to create a COI record where broker information is stored.');
       return;
@@ -113,8 +180,8 @@ export default function SubcontractorsManagement() {
     }
   };
 
-  const handleSendBrokerRequest = async (sub) => {
-    const subCOI = allCOIs.find(c => c.subcontractor_name === sub.company_name);
+  const handleSendBrokerRequest = async (sub: Contractor): Promise<void> => {
+    const subCOI = allCOIs.find((c: GeneratedCOI) => c.subcontractor_name === sub.company_name);
     
     if (!subCOI) {
       alert('This subcontractor needs to be added to a project first. This creates a COI record with a sample certificate.');
@@ -133,20 +200,20 @@ export default function SubcontractorsManagement() {
         ? `\nVIEW SAMPLE CERTIFICATE: ${subCOI.sample_coi_pdf_url}\n`
         : '';
 
-      const project = allProjects.find(p => p.id === subCOI.project_id) ||
-        allProjects.find(p => p.project_name === subCOI.project_name);
+      const project = allProjects.find((p: Project) => p.id === subCOI.project_id) ||
+        allProjects.find((p: Project) => p.project_name === subCOI.project_name);
 
       const projectAddress = project
         ? [project.address || project.project_address, project.city, project.state, project.zip_code]
           .filter(Boolean)
           .join(', ')
-        : (subCOI.project_location || subCOI.project_address);
+        : '';
 
-      const projectInsureds = [];
+      const projectInsureds: string[] = [];
       if (project?.owner_entity) projectInsureds.push(project.owner_entity);
       if (Array.isArray(project?.additional_insured_entities)) {
-        project.additional_insured_entities.forEach(ai => {
-          const value = ai?.name || ai;
+        project.additional_insured_entities.forEach((ai: { name?: string } | string) => {
+          const value = typeof ai === 'string' ? ai : ai?.name;
           if (value) projectInsureds.push(value);
         });
       }
@@ -251,9 +318,9 @@ InsureForce Team`
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {allSubs.map((sub) => {
-                      const subProjects = getSubProjects(sub.company_name);
-                      const subCOI = allCOIs.find(c => c.subcontractor_name === sub.company_name);
+                    {allSubs.map((sub: Contractor) => {
+                      const subProjects = getSubProjects(sub.company_name || '');
+                      const subCOI = allCOIs.find((c: GeneratedCOI) => c.subcontractor_name === sub.company_name);
                       const trades = (sub.trade_types && sub.trade_types.length > 0)
                         ? sub.trade_types
                         : (sub.trade_type ? [sub.trade_type] : []);
@@ -397,7 +464,7 @@ InsureForce Team`
               </Label>
               <Input
                 value={brokerForm.broker_company}
-                onChange={(e) => setBrokerForm({ ...brokerForm, broker_company: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBrokerForm({ ...brokerForm, broker_company: e.target.value })}
                 placeholder="ABC Insurance Agency"
                 required
                 className="text-lg h-12 border-2"
@@ -409,7 +476,7 @@ InsureForce Team`
               </Label>
               <Input
                 value={brokerForm.broker_name}
-                onChange={(e) => setBrokerForm({ ...brokerForm, broker_name: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBrokerForm({ ...brokerForm, broker_name: e.target.value })}
                 placeholder="John Smith"
                 required
                 className="text-lg h-12 border-2"
@@ -422,7 +489,7 @@ InsureForce Team`
               <Input
                 type="email"
                 value={brokerForm.broker_email}
-                onChange={(e) => setBrokerForm({ ...brokerForm, broker_email: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBrokerForm({ ...brokerForm, broker_email: e.target.value })}
                 placeholder="john@insurance.com"
                 required
                 className="text-lg h-12 border-2"
@@ -432,7 +499,7 @@ InsureForce Team`
               <Label className="text-lg font-bold">Phone</Label>
               <Input
                 value={brokerForm.broker_phone}
-                onChange={(e) => setBrokerForm({ ...brokerForm, broker_phone: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBrokerForm({ ...brokerForm, broker_phone: e.target.value })}
                 placeholder="(555) 123-4567"
                 className="text-lg h-12 border-2"
               />
