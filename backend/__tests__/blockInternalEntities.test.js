@@ -127,4 +127,30 @@ describe('blockInternalEntities middleware', () => {
     expect(nextCalled).toBe(true);
     expect(res.statusCode).toBe(null);
   });
+
+  test('should block access to internal entities when user is not authenticated (null)', () => {
+    const req = {
+      params: { entityName: '_migrations' },
+      user: null
+    };
+    const res = {
+      status: function(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json: function(data) {
+        this.body = data;
+        return this;
+      }
+    };
+    let nextCalled = false;
+    const next = () => { nextCalled = true; };
+
+    blockInternalEntities(req, res, next);
+
+    expect(nextCalled).toBe(false);
+    expect(res.statusCode).toBe(403);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toBe('Access to internal entities is restricted');
+  });
 });

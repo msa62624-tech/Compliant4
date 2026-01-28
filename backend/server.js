@@ -1735,7 +1735,7 @@ app.post('/auth/reset-password',
 
 // Entity endpoints (clean rebuild)
 // Get archived entities (Admin only) - Must be before generic route
-app.get('/entities/:entityName/archived', authenticateToken, requireAdmin, (req, res) => {
+app.get('/entities/:entityName/archived', authenticateToken, blockInternalEntities, requireAdmin, (req, res) => {
   const { entityName } = req.params;
   if (!entities[entityName]) {
     return sendError(res, 404, `Entity ${entityName} not found`);
@@ -2013,7 +2013,7 @@ app.delete('/entities/:entityName/:id', authenticateToken, blockInternalEntities
 });
 
 // Archive/Unarchive endpoints (Admin only)
-app.post('/entities/:entityName/:id/archive', authenticateToken, requireAdmin, (req, res) => {
+app.post('/entities/:entityName/:id/archive', authenticateToken, blockInternalEntities, requireAdmin, (req, res) => {
   const { entityName, id } = req.params;
   const { reason } = req.body;
   
@@ -2063,7 +2063,7 @@ app.post('/entities/:entityName/:id/archive', authenticateToken, requireAdmin, (
   sendSuccess(res, entities[entityName][index]);
 });
 
-app.post('/entities/:entityName/:id/unarchive', authenticateToken, requireAdmin, (req, res) => {
+app.post('/entities/:entityName/:id/unarchive', authenticateToken, blockInternalEntities, requireAdmin, (req, res) => {
   const { entityName, id } = req.params;
   
   if (!entities[entityName]) {
