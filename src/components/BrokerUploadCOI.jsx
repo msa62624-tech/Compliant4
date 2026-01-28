@@ -478,7 +478,8 @@ export default function BrokerUploadCOI() {
         try {
           const allUsers = await apiClient.entities.User.list();
           const admins = allUsers.filter(u => u.role === 'admin' || u.role === 'super_admin');
-          adminEmails = admins.map(a => a.email).filter(Boolean);
+          // Optimized: filter first to remove falsy emails
+          adminEmails = admins.filter(a => a.email).map(a => a.email);
         } catch (_) {
           adminEmails = [];
         }
@@ -1027,7 +1028,8 @@ export default function BrokerUploadCOI() {
         try {
           const allUsers = await apiClient.entities.User.list();
           const admins = allUsers.filter(u => u.role === 'admin' || u.role === 'super_admin');
-          adminEmailsToNotify = admins.map(a => a.email).filter(Boolean);
+          // Optimized: filter first to remove falsy emails
+          adminEmailsToNotify = admins.filter(a => a.email).map(a => a.email);
         } catch (error) {
           console.warn('⚠️ Could not fetch admin emails:', error);
         }

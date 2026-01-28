@@ -188,14 +188,15 @@ export default function MessagingCenter() {
   const getAvailableRecipients = () => {
     if (selectedRecipientType === "broker") {
       if (selectedProject) {
-        // Get brokers for subs in this project
+        // Get brokers for subs in this project - optimized to filter first, then map
         const subsInProject = projectSubs
           .filter(ps => ps.project_id === selectedProject)
           .map(ps => ps.subcontractor_id);
         
         const subsData = allSubs.filter(s => subsInProject.includes(s.id));
-        const brokerIds = [...new Set(subsData.map(s => s.broker_id).filter(Boolean))];
-        return brokers.filter(b => brokerIds.includes(b.id));
+        // Optimize: filter first to remove falsy values, then map, then Set
+        const brokerIds = new Set(subsData.filter(s => s.broker_id).map(s => s.broker_id));
+        return brokers.filter(b => brokerIds.has(b.id));
       }
       return brokers;
     } else if (selectedRecipientType === "subcontractor") {

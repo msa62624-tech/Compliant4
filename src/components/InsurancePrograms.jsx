@@ -292,8 +292,8 @@ export default function InsurancePrograms() {
         const programReqs = await apiClient.entities.SubInsuranceRequirement.filter({ program_id: program.id });
         const rawReqs = Array.isArray(programReqs) ? programReqs : (programReqs?.data || []);
 
-        // Extract tiers first to choose a sensible fallback
-        const tierSet = new Set(rawReqs.map(r => r.tier).filter(Boolean));
+        // Extract tiers first to choose a sensible fallback - optimized
+        const tierSet = new Set(rawReqs.filter(r => r.tier).map(r => r.tier));
         const extractedTiers = Array.from(tierSet).sort().map((tierName, idx) => ({
           name: tierName,
           id: `tier-${tierName}-${idx}`
@@ -304,7 +304,7 @@ export default function InsurancePrograms() {
         mergeTrades(normalizedReqs.flatMap(r => r.applicable_trades || []));
         setRequirements(normalizedReqs);
 
-        const tierSetNormalized = new Set(normalizedReqs.map(r => r.tier).filter(Boolean));
+        const tierSetNormalized = new Set(normalizedReqs.filter(r => r.tier).map(r => r.tier));
         const finalTiers = Array.from(tierSetNormalized).sort().map((tierName, idx) => ({
           name: tierName,
           id: `tier-${tierName}-${idx}`
@@ -456,8 +456,8 @@ export default function InsurancePrograms() {
         pdf_type: parsed.program?.pdf_type || prev.pdf_type,
       }));
 
-      // Extract unique tiers from requirements
-      const tierSet = new Set((parsed.requirements || []).map(r => r.tier).filter(Boolean));
+      // Extract unique tiers from requirements - optimized
+      const tierSet = new Set((parsed.requirements || []).filter(r => r.tier).map(r => r.tier));
       const extractedTiers = Array.from(tierSet).sort().map((tierName, idx) => ({
         name: tierName,
         id: `tier-${Date.now()}-${idx}`
