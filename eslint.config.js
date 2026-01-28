@@ -54,6 +54,8 @@ export default [
       globals: {
         ...globals.browser,
         ...globals.node,
+        JSX: 'readonly',
+        RequestInit: 'readonly',
       },
       parser: tsparser,
       parserOptions: {
@@ -76,6 +78,8 @@ export default [
       ...reactHooks.configs.recommended.rules,
       'react/jsx-no-target-blank': 'off',
       'react/prop-types': 'off',
+      'no-unused-vars': 'off', // Turn off base rule for TS
+      'no-undef': 'off', // TypeScript handles this
       '@typescript-eslint/no-unused-vars': ['error', { 
         argsIgnorePattern: '^_',
         varsIgnorePattern: '^_',

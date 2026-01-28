@@ -3,6 +3,8 @@
  * @description TypeScript type definitions for type safety throughout the application
  */
 
+import type * as React from 'react';
+
 // ============================================================================
 // CORE TYPES
 // ============================================================================
@@ -115,7 +117,7 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 export interface FormFieldProps<T = unknown> {
   name: string;
   control: T;
-  render: (props: unknown) => React.ReactNode;
+  render: (_props: unknown) => React.ReactNode;
 }
 
 export interface ValidationError {
@@ -214,8 +216,8 @@ export interface UseQueryResult<T = unknown> {
 }
 
 export interface UseMutationResult<T = unknown, V = unknown> {
-  mutate: (variables: V) => void;
-  mutateAsync: (variables: V) => Promise<T>;
+  mutate: (_variables: V) => void;
+  mutateAsync: (_variables: V) => Promise<T>;
   data?: T;
   error?: Error;
   isLoading: boolean;

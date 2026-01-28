@@ -30,12 +30,12 @@ interface QueryParams {
 }
 
 interface EntityAdapter<T = unknown> {
-  list: (sort?: string) => Promise<T[]>;
-  filter: (params?: QueryParams) => Promise<T[]>;
-  read: (id: string) => Promise<T>;
-  update: (id: string, data: Partial<T>) => Promise<T>;
-  create: (data: Partial<T>) => Promise<T>;
-  delete: (id: string) => Promise<unknown>;
+  list: (_sort?: string) => Promise<T[]>;
+  filter: (_params?: QueryParams) => Promise<T[]>;
+  read: (_id: string) => Promise<T>;
+  update: (_id: string, _data: Partial<T>) => Promise<T>;
+  create: (_data: Partial<T>) => Promise<T>;
+  delete: (_id: string) => Promise<unknown>;
 }
 
 interface DoFetchOptions {
@@ -67,10 +67,6 @@ interface ParseProgramPDFPayload {
 }
 
 interface SignedUrlPayload {
-  [key: string]: unknown;
-}
-
-interface AdobeTransientPayload {
   [key: string]: unknown;
 }
 
@@ -151,7 +147,7 @@ async function doFetch(url: string, opts: RequestInit = {}, { retries = 2, timeo
           if (res.status === 401) {
             // unauthorized - clear token and surface a clear error
             logger.error('401 Unauthorized - Token invalid or expired');
-            try { clearToken(); } catch (e) { /* ignore */ }
+            try { clearToken(); } catch (_e) { /* ignore */ }
             const e = new Error('Your session has expired. Please log in again.') as Error & { status?: number };
             e.status = 401;
             throw e;
@@ -178,7 +174,7 @@ async function doFetch(url: string, opts: RequestInit = {}, { retries = 2, timeo
                 continue; // Retry with new token without counting toward attempt limit
               } catch (err) {
                 logger.error('Token refresh failed', { error: err as Error });
-                try { clearToken(); } catch (e) { /* ignore */ }
+                try { clearToken(); } catch (_e) { /* ignore */ }
                 const e = new Error('Your session has expired. Please log in again.') as Error & { status?: number };
                 e.status = 401;
                 throw e;
@@ -309,7 +305,7 @@ const shim = {
       const headers = { ...getAuthHeader() };
       const res = await fetch(`${baseUrl}/auth/me`, { credentials: 'include', headers });
       if (res.status === 401) {
-        try { clearToken(); } catch (e) {}
+        try { clearToken(); } catch (_e) {}
         throw new Error('Unauthorized');
       }
       if (!res.ok) throw new Error('Failed to fetch auth.me');

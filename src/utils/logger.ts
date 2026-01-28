@@ -11,8 +11,8 @@
 
 // Type definitions
 interface ErrorTrackingService {
-  captureException: (error: Error, options?: { extra?: Record<string, unknown> }) => void;
-  captureMessage: (message: string, options?: { level?: string; extra?: Record<string, unknown> }) => void;
+  captureException: (_error: Error, _options?: { extra?: Record<string, unknown> }) => void;
+  captureMessage: (_message: string, _options?: { level?: string; extra?: Record<string, unknown> }) => void;
 }
 
 interface LoggerOptions {
@@ -219,7 +219,7 @@ export const logger = {
   /**
    * Create a timer for performance measurement
    */
-  startTimer: (operation: string): ((context?: LogContext) => number) => {
+  startTimer: (operation: string): ((_context?: LogContext) => number) => {
     const startTime = performance.now();
     return (context: LogContext = {}): number => {
       const duration = Math.round(performance.now() - startTime);

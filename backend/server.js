@@ -35,7 +35,6 @@ import { logAuth, AuditEventType } from './middleware/auditLogger.js';
 import { healthCheckHandler, readinessCheckHandler, livenessCheckHandler } from './middleware/healthCheck.js';
 import { trackConnection, setupGracefulShutdown } from './middleware/gracefulShutdown.js';
 import { sanitizeInput, escapeHtml } from './middleware/inputSanitization.js';
-import { validateEnvironment } from './middleware/envValidation.js';
 import { errorHandler, notFoundHandler, ValidationError } from './middleware/errorHandler.js';
 import { metricsMiddleware, metricsHandler } from './middleware/metrics.js';
 import idempotency from './middleware/idempotency.js';

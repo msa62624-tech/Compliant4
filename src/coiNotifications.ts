@@ -6,7 +6,7 @@ import { escapeHtml } from "@/utils/htmlEscaping";
 import { fetchAdminEmails } from "@/utils/adminEmails";
 import { prepareAttachments } from "@/utils/notificationUtils";
 import logger from './utils/logger';
-import type { GeneratedCOI, Subcontractor, Project, SampleCOIData, EmailAttachment } from '@/notification-types';
+import type { GeneratedCOI, Subcontractor, Project, SampleCOIData } from '@/notification-types';
 
 /**
  * COI Upload & Approval Notification System

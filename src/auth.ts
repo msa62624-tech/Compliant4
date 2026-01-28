@@ -164,7 +164,7 @@ export function setToken(token: string | null, refreshToken: string | null = nul
   }
   
   // Notify listeners (e.g., App) when auth state changes so UI can react
-  try { window.dispatchEvent(new Event('auth-changed')); } catch (e) { /* ignore */ }
+  try { window.dispatchEvent(new Event('auth-changed')); } catch (_e) { /* ignore */ }
 }
 
 export function clearToken(): void {
@@ -174,7 +174,7 @@ export function clearToken(): void {
   // Also clear legacy sessionStorage token for backward compatibility
   try {
     sessionStorage.removeItem(LEGACY_SESSION_KEY);
-  } catch (e) {
+  } catch (_e) {
     // Ignore if sessionStorage is not available
   }
 }
