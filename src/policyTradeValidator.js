@@ -131,9 +131,11 @@ export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
   if (!coi || !requiredTrades || requiredTrades.length === 0) {
     return {
       compliant: true,
+      issues: [],
       excludedTrades: [],
       classifications: [],
       warnings: [],
+      reviewNotes: '',
     };
   }
 
