@@ -61,6 +61,10 @@ describe('emailTemplates', () => {
       expect(createEmailGreeting('gc')).toBe('Dear General Contractor,');
     });
 
+    test('creates subcontractor greeting with name', () => {
+      expect(createEmailGreeting('subcontractor', 'John Doe')).toBe('Dear John Doe,');
+    });
+
     test('creates subcontractor greeting without name', () => {
       expect(createEmailGreeting('subcontractor')).toBe('Dear Subcontractor,');
     });
