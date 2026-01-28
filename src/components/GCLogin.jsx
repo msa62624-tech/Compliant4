@@ -97,8 +97,6 @@ export default function GCLogin({ onLogin }) {
                   <button
                     key={gc.id}
                     onClick={(e) => {
-                      setSelectedGcId(gc.id);
-                      setMultipleGCs(null);
                       submit(e, gc.id);
                     }}
                     className="w-full p-4 border-2 border-slate-300 rounded-lg hover:border-red-500 hover:bg-red-50 transition-all text-left"
