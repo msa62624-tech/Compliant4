@@ -93,10 +93,11 @@ export function createBrokerDashboardLink(brokerName, brokerEmail) {
  * Create a broker upload link for COI uploads
  * @param {string} coiToken - The COI token for direct upload access
  * @param {number} step - The step in the upload process (1=COI, 2=Policies, 3=Signature)
+ * @param {string} action - Action type (default: 'upload')
  */
-export function createBrokerUploadLink(coiToken, step = 1) {
+export function createBrokerUploadLink(coiToken, step = 1, action = 'upload') {
   const baseUrl = getFrontendBaseUrl();
-  return `${baseUrl}/broker-upload-coi?token=${coiToken}&step=${step}&action=upload`;
+  return `${baseUrl}/broker-upload-coi?token=${coiToken}&step=${step}&action=${action}`;
 }
 
 /**
@@ -105,17 +106,6 @@ export function createBrokerUploadLink(coiToken, step = 1) {
 export function createSubcontractorDashboardLink(subId) {
   const baseUrl = getFrontendBaseUrl();
   return `${baseUrl}/subcontractor-dashboard?id=${subId}`;
-}
-
-/**
- * Create a broker upload COI link with token and action
- * @param {string} coiToken - COI token for authentication
- * @param {string} action - Action type (default: 'sign')
- * @param {number} step - Step number (default: 3)
- */
-export function createBrokerUploadCOILink(coiToken, action = 'sign', step = 3) {
-  const baseUrl = getFrontendBaseUrl();
-  return `${baseUrl}/broker-upload-coi?token=${coiToken}&action=${action}&step=${step}`;
 }
 
 /**

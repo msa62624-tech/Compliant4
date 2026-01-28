@@ -2,7 +2,7 @@ import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
 import { generateSecureToken } from "@/utils/tokenGenerator";
 import { sendEmailWithErrorHandling } from "@/utils/notificationUtils";
-import { getFrontendBaseUrl, createBrokerDashboardLink, createSubcontractorDashboardLink } from "@/urlConfig";
+import { createBrokerDashboardLink, createSubcontractorDashboardLink, createProjectDetailsLink } from "@/urlConfig";
 import { EMAIL_SIGNATURE, formatInsuranceType, createEmailGreeting } from "@/utils/emailTemplates";
 
 
@@ -170,13 +170,12 @@ ${EMAIL_SIGNATURE}`
 export async function notifyGCPolicyRenewal(project, subcontractor, newPolicy) {
   if (!project.gc_email) return;
 
-  const baseUrl = getFrontendBaseUrl();
-  const projectDetailsLink = `${baseUrl}/ProjectDetails?id=${project.id}`;
+  const projectDetailsLink = createProjectDetailsLink(project.id);
   
   await sendEmailWithErrorHandling({
     to: project.gc_email,
     subject: `Policy Renewed - ${subcontractor.company_name} (${formatInsuranceType(newPolicy.insurance_type)})`,
-    body: `Dear ${project.gc_name},
+    body: `${createEmailGreeting('gc', project.gc_name)}
 
 A subcontractor's insurance policy has been renewed. A new Certificate of Insurance is being generated and will be sent for approval.
 
@@ -213,7 +212,7 @@ export async function notifyRenewalCOIApproved(subcontractor, project, newCOI) {
       await sendEmail({
         to: subcontractor.email,
         subject: `Renewed Certificate Approved - ${project.project_name}`,
-        body: `Dear ${subcontractor.contact_person || subcontractor.company_name},
+        body: `${createEmailGreeting('subcontractor', subcontractor.contact_person || subcontractor.company_name)}
 
 Your renewed Certificate of Insurance has been approved and is now active.
 
@@ -236,7 +235,7 @@ ${EMAIL_SIGNATURE}`
       await sendEmail({
         to: project.gc_email,
         subject: `✅ Renewed Certificate Approved - ${subcontractor.company_name}`,
-        body: `Dear ${project.gc_name},
+        body: `${createEmailGreeting('gc', project.gc_name)}
 
 The renewed Certificate of Insurance for ${subcontractor.company_name} has been approved.
 
