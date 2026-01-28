@@ -5,6 +5,20 @@ import { Badge } from '@/components/ui/badge';
 import { User, Building2, Mail, Shield, Key, LogOut } from 'lucide-react';
 import ChangePassword from '@/components/ChangePassword.tsx';
 
+interface UserInfo {
+  id?: string | number;
+  name?: string;
+  email?: string;
+  role?: string;
+  [key: string]: unknown;
+}
+
+interface UserProfileProps {
+  user?: UserInfo | null;
+  companyName?: string;
+  companyId?: string | number;
+}
+
 /**
  * UserProfile Component
  * Displays user information and provides access to password change and logout
@@ -13,11 +27,11 @@ import ChangePassword from '@/components/ChangePassword.tsx';
  * @param {string} companyName - Optional company name
  * @param {string} companyId - Optional company ID
  */
-export default function UserProfile({ user, companyName, companyId: _companyId }) {
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
+export default function UserProfile({ user, companyName, companyId: _companyId }: UserProfileProps): JSX.Element {
+  const [showPasswordChange, setShowPasswordChange] = useState<boolean>(false);
+  const [isOpen, setIsOpen] = useState<boolean>(false);
 
-  const handleLogout = () => {
+  const handleLogout = (): void => {
     const role = user?.role;
     
     // Clear authentication based on role
@@ -55,7 +69,7 @@ export default function UserProfile({ user, companyName, companyId: _companyId }
     }
   };
 
-  const getRoleBadgeColor = (role) => {
+  const getRoleBadgeColor = (role?: string): string => {
     switch (role) {
       case 'admin':
       case 'super_admin':
@@ -73,7 +87,7 @@ export default function UserProfile({ user, companyName, companyId: _companyId }
     }
   };
 
-  const getRoleLabel = (role) => {
+  const getRoleLabel = (role?: string): string => {
     switch (role) {
       case 'super_admin':
         return 'Super Admin';
@@ -154,7 +168,7 @@ export default function UserProfile({ user, companyName, companyId: _companyId }
                 <Shield className="w-5 h-5 text-slate-600 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-xs text-slate-500 font-medium">Role</p>
-                  <Badge className={getRoleBadgeColor(user?.role)}>
+                  <Badge variant="default" className={getRoleBadgeColor(user?.role)}>
                     {getRoleLabel(user?.role)}
                   </Badge>
                 </div>
@@ -192,13 +206,14 @@ export default function UserProfile({ user, companyName, companyId: _companyId }
               ← Back to Profile
             </Button>
             <ChangePassword
-              userId={user?.id}
-              userEmail={user?.email}
+              userId={user?.id?.toString() || ''}
+              userEmail={user?.email || ''}
               onPasswordChanged={() => {
                 setShowPasswordChange(false);
-                setTimeout(() => {
+                const timer: ReturnType<typeof setTimeout> = setTimeout(() => {
                   setIsOpen(false);
                 }, 2000);
+                return () => clearTimeout(timer);
               }}
             />
           </div>

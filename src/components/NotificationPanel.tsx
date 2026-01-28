@@ -8,6 +8,28 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import auth from '@/auth';
 
+interface Notification {
+  id: string | number;
+  subject?: string;
+  notification_type?: string;
+  is_read?: boolean;
+  has_response?: boolean;
+  created_at?: string;
+  [key: string]: unknown;
+}
+
+interface NotificationPanelProps {
+  recipientId: string | number;
+  recipientType: 'admin' | 'broker' | 'subcontractor' | 'gc';
+  onNotificationClick?: (notification: Notification) => void;
+}
+
+interface RespondParams {
+  notificationId: string | number;
+  response_text: string;
+  response_type: string;
+}
+
 /**
  * NotificationPanel - Displays and manages notifications for a user
  * 
@@ -15,19 +37,19 @@ import auth from '@/auth';
  * @param {string} recipientType - Type: 'admin', 'broker', 'subcontractor', 'gc'
  * @param {function} onNotificationClick - Callback when notification is clicked
  */
-export default function NotificationPanel({ recipientId, recipientType, onNotificationClick }) {
+export default function NotificationPanel({ recipientId, recipientType, onNotificationClick }: NotificationPanelProps): JSX.Element {
   const queryClient = useQueryClient();
-  const [selectedNotification, setSelectedNotification] = useState(null);
-  const [responseText, setResponseText] = useState('');
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [responseText, setResponseText] = useState<string>('');
 
-  const apiBase = import.meta.env.VITE_API_BASE_URL || 
+  const apiBase: string = import.meta.env.VITE_API_BASE_URL || 
                  window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001');
 
-  const { data: notifications = [], isLoading } = useQuery({
+  const { data: notifications = [], isLoading } = useQuery<Notification[]>({
     queryKey: ['notifications', recipientId, recipientType],
-    queryFn: async () => {
-      const token = auth.getToken();
-      const response = await fetch(
+    queryFn: async (): Promise<Notification[]> => {
+      const token: string | null = auth.getToken();
+      const response: Response = await fetch(
         `${apiBase}/notifications?recipient_id=${recipientId}&recipient_type=${recipientType}`,
         {
           headers: {
@@ -43,9 +65,9 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
   });
 
   const markAsReadMutation = useMutation({
-    mutationFn: async (notificationId) => {
-      const token = auth.getToken();
-      const response = await fetch(`${apiBase}/notifications/${notificationId}`, {
+    mutationFn: async (notificationId: string | number): Promise<Notification> => {
+      const token: string | null = auth.getToken();
+      const response: Response = await fetch(`${apiBase}/notifications/${notificationId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -56,15 +78,15 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
       });
       return await response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['notifications']);
+    onSuccess: (): void => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
     }
   });
 
   const respondToNotificationMutation = useMutation({
-    mutationFn: async ({ notificationId, response_text, response_type }) => {
-      const token = auth.getToken();
-      const response = await fetch(`${apiBase}/notifications/${notificationId}/respond`, {
+    mutationFn: async ({ notificationId, response_text, response_type }: RespondParams): Promise<Notification> => {
+      const token: string | null = auth.getToken();
+      const response: Response = await fetch(`${apiBase}/notifications/${notificationId}/respond`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -75,14 +97,14 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
       });
       return await response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['notifications']);
+    onSuccess: (): void => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
       setResponseText('');
       setSelectedNotification(null);
     }
   });
 
-  const handleNotificationClick = (notification) => {
+  const handleNotificationClick = (notification: Notification): void => {
     setSelectedNotification(notification);
     if (!notification.is_read) {
       markAsReadMutation.mutate(notification.id);
@@ -92,7 +114,7 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
     }
   };
 
-  const handleRespond = () => {
+  const handleRespond = (): void => {
     if (!responseText.trim() || !selectedNotification) return;
     respondToNotificationMutation.mutate({
       notificationId: selectedNotification.id,
@@ -101,7 +123,7 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
     });
   };
 
-  const getNotificationIcon = (type) => {
+  const getNotificationIcon = (type?: string): JSX.Element => {
     switch (type) {
       case 'coi_submitted':
       case 'coi_uploaded':
@@ -118,7 +140,7 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount: number = notifications.filter((n: Notification) => !n.is_read).length;
 
   if (isLoading) {
     return <div className="p-4">Loading notifications...</div>;
@@ -132,7 +154,7 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
             <Bell className="w-5 h-5" />
             Notifications
             {unreadCount > 0 && (
-              <Badge className="bg-red-600 text-white">{unreadCount}</Badge>
+              <Badge variant="default" className="bg-red-600 text-white">{unreadCount}</Badge>
             )}
           </span>
         </CardTitle>
@@ -187,7 +209,7 @@ export default function NotificationPanel({ recipientId, recipientType, onNotifi
             <h4 className="font-semibold mb-2">Respond to Notification</h4>
             <Textarea
               value={responseText}
-              onChange={(e) => setResponseText(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setResponseText(e.target.value)}
               placeholder="Type your response..."
               className="mb-2"
               rows={4}

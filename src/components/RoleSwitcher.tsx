@@ -5,10 +5,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Shield, User, Building2, Mail, Wrench } from "lucide-react";
+import { Shield, User, Building2, Mail, Wrench, LucideIcon } from "lucide-react";
 
-export default function RoleSwitcher({ currentUser }) {
-  const roles = [
+interface CurrentUser {
+  role?: string;
+  [key: string]: unknown;
+}
+
+interface RoleSwitcherProps {
+  currentUser?: CurrentUser | null;
+}
+
+interface Role {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  redirectTo: string;
+}
+
+export default function RoleSwitcher({ currentUser }: RoleSwitcherProps): JSX.Element {
+  const roles: Role[] = [
     {
       id: "super_admin",
       label: "Super Admin Dashboard",
@@ -41,7 +57,7 @@ export default function RoleSwitcher({ currentUser }) {
     },
   ];
 
-  const handleRoleSwitch = (roleId) => {
+  const handleRoleSwitch = (roleId: string): void => {
     sessionStorage.setItem('testing_role', roleId);
     
     const selectedRole = roles.find(r => r.id === roleId);
@@ -50,8 +66,8 @@ export default function RoleSwitcher({ currentUser }) {
     }
   };
 
-  const getCurrentRoleId = () => {
-    const storedRole = sessionStorage.getItem('testing_role');
+  const getCurrentRoleId = (): string => {
+    const storedRole: string | null = sessionStorage.getItem('testing_role');
     if (storedRole) return storedRole;
     
     if (currentUser?.role === "super_admin") return "super_admin";
