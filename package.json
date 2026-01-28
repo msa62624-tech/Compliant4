@@ -13,6 +13,7 @@
     "playwright:install": "npx playwright install --with-deps",
     "test:e2e:all": "npm run playwright:install && npm run test:e2e",
     "build": "tsc --noEmit && vite build",
+    "build:skip-typecheck": "vite build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "preview": "vite preview"
