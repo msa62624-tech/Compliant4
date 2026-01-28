@@ -2894,8 +2894,17 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
       doc.fontSize(6).font('Helvetica-Bold').text('DESCRIPTION OF OPERATIONS / LOCATIONS / VEHICLES', margin + 3, yPos + 3);
       doc.fontSize(7).font('Helvetica');
       const umbrellaText = (coiRecord.policy_number_umbrella || coiRecord.insurance_carrier_umbrella) ? ' & Umbrella' : '';
-      const descriptionText = coiRecord.description_of_operations ||
+      
+      // Build description with current project location
+      let descriptionText = coiRecord.description_of_operations ||
         `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`;
+      
+      // Add job location if available
+      const jobLocation = coiRecord.updated_project_address || coiRecord.project_address;
+      if (jobLocation) {
+        descriptionText += `\n\nJob Location: ${jobLocation}`;
+      }
+      
       doc.text(descriptionText, margin + 3, yPos + 13, { width: contentWidth * 0.6 - 6, align: 'left' });
 
       // Additional Insureds
@@ -3208,8 +3217,14 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
           
           // Use stored description or default
           const umbrellaText = (coiRecord.policy_number_umbrella || coiRecord.insurance_carrier_umbrella) ? ' & Umbrella' : '';
-          const descriptionText = coiRecord.description_of_operations || 
+          let descriptionText = coiRecord.description_of_operations || 
             `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`;
+          
+          // Add job location if available
+          const jobLocation = coiRecord.updated_project_address || coiRecord.project_address;
+          if (jobLocation) {
+            descriptionText += `\n\nJob Location: ${jobLocation}`;
+          }
           
           doc.text(descriptionText, margin + 3, yPos + 13, { width: contentWidth * 0.6 - 6, align: 'left' });
 
