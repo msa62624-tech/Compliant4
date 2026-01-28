@@ -3992,20 +3992,45 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
         };
 
         let regeneratedUrl = null;
+        let pdfGenerationSuccess = false;
         try {
+          console.log('🔄 Generating COI PDF for reused subcontractor:', subcontractor_id);
           const pdfBuffer = await generateGeneratedCOIPDF(regenData);
+          if (!pdfBuffer || pdfBuffer.length === 0) {
+            throw new Error('PDF buffer is empty');
+          }
           const filename = `gen-coi-${reusable.id}-${Date.now()}.pdf`;
           const filepath = path.join(UPLOADS_DIR, filename);
           await fsPromises.writeFile(filepath, pdfBuffer);
           const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
           regeneratedUrl = `${backendBase}/uploads/${filename}`;
+          pdfGenerationSuccess = true;
+          console.log('✅ COI PDF generated successfully for reuse:', filename);
         } catch (pdfErr) {
-          console.warn('COI reuse PDF generation failed:', pdfErr?.message || pdfErr);
+          console.error('❌ COI reuse PDF generation failed:', pdfErr?.message || pdfErr);
+          console.error('   Stack:', pdfErr?.stack);
+          console.error('   Reuse data:', JSON.stringify({
+            hasBrokerName: !!regenData.broker_name,
+            hasSubName: !!regenData.subcontractor_name,
+            hasGLData: !!regenData.policy_number_gl,
+            hasWCData: !!regenData.policy_number_wc,
+            hasGLLimits: !!regenData.gl_each_occurrence,
+            hasWCLimits: !!regenData.wc_each_accident
+          }, null, 2));
+          // Continue with COI creation but mark that PDF generation failed
+          // The broker can still sign and the PDF can be regenerated later
+          regeneratedUrl = null;
         }
 
         const frontendBase = process.env.FRONTEND_URL || `${req.protocol}://${req.get('host').replace(/:3001$/, ':5175')}`;
         const newToken = `coi-${Date.now()}-${crypto.randomBytes(12).toString('hex')}`;
         const brokerSignUrl = `${frontendBase}/broker-upload-coi?token=${newToken}&action=sign&step=3`;
+        
+        // Add warning note if PDF generation failed
+        const pdfGenerationNote = pdfGenerationSuccess 
+          ? null 
+          : 'Note: COI PDF generation failed during reuse. The PDF will be regenerated when the broker uploads the COI or when policies are updated.';
+        
         const newCOI = {
           ...reusable,
           id: `COI-${Date.now()}`,
@@ -4031,7 +4056,8 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           broker_sign_url: brokerSignUrl,
           is_reused: true,
           reused_for_project_id: project_id,
-          linked_projects: Array.from(new Set([...(reusable.linked_projects || []), project_id]))
+          linked_projects: Array.from(new Set([...(reusable.linked_projects || []), project_id])),
+          pdf_generation_note: pdfGenerationNote
         };
 
         if (!entities.GeneratedCOI) entities.GeneratedCOI = [];
@@ -4053,6 +4079,65 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
 
         debouncedSave();
         console.log('ℹ️ Auto-generated reused COI for subcontractor:', subcontractor_id, 'coi:', newCOI.id);
+
+        // Generate hold harmless agreement for reused COI if program has a template
+        try {
+          const programId = sourceProject?.program_id || null;
+          const program = programId
+            ? (entities.InsuranceProgram || []).find(p => p.id === programId)
+            : null;
+          const templateUrl = program?.hold_harmless_template_url || program?.hold_harmless_template || null;
+          
+          if (templateUrl && !newCOI.hold_harmless_template_url) {
+            console.log('🔄 Generating hold harmless agreement for reused COI:', newCOI.id);
+            try {
+              const fetchRes = await fetch(templateUrl);
+              if (fetchRes.ok) {
+                let templateText = await fetchRes.text();
+                // Replace common placeholders with COI/project/subcontractor values
+                const projectName = sourceProject?.project_name || project_name || '';
+                const projectAddressForHH = sourceProject?.project_address || sourceProject?.address || projectAddress || '';
+                const gcNameForHH = sourceProject?.gc_name || gc_name || '';
+                const subName = subcontractor_name || newCOI.subcontractor_name || '';
+                const trade = trade_type || newCOI.trade_type || '';
+                templateText = templateText.replace(/{{\s*project_name\s*}}/gi, projectName)
+                  .replace(/{{\s*project_address\s*}}/gi, projectAddressForHH)
+                  .replace(/{{\s*gc_name\s*}}/gi, gcNameForHH)
+                  .replace(/{{\s*subcontractor_name\s*}}/gi, subName)
+                  .replace(/{{\s*trade\s*}}/gi, trade)
+                  .replace(/{{\s*date\s*}}/gi, new Date().toLocaleDateString());
+
+                // Persist as an HTML file in uploads
+                const hhFilename = `hold-harmless-${newCOI.id}-${Date.now()}.html`;
+                const hhFilepath = path.join(UPLOADS_DIR, hhFilename);
+                await fsPromises.writeFile(hhFilepath, templateText, 'utf8');
+                const hhFileUrl = `${req.protocol}://${req.get('host')}/uploads/${hhFilename}`;
+
+                // Update the COI in the array
+                const coiIdx = entities.GeneratedCOI.findIndex(c => c.id === newCOI.id);
+                if (coiIdx !== -1) {
+                  entities.GeneratedCOI[coiIdx] = {
+                    ...entities.GeneratedCOI[coiIdx],
+                    hold_harmless_template_url: hhFileUrl,
+                    hold_harmless_template_filename: hhFilename,
+                    hold_harmless_generated_at: now,
+                    hold_harmless_status: 'pending_signature'
+                  };
+                  // Update newCOI reference for email
+                  newCOI.hold_harmless_template_url = hhFileUrl;
+                }
+                console.log('✅ Generated hold harmless for reused COI:', newCOI.id, hhFileUrl);
+                debouncedSave();
+              } else {
+                console.warn('Could not fetch program hold-harmless template for reuse, status:', fetchRes.status);
+              }
+            } catch (hhGenErr) {
+              console.warn('Failed to generate hold harmless for reused COI:', hhGenErr?.message || hhGenErr);
+            }
+          }
+        } catch (hhErr) {
+          console.warn('Error during hold-harmless generation for reused COI:', hhErr?.message || hhErr);
+        }
 
         try {
           if (newCOI.broker_email) {
@@ -4114,7 +4199,13 @@ InsureTrack System`
           console.warn('Reuse broker notification failed:', notifyErr?.message || notifyErr);
         }
 
-        return res.json({ reused: true, generated: true, coi: newCOI });
+        return res.json({ 
+          reused: true, 
+          generated: true, 
+          coi: newCOI,
+          pdf_generated: pdfGenerationSuccess,
+          warning: pdfGenerationSuccess ? null : 'COI PDF generation failed but COI record created. PDF can be regenerated later.'
+        });
       }
     }
 
@@ -4131,8 +4222,8 @@ InsureTrack System`
     const primaryBroker = contractor && Array.isArray(contractor.brokers) && contractor.brokers.length > 0
       ? contractor.brokers.find(b => b.email) || contractor.brokers[0]
       : null;
-    const contactEmailNormalized = contact_email || undefined;
-    let resolvedBrokerEmail = broker_email || primaryBroker?.email || contactEmailNormalized;
+    const contactEmailNormalized = contact_email || contractor?.email || undefined;
+    let resolvedBrokerEmail = broker_email || primaryBroker?.email || undefined;
     let resolvedBrokerName = broker_name || primaryBroker?.name || primaryBroker?.company || undefined;
 
     // Fill certificate holder and additional insureds from Project if missing
@@ -4167,7 +4258,7 @@ InsureTrack System`
       status: 'awaiting_broker_upload',
       broker_email: resolvedBrokerEmail,
       broker_name: resolvedBrokerName,
-      contact_email: contact_email || broker_email || resolvedBrokerEmail,
+      contact_email: contactEmailNormalized,
       created_date: new Date().toISOString(),
       first_coi_uploaded: false,
       first_coi_url: null,
@@ -5044,6 +5135,87 @@ app.post('/public/upload-policy', uploadLimiter, upload.single('file'), async (r
       console.warn('Policy upload admin notify failed:', notifyErr?.message || notifyErr);
     }
 
+    // If the COI has been previously uploaded and approved, trigger COI regeneration
+    // This ensures the COI PDF reflects the latest formatting and data structure
+    // Note: This uses existing COI data, not data extracted from the newly uploaded policy
+    // A future enhancement could extract and incorporate data from the uploaded policy file
+    try {
+      const updatedCoi = entities.GeneratedCOI[coiIdx];
+      if (updatedCoi.first_coi_uploaded && updatedCoi.admin_approved) {
+        console.log('🔄 Triggering COI regeneration after policy upload for COI:', updatedCoi.id);
+        
+        // Build regeneration data using existing COI data
+        const regenData = {
+          broker_name: updatedCoi.broker_name || '',
+          broker_email: updatedCoi.broker_email || '',
+          broker_phone: updatedCoi.broker_phone || '',
+          broker_address: updatedCoi.broker_address || '',
+          subcontractor_name: updatedCoi.subcontractor_name || '',
+          subcontractor_address: updatedCoi.subcontractor_address || '',
+          named_insured: updatedCoi.named_insured || updatedCoi.subcontractor_name || '',
+          
+          // All policy data
+          insurance_carrier_gl: updatedCoi.insurance_carrier_gl || '',
+          policy_number_gl: updatedCoi.policy_number_gl || '',
+          gl_each_occurrence: updatedCoi.gl_each_occurrence,
+          gl_general_aggregate: updatedCoi.gl_general_aggregate,
+          gl_products_completed_ops: updatedCoi.gl_products_completed_ops,
+          gl_effective_date: updatedCoi.gl_effective_date,
+          gl_expiration_date: updatedCoi.gl_expiration_date,
+          gl_form_type: updatedCoi.gl_form_type || 'OCCUR',
+          
+          insurance_carrier_auto: updatedCoi.insurance_carrier_auto || '',
+          policy_number_auto: updatedCoi.policy_number_auto || '',
+          auto_combined_single_limit: updatedCoi.auto_combined_single_limit,
+          auto_effective_date: updatedCoi.auto_effective_date,
+          auto_expiration_date: updatedCoi.auto_expiration_date,
+          
+          insurance_carrier_wc: updatedCoi.insurance_carrier_wc || '',
+          policy_number_wc: updatedCoi.policy_number_wc || '',
+          wc_each_accident: updatedCoi.wc_each_accident,
+          wc_disease_each_employee: updatedCoi.wc_disease_each_employee,
+          wc_effective_date: updatedCoi.wc_effective_date,
+          wc_expiration_date: updatedCoi.wc_expiration_date,
+          
+          insurance_carrier_umbrella: updatedCoi.insurance_carrier_umbrella || '',
+          policy_number_umbrella: updatedCoi.policy_number_umbrella || '',
+          umbrella_each_occurrence: updatedCoi.umbrella_each_occurrence,
+          umbrella_aggregate: updatedCoi.umbrella_aggregate,
+          umbrella_effective_date: updatedCoi.umbrella_effective_date,
+          umbrella_expiration_date: updatedCoi.umbrella_expiration_date,
+          
+          description_of_operations: updatedCoi.description_of_operations || '',
+          additional_insureds: updatedCoi.additional_insureds || [],
+          certificate_holder_name: updatedCoi.certificate_holder_name || updatedCoi.gc_name || '',
+          updated_project_address: updatedCoi.updated_project_address || updatedCoi.project_address || '',
+          updated_project_name: updatedCoi.updated_project_name || updatedCoi.project_name || ''
+        };
+        
+        // Generate new COI PDF
+        const pdfBuffer = await generateGeneratedCOIPDF(regenData);
+        const filename = `gen-coi-${updatedCoi.id}-${Date.now()}.pdf`;
+        const filepath = path.join(UPLOADS_DIR, filename);
+        await fsPromises.writeFile(filepath, pdfBuffer);
+        
+        const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+        const generatedFileUrl = `${backendBase}/uploads/${filename}`;
+        
+        // Update COI with regenerated PDF
+        entities.GeneratedCOI[coiIdx] = {
+          ...entities.GeneratedCOI[coiIdx],
+          regenerated_coi_url: generatedFileUrl,
+          regenerated_coi_filename: filename,
+          regenerated_at: now,
+          auto_regenerated_after_policy_upload: true
+        };
+        
+        console.log('✅ COI regenerated successfully after policy upload:', filename);
+      }
+    } catch (regenErr) {
+      console.error('⚠️  COI regeneration after policy upload failed:', regenErr?.message || regenErr);
+      // Don't fail the upload if regeneration fails, just log it
+    }
+
     debouncedSave();
     return res.json({ ok: true, type: 'policy', file_url: fileUrl, coi: entities.GeneratedCOI[coiIdx] });
   } catch (err) {
@@ -5427,33 +5599,94 @@ app.post('/integrations/generate-image', authenticateToken, (req, res) => {
 // Helper function to extract text from PDF file
 async function extractTextFromPDF(filePath) {
   try {
+    console.log('📄 Attempting to read PDF file:', filePath);
     const dataBuffer = await fsPromises.readFile(filePath);
+    console.log(`📄 PDF file read successfully, buffer size: ${dataBuffer.length} bytes`);
     const pdfData = await pdfParse(dataBuffer);
     const extractedText = pdfData.text || '';
-    console.log(`📄 Extracted ${extractedText.length} characters from PDF`);
+    console.log(`✅ Extracted ${extractedText.length} characters from PDF`);
+    if (extractedText.length === 0) {
+      console.warn('⚠️  WARNING: PDF text extraction returned empty string - PDF may be image-based or corrupted');
+    }
     return extractedText;
   } catch (pdfErr) {
-    console.error('PDF parsing error:', pdfErr);
-    throw new Error('Failed to parse PDF file');
+    console.error('❌ PDF parsing error:', pdfErr?.message || pdfErr);
+    console.error('   File path:', filePath);
+    console.error('   Error stack:', pdfErr?.stack);
+    throw new Error(`Failed to parse PDF file: ${pdfErr?.message || 'Unknown error'}`);
   }
 }
 
 // Helper function to extract common fields using regex patterns (fallback when AI is not configured)
 function extractFieldsWithRegex(text, schema) {
+  console.log('🔧 Starting AGGRESSIVE regex extraction with schema fields:', Object.keys(schema));
   const extracted = {};
   const upper = (text || '').toUpperCase();
   
-  // Extract policy numbers (various formats)
-  const policyPatterns = [
-    /(?:policy|pol)[\s#:]*([A-Z0-9-]{5,20})/gi,
-    /\b([A-Z]{2,4}[-]?\d{4,12})\b/g
+  // FLOOD THE SYSTEM: Extract ALL dates found in document
+  const allDates = [];
+  const datePatterns = [
+    /\b(\d{1,2}[-/]\d{1,2}[-/]\d{4})\b/g,  // MM/DD/YYYY or MM-DD-YYYY
+    /\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b/g,  // YYYY-MM-DD
+    /\b([A-Z][a-z]{2,8}\s+\d{1,2},?\s+\d{4})\b/g, // January 1, 2024
+    /\b(\d{1,2}[-/][A-Z][a-z]{2}[-/]\d{4})\b/gi, // 01-Jan-2024
   ];
   
-  // Extract dates (MM/DD/YYYY or MM-DD-YYYY or YYYY-MM-DD)
-  const datePattern = /\b(\d{1,2}[-/]\d{1,2}[-/]\d{4}|\d{4}[-/]\d{1,2}[-/]\d{1,2})\b/g;
+  for (const pattern of datePatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      allDates.push(...matches.map(d => d.trim()));
+    }
+  }
+  console.log(`📅 Found ${allDates.length} dates in document:`, allDates.slice(0, 10));
   
-  // Extract dollar amounts
-  const amountPattern = /\$[\d,]+(?:,\d{3})*(?:\.\d{2})?/g;
+  // FLOOD: Extract ALL dollar amounts
+  const allAmounts = [];
+  const amountPatterns = [
+    /\$\s?[\d,]+(?:\.\d{2})?/g,
+    /[\d,]+(?:\.\d{2})?\s?(?:USD|dollars?)/gi
+  ];
+  
+  for (const pattern of amountPatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      allAmounts.push(...matches.map(a => a.replace(/[$,\s]/g, '').replace(/dollars?/i, '').trim()));
+    }
+  }
+  console.log(`💰 Found ${allAmounts.length} dollar amounts in document:`, allAmounts.slice(0, 10));
+  
+  // FLOOD: Extract ALL policy numbers
+  const allPolicyNumbers = [];
+  const policyPatterns = [
+    /(?:policy|pol)[\s#:]+([A-Z0-9-]{5,25})/gi,
+    /\b([A-Z]{2,4}[-\s]?\d{4,12})\b/g,
+    /(?:policy|pol)\s*(?:number|no|#)\s*[:.]?\s*([A-Z0-9-]{5,25})/gi
+  ];
+  
+  for (const pattern of policyPatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      allPolicyNumbers.push(...matches.map(p => p.replace(/^(policy|pol)[\s#:]+/i, '').trim()));
+    }
+  }
+  console.log(`📋 Found ${allPolicyNumbers.length} policy numbers in document:`, allPolicyNumbers.slice(0, 10));
+  
+  // FLOOD: Extract ALL company/insured names
+  const allCompanyNames = [];
+  const companyPatterns = [
+    /INSURED[:\s]+([A-Z][A-Za-z0-9\s&.,'-]{5,100})(?:\n|$)/gi,
+    /NAMED\s+INSURED[:\s]+([A-Z][A-Za-z0-9\s&.,'-]{5,100})(?:\n|$)/gi,
+    /CERTIFICATE\s+HOLDER[:\s]+([A-Z][A-Za-z0-9\s&.,'-]{5,100})(?:\n|$)/gi,
+    /([A-Z][A-Za-z0-9\s&.,'-]+(?:LLC|Inc|Corp|Corporation|Company|Ltd|LTD|CO\.|L\.P\.))/g
+  ];
+  
+  for (const pattern of companyPatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      allCompanyNames.push(...matches.map(c => c.replace(/^(INSURED|NAMED INSURED|CERTIFICATE HOLDER)[:\s]+/i, '').trim()));
+    }
+  }
+  console.log(`🏢 Found ${allCompanyNames.length} company names in document:`, allCompanyNames.slice(0, 10));
   
   // Extract email addresses
   const emailPattern = /[\w.-]+@[\w.-]+\.\w+/g;
@@ -5465,42 +5698,63 @@ function extractFieldsWithRegex(text, schema) {
   for (const [fieldName, fieldType] of Object.entries(schema)) {
     const lowerField = fieldName.toLowerCase();
     
-    // Policy number fields
+    // Policy number fields - use first found policy number
     if (lowerField.includes('policy') && lowerField.includes('number')) {
-      const matches = [];
-      for (const pattern of policyPatterns) {
-        const found = text.match(pattern);
-        if (found) matches.push(...found);
-      }
-      if (matches.length > 0) {
-        extracted[fieldName] = matches[0].replace(/^(policy|pol)[\s#:]*/i, '').trim();
+      if (allPolicyNumbers.length > 0) {
+        // Try to match based on coverage type
+        if (lowerField.includes('gl') || lowerField.includes('general')) {
+          extracted[fieldName] = allPolicyNumbers[0];
+        } else if (lowerField.includes('wc') || lowerField.includes('worker')) {
+          extracted[fieldName] = allPolicyNumbers[Math.min(1, allPolicyNumbers.length - 1)];
+        } else if (lowerField.includes('auto')) {
+          extracted[fieldName] = allPolicyNumbers[Math.min(2, allPolicyNumbers.length - 1)];
+        } else if (lowerField.includes('umbrella') || lowerField.includes('excess')) {
+          extracted[fieldName] = allPolicyNumbers[Math.min(3, allPolicyNumbers.length - 1)];
+        } else {
+          extracted[fieldName] = allPolicyNumbers[0];
+        }
+        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
       }
     }
     
-    // Date fields (effective, expiration)
-    else if (lowerField.includes('date') && fieldType.toLowerCase().includes('date')) {
-      const matches = text.match(datePattern);
-      if (matches && matches.length > 0) {
+    // Date fields - AGGRESSIVE extraction
+    else if (lowerField.includes('date') || fieldType.toLowerCase().includes('date')) {
+      if (allDates.length > 0) {
         // Try to find the most relevant date based on field name
-        if (lowerField.includes('effective') || lowerField.includes('start')) {
-          extracted[fieldName] = matches[0];
-        } else if (lowerField.includes('expir') || lowerField.includes('end')) {
-          extracted[fieldName] = matches.length > 1 ? matches[1] : matches[0];
+        if (lowerField.includes('effective') || lowerField.includes('start') || lowerField.includes('eff')) {
+          extracted[fieldName] = allDates[0];
+          console.log(`✅ Extracted ${fieldName} (effective):`, extracted[fieldName]);
+        } else if (lowerField.includes('expir') || lowerField.includes('end') || lowerField.includes('exp')) {
+          extracted[fieldName] = allDates[Math.min(1, allDates.length - 1)];
+          console.log(`✅ Extracted ${fieldName} (expiration):`, extracted[fieldName]);
         } else {
-          extracted[fieldName] = matches[0];
+          extracted[fieldName] = allDates[0];
+          console.log(`✅ Extracted ${fieldName} (date):`, extracted[fieldName]);
         }
       }
     }
     
-    // Dollar amount fields (aggregate, occurrence, limit)
+    // Dollar amount fields - AGGRESSIVE extraction
     else if (fieldType.toLowerCase().includes('number') && 
              (lowerField.includes('aggregate') || lowerField.includes('occurrence') || 
               lowerField.includes('limit') || lowerField.includes('amount'))) {
-      const matches = text.match(amountPattern);
-      if (matches && matches.length > 0) {
-        // Convert to number (remove $ and commas)
-        const numStr = matches[0].replace(/[$,]/g, '');
-        extracted[fieldName] = parseFloat(numStr);
+      if (allAmounts.length > 0) {
+        // Try to match based on coverage type and amount size
+        const amounts = allAmounts.map(a => parseFloat(a)).filter(a => !isNaN(a) && a > 0);
+        if (amounts.length > 0) {
+          if (lowerField.includes('aggregate')) {
+            // Aggregates are usually larger
+            const largeAmounts = amounts.filter(a => a >= 1000000).sort((a, b) => b - a);
+            extracted[fieldName] = largeAmounts.length > 0 ? largeAmounts[0] : amounts[0];
+          } else if (lowerField.includes('occurrence') || lowerField.includes('each')) {
+            // Per occurrence is usually smaller than aggregate
+            const mediumAmounts = amounts.filter(a => a >= 500000 && a <= 5000000).sort((a, b) => b - a);
+            extracted[fieldName] = mediumAmounts.length > 0 ? mediumAmounts[0] : amounts[0];
+          } else {
+            extracted[fieldName] = amounts[0];
+          }
+          console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
+        }
       }
     }
     
@@ -5509,6 +5763,7 @@ function extractFieldsWithRegex(text, schema) {
       const matches = text.match(emailPattern);
       if (matches && matches.length > 0) {
         extracted[fieldName] = matches[0];
+        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
       }
     }
     
@@ -5517,27 +5772,29 @@ function extractFieldsWithRegex(text, schema) {
       const matches = text.match(phonePattern);
       if (matches && matches.length > 0) {
         extracted[fieldName] = matches[0];
+        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
       }
     }
     
-    // Name fields - extract first substantial text block
+    // Name fields - AGGRESSIVE extraction
     else if (lowerField.includes('name') && fieldType.toLowerCase().includes('string')) {
-      // Prefer ACORD INSURED block if present
-      const insuredBlock = upper.match(/INSURED\s+([A-Z0-9 &.,'-]{2,100})/);
-      if (insuredBlock && insuredBlock[1]) {
-        extracted[fieldName] = insuredBlock[1].trim();
-      } else {
-        // Fallback generic name pattern
-        const namePattern = /([A-Z][a-zA-Z\s&,.']+(?:LLC|Inc|Corp|Company|Corporation|Ltd)?)/;
-        const matches = text.match(namePattern);
-        if (matches && matches.length > 0) {
-          extracted[fieldName] = matches[0].trim();
+      if (allCompanyNames.length > 0) {
+        if (lowerField.includes('insured') || lowerField.includes('subcontractor')) {
+          // Use first company name for insured
+          extracted[fieldName] = allCompanyNames[0];
+        } else if (lowerField.includes('broker') || lowerField.includes('producer')) {
+          // Use second company name if available
+          extracted[fieldName] = allCompanyNames[Math.min(1, allCompanyNames.length - 1)];
+        } else {
+          extracted[fieldName] = allCompanyNames[0];
         }
+        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
       }
     }
   }
   
-  // ACORD 25 specific label-driven extraction for GL and common fields
+  // ACORD 25 specific label-driven extraction - FLOOD with more data
+  console.log('🔍 Running ACORD 25 specific extraction...');
   const getAmountAfter = (label) => {
     const re = new RegExp(label + "[\\s:]*\\$?([\\d,]+(?:\\.\\d{2})?)", 'i');
     const m = text.match(re);
@@ -5607,18 +5864,105 @@ function extractFieldsWithRegex(text, schema) {
     if (v) extracted.gl_med_exp = v;
   }
 
+  // AGGRESSIVE DATE EXTRACTION for all coverage types
   if ('gl_effective_date' in schema && !extracted.gl_effective_date) {
-    const v = getValueAfter('POLICY\\s+EFF');
-    if (v) extracted.gl_effective_date = v;
+    const v = getValueAfter('POLICY\\s+EFF') || getValueAfter('EFFECTIVE\\s+DATE') || (allDates.length > 0 ? allDates[0] : null);
+    if (v) {
+      extracted.gl_effective_date = v;
+      console.log('✅ GL Effective Date:', v);
+    }
   }
   if ('gl_expiration_date' in schema && !extracted.gl_expiration_date) {
-    const v = getValueAfter('POLICY\\s+EXP');
-    if (v) extracted.gl_expiration_date = v;
+    const v = getValueAfter('POLICY\\s+EXP') || getValueAfter('EXPIRATION\\s+DATE') || (allDates.length > 1 ? allDates[1] : null);
+    if (v) {
+      extracted.gl_expiration_date = v;
+      console.log('✅ GL Expiration Date:', v);
+    }
+  }
+  
+  // WC dates
+  if ('wc_effective_date' in schema && !extracted.wc_effective_date) {
+    const v = allDates.length > 2 ? allDates[2] : allDates[0];
+    if (v) {
+      extracted.wc_effective_date = v;
+      console.log('✅ WC Effective Date:', v);
+    }
+  }
+  if ('wc_expiration_date' in schema && !extracted.wc_expiration_date) {
+    const v = allDates.length > 3 ? allDates[3] : (allDates.length > 1 ? allDates[1] : null);
+    if (v) {
+      extracted.wc_expiration_date = v;
+      console.log('✅ WC Expiration Date:', v);
+    }
+  }
+  
+  // Auto dates
+  if ('auto_effective_date' in schema && !extracted.auto_effective_date && allDates.length > 0) {
+    extracted.auto_effective_date = allDates[0];
+    console.log('✅ Auto Effective Date:', allDates[0]);
+  }
+  if ('auto_expiration_date' in schema && !extracted.auto_expiration_date && allDates.length > 1) {
+    extracted.auto_expiration_date = allDates[1];
+    console.log('✅ Auto Expiration Date:', allDates[1]);
+  }
+  
+  // Umbrella dates
+  if ('umbrella_effective_date' in schema && !extracted.umbrella_effective_date && allDates.length > 0) {
+    extracted.umbrella_effective_date = allDates[0];
+    console.log('✅ Umbrella Effective Date:', allDates[0]);
+  }
+  if ('umbrella_expiration_date' in schema && !extracted.umbrella_expiration_date && allDates.length > 1) {
+    extracted.umbrella_expiration_date = allDates[1];
+    console.log('✅ Umbrella Expiration Date:', allDates[1]);
+  }
+  
+  // AGGRESSIVE INSURER/CARRIER EXTRACTION
+  if ('insurance_carrier_gl' in schema && !extracted.insurance_carrier_gl) {
+    const carrierMatch = text.match(/INSURER\s+A[:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
+    if (carrierMatch && carrierMatch[1]) {
+      extracted.insurance_carrier_gl = carrierMatch[1].trim();
+      console.log('✅ GL Carrier:', extracted.insurance_carrier_gl);
+    }
+  }
+  
+  if ('insurance_carrier_wc' in schema && !extracted.insurance_carrier_wc) {
+    const carrierMatch = text.match(/INSURER\s+[BC][:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
+    if (carrierMatch && carrierMatch[1]) {
+      extracted.insurance_carrier_wc = carrierMatch[1].trim();
+      console.log('✅ WC Carrier:', extracted.insurance_carrier_wc);
+    }
+  }
+  
+  if ('insurance_carrier_umbrella' in schema && !extracted.insurance_carrier_umbrella) {
+    const carrierMatch = text.match(/INSURER\s+[BCD][:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
+    if (carrierMatch && carrierMatch[1]) {
+      extracted.insurance_carrier_umbrella = carrierMatch[1].trim();
+      console.log('✅ Umbrella Carrier:', extracted.insurance_carrier_umbrella);
+    }
+  }
+  
+  if ('insurance_carrier_auto' in schema && !extracted.insurance_carrier_auto) {
+    const carrierMatch = text.match(/INSURER\s+[ABCD][:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
+    if (carrierMatch && carrierMatch[1]) {
+      extracted.insurance_carrier_auto = carrierMatch[1].trim();
+      console.log('✅ Auto Carrier:', extracted.insurance_carrier_auto);
+    }
   }
 
+  // NAMED INSURED - Multiple attempts
   if ('named_insured' in schema && !extracted.named_insured) {
-    const v = getValueAfter('INSURED');
-    if (v) extracted.named_insured = v;
+    const v = getValueAfter('INSURED') || getValueAfter('NAMED\\s+INSURED') || (allCompanyNames.length > 0 ? allCompanyNames[0] : null);
+    if (v) {
+      extracted.named_insured = v;
+      console.log('✅ Named Insured:', v);
+    }
+  }
+  
+  if ('subcontractor_name' in schema && !extracted.subcontractor_name) {
+    extracted.subcontractor_name = extracted.named_insured || (allCompanyNames.length > 0 ? allCompanyNames[0] : null);
+    if (extracted.subcontractor_name) {
+      console.log('✅ Subcontractor Name:', extracted.subcontractor_name);
+    }
   }
 
   if ('policy_number_gl' in schema && !extracted.policy_number_gl) {
@@ -5667,6 +6011,10 @@ function extractFieldsWithRegex(text, schema) {
     }
   }
 
+  console.log('📊 Regex extraction results:', { 
+    fieldsExtracted: Object.keys(extracted).length,
+    fields: Object.keys(extracted)
+  });
   return extracted;
 }
 
@@ -5681,6 +6029,8 @@ function buildExtractionPrompt(schema, extractedText) {
 
 // Helper function for extraction logic
 async function performExtraction({ file_url, json_schema, prompt, response_json_schema }) {
+  console.log('🔍 Starting extraction:', { file_url, hasSchema: !!json_schema, hasPrompt: !!prompt });
+  
   // Extract file path from URL
   const urlParts = file_url.split('/uploads/');
   if (urlParts.length < 2) {
@@ -5705,24 +6055,31 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
   
   if (ext === '.pdf') {
     extractedText = await extractTextFromPDF(filePath);
+    console.log(`📄 Extracted ${extractedText.length} characters from PDF`);
   } else {
     extractedText = 'Image OCR not yet implemented. Please upload PDF files for automatic extraction.';
+    console.log('⚠️  Non-PDF file, skipping text extraction');
   }
 
   // If we have a prompt and response schema, use AI to extract structured data
   if (prompt && response_json_schema) {
     try {
+      console.log('🤖 Using AI extraction with custom prompt');
       const fullPrompt = `${prompt}\n\nEXTRACTED TEXT FROM DOCUMENT:\n${extractedText.substring(0, 8000)}`;
       const analysis = await aiAnalysis.callAI(fullPrompt);
       const parsedResult = aiAnalysis.parseJSON(analysis);
       
-      return parsedResult || {
-        status: 'success',
-        output: {},
-        message: 'AI analysis completed'
-      };
+      if (parsedResult && Object.keys(parsedResult).length > 0) {
+        console.log('✅ AI extraction successful:', Object.keys(parsedResult));
+        return {
+          status: 'success',
+          output: parsedResult,
+          raw_text: extractedText.substring(0, 500),
+          extraction_method: 'ai_custom_prompt'
+        };
+      }
     } catch (aiErr) {
-      console.error('AI extraction error:', aiErr);
+      console.error('❌ AI extraction error:', aiErr);
       // Fall through to schema-based extraction
     }
   }
@@ -5731,48 +6088,61 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
   if (json_schema && extractedText) {
     try {
       const schema = typeof json_schema === 'string' ? JSON.parse(json_schema) : json_schema;
+      console.log('📋 Schema fields:', Object.keys(schema));
       
       // First try AI extraction if available
       if (aiAnalysis.enabled) {
+        console.log('🤖 Attempting AI extraction with schema...');
         const extractionPrompt = buildExtractionPrompt(schema, extractedText);
         
         const aiResult = await aiAnalysis.callAI(extractionPrompt);
         const extracted = aiAnalysis.parseJSON(aiResult);
         
         if (extracted && Object.keys(extracted).length > 0) {
+          console.log('✅ AI extraction successful:', Object.keys(extracted));
           return {
             status: 'success',
             output: extracted,
-            raw_text: extractedText.substring(0, 500)
+            raw_text: extractedText.substring(0, 500),
+            extraction_method: 'ai'
           };
+        } else {
+          console.log('⚠️  AI extraction returned empty results');
         }
+      } else {
+        console.log('⚠️  AI service not enabled (set AI_API_KEY environment variable)');
       }
       
-      // Fallback to regex-based extraction when AI is not configured
-      console.log('⚠️  Using regex-based extraction (AI service not configured)');
+      // Fallback to regex-based extraction when AI is not configured or fails
+      console.log('🔧 Attempting regex-based extraction...');
       const regexExtracted = extractFieldsWithRegex(extractedText, schema);
       
       if (Object.keys(regexExtracted).length > 0) {
+        console.log('✅ Regex extraction found:', Object.keys(regexExtracted));
         return {
           status: 'success',
           output: regexExtracted,
           raw_text: extractedText.substring(0, 500),
           extraction_method: 'regex',
-          message: 'Extracted using pattern matching. AI service not configured for better accuracy.'
+          message: 'Extracted using pattern matching. Configure AI_API_KEY for better accuracy.'
         };
+      } else {
+        console.log('⚠️  Regex extraction found no matching fields');
       }
     } catch (extractErr) {
-      console.error('Schema-based extraction error:', extractErr);
+      console.error('❌ Schema-based extraction error:', extractErr);
     }
   }
 
-  // Return empty output if no extraction was successful
+  // Return extracted text even if structured extraction failed
+  console.log('⚠️  No structured data extracted, returning raw text');
   return {
-    status: 'success',
+    status: 'partial',
     output: {},
-    data: { extracted: extractedText.substring(0, 1000) },
     raw_text: extractedText.substring(0, 500),
-    message: 'Text extracted but structured data extraction failed. Configure AI service for better results.'
+    full_text: extractedText.substring(0, 50000), // Limit to 50k chars to avoid performance issues
+    message: 'Text extracted from document, but structured data extraction failed. Please review the raw text below and enter data manually if needed.',
+    extraction_method: 'text_only'
   };
 }
 
