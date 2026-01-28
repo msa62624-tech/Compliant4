@@ -217,7 +217,7 @@ export async function checkAndSendDeficiencyReminders(): Promise<void> {
  * Initialize periodic reminders
  * Call this once when the app starts (e.g., in main.jsx or AdminDashboard)
  */
-export function initDeficiencyReminderSystem(): number | undefined {
+export function initDeficiencyReminderSystem(): ReturnType<typeof setInterval> | undefined {
   if (typeof window === 'undefined') return;
 
   // Check immediately

@@ -246,7 +246,7 @@ export async function notifySubAddedToProject(
   subcontractor: Subcontractor,
   project: Project
 ): Promise<void> {
-  const subEmail = subcontractor.email || subcontractor.contact_email;
+  const subEmail = subcontractor.email || (subcontractor as any).contact_email;
 
   // Notify subcontractor
   if (subEmail) {
@@ -255,14 +255,14 @@ export async function notifySubAddedToProject(
       const subDashboardLink = createSubcontractorDashboardLink(subcontractor.id);
 
       // Find an existing COI token for this sub+project so we can direct them to the broker info form
-      let coiTokenForEmail = null;
+      let coiTokenForEmail: string | null = null;
       try {
-        const coisForSub = await compliant.entities.GeneratedCOI.filter({ project_id: project.id, subcontractor_id: subcontractor.id });
+        const coisForSub = await compliant.entities.GeneratedCOI.filter({ project_id: project.id, subcontractor_id: subcontractor.id }) as GeneratedCOI[];
         if (Array.isArray(coisForSub) && coisForSub.length > 0) {
           coiTokenForEmail = coisForSub[0].coi_token || null;
         }
       } catch (err) {
-        logger.warn('Could not load COI for sub email token', { error: err?.message });
+        logger.warn('Could not load COI for sub email token', { error: (err as any)?.message });
       }
 
       const baseUrl = getFrontendBaseUrl();
@@ -382,20 +382,20 @@ You have been added to a new construction project!
   for (const brokerInfo of brokerEmails) {
     const { email: brokerEmail, name: brokerName, policies: assignedPolicies } = brokerInfo;
     try {
-      const allProjectSubs = await compliant.entities.ProjectSubcontractor.list();
-      const subProjectSubs = allProjectSubs.filter(ps => ps.subcontractor_id === subcontractor.id);
+      const allProjectSubs = await compliant.entities.ProjectSubcontractor.list() as any[];
+      const subProjectSubs = allProjectSubs.filter((ps: any) => ps.subcontractor_id === subcontractor.id);
       const isFirstProject = subProjectSubs.length <= 1; // First project (just added, so length is 1)
       // Consider multiple sources for uploaded docs: subcontractor master data OR any GeneratedCOI with files
       let hasUploadedDocs = !!subcontractor.master_insurance_data;
       try {
-        const coiForSub = await compliant.entities.GeneratedCOI.filter({ subcontractor_id: subcontractor.id });
+        const coiForSub = await compliant.entities.GeneratedCOI.filter({ subcontractor_id: subcontractor.id }) as GeneratedCOI[];
         if (Array.isArray(coiForSub) && coiForSub.length > 0) {
-          hasUploadedDocs = hasUploadedDocs || coiForSub.some(c => (
+          hasUploadedDocs = hasUploadedDocs || coiForSub.some((c: GeneratedCOI) => (
             c.first_coi_uploaded || c.first_coi_url || c.gl_policy_url || c.wc_policy_url || c.auto_policy_url || c.umbrella_policy_url
           ));
         }
       } catch (coiCheckError) {
-        logger.warn('Could not check existing COI uploads for subcontractor', { subcontractor_id: subcontractor.id, error: coiCheckError?.message });
+        logger.warn('Could not check existing COI uploads for subcontractor', { subcontractor_id: subcontractor.id, error: (coiCheckError as any)?.message });
       }
 
       const additionalInsuredList = [];
@@ -419,10 +419,10 @@ You have been added to a new construction project!
       const brokerDashboardLink = createBrokerDashboardLink(brokerName, brokerEmail);
 
       // Compute direct links into broker upload flow for this project
-      let directUploadLink = null;
-      let directSignLink = null;
+      let directUploadLink: string | null = null;
+      let directSignLink: string | null = null;
       try {
-        const coisForProject = await compliant.entities.GeneratedCOI.filter({ project_id: project.id, subcontractor_id: subcontractor.id });
+        const coisForProject = await compliant.entities.GeneratedCOI.filter({ project_id: project.id, subcontractor_id: subcontractor.id }) as GeneratedCOI[];
         const activeCoi = Array.isArray(coisForProject) && coisForProject.length > 0 ? coisForProject[0] : null;
         if (activeCoi?.coi_token) {
           const baseUrl = getFrontendBaseUrl();
@@ -430,7 +430,7 @@ You have been added to a new construction project!
           directSignLink = `${baseUrl}/broker-upload-coi?token=${activeCoi.coi_token}&action=sign&step=3`;
         }
       } catch (err) {
-        logger.error('Error fetching COI for direct links', { error: err?.message });
+        logger.error('Error fetching COI for direct links', { error: (err as any)?.message });
       }
       
       // If this appears to be the first time this broker is onboarding for this subcontractor/GC

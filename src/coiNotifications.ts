@@ -21,7 +21,7 @@ async function generateSampleCOIFromProgram(
   project: Project,
   coi: GeneratedCOI
 ): Promise<SampleCOIData> {
-  const sampleData = {
+  const sampleData: any = {
     subcontractor_name: coi?.subcontractor_name || 'Your Company',
     project_name: project?.project_name,
     project_address: project?.project_address || project?.address,
@@ -43,8 +43,8 @@ async function generateSampleCOIFromProgram(
       });
       
       // Group by tier and insurance type to show summary
-      const tierMap = {};
-      for (const req of reqs) {
+      const tierMap: Record<string, any[]> = {};
+      for (const req of reqs as any[]) {
         const tier = req.tier || 'standard';
         if (!tierMap[tier]) tierMap[tier] = [];
         tierMap[tier].push(req);
@@ -53,7 +53,7 @@ async function generateSampleCOIFromProgram(
       // Build summary of what's required
       sampleData.tiers = Object.entries(tierMap).map(([tierName, tierReqs]) => ({
         tier: tierName,
-        requirements: tierReqs.map(r => ({
+        requirements: tierReqs.map((r: any) => ({
           insurance_type: r.insurance_type,
           gl_each_occurrence: r.gl_each_occurrence,
           gl_general_aggregate: r.gl_general_aggregate,
@@ -70,11 +70,11 @@ async function generateSampleCOIFromProgram(
       
       sampleData.program_requirements = sampleData.tiers;
     } catch (error) {
-      logger.warn('Could not fetch program requirements for sample COI', { error: error?.message });
+      logger.warn('Could not fetch program requirements for sample COI', { error: (error as any)?.message });
     }
   }
 
-  return sampleData;
+  return sampleData as SampleCOIData;
 }
 
 /**
@@ -122,7 +122,7 @@ PROJECT DETAILS:
 CERTIFICATE DETAILS:
 • COI ID: ${coi.id}
 • Trade Type(s): ${coi.trade_types?.join(', ') || 'N/A'}
-• Upload Date: ${new Date(coi.created_at).toLocaleDateString()}
+• Upload Date: ${(coi as any).created_at ? new Date((coi as any).created_at).toLocaleDateString() : 'N/A'}
 • Status: Pending Review
 ${attachments.length > 0 ? `\n📎 ATTACHED DOCUMENTS:\n${attachments.map(a => `• ${a.filename}`).join('\n')}\n` : ''}
 🔍 REVIEW & APPROVE:
@@ -283,7 +283,7 @@ export async function notifyGCCOIApprovedReady(
     const attachments = prepareAttachments(coi, subcontractor, project);
 
     await sendEmail({
-      to: project.gc_email || 'gc@project.com',
+      to: (project as any).gc_email || 'gc@project.com',
       attachments: attachments.length > 0 ? attachments : undefined,
       subject: `✅ Insurance Approved - ${subcontractor.company_name} Ready for ${project.project_name}`,
       body: `The Certificate of Insurance for your subcontractor has been approved and is ready.
@@ -324,7 +324,7 @@ export async function notifyCOIDeficiencies(
   coi: GeneratedCOI,
   subcontractor: Subcontractor,
   project: Project,
-  deficiencies: string[]
+  deficiencies: Array<{ field?: string; message: string; required?: any; provided?: any; [key: string]: any }>
 ): Promise<void> {
   if (!coi || !subcontractor || !deficiencies || deficiencies.length === 0) return;
 
@@ -533,7 +533,7 @@ PROJECT:
 CERTIFICATE STATUS:
 • Trade(s): ${coi.trade_types?.join(', ') || 'N/A'}
 • Status: Awaiting Your Signature
-• Created: ${new Date(coi.created_at).toLocaleDateString()}
+• Created: ${(coi as any).created_at ? new Date((coi as any).created_at).toLocaleDateString() : 'N/A'}
 ${attachments.length > 0 ? `\n📎 ATTACHED DOCUMENTS:\n${attachments.map(a => `• ${a.filename}`).join('\n')}\n` : ''}
 ACTION REQUIRED:
 Please review the certificate details and approve/sign the Certificate of Insurance.
