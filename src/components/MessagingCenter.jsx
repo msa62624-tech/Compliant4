@@ -125,8 +125,8 @@ export default function MessagingCenter() {
       // Create message in database
       const message = await apiClient.entities.Message.create(data);
       
-      // Send email notification with response link
-      for (const recipient of selectedRecipients) {
+      // Send email notifications with response link in parallel
+      const emailPromises = selectedRecipients.map(recipient => {
         const recipientEmail = recipient.email;
         
         // Build response link based on recipient type
@@ -138,8 +138,8 @@ export default function MessagingCenter() {
           responseLink = notificationLinks.getSubMessagesLink(recipient.id);
         }
 
-        // Send email
-        await sendEmail({
+        // Return promise for parallel execution
+        return sendEmail({
           to: recipientEmail,
           subject: `Message from Admin: ${messageSubject}`,
           html: `
@@ -162,7 +162,10 @@ export default function MessagingCenter() {
             </div>
           `,
         });
-      }
+      });
+      
+      // Execute all email sends in parallel for better performance
+      await Promise.all(emailPromises);
       
       return message;
     },
@@ -210,63 +213,54 @@ export default function MessagingCenter() {
 
   // Filter messages based on active tab and filters
   const getFilteredMessages = () => {
-    let filtered = messages;
+    // Combine all filters into a single pass for better performance
+    return messages.filter(m => {
+      // Filter by tab (active vs archived)
+      if (activeTab === "active" && m.status === "archived") return false;
+      if (activeTab === "archived" && m.status !== "archived") return false;
 
-    // Filter by tab (active vs archived)
-    if (activeTab === "active") {
-      filtered = filtered.filter(m => m.status !== "archived");
-    } else {
-      filtered = filtered.filter(m => m.status === "archived");
-    }
+      // Filter by project
+      if (filterProject !== "all" && m.project_id !== filterProject) return false;
 
-    // Filter by project
-    if (filterProject !== "all") {
-      filtered = filtered.filter(m => m.project_id === filterProject);
-    }
+      // Filter by recipient type
+      if (filterRecipientType !== "all" && m.recipient_type !== filterRecipientType) return false;
 
-    // Filter by recipient type
-    if (filterRecipientType !== "all") {
-      filtered = filtered.filter(m => m.recipient_type === filterRecipientType);
-    }
-
-    // Filter by carrier/broker
-    if (filterCarrier !== "all") {
-      filtered = filtered.filter(m => {
-        // Match by broker name or email in recipient_email field
+      // Filter by carrier/broker
+      if (filterCarrier !== "all") {
         const broker = brokers.find(b => b.id === filterCarrier);
         if (broker) {
-          return m.recipient_email?.includes(broker.email) || 
-                 m.recipient_email?.includes(broker.name);
+          const matchesBroker = m.recipient_email?.includes(broker.email) || 
+                               m.recipient_email?.includes(broker.name);
+          if (!matchesBroker) return false;
+        } else {
+          return false;
         }
-        return false;
-      });
-    }
+      }
 
-    // Filter by subcontractor
-    if (filterSubcontractor !== "all") {
-      filtered = filtered.filter(m => {
-        // Match by subcontractor email or company name in recipient_email field
+      // Filter by subcontractor
+      if (filterSubcontractor !== "all") {
         const sub = allSubs.find(s => s.id === filterSubcontractor);
         if (sub) {
-          return m.recipient_email?.includes(sub.email) || 
-                 m.recipient_email?.includes(sub.company_name);
+          const matchesSub = m.recipient_email?.includes(sub.email) || 
+                            m.recipient_email?.includes(sub.company_name);
+          if (!matchesSub) return false;
+        } else {
+          return false;
         }
-        return false;
-      });
-    }
+      }
 
-    // Filter by search query
-    if (searchQuery.trim() !== "") {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(m => 
-        m.subject?.toLowerCase().includes(query) ||
-        m.message?.toLowerCase().includes(query) ||
-        m.recipient_email?.toLowerCase().includes(query) ||
-        m.sender_email?.toLowerCase().includes(query)
-      );
-    }
+      // Filter by search query
+      if (searchQuery.trim() !== "") {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = m.subject?.toLowerCase().includes(query) ||
+                             m.message?.toLowerCase().includes(query) ||
+                             m.recipient_email?.toLowerCase().includes(query) ||
+                             m.sender_email?.toLowerCase().includes(query);
+        if (!matchesSearch) return false;
+      }
 
-    return filtered;
+      return true;
+    });
   };
 
   const filteredMessages = getFilteredMessages();

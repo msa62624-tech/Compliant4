@@ -15,7 +15,7 @@ import crypto from 'crypto';
 import multer from 'multer';
 
 // Import configuration
-import { JWT_SECRET, PORT, DEFAULT_ADMIN_EMAILS, RENEWAL_LOOKAHEAD_DAYS, BINDER_WINDOW_DAYS } from './config/env.js';
+import { getJWTSecret, initializeJWTSecret, PORT, DEFAULT_ADMIN_EMAILS, RENEWAL_LOOKAHEAD_DAYS, BINDER_WINDOW_DAYS } from './config/env.js';
 import { entities, loadEntities, saveEntities, debouncedSave, findValidCOIForSub, UPLOADS_DIR } from './config/database.js';
 import { upload } from './config/upload.js';
 
@@ -86,8 +86,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Initialize auth middleware with JWT_SECRET
-initializeAuthMiddleware(JWT_SECRET);
+// Auth middleware will be initialized after JWT_SECRET is loaded
 
 // Trust proxy for rate limiting with X-Forwarded-For header
 app.set('trust proxy', 1);
@@ -1285,13 +1284,13 @@ app.post('/auth/login',
 
       const accessToken = jwt.sign(
         { id: user.id, username: user.username, email: user.email, role: user.role },
-        JWT_SECRET,
+        getJWTSecret(),
         { expiresIn: '24h' }
       );
       
       const refreshToken = jwt.sign(
         { id: user.id, username: user.username, email: user.email, role: user.role },
-        JWT_SECRET,
+        getJWTSecret(),
         { expiresIn: '7d' }
       );
 
@@ -1334,11 +1333,11 @@ app.post('/auth/refresh',
   }
 
   try {
-    const decoded = jwt.verify(refreshToken, JWT_SECRET);
+    const decoded = jwt.verify(refreshToken, getJWTSecret());
     
     const accessToken = jwt.sign(
       { id: decoded.id, username: decoded.username, email: decoded.email, role: decoded.role },
-      JWT_SECRET,
+      getJWTSecret(),
       { expiresIn: '24h' }
     );
 
@@ -9437,6 +9436,12 @@ if (!process.env.VERCEL) {
   });
 
   (async () => {
+    // Initialize JWT secret first (async file operations)
+    await initializeJWTSecret();
+    
+    // Initialize auth middleware after JWT_SECRET is loaded
+    initializeAuthMiddleware(getJWTSecret());
+    
     // Initialize data before starting server
     await initializeData();
     
