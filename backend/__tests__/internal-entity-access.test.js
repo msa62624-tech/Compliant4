@@ -40,9 +40,37 @@ describe('Internal Entity Access Control Tests', () => {
       adminToken = adminResponse.body.accessToken;
     }
 
-    // Note: We're using the admin token as regular user token for now
-    // In a real scenario, you'd create a non-admin user first
-    regularUserToken = adminToken;
+    // Create a non-admin user for testing
+    const regularUserData = {
+      email: 'testuser@example.com',
+      name: 'Test User',
+      password: 'TestPassword123!',
+      role: 'user'
+    };
+
+    const createUserResponse = await request(BASE_URL)
+      .post('/entities/User')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(regularUserData);
+
+    if (createUserResponse.status === 201) {
+      console.log('Test user created successfully');
+      
+      // Login as the regular user to get their token
+      const regularUserResponse = await request(BASE_URL)
+        .post('/auth/login')
+        .send({
+          username: 'testuser@example.com',
+          password: 'TestPassword123!'
+        });
+      
+      if (regularUserResponse.status === 200) {
+        regularUserToken = regularUserResponse.body.accessToken;
+        console.log('Regular user token obtained');
+      }
+    } else {
+      console.error('Failed to create test user:', createUserResponse.status, createUserResponse.body);
+    }
   }, 30000);
 
   afterAll(() => {
@@ -54,15 +82,15 @@ describe('Internal Entity Access Control Tests', () => {
 
   describe('Access to _migrations entity', () => {
     test('GET /entities/_migrations - should block access for non-admin users', async () => {
-      // Note: This test assumes regularUserToken is a non-admin user
-      // For now, we'll test that the middleware is in place
+      // This test validates that regularUserToken is a non-admin user
       const response = await request(BASE_URL)
         .get('/entities/_migrations')
         .set('Authorization', `Bearer ${regularUserToken}`);
       
-      // Admin can access, so if regularUserToken is admin, it will return 200 or 404
-      // Non-admin should get 403
-      expect([200, 403, 404]).toContain(response.status);
+      // Non-admin users should get 403 Forbidden
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access to internal entities is restricted');
     });
 
     test('GET /entities/_migrations - should allow access for admin users', async () => {
@@ -86,8 +114,10 @@ describe('Internal Entity Access Control Tests', () => {
         .set('Authorization', `Bearer ${regularUserToken}`)
         .send({ brokerPasswordsMigrated: false });
       
-      // Should block with 403 or return 404 if admin
-      expect([403, 404]).toContain(response.status);
+      // Non-admin users should get 403 Forbidden
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access to internal entities is restricted');
     });
 
     test('POST /entities/_migrations - should block creation for non-admin users', async () => {
@@ -96,8 +126,10 @@ describe('Internal Entity Access Control Tests', () => {
         .set('Authorization', `Bearer ${regularUserToken}`)
         .send({ testFlag: true });
       
-      // Should block with 403
-      expect([403, 404]).toContain(response.status);
+      // Non-admin users should get 403 Forbidden
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access to internal entities is restricted');
     });
 
     test('DELETE /entities/_migrations/test - should block deletion for non-admin users', async () => {
@@ -105,8 +137,10 @@ describe('Internal Entity Access Control Tests', () => {
         .delete('/entities/_migrations/test')
         .set('Authorization', `Bearer ${regularUserToken}`);
       
-      // Should block with 403
-      expect([403, 404]).toContain(response.status);
+      // Non-admin users should get 403 Forbidden
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access to internal entities is restricted');
     });
   });
 
