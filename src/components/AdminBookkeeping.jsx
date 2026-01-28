@@ -59,30 +59,12 @@ export default function AdminBookkeeping() {
     queryFn: () => compliant.entities.Project.list(),
   });
 
-  // Memoize contractor and project lookups for better performance
-  const contractorsMap = useMemo(() => 
-    new Map(contractors.map(c => [c.id, c])), 
-    [contractors]
-  );
-
-  const projectsByGC = useMemo(() => {
-    const map = new Map();
-    projects.forEach(p => {
-      if (p.status === 'active') {
-        const gcProjects = map.get(p.gc_id) || [];
-        gcProjects.push(p);
-        map.set(p.gc_id, gcProjects);
-      }
-    });
-    return map;
-  }, [projects]);
-
   const getContractor = (gcId) => {
-    return contractorsMap.get(gcId);
+    return contractors.find(c => c.id === gcId);
   };
 
   const getGCProjects = (gcId) => {
-    return (projectsByGC.get(gcId) || []).length;
+    return projects.filter(p => p.gc_id === gcId && p.status === 'active').length;
   };
 
   //subscriptions by date range
@@ -124,63 +106,23 @@ export default function AdminBookkeeping() {
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  // Calculate stats with memoization (performance optimization: single pass instead of multiple filters)
-  const stats = useMemo(() => {
-    const filterByDateRangeLocal = (sub) => {
-      if (!sub || !sub.id) return false;
-      if (dateRange === 'all_time') return true;
-      if (!sub.payment_date) return false;
+  // Calculate stats
+  const stats = {
+    totalRevenue: subscriptions
+      .filter(s => s && s.id && s.payment_status === 'completed' && filterByDateRange(s))
+      .reduce((sum, s) => sum + (s.amount_paid || 0), 0),
+    activeSubscriptions: subscriptions.filter(s => s && s.id && s.status === 'active').length,
+    totalTransactions: subscriptions.filter(s => s && s.id && s.payment_status === 'completed' && filterByDateRange(s)).length,
+    pendingPayments: subscriptions.filter(s => s && s.id && s.payment_status === 'pending').length,
+  };
 
-      const paymentDate = new Date(sub.payment_date);
-      const now = new Date();
-
-      switch (dateRange) {
-        case 'this_month':
-          return isWithinInterval(paymentDate, {
-            start: startOfMonth(now),
-            end: endOfMonth(now)
-          });
-        case 'this_year':
-          return isWithinInterval(paymentDate, {
-            start: startOfYear(now),
-            end: now
-          });
-        default:
-          return true;
-      }
-    };
-
-    let totalRevenue = 0;
-    let activeSubscriptions = 0;
-    let totalTransactions = 0;
-    let pendingPayments = 0;
-    const revenueByPlanAcc = {};
-
-    subscriptions.forEach(s => {
-      if (!s || !s.id) return;
-      
-      const matchesDate = filterByDateRangeLocal(s);
-      
-      if (s.status === 'active') activeSubscriptions++;
-      if (s.payment_status === 'pending') pendingPayments++;
-      if (s.payment_status === 'completed' && matchesDate) {
-        totalRevenue += s.amount_paid || 0;
-        totalTransactions++;
-        const key = s.plan_type;
-        revenueByPlanAcc[key] = (revenueByPlanAcc[key] || 0) + (s.amount_paid || 0);
-      }
-    });
-
-    return {
-      totalRevenue,
-      activeSubscriptions,
-      totalTransactions,
-      pendingPayments,
-      revenueByPlan: revenueByPlanAcc,
-    };
-  }, [subscriptions, dateRange]);
-
-  const revenueByPlan = stats.revenueByPlan;
+  const revenueByPlan = subscriptions
+    .filter(s => s && s.id && s.payment_status === 'completed' && filterByDateRange(s))
+    .reduce((acc, sub) => {
+      const key = sub.plan_type;
+      acc[key] = (acc[key] || 0) + (sub.amount_paid || 0);
+      return acc;
+    }, {});
 
   // Advanced Analytics
   const analytics = useMemo(() => {
@@ -389,30 +331,23 @@ InsureTrack Billing Team`
         return days === 7;
       });
 
-      // Parallelize renewal reminders for better performance
-      const renewalPromises = dueSoon.map(sub => 
-        sendRenewalReminder(sub).catch(err => {
-          console.error(`Failed to send renewal reminder for subscription ${sub.id}:`, err);
-          return null;
-        })
-      );
-      const renewalResults = await Promise.all(renewalPromises);
-      sentCount += renewalResults.filter(r => r !== null).length;
+      for (const sub of dueSoon) {
+        await sendRenewalReminder(sub);
+        sentCount++;
+      }
 
       // Find pending payments
       const pending = subscriptions.filter(s => 
         s.payment_status === 'pending' && s.status === 'pending_payment'
       );
 
-      // Parallelize pending payment emails for better performance
-      const pendingPromises = pending.map(async (sub) => {
-        const gc = contractorsMap.get(sub.gc_id);
+      for (const sub of pending) {
+        const gc = contractors.find(c => c.id === sub.gc_id);
         if (gc?.email) {
-          try {
-            await sendEmail({
-              to: gc.email,
-              subject: `💰 Payment Pending - ${sub.plan_name}`,
-              body: `Dear ${sub.gc_name},
+          await sendEmail({
+            to: gc.email,
+            subject: `💰 Payment Pending - ${sub.plan_name}`,
+            body: `Dear ${sub.gc_name},
 
 Your payment is currently pending for:
 
@@ -423,17 +358,10 @@ Please complete your payment to activate your subscription.
 
 Thank you,
 InsureTrack Billing Team`
-            });
-            return true;
-          } catch (err) {
-            console.error(`Failed to send pending payment email for subscription ${sub.id}:`, err);
-            return false;
-          }
+          });
+          sentCount++;
         }
-        return false;
-      });
-      const pendingResults = await Promise.all(pendingPromises);
-      sentCount += pendingResults.filter(r => r === true).length;
+      }
 
       setEmailStatus(`✅ Sent ${sentCount} automated reminder emails!`);
     } catch (error) {

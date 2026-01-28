@@ -9,7 +9,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, AlertCircle, User, Mail } from "lucide-react";
 import { notifyBrokerAssignment } from "@/brokerNotifications";
 import { getBackendBaseUrl } from "@/urlConfig";
-import { isValidEmail } from "@/utils";
 
 export default function BrokerUpload() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -109,7 +108,7 @@ export default function BrokerUpload() {
       // Validate based on upload type
       if (uploadType === 'global') {
         if (!globalBroker.broker_name?.trim()) throw new Error('Broker name is required');
-        if (!isValidEmail(globalBroker.broker_email)) {
+        if (!globalBroker.broker_email?.trim() || !globalBroker.broker_email.includes('@')) {
           throw new Error('Valid broker email is required');
         }
       } else {
@@ -117,7 +116,7 @@ export default function BrokerUpload() {
         if (brokers.length === 0) throw new Error('Add at least one broker');
         for (const broker of brokers) {
           if (!broker.name?.trim()) throw new Error('All brokers must have a name');
-          if (!isValidEmail(broker.email)) {
+          if (!broker.email?.trim() || !broker.email.includes('@')) {
             throw new Error('All brokers must have a valid email');
           }
           if (broker.policies.length === 0) throw new Error('All brokers must be assigned at least one policy');
@@ -499,7 +498,7 @@ export default function BrokerUpload() {
                               setError('Broker name is required');
                               return;
                             }
-                            if (!isValidEmail(currentBrokerForm.email)) {
+                            if (!currentBrokerForm.email?.trim() || !currentBrokerForm.email.includes('@')) {
                               setError('Valid broker email is required');
                               return;
                             }

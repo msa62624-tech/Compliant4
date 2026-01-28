@@ -332,7 +332,8 @@ function ensureDefaultGC() {
   const hasGC = contractors.some(c => c.contractor_type === 'general_contractor');
   if (hasGC) return;
 
-  const defaultPassword = 'GCpassword123!';
+  // Use environment variable for default password
+  const defaultPassword = process.env.DEFAULT_GC_PASSWORD || 'GCpassword123!';
   const hash = bcrypt.hashSync(defaultPassword, 10);
   const gcId = `Contractor-${Date.now()}`;
 
@@ -2299,11 +2300,11 @@ async function generateSampleCOIPDF(data = {}) {
       // GL Limits
       doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 460, yPos + 3);
       const glLimit = tierReqByType['general_liability']?.gl_each_occurrence || 
-        getFieldValue('gl_each_occurrence', 'general_liability') || 1000000;
+        getFieldValue('gl_each_occurrence') || 1000000;
       doc.text(`$ ${glLimit.toLocaleString()}`, margin + 460, yPos + 10);
       doc.text('GENERAL AGGREGATE', margin + 460, yPos + 22);
       const glAgg = tierReqByType['general_liability']?.gl_general_aggregate || 
-        getFieldValue('gl_general_aggregate', 'general_liability') || 2000000;
+        getFieldValue('gl_general_aggregate') || 2000000;
       doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 29);
       doc.text('PRODUCTS - COMP/OP AGG', margin + 460, yPos + 41);
       doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 48);
@@ -2321,7 +2322,7 @@ async function generateSampleCOIPDF(data = {}) {
       doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
       doc.text('COMBINED SINGLE LIMIT', margin + 460, yPos + 8);
       const autoLimit = tierReqByType['auto_liability']?.auto_combined_single_limit || 
-        getFieldValue('auto_combined_single_limit', 'auto_liability') || 1000000;
+        getFieldValue('auto_combined_single_limit') || 1000000;
       doc.text(`$ ${autoLimit.toLocaleString()}`, margin + 460, yPos + 15);
 
       yPos += 37;
@@ -2337,7 +2338,7 @@ async function generateSampleCOIPDF(data = {}) {
       doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
       doc.text('E.L. EACH ACCIDENT', margin + 460, yPos + 3);
       const wcLimit = tierReqByType['workers_compensation']?.wc_each_accident || 
-        getFieldValue('wc_each_accident', 'workers_compensation') || 1000000;
+        getFieldValue('wc_each_accident') || 1000000;
       doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 10);
       doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 460, yPos + 18);
       doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 25);
@@ -2356,7 +2357,7 @@ async function generateSampleCOIPDF(data = {}) {
         doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
         doc.text('EACH OCCURRENCE', margin + 460, yPos + 8);
         const umbLimit = tierReqByType['umbrella_policy']?.umbrella_each_occurrence || 
-          getFieldValue('umbrella_each_occurrence', 'umbrella_policy') || 2000000;
+          getFieldValue('umbrella_each_occurrence') || 2000000;
         doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 15);
         doc.text('AGGREGATE', margin + 460, yPos + 23);
         doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 30);

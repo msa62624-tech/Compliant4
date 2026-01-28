@@ -127,15 +127,13 @@ export async function checkAndSendDeficiencyReminders() {
       return;
     }
 
-    // Fetch all projects once (performance optimization: avoid N+1 queries)
-    const projects = await compliant.entities.Project.list();
-    const projectsMap = new Map(projects.map(p => [p.id, p]));
 
     // Process each pending deficiency
     for (const coi of pendingDeficiencies) {
       try {
-        // Find the matching project using Map for O(1) lookup
-        const project = projectsMap.get(coi.project_id);
+        // Fetch projects and find the matching one
+        const projects = await compliant.entities.Project.list();
+        const project = projects.find(p => p.id === coi.project_id);
         if (!project) continue;
 
         // Get broker info

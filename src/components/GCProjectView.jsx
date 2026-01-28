@@ -48,7 +48,12 @@ export default function GCProjectView() {
   const { data: subs = [], isLoading: subsLoading } = useQuery({
     queryKey: ["gc-project-subs", projectId],
     queryFn: async () => {
-      const backendBase = getBackendBaseUrl();
+      const { protocol, host, origin } = window.location;
+      const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+      const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                         origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                         origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                         import.meta?.env?.VITE_API_BASE_URL || '';
       const response = await fetch(`${backendBase}/public/all-project-subcontractors`);
       if (!response.ok) throw new Error('Failed to fetch subcontractors');
       const allSubs = await response.json();
@@ -62,7 +67,12 @@ export default function GCProjectView() {
   const { data: projectCois = [] } = useQuery({
     queryKey: ["gc-project-cois", projectId],
     queryFn: async () => {
-      const backendBase = getBackendBaseUrl();
+      const { protocol, host, origin } = window.location;
+      const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+      const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                         origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                         origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                         import.meta?.env?.VITE_API_BASE_URL || '';
       const response = await fetch(`${backendBase}/public/all-cois`);
       if (!response.ok) throw new Error('Failed to fetch COIs');
       const allCois = await response.json();
@@ -80,7 +90,12 @@ export default function GCProjectView() {
     queryFn: async () => {
       try {
         // Fetch all subcontractors from the public endpoint
-        const backendBase = getBackendBaseUrl();
+        const { protocol, host, origin } = window.location;
+        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                           import.meta?.env?.VITE_API_BASE_URL || '';
         
         const response = await fetch(`${backendBase}/public/all-project-subcontractors`);
         if (!response.ok) throw new Error('Failed to fetch subcontractors');
@@ -121,7 +136,12 @@ export default function GCProjectView() {
       }
 
       // Use public API to create/find subcontractor
-      const backendBase = getBackendBaseUrl();
+      const { protocol, host, origin } = window.location;
+      const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+      const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                         origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                         origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                         import.meta?.env?.VITE_API_BASE_URL || '';
 
       // Create contractor
       const createContractorResponse = await fetch(`${backendBase}/public/create-contractor`, {
@@ -175,9 +195,14 @@ export default function GCProjectView() {
     onSuccess: async (created) => {
       queryClient.invalidateQueries(["gc-project-subs", projectId]);
       
+      const { protocol, host, origin } = window.location;
+      const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
       
       // Get backend base URL
-      const backendBaseUrl = getBackendBaseUrl();
+      const backendBaseUrl = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                            origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                            origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                            import.meta?.env?.VITE_API_BASE_URL || '';
       
       // First, try to create a COI request for this subcontractor on this project
       // This will happen even if we don't know the broker yet
@@ -459,7 +484,10 @@ export default function GCProjectView() {
 `;
 
         // Get backend base URL
-        const backendBaseUrl = getBackendBaseUrl();
+        const backendBaseUrl = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                              origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                              origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                              import.meta?.env?.VITE_API_BASE_URL || '';
         
         console.log('📧 Sending email to:', contactEmail, 'with portal link:', portalUrl);
         

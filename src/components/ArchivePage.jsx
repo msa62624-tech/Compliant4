@@ -41,7 +41,6 @@ export default function ArchivePage() {
     queryKey: ['archived-contractors'],
     queryFn: async () => {
       const baseUrl = getBackendBaseUrl();
-      
       console.log('🗄️ Fetching archived contractors from:', `${baseUrl}/entities/Contractor/archived`);
       const response = await fetch(`${baseUrl}/entities/Contractor/archived`, {
         headers: {
@@ -67,7 +66,6 @@ export default function ArchivePage() {
     queryKey: ['archived-projects'],
     queryFn: async () => {
       const baseUrl = getBackendBaseUrl();
-      
       console.log('🗄️ Fetching archived projects from:', `${baseUrl}/entities/Project/archived`);
       const response = await fetch(`${baseUrl}/entities/Project/archived`, {
         headers: {
@@ -93,7 +91,6 @@ export default function ArchivePage() {
     queryKey: ['archived-project-subs'],
     queryFn: async () => {
       const baseUrl = getBackendBaseUrl();
-      
       const response = await fetch(`${baseUrl}/entities/ProjectSubcontractor/archived`, {
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +109,6 @@ export default function ArchivePage() {
   const unarchiveMutation = useMutation({
     mutationFn: async ({ entityName, id }) => {
       const baseUrl = getBackendBaseUrl();
-      
       const response = await fetch(`${baseUrl}/entities/${entityName}/${id}/unarchive`, {
         method: 'POST',
         headers: {

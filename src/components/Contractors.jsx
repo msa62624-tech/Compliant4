@@ -18,7 +18,6 @@ import { createPageUrl } from "@/utils";
 import AddressAutocomplete from "@/components/AddressAutocomplete.jsx";
 import ZipCodeLookup from "@/components/ZipCodeLookup.jsx";
 import { sendGCWelcomeEmail } from "@/gcNotifications";
-import { getBackendBaseUrl } from "@/urlConfig";
 import { notificationLinks } from "@/notificationLinkBuilder";
 import { toast } from "sonner";
 import {
@@ -28,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getBackendBaseUrl } from "@/urlConfig";
 
 const US_STATES = [
   { code: 'AL', name: 'Alabama' }, { code: 'AK', name: 'Alaska' }, { code: 'AZ', name: 'Arizona' },
@@ -147,7 +147,6 @@ export default function Contractors() {
   const archiveContractorMutation = useMutation({
     mutationFn: async ({ id, reason }) => {
       const baseUrl = getBackendBaseUrl();
-      
       const response = await fetch(`${baseUrl}/entities/Contractor/${id}/archive`, {
         method: 'POST',
         headers: {

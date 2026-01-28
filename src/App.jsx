@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Pages from "@/pages/index.jsx"
 import { Toaster } from "@/components/ui/toaster"
 import Login from '@/components/Login.jsx'
+import ErrorBoundary from '@/components/ErrorBoundary.jsx'
 import auth from '@/auth.js'
 
 function App() {
@@ -62,15 +63,15 @@ function App() {
 
   if (!loggedIn && !isPublicPortal) {
     return (
-    <>
+    <ErrorBoundary>
       <Login />
       <Toaster />
-    </>
+    </ErrorBoundary>
   );
   }
 
   return (
-    <>
+    <ErrorBoundary>
       {error && (
         <div style={{
           position: 'fixed',
@@ -88,7 +89,7 @@ function App() {
       )}
       <Pages onLogout={handleLogout} />
       <Toaster />
-    </>
+    </ErrorBoundary>
   )
 }
 

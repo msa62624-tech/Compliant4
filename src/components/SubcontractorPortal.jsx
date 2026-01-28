@@ -71,12 +71,10 @@ export default function SubcontractorPortal() {
         subcontractor_name: contractor.company_name
       });
       
-      // Get project details for each (performance optimization: use Map for O(1) lookup)
+      // Get project details for each
       const allProjects = await compliant.entities.Project.list();
-      const projectsMap = new Map(allProjects.map(p => [p.id, p]));
-      
       return projectSubs.map(ps => {
-        const project = projectsMap.get(ps.project_id);
+        const project = allProjects.find(p => p.id === ps.project_id);
         return { ...ps, project_details: project };
       });
     },

@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Building2 } from 'lucide-react';
 import ForgotPassword from '@/components/ForgotPassword';
-import { getBackendBaseUrl } from '@/urlConfig';
-import { isValidEmail } from '@/utils';
+import { getBackendBaseUrl } from "@/urlConfig";
 
 export default function BrokerLogin({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -25,11 +24,10 @@ export default function BrokerLogin({ onLogin }) {
       }
 
       // Validate email format
-      if (!isValidEmail(email)) {
+      if (!email.includes('@')) {
         throw new Error('Please enter a valid email address');
       }
 
-      // Get backend URL from centralized utility
       const backendBase = getBackendBaseUrl();
 
       // Authenticate broker via public endpoint
