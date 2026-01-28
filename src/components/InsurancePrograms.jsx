@@ -615,8 +615,9 @@ export default function InsurancePrograms() {
                                 try {
                                   if (!program.pdf_data) return;
                                   const byteCharacters = atob(program.pdf_data);
-                                  const byteNumbers = new Array(byteCharacters.length);
-                                  for (let i = 0; i < byteCharacters.length; i++) {
+                                  const len = byteCharacters.length;
+                                  const byteNumbers = new Array(len);
+                                  for (let i = 0; i < len; i++) {
                                     byteNumbers[i] = byteCharacters.charCodeAt(i);
                                   }
                                   const byteArray = new Uint8Array(byteNumbers);

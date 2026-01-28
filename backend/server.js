@@ -5214,7 +5214,12 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
       additional_insureds: Array.isArray(d.additional_insureds)
         ? d.additional_insureds
         : (typeof d.additional_insureds === 'string'
-        ? d.additional_insureds.split(/\n|,|;|\|/).map(s => s.trim()).filter(Boolean)
+        // Optimized: Single pass instead of split→map→filter
+        ? d.additional_insureds.split(/\n|,|;|\|/).reduce((acc, s) => {
+            const trimmed = s.trim();
+            if (trimmed) acc.push(trimmed);
+            return acc;
+          }, [])
         : []),
       
       // Will be used to store manually entered policies
@@ -6570,7 +6575,12 @@ function extractFieldsWithRegex(text, schema) {
   if ('broker_name' in schema && !extracted.broker_name) {
     const producerBlock = getBlockAfterLabel('PRODUCER', ['CONTACT', 'INSURED', 'INSURER']);
     if (producerBlock) {
-      const lines = producerBlock.split(/\n/).map(l => l.trim()).filter(Boolean);
+      // Optimized: Single pass instead of split→map→filter
+      const lines = producerBlock.split(/\n/).reduce((acc, line) => {
+        const trimmed = line.trim();
+        if (trimmed) acc.push(trimmed);
+        return acc;
+      }, []);
       // First line after PRODUCER is typically the broker name
       if (lines[0] && !lines[0].match(/^(NAME|PHONE|E-MAIL|FAX)/i)) {
         extracted.broker_name = lines[0];
@@ -6656,7 +6666,12 @@ function extractFieldsWithRegex(text, schema) {
       'AUTHORIZED REPRESENTATIVE'
     ]);
     if (holderBlock) {
-      const lines = holderBlock.split(/\n/).map(l => l.trim()).filter(Boolean);
+      // Optimized: Single pass instead of split→map→filter
+      const lines = holderBlock.split(/\n/).reduce((acc, line) => {
+        const trimmed = line.trim();
+        if (trimmed) acc.push(trimmed);
+        return acc;
+      }, []);
       if (!extracted.certificate_holder_name && lines[0]) extracted.certificate_holder_name = lines[0];
       if (!extracted.certificate_holder_address && lines.length > 1) {
         extracted.certificate_holder_address = lines.slice(1).join(', ');

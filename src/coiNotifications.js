@@ -671,7 +671,17 @@ export async function notifyAdminBrokerChanged(subcontractor, newBrokers, oldBro
 
     // Build notification details
     const oldBrokersList = (oldBrokers || []).map(b => `${b.name} (${b.email})`).join(', ') || 'None';
-    const newBrokersList = newBrokers.map(b => `${b.name} (${b.email}) - ${Object.entries(b.policies).filter(([_, v]) => v).map(([k]) => k.toUpperCase()).join(', ')}`).join(', ');
+    
+    // Optimized: Single pass instead of nested filter→map→join
+    const newBrokersList = newBrokers.map(b => {
+      const policies = Object.entries(b.policies)
+        .reduce((acc, [k, v]) => {
+          if (v) acc.push(k.toUpperCase());
+          return acc;
+        }, [])
+        .join(', ');
+      return `${b.name} (${b.email}) - ${policies}`;
+    }).join(', ');
     
     const affectedProjectsList = projects.map(p => `• ${p.project_name}`).join('\n');
 
