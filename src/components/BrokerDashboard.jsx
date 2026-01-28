@@ -40,7 +40,6 @@ export default function BrokerDashboard() {
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
   const [selectedCOIForReplace, setSelectedCOIForReplace] = useState(null);
 
-  // Get backend URL from centralized utility
   const backendBase = React.useMemo(() => getBackendBaseUrl(), []);
 
   const { data: allCOIs = [], isLoading } = useQuery({

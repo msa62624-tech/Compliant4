@@ -38,9 +38,7 @@ export default function GCDashboard() {
     queryKey: ['gc-projects', gcId],
     queryFn: async () => {
       try {
-        // Use public endpoint to fetch all projects, then filter by gc_id
         const backendBase = getBackendBaseUrl();
-        
         const response = await fetch(`${backendBase}/public/projects`);
         if (!response.ok) throw new Error('Failed to fetch projects');
         const allProjects = await response.json();
@@ -60,7 +58,12 @@ export default function GCDashboard() {
     queryFn: async () => {
       try {
         // Use public endpoint to fetch all project subcontractors
-        const backendBase = getBackendBaseUrl();
+        const { protocol, host, origin } = window.location;
+        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                           import.meta?.env?.VITE_API_BASE_URL || '';
         
         const response = await fetch(`${backendBase}/public/all-project-subcontractors`);
         if (!response.ok) throw new Error('Failed to fetch subcontractors');
@@ -84,7 +87,12 @@ export default function GCDashboard() {
     queryFn: async () => {
       try {
         // Use public endpoint to fetch all COIs
-        const backendBase = getBackendBaseUrl();
+        const { protocol, host, origin } = window.location;
+        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                           import.meta?.env?.VITE_API_BASE_URL || '';
         
         const response = await fetch(`${backendBase}/public/all-cois`);
         if (!response.ok) throw new Error('Failed to fetch COIs');
@@ -134,24 +142,15 @@ export default function GCDashboard() {
     return latestCoi.status || sub.compliance_status || 'pending_broker';
   };
 
-  // Filter projects and subs based on search (memoized for performance)
+  // Memoize expensive filter computation for performance
   const filteredProjects = useMemo(() => {
-    if (!searchTerm) return projects;
-    
-    // Pre-compute project subs map for O(1) lookup
-    const projectSubsMap = new Map();
-    projectSubs.forEach(ps => {
-      if (!projectSubsMap.has(ps.project_id)) {
-        projectSubsMap.set(ps.project_id, []);
-      }
-      projectSubsMap.get(ps.project_id).push(ps);
-    });
-
     return projects.filter(project => {
       const searchLower = searchTerm.toLowerCase();
       
+      if (!searchTerm) return true;
+      
       if (searchType === 'all') {
-        const projectSubsList = projectSubsMap.get(project.id) || [];
+        const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
         const hasMatchingSub = projectSubsList.some(ps => 
           ps.subcontractor_name?.toLowerCase().includes(searchLower)
         );
@@ -166,7 +165,7 @@ export default function GCDashboard() {
           project.project_address?.toLowerCase().includes(searchLower)
         );
       } else if (searchType === 'subcontractor') {
-        const projectSubsList = projectSubsMap.get(project.id) || [];
+        const projectSubsList = projectSubs.filter(ps => ps.project_id === project.id);
         return projectSubsList.some(ps => 
           ps.subcontractor_name?.toLowerCase().includes(searchLower)
         );

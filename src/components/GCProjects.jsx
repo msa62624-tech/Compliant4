@@ -155,7 +155,6 @@ export default function GCProjects() {
   const archiveProjectMutation = useMutation({
     mutationFn: async ({ id, reason }) => {
       const baseUrl = getBackendBaseUrl();
-      
       const response = await fetch(`${baseUrl}/entities/Project/${id}/archive`, {
         method: 'POST',
         headers: {

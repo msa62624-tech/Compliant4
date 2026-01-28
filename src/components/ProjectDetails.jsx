@@ -18,7 +18,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
-import { getBackendBaseUrl } from "@/urlConfig";
 import { generateSecureToken } from "@/utils/tokenGenerator";
 import {
   Dialog,
@@ -33,6 +32,7 @@ import {
 } from "@/components/ui/alert";
 import SendBrokerRequestDialog from "./SendBrokerRequest";
 import TradeSelectionComponent from "./TradeSelectionComponent";
+import { getBackendBaseUrl } from "@/urlConfig";
 
 export default function ProjectDetails() {
   const navigate = useNavigate();
@@ -227,7 +227,6 @@ export default function ProjectDetails() {
   const archiveSubMutation = useMutation({
     mutationFn: async ({ id, reason }) => {
       const baseUrl = getBackendBaseUrl();
-      
       const response = await fetch(`${baseUrl}/entities/ProjectSubcontractor/${id}/archive`, {
         method: 'POST',
         headers: {
