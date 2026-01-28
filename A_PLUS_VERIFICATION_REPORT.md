@@ -174,7 +174,7 @@ const backendBase = getBackendBaseUrl();
 **Impact:** Low - Does not affect functionality
 
 ```bash
-Total Linting Errors: ~91 errors across 7 files
+Total Linting Errors: 84 errors across 7 files
 ```
 
 **Categories:**
