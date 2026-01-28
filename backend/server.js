@@ -2183,14 +2183,22 @@ async function generateSampleCOIPDF(data = {}) {
 
       // Cache tier requirements by insurance type for efficient lookup (avoid repeated .find() calls)
       const tierReqByType = {};
-      const tierReqGeneral = {}; // fallback for any field regardless of type
       for (const req of tierRequirements) {
         if (req.insurance_type) {
           tierReqByType[req.insurance_type] = req;
         }
-        // Store in general cache for fallback
-        Object.assign(tierReqGeneral, req);
       }
+      // Fallback: use first requirement with the field if type-specific not found
+      const getFieldValue = (field, insuranceType) => {
+        if (tierReqByType[insuranceType]?.[field]) {
+          return tierReqByType[insuranceType][field];
+        }
+        // Fallback to any requirement that has this field
+        for (const req of tierRequirements) {
+          if (req[field]) return req[field];
+        }
+        return null;
+      };
 
       // Determine if umbrella is required
       const hasUmbrellaRequirement = tierRequirements.length > 0 && tierRequirements.some(req => 
@@ -2291,11 +2299,11 @@ async function generateSampleCOIPDF(data = {}) {
       // GL Limits
       doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 460, yPos + 3);
       const glLimit = tierReqByType['general_liability']?.gl_each_occurrence || 
-        tierReqGeneral.gl_each_occurrence || 1000000;
+        getFieldValue('gl_each_occurrence') || 1000000;
       doc.text(`$ ${glLimit.toLocaleString()}`, margin + 460, yPos + 10);
       doc.text('GENERAL AGGREGATE', margin + 460, yPos + 22);
       const glAgg = tierReqByType['general_liability']?.gl_general_aggregate || 
-        tierReqGeneral.gl_general_aggregate || 2000000;
+        getFieldValue('gl_general_aggregate') || 2000000;
       doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 29);
       doc.text('PRODUCTS - COMP/OP AGG', margin + 460, yPos + 41);
       doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 48);
@@ -2313,7 +2321,7 @@ async function generateSampleCOIPDF(data = {}) {
       doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
       doc.text('COMBINED SINGLE LIMIT', margin + 460, yPos + 8);
       const autoLimit = tierReqByType['auto_liability']?.auto_combined_single_limit || 
-        tierReqGeneral.auto_combined_single_limit || 1000000;
+        getFieldValue('auto_combined_single_limit') || 1000000;
       doc.text(`$ ${autoLimit.toLocaleString()}`, margin + 460, yPos + 15);
 
       yPos += 37;
@@ -2329,7 +2337,7 @@ async function generateSampleCOIPDF(data = {}) {
       doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
       doc.text('E.L. EACH ACCIDENT', margin + 460, yPos + 3);
       const wcLimit = tierReqByType['workers_compensation']?.wc_each_accident || 
-        tierReqGeneral.wc_each_accident || 1000000;
+        getFieldValue('wc_each_accident') || 1000000;
       doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 10);
       doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 460, yPos + 18);
       doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 25);
@@ -2348,7 +2356,7 @@ async function generateSampleCOIPDF(data = {}) {
         doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
         doc.text('EACH OCCURRENCE', margin + 460, yPos + 8);
         const umbLimit = tierReqByType['umbrella_policy']?.umbrella_each_occurrence || 
-          tierReqGeneral.umbrella_each_occurrence || 2000000;
+          getFieldValue('umbrella_each_occurrence') || 2000000;
         doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 15);
         doc.text('AGGREGATE', margin + 460, yPos + 23);
         doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 30);
@@ -6124,7 +6132,7 @@ app.post('/integrations/analyze-policy', authenticateToken, async (req, res) => 
         last_analyzed_at: analysis.analyzed_at,
         compliance_status: analysis.status
       };
-      await debouncedSave();
+      debouncedSave(); // Note: debounced, doesn't return promise
     }
 
     console.log(`✅ Policy analysis complete: ${deficiencies.length} deficiencies found`);
@@ -6999,7 +7007,7 @@ app.post('/admin/approve-coi-with-deficiencies', apiLimiter, authenticateToken, 
       approved_by: approvalRecord.approved_by
     };
 
-    await debouncedSave();
+    debouncedSave(); // Note: debounced, doesn't return promise
 
     // Log the approval for audit trail
     console.log(`✅ COI ${coi_id} approved with deficiencies by ${approvalRecord.approved_by}`);

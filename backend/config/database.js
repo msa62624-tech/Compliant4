@@ -93,14 +93,16 @@ export const entities = {
  */
 export async function loadEntities() {
   try {
-    // Ensure data directory exists
-    if (!fs.existsSync(DATA_DIR)) {
+    // Ensure data directory exists using async method
+    try {
+      await fsPromises.access(DATA_DIR);
+    } catch {
       await fsPromises.mkdir(DATA_DIR, { recursive: true });
       console.log('📁 Created data directory:', DATA_DIR);
     }
 
     // Load existing data if file exists
-    if (fs.existsSync(DATA_FILE)) {
+    try {
       const data = await fsPromises.readFile(DATA_FILE, 'utf8');
       
       // Parse JSON with error handling
@@ -131,10 +133,15 @@ export async function loadEntities() {
       console.log('✅ Loaded persisted data from:', DATA_FILE);
       console.log('📊 Contractors loaded:', entities.Contractor?.length || 0);
       console.log('📊 Projects loaded:', entities.Project?.length || 0);
-    } else {
-      console.log('ℹ️ No existing data file, starting with empty data');
-      // Save initial empty data
-      await saveEntities();
+    } catch (error) {
+      // File doesn't exist or other error
+      if (error.code === 'ENOENT') {
+        console.log('ℹ️ No existing data file, starting with empty data');
+        // Save initial empty data
+        await saveEntities();
+      } else {
+        throw error;
+      }
     }
   } catch (error) {
     console.error('❌ Error loading entities:', error.message);
@@ -147,8 +154,10 @@ export async function loadEntities() {
  */
 export async function saveEntities() {
   try {
-    // Ensure data directory exists
-    if (!fs.existsSync(DATA_DIR)) {
+    // Ensure data directory exists using async method
+    try {
+      await fsPromises.access(DATA_DIR);
+    } catch {
       await fsPromises.mkdir(DATA_DIR, { recursive: true });
     }
 
