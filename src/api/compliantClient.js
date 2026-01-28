@@ -19,6 +19,7 @@
  */
 
 import { getAuthHeader, clearToken, refreshAccessToken } from '../auth.js';
+import logger from '../utils/logger';
 
 const envUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL)
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')
@@ -58,13 +59,13 @@ const BACKEND_NOT_CONFIGURED_CONSOLE_MSG = BACKEND_NOT_CONFIGURED_ERROR;
 // Log backend configuration status on startup
 if (typeof window !== 'undefined') {
   if (!baseUrl) {
-    console.error(`❌ CRITICAL: Backend URL not configured!
-❌ All operations will fail.
-❌ For Vercel/Netlify/Render: Add VITE_API_BASE_URL environment variable in your deployment dashboard and redeploy.
-❌ For local development: Configure VITE_API_BASE_URL in .env file.
-❌ Example: VITE_API_BASE_URL=https://your-backend.vercel.app`);
+    logger.error('Backend URL not configured', {
+      details: 'All operations will fail',
+      instructions: 'For Vercel/Netlify/Render: Add VITE_API_BASE_URL environment variable in your deployment dashboard and redeploy. For local development: Configure VITE_API_BASE_URL in .env file.',
+      example: 'VITE_API_BASE_URL=https://your-backend.vercel.app'
+    });
   } else {
-    console.log(`✅ Backend configured: ${baseUrl}`);
+    logger.info('Backend configured', { url: baseUrl });
   }
 }
 
@@ -92,7 +93,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
           clearTimeout(id);
           if (res.status === 401) {
             // unauthorized - clear token and surface a clear error
-            console.error('❌ 401 Unauthorized - Token invalid or expired');
+            logger.error('401 Unauthorized - Token invalid or expired');
             try { clearToken(); } catch(e){}
             const e = new Error('Your session has expired. Please log in again.');
             e.status = 401;
@@ -110,16 +111,16 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
                 throw err;
               }
               try {
-                console.log('🔄 Attempting to refresh expired token...');
+                logger.info('Attempting to refresh expired token');
                 await refreshAccessToken();
                 tokenRefreshAttempted = true;
                 // Update headers with new token and retry
                 const newHeaders = { ...(opts.headers || {}), ...getAuthHeader() };
                 finalOpts.headers = newHeaders;
-                console.log('✅ Token refreshed successfully, retrying request');
+                logger.info('Token refreshed successfully, retrying request');
                 continue; // Retry with new token without counting toward attempt limit
               } catch (err) {
-                console.error('❌ Token refresh failed:', err);
+                logger.error('Token refresh failed', { error: err?.message });
                 try { clearToken(); } catch(e){}
                 const e = new Error('Your session has expired. Please log in again.');
                 e.status = 401;
@@ -237,7 +238,7 @@ const shim = {
   auth: {
     me: async () => {
       if (!baseUrl) {
-        console.error(BACKEND_NOT_CONFIGURED_CONSOLE_MSG);
+        logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
         throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
       }
       const headers = { ...getAuthHeader() };
@@ -255,7 +256,7 @@ const shim = {
     Core: {
       InvokeLLM: async (payload) => {
         if (!baseUrl) {
-          console.error(BACKEND_NOT_CONFIGURED_CONSOLE_MSG);
+          logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
         }
         const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };
@@ -397,7 +398,7 @@ const shim = {
 
       GenerateImage: async (payload) => {
         if (!baseUrl) {
-          console.error(BACKEND_NOT_CONFIGURED_CONSOLE_MSG);
+          logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
         }
         const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };
@@ -413,7 +414,7 @@ const shim = {
 
       ExtractDataFromUploadedFile: async (payload) => {
         if (!baseUrl) {
-          console.error(BACKEND_NOT_CONFIGURED_CONSOLE_MSG);
+          logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
         }
         const headers = { 
@@ -432,7 +433,7 @@ const shim = {
 
       ParseProgramPDF: async (payload) => {
         if (!baseUrl) {
-          console.error(BACKEND_NOT_CONFIGURED_CONSOLE_MSG);
+          logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
         }
         const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };
@@ -448,7 +449,7 @@ const shim = {
 
       CreateFileSignedUrl: async (payload) => {
         if (!baseUrl) {
-          console.error(BACKEND_NOT_CONFIGURED_CONSOLE_MSG);
+          logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
           throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
         }
         const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };
@@ -471,7 +472,7 @@ const shim = {
         // Upload a transient document to Adobe (returns transientDocumentId)
         CreateTransientDocument: async (payload) => {
           if (!baseUrl) {
-            console.error(BACKEND_NOT_CONFIGURED_CONSOLE_MSG);
+            logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
             throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
           }
           const headers = { ...getAuthHeader() };
@@ -488,7 +489,7 @@ const shim = {
         // Create an agreement using a transientDocumentId
         CreateAgreement: async (payload) => {
           if (!baseUrl) {
-            console.error(BACKEND_NOT_CONFIGURED_CONSOLE_MSG);
+            logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
             throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
           }
           const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };
@@ -505,7 +506,7 @@ const shim = {
         // Get a signing URL for an agreement
         GetSigningUrl: async (agreementId) => {
           if (!baseUrl) {
-            console.error(BACKEND_NOT_CONFIGURED_CONSOLE_MSG);
+            logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
             throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
           }
           const headers = { ...getAuthHeader() };
@@ -522,7 +523,7 @@ const shim = {
       NYC: {
         PropertyLookup: async (payload) => {
           if (!baseUrl) {
-            console.error(BACKEND_NOT_CONFIGURED_CONSOLE_MSG);
+            logger.error('Backend not configured', { errorMessage: BACKEND_NOT_CONFIGURED_CONSOLE_MSG });
             throw new Error(BACKEND_NOT_CONFIGURED_ERROR);
           }
           const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };

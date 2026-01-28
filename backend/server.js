@@ -60,9 +60,12 @@ try {
     apiKey: process.env.ADOBE_API_KEY,
     clientId: process.env.ADOBE_CLIENT_ID
   });
+  logger.info('Adobe PDF Service initialized successfully');
 } catch (error) {
-  console.error('⚠️  Failed to initialize Adobe PDF Service:', error.message);
-  console.log('   Service will run in fallback mode');
+  logger.warn('Failed to initialize Adobe PDF Service, running in fallback mode', {
+    error: error.message,
+    stack: error.stack
+  });
   adobePDF = new AdobePDFService(); // Initialize with defaults
 }
 
@@ -74,9 +77,15 @@ try {
     apiKey: process.env.AI_API_KEY || process.env.OPENAI_API_KEY,
     model: process.env.AI_MODEL || 'gpt-4-turbo-preview'
   });
+  logger.info('AI Analysis Service initialized successfully', {
+    provider: process.env.AI_PROVIDER || 'openai',
+    model: process.env.AI_MODEL || 'gpt-4-turbo-preview'
+  });
 } catch (error) {
-  console.error('⚠️  Failed to initialize AI Analysis Service:', error.message);
-  console.log('   Service will run in fallback mode');
+  logger.warn('Failed to initialize AI Analysis Service, running in fallback mode', {
+    error: error.message,
+    stack: error.stack
+  });
   aiAnalysis = new AIAnalysisService(); // Initialize with defaults
 }
 
@@ -131,7 +140,12 @@ function migrateBrokerPasswords() {
                 ? `${localPart.substring(0, 3)}***@${domain}`
                 : `***@${domain}`;
             }
-            console.warn(`⚠️ Password conflict detected for broker: ${maskedEmail} (found ${existing.uniquePasswords.size} different passwords across ${existing.count} COI records, keeping first)`);
+            logger.warn('Password conflict detected for broker', {
+              maskedEmail,
+              uniquePasswordsCount: existing.uniquePasswords.size,
+              recordCount: existing.count,
+              action: 'keeping first password'
+            });
             existing.conflictLogged = true;
           }
         }
@@ -156,7 +170,11 @@ function migrateBrokerPasswords() {
                 ? `${localPart.substring(0, 3)}***@${domain}`
                 : `***@${domain}`;
             }
-            console.log(`  ℹ️ Migrated password for ${maskedEmail} (consolidated from ${data.count} COI records)`);
+            logger.info('Migrated broker password', {
+              maskedEmail,
+              recordCount: data.count,
+              action: 'consolidated from multiple COI records'
+            });
           }
         }
       }
@@ -164,7 +182,10 @@ function migrateBrokerPasswords() {
 
     cleanupSuccessful = true;
   } catch (error) {
-    console.error('❌ Error migrating broker passwords:', error.message);
+    logger.error('Error migrating broker passwords', {
+      error: error.message,
+      stack: error.stack
+    });
     cleanupSuccessful = false;
   }
 
@@ -180,11 +201,17 @@ function migrateBrokerPasswords() {
       });
 
       if (migratedCount > 0) {
-        console.log(`✅ Migrated ${migratedCount} broker password(s) to centralized Broker table`);
+        logger.info('Broker password migration completed', {
+          migratedCount,
+          action: 'migrated to centralized Broker table'
+        });
         debouncedSave();
       }
     } catch (cleanupError) {
-      console.error('❌ Error during migration cleanup:', cleanupError.message);
+      logger.error('Error during migration cleanup', {
+        error: cleanupError.message,
+        stack: cleanupError.stack
+      });
     }
   }
 }
@@ -229,13 +256,19 @@ function seedBrokersFromData() {
     });
 
     if (seenEmails.size > 0) {
-      console.log(`✅ Seeded ${seenEmails.size} broker record(s) from existing data`);
+      logger.info('Broker seeding completed', {
+        seededCount: seenEmails.size,
+        action: 'seeded from existing data'
+      });
       debouncedSave();
     } else {
-      console.log('ℹ️ No new broker records to seed');
+      logger.debug('No new broker records to seed');
     }
   } catch (err) {
-    console.warn('⚠️ Broker seeding error:', err?.message || err);
+    logger.warn('Broker seeding error', {
+      error: err?.message || err,
+      stack: err?.stack
+    });
   }
 }
 
@@ -273,12 +306,18 @@ function cleanupPlaceholderGCs() {
       if (entities.Portal) {
         entities.Portal = entities.Portal.filter(p => p.user_id !== ph.id);
       }
-      console.log('🧹 Removed placeholder GC record:', ph.company_name || ph.id);
+      logger.info('Removed placeholder GC record', {
+        companyName: ph.company_name,
+        gcId: ph.id
+      });
     });
 
     debouncedSave();
   } catch (err) {
-    console.warn('⚠️ Placeholder GC cleanup failed:', err?.message || err);
+    logger.warn('Placeholder GC cleanup failed', {
+      error: err?.message || err,
+      stack: err?.stack
+    });
   }
 }
 
@@ -325,10 +364,10 @@ function cleanupInvalidPrograms() {
 
     if (changed) {
       debouncedSave();
-      console.log('🧹 Cleaned invalid program references');
+      logger.info('Cleaned invalid program references');
     }
   } catch (err) {
-    console.warn('⚠️ Program cleanup failed:', err?.message || err);
+    logger.warn('Program cleanup failed', { error: err?.message || err });
   }
 }
 
@@ -372,7 +411,7 @@ function ensureDefaultGC() {
   entities.Contractor.push(gc);
   debouncedSave();
   // SECURITY FIX: Don't log passwords in plaintext
-  console.log('✅ Seeded default GC account for portal login:', gc.email);
+  logger.info('Seeded default GC account for portal login', { email: gc.email });
 }
 
 ensureDefaultGC();
@@ -433,7 +472,7 @@ function ensureDefaultTradesPresent() {
     }
   }
   if (added > 0) {
-    console.log(`🔧 Ensured default trades present: added ${added}`);
+    logger.info('Ensured default trades present', { added });
     debouncedSave();
   }
 }
@@ -681,7 +720,7 @@ function buildProgramFromText(text, pdfName = 'Program') {
 
   // If no requirements found, create default structure
   if (requirements.length === 0) {
-    console.log('⚠️  No tier-based requirements found in PDF, creating default structure');
+    logger.info('No tier-based requirements found in PDF, creating default structure');
     requirements = [
       {
         id: generateRequirementId(timestamp, idCounter++),
@@ -778,17 +817,17 @@ function generateTempPassword(length = 12) {
 
 async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
   if (!contractor || contractor.contractor_type !== 'general_contractor') {
-    console.log('🔴 ensureGcLogin early return 1: no contractor or wrong type');
+    logger.debug('ensureGcLogin early return 1: no contractor or wrong type');
     return null;
   }
   if (!forceCreate && !contractor.email) {
-    console.log('🔴 ensureGcLogin early return 2: no forceCreate and no email');
+    logger.debug('ensureGcLogin early return 2: no forceCreate and no email');
     return null;
   }
 
   // Check if contractor already has a stored password - if so, don't regenerate it
   if (contractor.password && !forceCreate) {
-    console.log('✅ ensureGcLogin: contractor already has password stored, skipping regeneration', {
+    logger.info('ensureGcLogin: contractor already has password stored, skipping regeneration', {
       contractorId: contractor.id,
       email: contractor.email
     });
@@ -798,7 +837,7 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
   // Check if this specific contractor already has a login
   const existingForThisContractor = users.find(u => u.gc_id === contractor.id);
   if (existingForThisContractor) {
-    console.log('🔴 ensureGcLogin early return 3: contractor already has login', {
+    logger.debug('ensureGcLogin early return 3: contractor already has login', {
       contractorId: contractor.id,
       existingUserId: existingForThisContractor.id
     });
@@ -807,7 +846,7 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
 
   // Don't block if email exists in other contractors - allow multiple GCs with same contact email
   // This is valid in multi-contractor scenarios
-  console.log('✅ ensureGcLogin proceeding to create:', {
+  logger.info('ensureGcLogin proceeding to create', {
     contractorId: contractor.id,
     email: contractor.email,
     forceCreate
@@ -878,10 +917,9 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
   // Return temporary password so frontend can send it in welcome email
   // The frontend is responsible for not storing it in localStorage
   const returnValue = { username, role: 'gc', userId, passwordSet: true, password: tempPassword };
-  console.log('📦 ensureGcLogin returning:', {
+  logger.debug('ensureGcLogin returning', {
     username: returnValue.username,
     hasPassword: !!returnValue.password,
-    passwordLength: returnValue.password?.length || 0,
     allKeys: Object.keys(returnValue)
   });
   return returnValue;
@@ -894,7 +932,7 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
       await ensureGcLogin(c);
     }
   } catch (err) {
-    console.error('Error ensuring GC logins:', err);
+    logger.error('Error ensuring GC logins', { error: err?.message, stack: err?.stack });
   }
 })();
 
@@ -1078,7 +1116,7 @@ app.use('/auth/login', authLimiter);
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(UPLOADS_DIR));
-console.log('✅ Serving uploads from:', UPLOADS_DIR);
+logger.info('Serving uploads from', { directory: UPLOADS_DIR });
 
 // =======================
 // UTILITY MIDDLEWARE
@@ -1404,14 +1442,14 @@ app.post('/auth/change-password', authLimiter, authenticateToken, async (req, re
     users[userIndex].must_change_password = false;
     users[userIndex].password_changed_at = new Date().toISOString();
   
-    console.log(`✅ Password changed for user: ${users[userIndex].email}`);
+    logger.info('Password changed for user', { email: users[userIndex].email });
     
     sendSuccess(res, { 
       message: 'Password changed successfully',
       must_change_password: false
     });
   } catch (err) {
-    console.error('Password change error:', err);
+    logger.error('Password change error', { error: err?.message, stack: err?.stack });
     return sendError(res, 500, 'Failed to change password');
   }
 });
@@ -1486,7 +1524,7 @@ async function handlePasswordResetRequest(email, userType, res) {
         // Mock transporter for development
         transporter = {
           sendMail: async (options) => {
-            console.log('📧 MOCK EMAIL:', {
+            logger.info('MOCK EMAIL', {
               from: options.from,
               to: options.to,
               subject: options.subject
@@ -1518,9 +1556,9 @@ async function handlePasswordResetRequest(email, userType, res) {
       
       try {
         await transporter.sendMail(mailOptions);
-        console.log(`✅ Password reset email sent to: ${email}`);
+        logger.info('Password reset email sent', { email });
       } catch (emailErr) {
-        console.error('Failed to send password reset email:', emailErr?.message);
+        logger.error('Failed to send password reset email', { error: emailErr?.message });
       }
     }
     
@@ -1530,7 +1568,7 @@ async function handlePasswordResetRequest(email, userType, res) {
       message: 'If an account exists with this email, a password reset link has been sent.' 
     });
   } catch (err) {
-    console.error('handlePasswordResetRequest error:', err?.message || err);
+    logger.error('handlePasswordResetRequest error', { error: err?.message || err });
     return res.status(500).json({ error: 'Request failed' });
   }
 }
@@ -1583,7 +1621,7 @@ async function handlePasswordReset(req, res) {
       if (gcIndex !== -1) {
         entities.Contractor[gcIndex].password = hashedPassword;
         saveEntities();
-        console.log(`✅ GC password reset for: ${email}`);
+        logger.info('GC password reset', { email });
       } else {
         return res.status(404).json({ error: 'GC not found' });
       }
@@ -1594,7 +1632,7 @@ async function handlePasswordReset(req, res) {
       if (brokerIndex !== -1) {
         entities.Broker[brokerIndex].password = hashedPassword;
         debouncedSave();
-        console.log(`✅ Broker password reset for: ${email}`);
+        logger.info('Broker password reset', { email });
       } else {
         return res.status(404).json({ error: 'Broker not found' });
       }
@@ -1606,7 +1644,7 @@ async function handlePasswordReset(req, res) {
       if (subIndex !== -1) {
         entities.Contractor[subIndex].password = hashedPassword;
         saveEntities();
-        console.log(`✅ Subcontractor password reset for: ${email}`);
+        logger.info('Subcontractor password reset', { email });
       } else {
         return res.status(404).json({ error: 'Subcontractor not found' });
       }
@@ -1623,7 +1661,7 @@ async function handlePasswordReset(req, res) {
       message: 'Password has been reset successfully. You can now log in with your new password.' 
     });
   } catch (err) {
-    console.error('handlePasswordReset error:', err?.message || err);
+    logger.error('handlePasswordReset error', { error: err?.message || err });
     return res.status(500).json({ error: 'Password reset failed' });
   }
 }
@@ -1771,13 +1809,13 @@ app.post('/entities/:entityName', authenticateToken, idempotency(), async (req, 
   const newItem = { id: `${entityName}-${Date.now()}`, ...data, createdAt: new Date().toISOString(), createdBy: req.user.id };
   let gcLogin = null;
   if (entityName === 'Contractor' && data.contractor_type === 'general_contractor') {
-    console.log('🔧 Creating GC - calling ensureGcLogin for contractor:', {
+    logger.info('Creating GC - calling ensureGcLogin for contractor', {
       contractorId: newItem.id,
       contractorType: data.contractor_type,
       email: data.email
     });
     gcLogin = await ensureGcLogin(newItem, { forceCreate: true });
-    console.log('🔧 ensureGcLogin returned:', {
+    logger.info('ensureGcLogin returned', {
       gcLoginExists: !!gcLogin,
       gcLoginKeys: gcLogin ? Object.keys(gcLogin) : null,
       hasPassword: gcLogin?.password ? 'YES' : 'NO',
@@ -1785,19 +1823,19 @@ app.post('/entities/:entityName', authenticateToken, idempotency(), async (req, 
     });
     if (gcLogin) {
       newItem.gc_login_created = true;
-      console.log('✅ GC Login created:', {
+      logger.info('GC Login created', {
         username: gcLogin.username,
         hasPassword: !!gcLogin.password,
         passwordLength: gcLogin.password?.length || 0
       });
     } else {
-      console.log('❌ ensureGcLogin returned null/falsy');
+      logger.warn('ensureGcLogin returned null/falsy');
     }
   }
   entities[entityName].push(newItem);
   debouncedSave();
   const responsePayload = gcLogin ? { ...newItem, gcLogin } : newItem;
-  console.log('📤 Contractor creation response payload:', {
+  logger.info('Contractor creation response payload', {
     hasGcLogin: !!responsePayload.gcLogin,
     responseKeys: Object.keys(responsePayload).slice(0, 10)
   });
@@ -1919,7 +1957,7 @@ app.post('/entities/:entityName/:id/archive', authenticateToken, requireAdmin, (
         return sendError(res, 400, 'Cannot archive ProjectSubcontractor: Referenced subcontractor does not exist');
       }
       if (!subcontractor.isArchived && subcontractor.status !== 'archived') {
-        console.log(`⚠️ Warning: Archiving ProjectSubcontractor ${id} but referenced subcontractor ${subcontractorId} is not archived`);
+        logger.warn('Archiving ProjectSubcontractor but referenced subcontractor is not archived', { id, subcontractorId });
       }
     }
   }
@@ -1940,7 +1978,7 @@ app.post('/entities/:entityName/:id/archive', authenticateToken, requireAdmin, (
   // Persist to disk
   debouncedSave();
 
-  console.log(`✅ Archived ${entityName} ${id} by ${req.user.username}`);
+  logger.info('Archived entity', { entityName, id, username: req.user.username });
   sendSuccess(res, entities[entityName][index]);
 });
 
@@ -1975,7 +2013,7 @@ app.post('/entities/:entityName/:id/unarchive', authenticateToken, requireAdmin,
   // Persist to disk
   debouncedSave();
 
-  console.log(`✅ Unarchived ${entityName} ${id} by ${req.user.username}`);
+  logger.info('Unarchived entity', { entityName, id, username: req.user.username });
   sendSuccess(res, entities[entityName][index]);
 });
 
@@ -2227,7 +2265,7 @@ app.post('/integrations/nyc/property', authenticateToken, async (req, res) => {
 
     res.json(json);
   } catch (err) {
-    console.error('NYC property lookup error:', err);
+    logger.error('NYC property lookup error', { error: err?.message, stack: err?.stack });
     res.status(500).json({ error: 'NYC property lookup failed' });
   }
 });
@@ -2277,10 +2315,10 @@ async function generateSampleCOIPDF(data = {}) {
               ...(entities.ProgramRequirement?.filter(req => req.program_id === programId) || [])
             ];
             programRequirements = programLevel;
-            console.log(`📋 Found ${programRequirements.length} program requirements for ${programId}`);
+            logger.info('Found program requirements', { count: programRequirements.length, programId });
           }
         } catch (err) {
-          console.warn('Could not fetch program requirements:', err?.message);
+          logger.warn('Could not fetch program requirements', { error: err?.message });
         }
       }
 
@@ -2313,7 +2351,7 @@ async function generateSampleCOIPDF(data = {}) {
                  tradesList.some(t => tradeName.includes(t) || t.includes(tradeName) || scope.includes(t));
         });
 
-        console.log(`📋 Matched ${tradeRequirements.length} requirements for trade(s): ${data.trade || 'all'}`);
+        logger.info('Matched requirements for trades', { count: tradeRequirements.length, trade: data.trade || 'all' });
       }
 
       // If no trade requirements matched, fall back to "all other trades" tier or program-wide requirements
@@ -2334,10 +2372,10 @@ async function generateSampleCOIPDF(data = {}) {
 
         if (allOtherReqs.length > 0) {
           tradeRequirements = allOtherReqs;
-          console.warn('⚠️ No trade match; using "all other trades" requirements');
+          logger.warn('No trade match; using all other trades requirements');
         } else {
           tradeRequirements = Array.isArray(programRequirements) ? programRequirements.slice() : [];
-          console.warn('⚠️ No trade match; using program defaults');
+          logger.warn('No trade match; using program defaults');
         }
       }
 
@@ -2397,7 +2435,7 @@ async function generateSampleCOIPDF(data = {}) {
       
       if (hasUmbrellaRequirement) {
         const umbReq = tradeRequirements.find(r => r.insurance_type === 'umbrella_policy' || r.umbrella_each_occurrence);
-        console.log(`✅ Umbrella required: ${umbReq.umbrella_each_occurrence?.toLocaleString() || 'N/A'}`);
+        logger.info('Umbrella required', { amount: umbReq.umbrella_each_occurrence?.toLocaleString() || 'N/A' });
       }
 
       const doc = new PDFDocument({ size: 'LETTER', margin: 40 });
@@ -3007,7 +3045,7 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
   const rejectUnauthorizedEnv = process.env.SMTP_TLS_REJECT_UNAUTHORIZED;
   const defaultFrom = process.env.SMTP_FROM || process.env.FROM_EMAIL || 'no-reply@insuretrack.local';
 
-  console.log('📧 Public email send request:', { to, subject, includeSampleCOI, hasSmtpHost: !!smtpHost, hasSmtpService: !!smtpService });
+  logger.info('Public email send request', { to, subject, includeSampleCOI, hasSmtpHost: !!smtpHost, hasSmtpService: !!smtpService });
 
   const parseBool = (v, defaultVal) => {
     if (v === undefined) return defaultVal;
@@ -3303,7 +3341,7 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
     const missingRequiredConfig = !hasBothCredentials || !hasHostOrService;
     
     if (hasPartialCredentials && missingRequiredConfig) {
-      console.error('❌ INCOMPLETE SMTP CONFIG');
+      logger.error('INCOMPLETE SMTP CONFIG');
       return res.status(500).json({ 
         error: 'SMTP configuration incomplete',
         details: 'SMTP_HOST or SMTP_SERVICE must be configured along with both SMTP_USER and SMTP_PASS'
@@ -3313,10 +3351,10 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
     if (!hasHostOrService || !hasBothCredentials) {
       // Dev fallback: Use mock email for public portal
       mockEmail = true;
-      console.log('⚠️ SMTP not configured - using mock email for public portal');
+      logger.warn('SMTP not configured - using mock email for public portal');
       transporter = {
         sendMail: async (options) => {
-          console.log('📧 MOCK EMAIL (public):', {
+          logger.info('MOCK EMAIL (public)', {
             from: options.from,
             to: options.to,
             subject: options.subject,
@@ -3340,7 +3378,7 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
       config.auth = { user: smtpUser, pass: smtpPass };
 
       transporter = nodemailer.createTransport(config);
-      console.log('✅ SMTP transporter configured for public email');
+      logger.info('SMTP transporter configured for public email');
     }
 
     // Build attachments (incoming + optionally sample COI)
@@ -3349,13 +3387,12 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
     // Optionally generate and attach a sample COI PDF for broker emails
     if (includeSampleCOI) {
       try {
-        console.log('🔄 Generating sample COI PDF with data:', Object.keys(sampleCOIData || {}));
+        logger.info('Generating sample COI PDF with data', { keys: Object.keys(sampleCOIData || {}) });
         const pdfBuffer = await generateSampleCOIPDF(sampleCOIData || {});
         mailAttachments.push({ filename: 'sample_coi.pdf', content: pdfBuffer, contentType: 'application/pdf' });
-        console.log('✅ Sample COI PDF generated and attached:', pdfBuffer.length, 'bytes');
+        logger.info('Sample COI PDF generated and attached', { bytes: pdfBuffer.length });
       } catch (pdfErr) {
-        console.error('❌ Could not generate sample COI PDF:', pdfErr?.message || pdfErr);
-        console.error('Full error:', pdfErr);
+        logger.error('Could not generate sample COI PDF', { error: pdfErr?.message || pdfErr, stack: pdfErr?.stack });
       }
     }
 
@@ -3392,7 +3429,7 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
     if (mailAttachments.length > 0) mailOptions.attachments = mailAttachments;
 
     const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Public email sent:', { to, subject, messageId: info.messageId, mockEmail });
+    logger.info('Public email sent', { to, subject, messageId: info.messageId, mockEmail });
 
     res.status(200).json({
       success: true,
@@ -3400,7 +3437,7 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
       mockEmail
     });
   } catch (err) {
-    console.error('❌ Public SendEmail error:', err?.message || err);
+    logger.error('Public SendEmail error', { error: err?.message || err });
     res.status(500).json({
       error: 'Failed to send email',
       details: err?.message || 'Unknown error',
@@ -3422,7 +3459,7 @@ app.get('/public/users', (req, res) => {
     }));
     res.json(safeUsers);
   } catch (err) {
-    console.error('Public users error:', err?.message || err);
+    logger.error('Public users error', { error: err?.message || err });
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
@@ -3445,7 +3482,7 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
   const rejectUnauthorizedEnv = process.env.SMTP_TLS_REJECT_UNAUTHORIZED; // 'true' | 'false'
   const defaultFrom = process.env.SMTP_FROM || process.env.FROM_EMAIL || 'no-reply@insuretrack.local';
 
-  console.log('📧 Email send request:', {
+  logger.info('Email send request', {
     to,
     subject,
     hasSmtpHost: !!smtpHost,
@@ -3479,12 +3516,12 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
     const missingRequiredConfig = !hasBothCredentials || !hasHostOrService;
     
     if (hasPartialCredentials && missingRequiredConfig) {
-      console.error('❌ INCOMPLETE SMTP CONFIG: SMTP credentials are partially configured');
+      logger.error('INCOMPLETE SMTP CONFIG: SMTP credentials are partially configured');
       if (!hasBothCredentials) {
-        console.error('   Both SMTP_USER and SMTP_PASS must be set');
+        logger.error('Both SMTP_USER and SMTP_PASS must be set');
       }
       if (!hasHostOrService) {
-        console.error('   Please set either SMTP_HOST (e.g., smtp.office365.com) or SMTP_SERVICE (e.g., gmail)');
+        logger.error('Please set either SMTP_HOST (e.g., smtp.office365.com) or SMTP_SERVICE (e.g., gmail)');
       }
       return res.status(500).json({ 
         error: 'SMTP configuration incomplete', 
@@ -3494,7 +3531,7 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
 
     if (!hasHostOrService || !hasBothCredentials) {
       // Dev fallback: Try Ethereal, but use mock if unavailable
-      console.log('⚠️ No SMTP configured - attempting Ethereal test email (dev mode)');
+      logger.warn('No SMTP configured - attempting Ethereal test email (dev mode)');
       try {
         const testAccount = await nodemailer.createTestAccount();
         transporter = nodemailer.createTransport({
@@ -3505,13 +3542,13 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
         });
         transportLabel = 'ethereal';
       } catch (_etherealError) {
-        console.warn('⚠️ Ethereal email unavailable (network restricted), using mock email service');
+        logger.warn('Ethereal email unavailable (network restricted), using mock email service');
         // Create a mock transporter that logs emails instead of sending them
         mockEmail = true;
         transportLabel = 'mock';
       }
     } else {
-      console.log(`✅ Using real SMTP: ${smtpService || smtpHost}`);
+      logger.info('Using real SMTP', { service: smtpService || smtpHost });
       const transportOptions = smtpHost
         ? { host: smtpHost, port: smtpPort, secure }
         : { service: smtpService };
@@ -3530,9 +3567,9 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
     if (mockEmail) {
       // Mock email - just log it and return success
       const messageId = `mock-${Date.now()}@insuretrack.local`;
-      console.log('📧 MOCK EMAIL (would be sent to):', to);
-      console.log('📧 Subject:', subject);
-      console.log('📧 Body:', (body || html || '').substring(0, MOCK_EMAIL_BODY_LOG_LIMIT) + '...');
+      logger.info('MOCK EMAIL (would be sent to)', { to });
+      logger.info('MOCK EMAIL Subject', { subject });
+      logger.info('MOCK EMAIL Body', { body: (body || html || '').substring(0, MOCK_EMAIL_BODY_LOG_LIMIT) + '...' });
       
       info = { messageId, accepted: [to], rejected: [] };
       previewUrl = null;
@@ -3548,9 +3585,9 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
         try {
           const pdfBuffer = await generateSampleCOIPDF(_sampleCOIData || {});
           mailAttachments.push({ filename: 'sample_coi.pdf', content: pdfBuffer, contentType: 'application/pdf' });
-          console.log('✅ Sample COI PDF generated and attached (auth handler):', pdfBuffer.length, 'bytes');
+          logger.info('Sample COI PDF generated and attached (auth handler)', { bytes: pdfBuffer.length });
         } catch (pdfErr) {
-          console.error('❌ Could not generate sample COI PDF:', pdfErr?.message || pdfErr);
+          logger.error('Could not generate sample COI PDF', { error: pdfErr?.message || pdfErr });
         }
       }
 
@@ -3589,17 +3626,17 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
     }
     
     if (transportLabel === 'ethereal' && previewUrl) {
-      console.log('📧 TEST EMAIL PREVIEW:', previewUrl);
-      console.log('⚠️ This is a test email - view it at the URL above, it was NOT sent to a real inbox');
+      logger.info('TEST EMAIL PREVIEW', { previewUrl });
+      logger.warn('This is a test email - view it at the URL above, it was NOT sent to a real inbox');
     } else if (transportLabel === 'mock') {
-      console.log('✅ Mock email logged (not actually sent) - recipient:', to);
+      logger.info('Mock email logged (not actually sent)', { to });
     } else {
-      console.log('✅ Email sent successfully to:', to);
+      logger.info('Email sent successfully', { to });
     }
     
     return res.json({ ok: true, messageId: info.messageId, transport: transportLabel, previewUrl, mock: mockEmail });
   } catch (err) {
-    console.error('❌ SendEmail error:', err?.message || err);
+    logger.error('SendEmail error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to send email', details: err?.message });
   }
 });
@@ -3643,7 +3680,7 @@ app.get('/integrations/email-verify', authenticateToken, async (req, res) => {
     await transporter.verify();
     return res.json({ ok: true, transport: transportLabel });
   } catch (err) {
-    console.error('Email verify error:', err?.message || err);
+    logger.error('Email verify error', { error: err?.message || err });
     return res.status(500).json({ ok: false, error: err?.message });
   }
 });
@@ -3740,7 +3777,7 @@ app.get('/public/broker-requests', (req, res) => {
 
     return res.json(dedupedList);
   } catch (err) {
-    console.error('Public broker-requests error:', err?.message || err);
+    logger.error('Public broker-requests error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to load broker requests' });
   }
 });
@@ -3750,7 +3787,7 @@ app.get('/public/projects', (req, res) => {
   try {
     return res.json(entities.Project || []);
   } catch (err) {
-    console.error('Public projects error:', err?.message || err);
+    logger.error('Public projects error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to load projects' });
   }
 });
@@ -3771,7 +3808,7 @@ app.get('/public/messages', (req, res) => {
     list = list.sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
     return res.json(list);
   } catch (err) {
-    console.error('Public messages error:', err?.message || err);
+    logger.error('Public messages error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to load messages' });
   }
 });
@@ -3835,7 +3872,7 @@ app.get('/public/coi-by-token', (req, res) => {
 
     return res.json(normalized);
   } catch (err) {
-    console.error('Public coi-by-token error:', err?.message || err);
+    logger.error('Public coi-by-token error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to load COI' });
   }
 });
@@ -3847,13 +3884,13 @@ app.get('/public/contractor/:id', (req, res) => {
     if (!id) return res.status(400).json({ error: 'Contractor ID is required' });
     const contractor = (entities.Contractor || []).find(c => c.id === id);
     if (!contractor) {
-      console.warn('⚠️ Contractor not found:', id);
+      logger.warn('Contractor not found', { id });
       return res.status(404).json({ error: 'Contractor not found' });
     }
-    console.log('✅ Retrieved contractor:', id);
+    logger.info('Retrieved contractor', { id });
     return res.json(contractor);
   } catch (err) {
-    console.error('❌ Public contractor fetch error:', err?.message || err);
+    logger.error('Public contractor fetch error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to load contractor' });
   }
 });
@@ -3866,7 +3903,7 @@ app.patch('/public/contractor/:id', publicApiLimiter, (req, res) => {
     
     const idx = (entities.Contractor || []).findIndex(c => c.id === id);
     if (idx === -1) {
-      console.warn('⚠️ Contractor not found for update:', id);
+      logger.warn('Contractor not found for update', { id });
       return res.status(404).json({ error: 'Contractor not found' });
     }
 
@@ -3907,11 +3944,11 @@ app.patch('/public/contractor/:id', publicApiLimiter, (req, res) => {
       updatedBy: 'public-portal'
     };
 
-    console.log('✅ Updated contractor via public portal:', id, Object.keys(safeUpdates));
+    logger.info('Updated contractor via public portal', { id, fields: Object.keys(safeUpdates) });
     debouncedSave();
     return res.json(entities.Contractor[idx]);
   } catch (err) {
-    console.error('❌ Public contractor update error:', err?.message || err);
+    logger.error('Public contractor update error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to update contractor' });
   }
 });
@@ -3974,7 +4011,7 @@ app.post('/public/contractor-login', publicApiLimiter, async (req, res) => {
 
     // Verify password using bcrypt
     if (!contractor.password) {
-      console.warn('⚠️ Contractor missing password hash:', contractor.id);
+      logger.warn('Contractor missing password hash', { id: contractor.id });
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
@@ -3987,14 +4024,14 @@ app.post('/public/contractor-login', publicApiLimiter, async (req, res) => {
     // Return contractor data (without password hash)
     const { password: _, ...contractorSafe } = contractor;
     
-    console.log('✅ Contractor login successful:', contractor.id, contractor.email);
+    logger.info('Contractor login successful', { id: contractor.id, email: contractor.email });
     
     return res.json({
       success: true,
       contractor: contractorSafe
     });
   } catch (err) {
-    console.error('❌ Contractor login error:', err?.message || err);
+    logger.error('Contractor login error', { error: err?.message || err });
     return res.status(500).json({ error: 'Authentication service error' });
   }
 });
@@ -4017,7 +4054,7 @@ app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
     );
     
     if (existingContractor) {
-      console.log('✅ Contractor already exists:', existingContractor.id);
+      logger.info('Contractor already exists', { id: existingContractor.id });
       // Return existing contractor WITHOUT generating a new password
       return res.json({
         ...existingContractor,
@@ -4049,7 +4086,7 @@ app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
     entities.Contractor.push(newContractor);
     debouncedSave();
     
-    console.log('✅ Created new contractor via GC portal:', newContractor.id);
+    logger.info('Created new contractor via GC portal', { id: newContractor.id });
     
     // Return contractor with generated password
     return res.json({
@@ -4058,7 +4095,7 @@ app.post('/public/create-contractor', publicApiLimiter, (req, res) => {
       isNew: true
     });
   } catch (err) {
-    console.error('❌ Public contractor create error:', err?.message || err);
+    logger.error('Public contractor create error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to create contractor' });
   }
 });
@@ -4106,7 +4143,7 @@ app.post('/public/create-project-subcontractor', publicApiLimiter, (req, res) =>
       if (!entities.Contractor) entities.Contractor = [];
       entities.Contractor.push(contractor);
       debouncedSave();
-      console.log('✅ Created Contractor for subcontractor via GC portal:', contractor.id);
+      logger.info('Created Contractor for subcontractor via GC portal', { id: contractor.id });
     }
 
     const newProjectSub = {
@@ -4128,7 +4165,7 @@ app.post('/public/create-project-subcontractor', publicApiLimiter, (req, res) =>
     entities.ProjectSubcontractor.push(newProjectSub);
     debouncedSave();
     
-    console.log('✅ Created ProjectSubcontractor via GC portal:', newProjectSub.id);
+    logger.info('Created ProjectSubcontractor via GC portal', { id: newProjectSub.id });
     
     // Return with contractor credentials info
     const response = {
@@ -4143,7 +4180,7 @@ app.post('/public/create-project-subcontractor', publicApiLimiter, (req, res) =>
     
     return res.json(response);
   } catch (err) {
-    console.error('❌ Public ProjectSubcontractor create error:', err?.message || err);
+    logger.error('Public ProjectSubcontractor create error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to create project subcontractor' });
   }
 });
@@ -4153,12 +4190,11 @@ app.get('/public/all-project-subcontractors', (req, res) => {
   try {
     return res.json(entities.ProjectSubcontractor || []);
   } catch (err) {
-    console.error('Error fetching project subcontractors:', err);
+    logger.error('Error fetching all project subcontractors', { error: err?.message, stack: err?.stack });
     return res.status(500).json({ error: 'Failed to load project subcontractors' });
   }
 });
 
-// Public: Create Portal for subcontractor/broker/GC
 app.post('/public/create-portal', publicApiLimiter, (req, res) => {
   try {
     const { user_type, user_id, user_email, user_name, dashboard_url, access_token } = req.body || {};
@@ -4170,7 +4206,7 @@ app.post('/public/create-portal', publicApiLimiter, (req, res) => {
     // Check if portal already exists
     const existing = (entities.Portal || []).find(p => p.user_id === user_id && p.user_type === user_type);
     if (existing) {
-      console.log('✅ Portal already exists:', existing.id);
+      logger.info('Portal already exists', { id: existing.id });
       return res.json(existing);
     }
 
@@ -4191,10 +4227,10 @@ app.post('/public/create-portal', publicApiLimiter, (req, res) => {
     entities.Portal.push(newPortal);
     debouncedSave();
     
-    console.log('✅ Created Portal:', newPortal.id, user_type, user_email);
+    logger.info('Created Portal', { id: newPortal.id, user_type, user_email });
     return res.json(newPortal);
   } catch (err) {
-    console.error('❌ Public Portal create error:', err?.message || err);
+    logger.error('Public Portal create error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to create portal' });
   }
 });
@@ -4280,7 +4316,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
         let regeneratedUrl = null;
         let pdfGenerationSuccess = false;
         try {
-          console.log('🔄 Generating COI PDF for reused subcontractor:', subcontractor_id);
+          logger.info('Generating COI PDF for reused subcontractor', { subcontractor_id });
           const pdfBuffer = await generateGeneratedCOIPDF(regenData);
           if (!pdfBuffer || pdfBuffer.length === 0) {
             throw new Error('PDF buffer is empty');
@@ -4291,18 +4327,20 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
           regeneratedUrl = `${backendBase}/uploads/${filename}`;
           pdfGenerationSuccess = true;
-          console.log('✅ COI PDF generated successfully for reuse:', filename);
+          logger.info('COI PDF generated successfully for reuse', { filename });
         } catch (pdfErr) {
-          console.error('❌ COI reuse PDF generation failed:', pdfErr?.message || pdfErr);
-          console.error('   Stack:', pdfErr?.stack);
-          console.error('   Reuse data:', JSON.stringify({
-            hasBrokerName: !!regenData.broker_name,
-            hasSubName: !!regenData.subcontractor_name,
-            hasGLData: !!regenData.policy_number_gl,
-            hasWCData: !!regenData.policy_number_wc,
-            hasGLLimits: !!regenData.gl_each_occurrence,
-            hasWCLimits: !!regenData.wc_each_accident
-          }, null, 2));
+          logger.error('COI reuse PDF generation failed', {
+            error: pdfErr?.message || pdfErr,
+            stack: pdfErr?.stack,
+            reuse: {
+              hasBrokerName: !!regenData.broker_name,
+              hasSubName: !!regenData.subcontractor_name,
+              hasGLData: !!regenData.policy_number_gl,
+              hasWCData: !!regenData.policy_number_wc,
+              hasGLLimits: !!regenData.gl_each_occurrence,
+              hasWCLimits: !!regenData.wc_each_accident
+            }
+          });
           // Continue with COI creation but mark that PDF generation failed
           // The broker can still sign and the PDF can be regenerated later
           regeneratedUrl = null;
@@ -4364,12 +4402,12 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
             return !(sameSub && sameProject && sameBroker);
           });
           if (entities.BrokerUploadRequest.length !== beforeCount) {
-            console.log('🧹 Removed broker upload request(s) for reused COI:', subcontractor_id, project_id);
+            logger.info('Removed broker upload request(s) for reused COI', { subcontractor_id, project_id });
           }
         }
 
         debouncedSave();
-        console.log('ℹ️ Auto-generated reused COI for subcontractor:', subcontractor_id, 'coi:', newCOI.id);
+        logger.info('Auto-generated reused COI for subcontractor', { subcontractor_id, coi_id: newCOI.id });
 
         // Generate hold harmless agreement for reused COI if program has a template
         try {
@@ -4380,7 +4418,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           const templateUrl = program?.hold_harmless_template_url || program?.hold_harmless_template || null;
           
           if (templateUrl && !newCOI.hold_harmless_template_url) {
-            console.log('🔄 Generating hold harmless agreement for reused COI:', newCOI.id);
+            logger.info('Generating hold harmless agreement for reused COI', { coi_id: newCOI.id });
             try {
               const fetchRes = await fetch(templateUrl);
               if (fetchRes.ok) {
@@ -4458,17 +4496,17 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
                   // Update newCOI reference for email
                   newCOI.hold_harmless_template_url = hhFileUrl;
                 }
-                console.log('✅ Generated hold harmless for reused COI:', newCOI.id, hhFileUrl);
+                logger.info('Generated hold harmless for reused COI', { coi_id: newCOI.id, url: hhFileUrl });
                 debouncedSave();
               } else {
-                console.warn('Could not fetch program hold-harmless template for reuse, status:', fetchRes.status);
+                logger.warn('Could not fetch program hold-harmless template for reuse', { status: fetchRes.status });
               }
             } catch (hhGenErr) {
-              console.warn('Failed to generate hold harmless for reused COI:', hhGenErr?.message || hhGenErr);
+              logger.warn('Failed to generate hold harmless for reused COI', { error: hhGenErr?.message || hhGenErr });
             }
           }
         } catch (hhErr) {
-          console.warn('Error during hold-harmless generation for reused COI:', hhErr?.message || hhErr);
+          logger.warn('Error during hold-harmless generation for reused COI', { error: hhErr?.message || hhErr });
         }
 
         try {
@@ -4528,7 +4566,7 @@ InsureTrack System`
             });
           }
         } catch (notifyErr) {
-          console.warn('Reuse broker notification failed:', notifyErr?.message || notifyErr);
+          logger.warn('Reuse broker notification failed', { error: notifyErr?.message || notifyErr });
         }
 
         return res.json({ 
@@ -4678,13 +4716,13 @@ InsureTrack System`
         });
       }
     } catch (notifyErr) {
-      console.error('⚠️ Broker notification error (create-coi-request):', notifyErr?.message || notifyErr);
+      logger.error('Broker notification error (create-coi-request)', { error: notifyErr?.message || notifyErr });
     }
     
-    console.log('✅ Created COI request:', newCOI.id, subcontractor_name, 'sequence:', sequence);
+    logger.info('Created COI request', { id: newCOI.id, subcontractor_name, sequence });
     return res.json(newCOI);
   } catch (err) {
-    console.error('❌ Public COI create error:', err?.message || err);
+    logger.error('Public COI create error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to create COI request' });
   }
 });
@@ -4696,12 +4734,10 @@ app.get('/public/project-subcontractors/:subId', (req, res) => {
     const projectSubs = (entities.ProjectSubcontractor || []).filter(ps => ps.subcontractor_id === subId);
     return res.json(projectSubs);
   } catch (err) {
-    console.error('Error fetching project subcontractors:', err);
+    logger.error('Error fetching project subcontractors for subcontractor', { subId, error: err?.message, stack: err?.stack });
     return res.status(500).json({ error: 'Failed to load project subcontractors' });
   }
 });
-
-// Public: Get Projects for a subcontractor
 app.get('/public/projects-for-sub/:subId', (req, res) => {
   try {
     const { subId } = req.params;
@@ -4710,7 +4746,7 @@ app.get('/public/projects-for-sub/:subId', (req, res) => {
     const projects = (entities.Project || []).filter(p => projectIds.includes(p.id));
     return res.json(projects);
   } catch (err) {
-    console.error('Error fetching projects for sub:', err);
+    logger.error('Error fetching projects for sub', { error: err?.message, stack: err?.stack });
     return res.status(500).json({ error: 'Failed to load projects' });
   }
 });
@@ -4722,7 +4758,7 @@ app.get('/public/cois-for-sub/:subId', (req, res) => {
     const cois = (entities.GeneratedCOI || []).filter(c => c.subcontractor_id === subId);
     return res.json(cois);
   } catch (err) {
-    console.error('Error fetching COIs for sub:', err);
+    logger.error('Error fetching COIs for sub', { error: err?.message, stack: err?.stack });
     return res.status(500).json({ error: 'Failed to load COIs' });
   }
 });
@@ -4733,7 +4769,7 @@ app.get('/public/all-cois', (req, res) => {
     const cois = entities.GeneratedCOI || [];
     return res.json(cois);
   } catch (err) {
-    console.error('Error fetching all COIs:', err);
+    logger.error('Error fetching all COIs', { error: err?.message, stack: err?.stack });
     return res.status(500).json({ error: 'Failed to load COIs' });
   }
 });
@@ -4748,7 +4784,7 @@ app.post('/public/update-cois-for-contractor', publicApiLimiter, (req, res) => {
     // Find contractor to get company name
     const contractor = (entities.Contractor || []).find(c => c.id === contractorId);
     if (!contractor) {
-      console.warn('⚠️ Contractor not found for COI update:', contractorId);
+      logger.warn('Contractor not found for COI update', { contractorId });
       return res.status(404).json({ error: 'Contractor not found' });
     }
     
@@ -4801,11 +4837,11 @@ app.post('/public/update-cois-for-contractor', publicApiLimiter, (req, res) => {
       }
     }
     
-    console.log(`✅ Updated ${updatedCount} COI records with broker info for contractor:`, contractorId);
+    logger.info('Updated COI records with broker info for contractor', { updatedCount, contractorId });
     debouncedSave();
     return res.json({ success: true, count: updatedCount });
   } catch (err) {
-    console.error('❌ Public COI update error:', err?.message || err);
+    logger.error('Public COI update error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to update COI records' });
   }
 });
@@ -4861,7 +4897,7 @@ app.patch('/public/coi-by-token', publicApiLimiter, async (req, res) => {
         const result = await performExtraction({ file_url: url, json_schema: policySchemas[policyType] });
         if (result?.status === 'success' && result.output) return result.output;
       } catch (err) {
-        console.warn(`Policy extraction failed for ${policyType}:`, err?.message || err);
+        logger.warn('Policy extraction failed', { policyType, error: err?.message || err });
       }
       return {};
     };
@@ -4977,18 +5013,18 @@ app.patch('/public/coi-by-token', publicApiLimiter, async (req, res) => {
                   hold_harmless_template_filename: filename,
                   hold_harmless_generated_at: new Date().toISOString()
                 };
-                console.log('✅ Generated Hold Harmless from program template for COI:', applied.id, fileUrl);
+                logger.info('Generated Hold Harmless from program template for COI', { coi_id: applied.id, url: fileUrl });
               } else {
-                console.warn('Could not fetch program hold-harmless template, status:', fetchRes.status);
+                logger.warn('Could not fetch program hold-harmless template', { status: fetchRes.status });
               }
             } catch (genErr) {
-              console.warn('Failed to generate Hold Harmless from template:', genErr?.message || genErr);
+              logger.warn('Failed to generate Hold Harmless from template', { error: genErr?.message || genErr });
             }
           }
         }
       }
     } catch (hhErr) {
-      console.warn('Error during hold-harmless generation on COI update:', hhErr?.message || hhErr);
+      logger.warn('Error during hold-harmless generation on COI update', { error: hhErr?.message || hhErr });
     }
 
     // Extract policy data and compare to COI if policy URLs are provided
@@ -5023,7 +5059,7 @@ app.patch('/public/coi-by-token', publicApiLimiter, async (req, res) => {
               }
             }
           } catch (err) {
-            console.warn(`Policy analysis failed for ${policyType}:`, err?.message || err);
+            logger.warn('Policy analysis failed', { policyType, error: err?.message || err });
           }
         }
       }
@@ -5049,9 +5085,9 @@ app.patch('/public/coi-by-token', publicApiLimiter, async (req, res) => {
             }
           };
           
-          console.log(`✅ Policy analysis complete: ${policyComparisons.length} comparisons, ${allExclusions.length} exclusions, ${exclusionConflicts.length} conflicts`);
+          logger.info('Policy analysis complete', { comparisons: policyComparisons.length, exclusions: allExclusions.length, conflicts: exclusionConflicts.length });
         } catch (err) {
-          console.warn('Exclusion analysis failed:', err?.message || err);
+          logger.warn('Exclusion analysis failed', { error: err?.message || err });
         }
       } else if (policyComparisons.length > 0) {
         // Store comparison results even if no exclusions found
@@ -5069,7 +5105,7 @@ app.patch('/public/coi-by-token', publicApiLimiter, async (req, res) => {
     debouncedSave();
     return res.json(entities.GeneratedCOI[idx]);
   } catch (err) {
-    console.error('Public coi-by-token update error:', err?.message || err);
+    logger.error('Public coi-by-token update error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to update COI' });
   }
 });
@@ -5090,7 +5126,7 @@ app.post('/integrations/upload-file', authenticateToken, upload.single('file'), 
     const host = req.get('host');
     const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
     
-    console.log('✅ File uploaded successfully (authenticated):', {
+    logger.info('File uploaded successfully (authenticated)', {
       originalName: req.file.originalname,
       filename: req.file.filename,
       size: req.file.size,
@@ -5108,7 +5144,7 @@ app.post('/integrations/upload-file', authenticateToken, upload.single('file'), 
       mimetype: req.file.mimetype
     });
   } catch (error) {
-    console.error('❌ File upload error (authenticated):', error);
+    logger.error('File upload error (authenticated)', { error: error?.message || error });
     return sendError(res, 500, 'File upload failed', { error: error.message });
   }
 });
@@ -5130,7 +5166,7 @@ app.post('/public/upload-file', uploadLimiter, upload.single('file'), (req, res)
     const host = req.get('host');
     const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
     
-    console.log('✅ File uploaded successfully:', {
+    logger.info('File uploaded successfully', {
       originalName: req.file.originalname,
       filename: req.file.filename,
       size: req.file.size,
@@ -5148,7 +5184,7 @@ app.post('/public/upload-file', uploadLimiter, upload.single('file'), (req, res)
       mimetype: req.file.mimetype
     });
   } catch (error) {
-    console.error('❌ File upload error:', error);
+    logger.error('File upload error', { error: error?.message || error });
     return sendError(res, 500, 'File upload failed', { error: error.message });
   }
 });
@@ -5169,7 +5205,7 @@ app.post('/integrations/generate-sample-coi', authenticateToken, async (req, res
     const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
     return res.json({ success: true, url: fileUrl, file_url: fileUrl, filename });
   } catch (error) {
-    console.error('❌ Sample COI generation error:', error);
+    logger.error('Sample COI generation error', { error: error?.message || error });
     return sendError(res, 500, 'Sample COI generation failed', { error: error.message });
   }
 });
@@ -5186,7 +5222,7 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
     const host = req.get('host');
     const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
 
-    console.log('✅ COI uploaded:', { filename: req.file.filename, url: fileUrl, coi_token });
+    logger.info('COI uploaded', { filename: req.file.filename, url: fileUrl, coi_token });
 
     // Extract COI fields using existing performExtraction helper (regex/AI)
     const schema = {
@@ -5242,7 +5278,7 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
     try {
       extractionResult = await performExtraction({ file_url: fileUrl, json_schema: schema });
     } catch (exErr) {
-      console.warn('COI extraction failed, continuing with minimal metadata:', exErr?.message || exErr);
+      logger.warn('COI extraction failed, continuing with minimal metadata', { error: exErr?.message || exErr });
     }
 
     // Find COI by token
@@ -5511,14 +5547,14 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
           body: JSON.stringify(emailPayload)
         }).catch(() => {});
       } catch (emailErr) {
-        console.warn('Could not send admin email:', emailErr?.message || emailErr);
+        logger.warn('Could not send admin email', { error: emailErr?.message || emailErr });
       }
     }
 
     debouncedSave();
     return res.json({ ok: true, coi: entities.GeneratedCOI[coiIdx], document: insuranceDoc });
   } catch (error) {
-    console.error('public upload-coi error:', error?.message || error);
+    logger.error('public upload-coi error', { error: error?.message || error });
     return sendError(res, 500, 'COI upload failed', { error: error.message });
   }
 });
@@ -5595,7 +5631,7 @@ app.post('/public/upload-policy', uploadLimiter, upload.single('file'), async (r
         await fetch(internalUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {});
       }
     } catch (notifyErr) {
-      console.warn('Policy upload admin notify failed:', notifyErr?.message || notifyErr);
+      logger.warn('Policy upload admin notify failed', { error: notifyErr?.message || notifyErr });
     }
 
     // If the COI has been previously uploaded and approved, trigger COI regeneration
@@ -5605,7 +5641,7 @@ app.post('/public/upload-policy', uploadLimiter, upload.single('file'), async (r
     try {
       const updatedCoi = entities.GeneratedCOI[coiIdx];
       if (updatedCoi.first_coi_uploaded && updatedCoi.admin_approved) {
-        console.log('🔄 Triggering COI regeneration after policy upload for COI:', updatedCoi.id);
+        logger.info('Triggering COI regeneration after policy upload for COI', { coi_id: updatedCoi.id });
         
         // Build regeneration data using existing COI data
         const regenData = {
@@ -5672,17 +5708,17 @@ app.post('/public/upload-policy', uploadLimiter, upload.single('file'), async (r
           auto_regenerated_after_policy_upload: true
         };
         
-        console.log('✅ COI regenerated successfully after policy upload:', filename);
+        logger.info('COI regenerated successfully after policy upload', { filename });
       }
     } catch (regenErr) {
-      console.error('⚠️  COI regeneration after policy upload failed:', regenErr?.message || regenErr);
+      logger.error('COI regeneration after policy upload failed', { error: regenErr?.message || regenErr });
       // Don't fail the upload if regeneration fails, just log it
     }
 
     debouncedSave();
     return res.json({ ok: true, type: 'policy', file_url: fileUrl, coi: entities.GeneratedCOI[coiIdx] });
   } catch (err) {
-    console.error('upload-policy error:', err?.message || err);
+    logger.error('upload-policy error', { error: err?.message || err });
     return sendError(res, 500, 'Policy upload failed', { error: err.message });
   }
 });
@@ -5711,7 +5747,7 @@ app.post('/public/regenerate-coi', uploadLimiter, async (req, res) => {
         }
       }
     } catch (hhErr) {
-      console.warn('Could not populate COI hold_harmless_template_url from program:', hhErr?.message || hhErr);
+      logger.warn('Could not populate COI hold_harmless_template_url from program', { error: hhErr?.message || hhErr });
     }
     
     // Verify we have original COI data to work with
@@ -5816,7 +5852,7 @@ app.post('/public/regenerate-coi', uploadLimiter, async (req, res) => {
       
       debouncedSave();
       
-      console.log('✅ COI regenerated successfully:', { coi_token, filename, url: fileUrl });
+      logger.info('COI regenerated successfully', { coi_token, filename, url: fileUrl });
       
       return res.json({
         ok: true,
@@ -5826,12 +5862,12 @@ app.post('/public/regenerate-coi', uploadLimiter, async (req, res) => {
       });
       
     } catch (pdfErr) {
-      console.error('Failed to generate regenerated COI PDF:', pdfErr?.message || pdfErr);
+      logger.error('Failed to generate regenerated COI PDF', { error: pdfErr?.message || pdfErr });
       return sendError(res, 500, 'Failed to regenerate COI PDF', { error: pdfErr.message });
     }
     
   } catch (error) {
-    console.error('public regenerate-coi error:', error?.message || error);
+    logger.error('public regenerate-coi error', { error: error?.message || error });
     return sendError(res, 500, 'COI regeneration failed', { error: error.message });
   }
 });
@@ -5849,7 +5885,7 @@ app.post('/public/upload-endorsement', uploadLimiter, upload.single('file'), asy
     const host = req.get('host');
     const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
 
-    console.log('✅ Endorsement uploaded:', { filename: req.file.filename, url: fileUrl });
+    logger.info('Endorsement uploaded', { filename: req.file.filename, url: fileUrl });
 
     // Extract endorsement fields using existing performExtraction helper
     const schema = {
@@ -5864,13 +5900,13 @@ app.post('/public/upload-endorsement', uploadLimiter, upload.single('file'), asy
     try {
       extractionResult = await performExtraction({ file_url: fileUrl, json_schema: schema });
     } catch (exErr) {
-      console.warn('Endorsement extraction failed, continuing with minimal metadata:', exErr?.message || exErr);
+      logger.warn('Endorsement extraction failed, continuing with minimal metadata', { error: exErr?.message || exErr });
     }
 
     // Find COI by token and attach endorsement metadata
     const coi = (entities.GeneratedCOI || []).find(c => c.coi_token === coi_token);
     if (!coi) {
-      console.warn('No GeneratedCOI found for token:', coi_token);
+      logger.warn('No GeneratedCOI found for token', { coi_token });
     }
 
     const endorsementRecord = {
@@ -5958,7 +5994,7 @@ app.post('/public/upload-endorsement', uploadLimiter, upload.single('file'), asy
         coi.status = 'awaiting_admin_review';
         coi.uploaded_for_review_date = new Date().toISOString();
       } catch (cmpErr) {
-        console.warn('Endorsement comparison warning:', cmpErr?.message || cmpErr);
+        logger.warn('Endorsement comparison warning', { error: cmpErr?.message || cmpErr });
       }
 
       // If regen flag is set, attempt to regenerate COI PDF using AdobePDFService
@@ -6030,17 +6066,17 @@ app.post('/public/upload-endorsement', uploadLimiter, upload.single('file'), asy
                     });
                   }
                 } catch (msgErr) {
-                  console.warn('Could not create in-system message for broker notification:', msgErr?.message || msgErr);
+                  logger.warn('Could not create in-system message for broker notification', { error: msgErr?.message || msgErr });
                 }
               } catch (emailErr) {
-                console.error('Failed to send internal notification email to broker:', emailErr?.message || emailErr);
+                logger.error('Failed to send internal notification email to broker', { error: emailErr?.message || emailErr });
               }
             }
           } catch (notifyErr) {
-            console.error('Error notifying broker after COI regen:', notifyErr?.message || notifyErr);
+            logger.error('Error notifying broker after COI regen', { error: notifyErr?.message || notifyErr });
           }
         } catch (regenErr) {
-          console.error('Failed to regenerate COI PDF:', regenErr?.message || regenErr);
+          logger.error('Failed to regenerate COI PDF', { error: regenErr?.message || regenErr });
         }
       }
     }
@@ -6049,7 +6085,7 @@ app.post('/public/upload-endorsement', uploadLimiter, upload.single('file'), asy
     // In production this would save to DB
     return res.json({ ok: true, endorsement: endorsementRecord, coi: coi || null });
   } catch (error) {
-    console.error('public upload-endorsement error:', error?.message || error);
+    logger.error('public upload-endorsement error', { error: error?.message || error });
     return sendError(res, 500, 'Endorsement upload failed', { error: error.message });
   }
 });
@@ -6062,20 +6098,18 @@ app.post('/integrations/generate-image', authenticateToken, (req, res) => {
 // Helper function to extract text from PDF file
 async function extractTextFromPDF(filePath) {
   try {
-    console.log('📄 Attempting to read PDF file:', filePath);
+    logger.info('Attempting to read PDF file', { filePath });
     const dataBuffer = await fsPromises.readFile(filePath);
-    console.log(`📄 PDF file read successfully, buffer size: ${dataBuffer.length} bytes`);
+    logger.info('PDF file read successfully', { size: dataBuffer.length });
     const pdfData = await pdfParse(dataBuffer);
     const extractedText = pdfData.text || '';
-    console.log(`✅ Extracted ${extractedText.length} characters from PDF`);
+    logger.info('Extracted from PDF', { characters: extractedText.length });
     if (extractedText.length === 0) {
-      console.warn('⚠️  WARNING: PDF text extraction returned empty string - PDF may be image-based or corrupted');
+      logger.warn('PDF text extraction returned empty string - PDF may be image-based or corrupted');
     }
     return extractedText;
   } catch (pdfErr) {
-    console.error('❌ PDF parsing error:', pdfErr?.message || pdfErr);
-    console.error('   File path:', filePath);
-    console.error('   Error stack:', pdfErr?.stack);
+    logger.error('PDF parsing error', { error: pdfErr?.message || pdfErr, filePath, stack: pdfErr?.stack });
     throw new Error(`Failed to parse PDF file: ${pdfErr?.message || 'Unknown error'}`);
   }
 }
@@ -6111,7 +6145,7 @@ function hasNonNegatedKeyword(text, keywordPattern) {
 
 // Helper function to extract common fields using regex patterns (fallback when AI is not configured)
 function extractFieldsWithRegex(text, schema) {
-  console.log('🔧 Starting AGGRESSIVE regex extraction with schema fields:', Object.keys(schema));
+  logger.info('Starting AGGRESSIVE regex extraction with schema fields', { fields: Object.keys(schema) });
   const extracted = {};
   
   // Constants for extraction patterns
@@ -6146,7 +6180,7 @@ function extractFieldsWithRegex(text, schema) {
       allDates.push(...matches.map(d => d.trim()));
     }
   }
-  console.log(`📅 Found ${allDates.length} dates in document:`, allDates.slice(0, 10));
+  logger.info('Found dates in document', { count: allDates.length, sample: allDates.slice(0, 10) });
   
   // FLOOD: Extract ALL dollar amounts
   const allAmounts = [];
@@ -6161,7 +6195,7 @@ function extractFieldsWithRegex(text, schema) {
       allAmounts.push(...matches.map(a => a.replace(/[$,\s]/g, '').replace(/dollars?/i, '').trim()));
     }
   }
-  console.log(`💰 Found ${allAmounts.length} dollar amounts in document:`, allAmounts.slice(0, 10));
+  logger.info('Found dollar amounts in document', { count: allAmounts.length, sample: allAmounts.slice(0, 10) });
   
   // FLOOD: Extract ALL policy numbers
   const allPolicyNumbers = [];
@@ -6177,7 +6211,7 @@ function extractFieldsWithRegex(text, schema) {
       allPolicyNumbers.push(...matches.map(p => p.replace(/^(policy|pol)[\s#:]+/i, '').trim()));
     }
   }
-  console.log(`📋 Found ${allPolicyNumbers.length} policy numbers in document:`, allPolicyNumbers.slice(0, 10));
+  logger.info('Found policy numbers in document', { count: allPolicyNumbers.length, sample: allPolicyNumbers.slice(0, 10) });
   
   // FLOOD: Extract ALL company/insured names
   const allCompanyNames = [];
@@ -6194,7 +6228,7 @@ function extractFieldsWithRegex(text, schema) {
       allCompanyNames.push(...matches.map(c => c.replace(/^(INSURED|NAMED INSURED|CERTIFICATE HOLDER)[:\s]+/i, '').trim()));
     }
   }
-  console.log(`🏢 Found ${allCompanyNames.length} company names in document:`, allCompanyNames.slice(0, 10));
+  logger.info('Found company names in document', { count: allCompanyNames.length, sample: allCompanyNames.slice(0, 10) });
   
   // Extract email addresses
   const emailPattern = /[\w.-]+@[\w.-]+\.\w+/g;
@@ -6239,7 +6273,7 @@ function extractFieldsWithRegex(text, schema) {
           } else {
             extracted[fieldName] = amounts[0];
           }
-          console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
+          logger.debug('Extracted field', { field: fieldName, value: extracted[fieldName] });
         }
       }
     }
@@ -6249,7 +6283,7 @@ function extractFieldsWithRegex(text, schema) {
       const matches = text.match(emailPattern);
       if (matches && matches.length > 0) {
         extracted[fieldName] = matches[0];
-        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
+        logger.debug('Extracted email field', { field: fieldName, value: extracted[fieldName] });
       }
     }
     
@@ -6258,7 +6292,7 @@ function extractFieldsWithRegex(text, schema) {
       const matches = text.match(phonePattern);
       if (matches && matches.length > 0) {
         extracted[fieldName] = matches[0];
-        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
+        logger.debug('Extracted phone field', { field: fieldName, value: extracted[fieldName] });
       }
     }
     
@@ -6274,13 +6308,13 @@ function extractFieldsWithRegex(text, schema) {
         } else {
           extracted[fieldName] = allCompanyNames[0];
         }
-        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
+        logger.debug('Extracted name field', { field: fieldName, value: extracted[fieldName] });
       }
     }
   }
   
   // ACORD 25 specific label-driven extraction - FLOOD with more data
-  console.log('🔍 Running ACORD 25 specific extraction...');
+  logger.info('Running ACORD 25 specific extraction');
   const getAmountAfter = (label) => {
     const re = new RegExp(label + "[\\s:]*\\$?([\\d,]+(?:\\.\\d{2})?)", 'i');
     const m = text.match(re);
@@ -6356,21 +6390,21 @@ function extractFieldsWithRegex(text, schema) {
     const v = getAmountAfter('E\\.?L\\.?\\s+EACH\\s+ACCIDENT') || getAmountAfter('EL\\s+EACH\\s+ACCIDENT');
     if (v) {
       extracted.wc_each_accident = v;
-      console.log('✅ WC Each Accident:', v);
+      logger.debug('WC Each Accident', { value: v });
     }
   }
   if ('wc_disease_policy_limit' in schema && extracted.wc_disease_policy_limit == null) {
     const v = getAmountAfter('E\\.?L\\.?\\s+DISEASE\\s*-\\s*POLICY\\s+LIMIT') || getAmountAfter('DISEASE\\s*-\\s*POLICY\\s+LIMIT');
     if (v) {
       extracted.wc_disease_policy_limit = v;
-      console.log('✅ WC Disease Policy Limit:', v);
+      logger.debug('WC Disease Policy Limit', { value: v });
     }
   }
   if ('wc_disease_each_employee' in schema && extracted.wc_disease_each_employee == null) {
     const v = getAmountAfter('E\\.?L\\.?\\s+DISEASE\\s*-\\s*EA\\s+EMPLOYEE') || getAmountAfter('DISEASE\\s*-\\s*EACH\\s+EMPLOYEE');
     if (v) {
       extracted.wc_disease_each_employee = v;
-      console.log('✅ WC Disease Each Employee:', v);
+      logger.debug('WC Disease Each Employee', { value: v });
     }
   }
   
@@ -6379,14 +6413,14 @@ function extractFieldsWithRegex(text, schema) {
     const v = getAmountAfter('COMBINED\\s+SINGLE\\s+LIMIT') || getAmountAfter('CSL');
     if (v) {
       extracted.auto_combined_single_limit = v;
-      console.log('✅ Auto Combined Single Limit:', v);
+      logger.debug('Auto Combined Single Limit', { value: v });
     }
   }
   if ('auto_bodily_injury' in schema && extracted.auto_bodily_injury == null) {
     const v = getAmountAfter('BODILY\\s+INJURY.*?PER\\s+PERSON');
     if (v) {
       extracted.auto_bodily_injury = v;
-      console.log('✅ Auto Bodily Injury:', v);
+      logger.debug('Auto Bodily Injury', { value: v });
     }
   }
   
@@ -6396,14 +6430,14 @@ function extractFieldsWithRegex(text, schema) {
     const umbrellaSection = text.match(/UMBRELLA[\s\S]{0,300}?EACH\s+OCCURRENCE[\s:]*\$?\s?([\d,]+)/i);
     if (umbrellaSection && umbrellaSection[1]) {
       extracted.umbrella_each_occurrence = parseFloat(umbrellaSection[1].replace(/,/g, ''));
-      console.log('✅ Umbrella Each Occurrence:', extracted.umbrella_each_occurrence);
+      logger.debug('Umbrella Each Occurrence', { value: extracted.umbrella_each_occurrence });
     }
   }
   if ('umbrella_aggregate' in schema && extracted.umbrella_aggregate == null) {
     const umbrellaSection = text.match(/UMBRELLA[\s\S]{0,300}?AGGREGATE[\s:]*\$?\s?([\d,]+)/i);
     if (umbrellaSection && umbrellaSection[1]) {
       extracted.umbrella_aggregate = parseFloat(umbrellaSection[1].replace(/,/g, ''));
-      console.log('✅ Umbrella Aggregate:', extracted.umbrella_aggregate);
+      logger.debug('Umbrella Aggregate', { value: extracted.umbrella_aggregate });
     }
   }
 
@@ -6424,7 +6458,7 @@ function extractFieldsWithRegex(text, schema) {
     // Find the coverage table section
     const tableStart = text.search(/TYPE\s+OF\s+INSURANCE/i);
     if (tableStart === -1) {
-      console.log('⚠️ Coverage table not found');
+      logger.warn('Coverage table not found');
       return coverages;
     }
     
@@ -6449,7 +6483,7 @@ function extractFieldsWithRegex(text, schema) {
         }
       }
       if (coverages.gl.policy_number || coverages.gl.effective_date) {
-        console.log('✅ GL Coverage extracted from table:', coverages.gl);
+        logger.debug('GL Coverage extracted from table', { coverage: coverages.gl });
       }
     }
     
@@ -6469,7 +6503,7 @@ function extractFieldsWithRegex(text, schema) {
         }
       }
       if (coverages.auto.policy_number || coverages.auto.effective_date) {
-        console.log('✅ Auto Coverage extracted from table:', coverages.auto);
+        logger.debug('Auto Coverage extracted from table', { coverage: coverages.auto });
       }
     }
     
@@ -6489,7 +6523,7 @@ function extractFieldsWithRegex(text, schema) {
         }
       }
       if (coverages.wc.policy_number || coverages.wc.effective_date) {
-        console.log('✅ WC Coverage extracted from table:', coverages.wc);
+        logger.debug('WC Coverage extracted from table', { coverage: coverages.wc });
       }
     }
     
@@ -6509,7 +6543,7 @@ function extractFieldsWithRegex(text, schema) {
         }
       }
       if (coverages.umbrella.policy_number || coverages.umbrella.effective_date) {
-        console.log('✅ Umbrella Coverage extracted from table:', coverages.umbrella);
+        logger.debug('Umbrella Coverage extracted from table', { coverage: coverages.umbrella });
       }
     }
     
@@ -6529,7 +6563,7 @@ function extractFieldsWithRegex(text, schema) {
         }
       }
       if (coverages.excess.policy_number || coverages.excess.effective_date) {
-        console.log('✅ Excess Liability Coverage extracted from table:', coverages.excess);
+        logger.debug('Excess Liability Coverage extracted from table', { coverage: coverages.excess });
       }
     }
     
@@ -6542,54 +6576,54 @@ function extractFieldsWithRegex(text, schema) {
   // Apply table-extracted data to schema fields
   if ('policy_number_gl' in schema && !extracted.policy_number_gl && tableCoverages.gl.policy_number) {
     extracted.policy_number_gl = tableCoverages.gl.policy_number;
-    console.log('✅ GL Policy Number (from table):', extracted.policy_number_gl);
+    logger.debug('GL Policy Number (from table)', { policyNumber: extracted.policy_number_gl });
   }
   if ('gl_effective_date' in schema && !extracted.gl_effective_date && tableCoverages.gl.effective_date) {
     extracted.gl_effective_date = tableCoverages.gl.effective_date;
-    console.log('✅ GL Effective Date (from table):', extracted.gl_effective_date);
+    logger.debug('GL Effective Date (from table)', { date: extracted.gl_effective_date });
   }
   if ('gl_expiration_date' in schema && !extracted.gl_expiration_date && tableCoverages.gl.expiration_date) {
     extracted.gl_expiration_date = tableCoverages.gl.expiration_date;
-    console.log('✅ GL Expiration Date (from table):', extracted.gl_expiration_date);
+    logger.debug('GL Expiration Date (from table)', { date: extracted.gl_expiration_date });
   }
   
   if ('policy_number_auto' in schema && !extracted.policy_number_auto && tableCoverages.auto.policy_number) {
     extracted.policy_number_auto = tableCoverages.auto.policy_number;
-    console.log('✅ Auto Policy Number (from table):', extracted.policy_number_auto);
+    logger.debug('Auto Policy Number (from table)', { policyNumber: extracted.policy_number_auto });
   }
   if ('auto_effective_date' in schema && !extracted.auto_effective_date && tableCoverages.auto.effective_date) {
     extracted.auto_effective_date = tableCoverages.auto.effective_date;
-    console.log('✅ Auto Effective Date (from table):', extracted.auto_effective_date);
+    logger.debug('Auto Effective Date (from table)', { date: extracted.auto_effective_date });
   }
   if ('auto_expiration_date' in schema && !extracted.auto_expiration_date && tableCoverages.auto.expiration_date) {
     extracted.auto_expiration_date = tableCoverages.auto.expiration_date;
-    console.log('✅ Auto Expiration Date (from table):', extracted.auto_expiration_date);
+    logger.debug('Auto Expiration Date (from table)', { date: extracted.auto_expiration_date });
   }
   
   if ('policy_number_wc' in schema && !extracted.policy_number_wc && tableCoverages.wc.policy_number) {
     extracted.policy_number_wc = tableCoverages.wc.policy_number;
-    console.log('✅ WC Policy Number (from table):', extracted.policy_number_wc);
+    logger.debug('WC Policy Number (from table)', { policyNumber: extracted.policy_number_wc });
   }
   if ('wc_effective_date' in schema && !extracted.wc_effective_date && tableCoverages.wc.effective_date) {
     extracted.wc_effective_date = tableCoverages.wc.effective_date;
-    console.log('✅ WC Effective Date (from table):', extracted.wc_effective_date);
+    logger.debug('WC Effective Date (from table)', { date: extracted.wc_effective_date });
   }
   if ('wc_expiration_date' in schema && !extracted.wc_expiration_date && tableCoverages.wc.expiration_date) {
     extracted.wc_expiration_date = tableCoverages.wc.expiration_date;
-    console.log('✅ WC Expiration Date (from table):', extracted.wc_expiration_date);
+    logger.debug('WC Expiration Date (from table)', { date: extracted.wc_expiration_date });
   }
   
   if ('policy_number_umbrella' in schema && !extracted.policy_number_umbrella && tableCoverages.umbrella.policy_number) {
     extracted.policy_number_umbrella = tableCoverages.umbrella.policy_number;
-    console.log('✅ Umbrella Policy Number (from table):', extracted.policy_number_umbrella);
+    logger.debug('Umbrella Policy Number (from table)', { policyNumber: extracted.policy_number_umbrella });
   }
   if ('umbrella_effective_date' in schema && !extracted.umbrella_effective_date && tableCoverages.umbrella.effective_date) {
     extracted.umbrella_effective_date = tableCoverages.umbrella.effective_date;
-    console.log('✅ Umbrella Effective Date (from table):', extracted.umbrella_effective_date);
+    logger.debug('Umbrella Effective Date (from table)', { date: extracted.umbrella_effective_date });
   }
   if ('umbrella_expiration_date' in schema && !extracted.umbrella_expiration_date && tableCoverages.umbrella.expiration_date) {
     extracted.umbrella_expiration_date = tableCoverages.umbrella.expiration_date;
-    console.log('✅ Umbrella Expiration Date (from table):', extracted.umbrella_expiration_date);
+    logger.debug('Umbrella Expiration Date (from table)', { date: extracted.umbrella_expiration_date });
   }
 
   // CONTEXT-AWARE DATE EXTRACTION for GL coverage
@@ -6599,7 +6633,7 @@ function extractFieldsWithRegex(text, schema) {
     const v = (glSection && glSection[1]) || getValueAfter('POLICY\\s+EFF') || getValueAfter('EFFECTIVE\\s+DATE');
     if (v) {
       extracted.gl_effective_date = v;
-      console.log('✅ GL Effective Date:', v);
+      logger.debug('GL Effective Date', { value: v });
     }
   }
   if ('gl_expiration_date' in schema && !extracted.gl_expiration_date) {
@@ -6608,7 +6642,7 @@ function extractFieldsWithRegex(text, schema) {
     const v = (glSection && glSection[1]) || getValueAfter('POLICY\\s+EXP') || getValueAfter('EXPIRATION\\s+DATE');
     if (v) {
       extracted.gl_expiration_date = v;
-      console.log('✅ GL Expiration Date:', v);
+      logger.debug('GL Expiration Date', { value: v });
     }
   }
   
@@ -6618,7 +6652,7 @@ function extractFieldsWithRegex(text, schema) {
     const wcSection = text.match(new RegExp(`WORKERS\\s+COMPENSATION[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (wcSection && wcSection[1]) {
       extracted.wc_effective_date = wcSection[1];
-      console.log('✅ WC Effective Date (from WC section):', extracted.wc_effective_date);
+      logger.debug('WC Effective Date (from WC section)', { date: extracted.wc_effective_date });
     }
   }
   if ('wc_expiration_date' in schema && !extracted.wc_expiration_date) {
@@ -6626,7 +6660,7 @@ function extractFieldsWithRegex(text, schema) {
     const wcSection = text.match(new RegExp(`WORKERS\\s+COMPENSATION[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(?:\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})[\\s\\S]{0,${DATE_PROXIMITY_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (wcSection && wcSection[1]) {
       extracted.wc_expiration_date = wcSection[1];
-      console.log('✅ WC Expiration Date (from WC section):', extracted.wc_expiration_date);
+      logger.debug('WC Expiration Date (from WC section)', { date: extracted.wc_expiration_date });
     }
   }
   
@@ -6635,7 +6669,7 @@ function extractFieldsWithRegex(text, schema) {
     const autoSection = text.match(new RegExp(`AUTOMOBILE\\s+LIABILITY[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (autoSection && autoSection[1]) {
       extracted.auto_effective_date = autoSection[1];
-      console.log('✅ Auto Effective Date (from Auto section):', extracted.auto_effective_date);
+      logger.debug('Auto Effective Date (from Auto section)', { date: extracted.auto_effective_date });
     }
   }
   if ('auto_expiration_date' in schema && !extracted.auto_expiration_date) {
@@ -6643,7 +6677,7 @@ function extractFieldsWithRegex(text, schema) {
     const autoSection = text.match(new RegExp(`AUTOMOBILE\\s+LIABILITY[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(?:\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})[\\s\\S]{0,${DATE_PROXIMITY_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (autoSection && autoSection[1]) {
       extracted.auto_expiration_date = autoSection[1];
-      console.log('✅ Auto Expiration Date (from Auto section):', extracted.auto_expiration_date);
+      logger.debug('Auto Expiration Date (from Auto section)', { date: extracted.auto_expiration_date });
     }
   }
   
@@ -6652,7 +6686,7 @@ function extractFieldsWithRegex(text, schema) {
     const umbrellaSection = text.match(new RegExp(`UMBRELLA\\s+LIAB(?:ILITY)?[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (umbrellaSection && umbrellaSection[1]) {
       extracted.umbrella_effective_date = umbrellaSection[1];
-      console.log('✅ Umbrella Effective Date (from Umbrella section):', extracted.umbrella_effective_date);
+      logger.debug('Umbrella Effective Date (from Umbrella section)', { date: extracted.umbrella_effective_date });
     }
   }
   if ('umbrella_expiration_date' in schema && !extracted.umbrella_expiration_date) {
@@ -6660,7 +6694,7 @@ function extractFieldsWithRegex(text, schema) {
     const umbrellaSection = text.match(new RegExp(`UMBRELLA\\s+LIAB(?:ILITY)?[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(?:\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})[\\s\\S]{0,${DATE_PROXIMITY_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (umbrellaSection && umbrellaSection[1]) {
       extracted.umbrella_expiration_date = umbrellaSection[1];
-      console.log('✅ Umbrella Expiration Date (from Umbrella section):', extracted.umbrella_expiration_date);
+      logger.debug('Umbrella Expiration Date (from Umbrella section)', { date: extracted.umbrella_expiration_date });
     }
   }
   
@@ -6676,7 +6710,7 @@ function extractFieldsWithRegex(text, schema) {
       const carrier = insurerMatch[2].trim();
       if (carrier && carrier.length > 3 && !insurerMap[letter]) {
         insurerMap[letter] = carrier;
-        console.log(`✅ Found INSURER ${letter}: ${carrier}`);
+        logger.debug('Found INSURER', { letter, carrier });
       }
     }
   }
@@ -6729,7 +6763,7 @@ function extractFieldsWithRegex(text, schema) {
     if (glInsurer) {
       extracted.insurance_carrier_gl = glInsurer.carrier;
       extracted.gl_insurer_letter = glInsurer.letter; // Store letter for PDF generation
-      console.log(`✅ GL Carrier: ${glInsurer.carrier} (INSURER ${glInsurer.letter})`);
+      logger.debug('GL Carrier', { carrier: glInsurer.carrier, letter: glInsurer.letter });
     }
   }
   
@@ -6743,7 +6777,7 @@ function extractFieldsWithRegex(text, schema) {
     if (autoInsurer) {
       extracted.insurance_carrier_auto = autoInsurer.carrier;
       extracted.auto_insurer_letter = autoInsurer.letter;
-      console.log(`✅ Auto Carrier: ${autoInsurer.carrier} (INSURER ${autoInsurer.letter})`);
+      logger.debug('Auto Carrier', { carrier: autoInsurer.carrier, letter: autoInsurer.letter });
     }
   }
   
@@ -6757,7 +6791,7 @@ function extractFieldsWithRegex(text, schema) {
     if (wcInsurer) {
       extracted.insurance_carrier_wc = wcInsurer.carrier;
       extracted.wc_insurer_letter = wcInsurer.letter;
-      console.log(`✅ WC Carrier: ${wcInsurer.carrier} (INSURER ${wcInsurer.letter})`);
+      logger.debug('WC Carrier', { carrier: wcInsurer.carrier, letter: wcInsurer.letter });
     }
   }
   
@@ -6771,14 +6805,14 @@ function extractFieldsWithRegex(text, schema) {
     if (umbrellaInsurer) {
       extracted.insurance_carrier_umbrella = umbrellaInsurer.carrier;
       extracted.umbrella_insurer_letter = umbrellaInsurer.letter;
-      console.log(`✅ Umbrella Carrier: ${umbrellaInsurer.carrier} (INSURER ${umbrellaInsurer.letter})`);
+      logger.debug('Umbrella Carrier', { carrier: umbrellaInsurer.carrier, letter: umbrellaInsurer.letter });
     }
   }
   
   // Store all insurers map for reference (useful for regeneration)
   if (Object.keys(insurerMap).length > 0) {
     extracted.all_insurers = insurerMap;
-    console.log('✅ All insurers extracted:', insurerMap);
+    logger.debug('All insurers extracted', { insurerMap });
   }
 
   // PRODUCER/BROKER SECTION EXTRACTION
@@ -6794,7 +6828,7 @@ function extractFieldsWithRegex(text, schema) {
       // First line after PRODUCER is typically the broker name
       if (lines[0] && !lines[0].match(/^(NAME|PHONE|E-MAIL|FAX)/i)) {
         extracted.broker_name = lines[0];
-        console.log('✅ Broker Name (from PRODUCER):', extracted.broker_name);
+        logger.debug('Broker Name (from PRODUCER)', { name: extracted.broker_name });
         
         // Extract address from remaining lines (skip contact info lines)
         const addressLines = lines.slice(1).filter(line => 
@@ -6803,7 +6837,7 @@ function extractFieldsWithRegex(text, schema) {
         );
         if (addressLines.length > 0 && 'broker_address' in schema && !extracted.broker_address) {
           extracted.broker_address = addressLines.join(', ');
-          console.log('✅ Broker Address (from PRODUCER):', extracted.broker_address);
+          logger.debug('Broker Address (from PRODUCER)', { address: extracted.broker_address });
         }
       }
     }
@@ -6815,7 +6849,7 @@ function extractFieldsWithRegex(text, schema) {
     const contactMatch = text.match(/CONTACT[\s\n]+NAME[\s:]+([A-Za-z\s.'-]{3,50})/i);
     if (contactMatch && contactMatch[1]) {
       extracted.broker_contact = contactMatch[1].trim();
-      console.log('✅ Broker Contact Name:', extracted.broker_contact);
+      logger.debug('Broker Contact Name', { contact: extracted.broker_contact });
     }
   }
   
@@ -6824,7 +6858,7 @@ function extractFieldsWithRegex(text, schema) {
     const phoneMatch = text.match(/(?:PRODUCER|CONTACT)[\s\S]{0,200}?PHONE[\s:]+(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/i);
     if (phoneMatch && phoneMatch[1]) {
       extracted.broker_phone = phoneMatch[1].trim();
-      console.log('✅ Broker Phone (from PRODUCER/CONTACT):', extracted.broker_phone);
+      logger.debug('Broker Phone (from PRODUCER/CONTACT)', { phone: extracted.broker_phone });
     }
   }
   
@@ -6833,7 +6867,7 @@ function extractFieldsWithRegex(text, schema) {
     const emailMatch = text.match(/(?:PRODUCER|CONTACT)[\s\S]{0,200}?E-MAIL[\s:]+([^\s\n]+@[^\s\n]+)/i);
     if (emailMatch && emailMatch[1]) {
       extracted.broker_email = emailMatch[1].trim();
-      console.log('✅ Broker Email (from PRODUCER/CONTACT):', extracted.broker_email);
+      logger.debug('Broker Email (from PRODUCER/CONTACT)', { email: extracted.broker_email });
     }
   }
 
@@ -6842,14 +6876,14 @@ function extractFieldsWithRegex(text, schema) {
     const v = getValueAfter('INSURED') || getValueAfter('NAMED\\s+INSURED') || (allCompanyNames.length > 0 ? allCompanyNames[0] : null);
     if (v) {
       extracted.named_insured = v;
-      console.log('✅ Named Insured:', v);
+      logger.debug('Named Insured', { value: v });
     }
   }
   
   if ('subcontractor_name' in schema && !extracted.subcontractor_name) {
     extracted.subcontractor_name = extracted.named_insured || (allCompanyNames.length > 0 ? allCompanyNames[0] : null);
     if (extracted.subcontractor_name) {
-      console.log('✅ Subcontractor Name:', extracted.subcontractor_name);
+      logger.debug('Subcontractor Name', { name: extracted.subcontractor_name });
     }
   }
 
@@ -6925,7 +6959,7 @@ function extractFieldsWithRegex(text, schema) {
     }
     
     extracted.gl_additional_insured = hasAddlInsured;
-    console.log('✅ GL Additional Insured:', hasAddlInsured);
+    logger.debug('GL Additional Insured', { hasAddlInsured });
   }
   
   if ('gl_waiver_of_subrogation' in schema && extracted.gl_waiver_of_subrogation == null) {
@@ -6948,10 +6982,10 @@ function extractFieldsWithRegex(text, schema) {
     }
     
     extracted.gl_waiver_of_subrogation = hasWaiver;
-    console.log('✅ GL Waiver of Subrogation:', hasWaiver);
+    logger.debug('GL Waiver of Subrogation', { hasWaiver });
   }
 
-  console.log('📊 Regex extraction results:', { 
+  logger.debug('Regex extraction results', { 
     fieldsExtracted: Object.keys(extracted).length,
     fields: Object.keys(extracted)
   });
@@ -6969,7 +7003,7 @@ function buildExtractionPrompt(schema, extractedText) {
 
 // Helper function for extraction logic
 async function performExtraction({ file_url, json_schema, prompt, response_json_schema }) {
-  console.log('🔍 Starting extraction:', { file_url, hasSchema: !!json_schema, hasPrompt: !!prompt });
+  logger.info('Starting extraction', { file_url, hasSchema: !!json_schema, hasPrompt: !!prompt });
   
   // Extract file path from URL
   const urlParts = file_url.split('/uploads/');
@@ -6995,22 +7029,22 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
   
   if (ext === '.pdf') {
     extractedText = await extractTextFromPDF(filePath);
-    console.log(`📄 Extracted ${extractedText.length} characters from PDF`);
+    logger.info('Extracted from PDF', { characters: extractedText.length });
   } else {
     extractedText = 'Image OCR not yet implemented. Please upload PDF files for automatic extraction.';
-    console.log('⚠️  Non-PDF file, skipping text extraction');
+    logger.info('Non-PDF file, skipping text extraction');
   }
 
   // If we have a prompt and response schema, use AI to extract structured data
   if (prompt && response_json_schema) {
     try {
-      console.log('🤖 Using AI extraction with custom prompt');
+      logger.info('Using AI extraction with custom prompt');
       const fullPrompt = `${prompt}\n\nEXTRACTED TEXT FROM DOCUMENT:\n${extractedText.substring(0, 8000)}`;
       const analysis = await aiAnalysis.callAI(fullPrompt);
       const parsedResult = aiAnalysis.parseJSON(analysis);
       
       if (parsedResult && Object.keys(parsedResult).length > 0) {
-        console.log('✅ AI extraction successful:', Object.keys(parsedResult));
+        logger.info('AI extraction successful', { fields: Object.keys(parsedResult) });
         return {
           status: 'success',
           output: parsedResult,
@@ -7019,7 +7053,7 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
         };
       }
     } catch (aiErr) {
-      console.error('❌ AI extraction error:', aiErr);
+      logger.error('AI extraction error', { error: aiErr?.message, stack: aiErr?.stack });
       // Fall through to schema-based extraction
     }
   }
@@ -7028,18 +7062,18 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
   if (json_schema && extractedText) {
     try {
       const schema = typeof json_schema === 'string' ? JSON.parse(json_schema) : json_schema;
-      console.log('📋 Schema fields:', Object.keys(schema));
+      logger.info('Schema fields', { fields: Object.keys(schema) });
       
       // First try AI extraction if available
       if (aiAnalysis.enabled) {
-        console.log('🤖 Attempting AI extraction with schema...');
+        logger.info('Attempting AI extraction with schema');
         const extractionPrompt = buildExtractionPrompt(schema, extractedText);
         
         const aiResult = await aiAnalysis.callAI(extractionPrompt);
         const extracted = aiAnalysis.parseJSON(aiResult);
         
         if (extracted && Object.keys(extracted).length > 0) {
-          console.log('✅ AI extraction successful:', Object.keys(extracted));
+          logger.info('AI extraction successful', { fields: Object.keys(extracted) });
           return {
             status: 'success',
             output: extracted,
@@ -7047,18 +7081,18 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
             extraction_method: 'ai'
           };
         } else {
-          console.log('⚠️  AI extraction returned empty results');
+          logger.warn('AI extraction returned empty results');
         }
       } else {
-        console.log('⚠️  AI service not enabled (set AI_API_KEY environment variable)');
+        logger.warn('AI service not enabled (set AI_API_KEY environment variable)');
       }
       
       // Fallback to regex-based extraction when AI is not configured or fails
-      console.log('🔧 Attempting regex-based extraction...');
+      logger.info('Attempting regex-based extraction');
       const regexExtracted = extractFieldsWithRegex(extractedText, schema);
       
       if (Object.keys(regexExtracted).length > 0) {
-        console.log('✅ Regex extraction found:', Object.keys(regexExtracted));
+        logger.info('Regex extraction found', { fields: Object.keys(regexExtracted) });
         return {
           status: 'success',
           output: regexExtracted,
@@ -7067,15 +7101,15 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
           message: 'Extracted using pattern matching. Configure AI_API_KEY for better accuracy.'
         };
       } else {
-        console.log('⚠️  Regex extraction found no matching fields');
+        logger.warn('Regex extraction found no matching fields');
       }
     } catch (extractErr) {
-      console.error('❌ Schema-based extraction error:', extractErr);
+      logger.error('Schema-based extraction error', { error: extractErr?.message, stack: extractErr?.stack });
     }
   }
 
   // Return extracted text even if structured extraction failed
-  console.log('⚠️  No structured data extracted, returning raw text');
+  logger.warn('No structured data extracted, returning raw text');
   return {
     status: 'partial',
     output: {},
@@ -7088,7 +7122,7 @@ async function performExtraction({ file_url, json_schema, prompt, response_json_
 
 // Helper function to extract exclusions from policy or endorsement text
 function extractExclusions(text) {
-  console.log('🔍 Extracting exclusions from document text...');
+  logger.info('Extracting exclusions from document text');
   const exclusions = [];
   
   if (!text) return exclusions;
@@ -7144,19 +7178,19 @@ function extractExclusions(text) {
           line_number: i + 1
         });
         
-        console.log(`  ✅ Found exclusion (${type}): ${line.trim().substring(0, 100)}`);
+        logger.debug('Found exclusion', { type, line: line.trim().substring(0, 100) });
         break; // Don't double-count same line
       }
     }
   }
   
-  console.log(`📊 Extracted ${exclusions.length} exclusions from document`);
+  logger.info('Extracted exclusions from document', { count: exclusions.length });
   return exclusions;
 }
 
 // Helper function to compare policy data to COI data
 function comparePolicyToCOI(policyData, coiData, coverageType) {
-  console.log(`🔍 Comparing ${coverageType} policy to COI data...`);
+  logger.info('Comparing policy to COI data', { coverageType });
   const discrepancies = [];
   
   // Field mapping by coverage type
@@ -7198,7 +7232,7 @@ function comparePolicyToCOI(policyData, coiData, coverageType) {
   
   const fieldMap = fieldMaps[coverageType];
   if (!fieldMap) {
-    console.warn(`⚠️ Unknown coverage type: ${coverageType}`);
+    logger.warn('Unknown coverage type', { coverageType });
     return discrepancies;
   }
   
@@ -7265,17 +7299,17 @@ function comparePolicyToCOI(policyData, coiData, coverageType) {
     }
   }
   
-  console.log(`📊 Found ${discrepancies.length} discrepancies between policy and COI`);
+  logger.info('Found discrepancies between policy and COI', { count: discrepancies.length });
   return discrepancies;
 }
 
 // Helper function to compare exclusions against requirements
 function compareExclusionsToRequirements(exclusions, requirements, projectData) {
-  console.log('🔍 Comparing exclusions to requirements and project data...');
+  logger.info('Comparing exclusions to requirements and project data');
   const conflicts = [];
   
   if (!exclusions || exclusions.length === 0) {
-    console.log('✅ No exclusions to check');
+    logger.info('No exclusions to check');
     return conflicts;
   }
   
@@ -7370,7 +7404,7 @@ function compareExclusionsToRequirements(exclusions, requirements, projectData) 
     }
   }
   
-  console.log(`📊 Found ${conflicts.length} exclusion conflicts`);
+  logger.info('Found exclusion conflicts', { count: conflicts.length });
   return conflicts;
 }
 
@@ -7386,7 +7420,7 @@ app.post('/integrations/extract-file', authenticateToken, async (req, res) => {
     const result = await performExtraction({ file_url, json_schema, prompt, response_json_schema });
     return res.json(result);
   } catch (err) {
-    console.error('extract-file error:', err?.message || err);
+    logger.error('extract-file error', { error: err?.message || err });
     return sendError(res, 500, 'Extraction failed', { error: err.message });
   }
 });
@@ -7403,7 +7437,7 @@ app.post('/integrations/extract-data', authenticateToken, async (req, res) => {
     const result = await performExtraction({ file_url, json_schema, prompt, response_json_schema });
     return res.json(result);
   } catch (err) {
-    console.error('extract-data error:', err?.message || err);
+    logger.error('extract-data error', { error: err?.message || err });
     return sendError(res, 500, 'Extraction failed', { error: err.message });
   }
 });
@@ -7420,7 +7454,7 @@ app.post('/public/extract-data', publicApiLimiter, async (req, res) => {
     const result = await performExtraction({ file_url, json_schema, prompt, response_json_schema });
     return res.json(result);
   } catch (err) {
-    console.error('public extract-data error:', err?.message || err);
+    logger.error('public extract-data error', { error: err?.message || err });
     return sendError(res, 500, 'Extraction failed', { error: err.message });
   }
 });
@@ -7587,7 +7621,7 @@ app.post('/integrations/analyze-coi-compliance', authenticateToken, async (req, 
 
     return res.json({ success: true, policy_analysis: policyAnalysis });
   } catch (err) {
-    console.error('analyze-coi-compliance error:', err?.message || err);
+    logger.error('analyze-coi-compliance error', { error: err?.message || err });
     return res.status(500).json({ error: 'Compliance analysis failed' });
   }
 });
@@ -7772,11 +7806,11 @@ app.post('/integrations/analyze-policy', authenticateToken, async (req, res) => 
       debouncedSave(); // Note: debounced, doesn't return promise
     }
 
-    console.log(`✅ Policy analysis complete: ${deficiencies.length} deficiencies found`);
+    logger.info('Policy analysis complete', { deficiencies: deficiencies.length });
     res.json(analysis);
 
   } catch (err) {
-    console.error('Policy analysis error:', err);
+    logger.error('Policy analysis error', { error: err?.message, stack: err?.stack });
     res.status(500).json({ error: 'Failed to analyze policy', details: err.message });
   }
 });
@@ -7832,7 +7866,7 @@ app.post('/public/extract-coi-fields', publicApiLimiter, async (req, res) => {
     const output = extraction?.output || {};
     return res.json({ status: 'success', data: output, extraction });
   } catch (err) {
-    console.error('public extract-coi-fields error:', err?.message || err);
+    logger.error('public extract-coi-fields error', { error: err?.message || err });
     return res.status(500).json({ error: 'Extraction failed' });
   }
 });
@@ -7857,7 +7891,7 @@ app.get('/public/pending-cois', (req, res) => {
       }));
     return res.json(list);
   } catch (err) {
-    console.error('public pending-cois error:', err?.message || err);
+    logger.error('public pending-cois error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to list pending COIs' });
   }
 });
@@ -7868,7 +7902,7 @@ app.get('/public/admin-emails', (req, res) => {
     const emails = DEFAULT_ADMIN_EMAILS.length > 0 ? DEFAULT_ADMIN_EMAILS : ['admin@example.com'];
     return res.json({ emails });
   } catch (err) {
-    console.error('public admin-emails error:', err?.message || err);
+    logger.error('public admin-emails error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to load admin emails' });
   }
 });
@@ -7892,7 +7926,7 @@ app.post('/public/broker-sign-coi', publicApiLimiter, (req, res) => {
     debouncedSave();
     return res.json(entities.GeneratedCOI[idx]);
   } catch (err) {
-    console.error('public broker-sign-coi error:', err?.message || err);
+    logger.error('public broker-sign-coi error', { error: err?.message || err });
     return res.status(500).json({ error: 'Broker quick sign failed' });
   }
 });
@@ -7920,7 +7954,7 @@ app.post('/public/broker-login', publicApiLimiter, async (req, res) => {
           broker = entities.Broker[idx];
         }
       } catch (hashErr) {
-        console.error('broker-login hash error:', hashErr?.message || hashErr);
+        logger.error('broker-login hash error', { error: hashErr?.message || hashErr });
       }
     }
 
@@ -7940,7 +7974,7 @@ app.post('/public/broker-login', publicApiLimiter, async (req, res) => {
       authenticated: true
     });
   } catch (err) {
-    console.error('broker-login error:', err?.message || err);
+    logger.error('broker-login error', { error: err?.message || err });
     return res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -7989,7 +8023,7 @@ app.post('/public/gc-login', publicApiLimiter, async (req, res) => {
       });
     }
 
-    console.log('🔐 GC Login attempt:', {
+    logger.info('GC Login attempt', {
       emailSearched: email,
       gcFound: !!gc,
       matchingGCCount: matchingGCs.length,
@@ -8001,7 +8035,7 @@ app.post('/public/gc-login', publicApiLimiter, async (req, res) => {
     const passwordToCheck = (gc && gc.password) ? gc.password : DUMMY_PASSWORD_HASH;
     const isPasswordValid = await bcrypt.compare(password, passwordToCheck);
     
-    console.log('🔑 Password comparison:', {
+    logger.info('Password comparison', {
       matchResult: isPasswordValid,
       usingDummy: !gc?.password
     });
@@ -8019,7 +8053,7 @@ app.post('/public/gc-login', publicApiLimiter, async (req, res) => {
       authenticated: true
     });
   } catch (err) {
-    console.error('gc-login error:', err?.message || err);
+    logger.error('gc-login error', { error: err?.message || err });
     return res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -8031,7 +8065,7 @@ app.post('/public/gc-forgot-password', publicApiLimiter, async (req, res) => {
     const { email } = req.body || {};
     return handlePasswordResetRequest(email, 'gc', res);
   } catch (err) {
-    console.error('gc-forgot-password error:', err?.message || err);
+    logger.error('gc-forgot-password error', { error: err?.message || err });
     return res.status(500).json({ error: 'Request failed' });
   }
 });
@@ -8047,7 +8081,7 @@ app.post('/public/broker-forgot-password', publicApiLimiter, async (req, res) =>
     const { email } = req.body || {};
     return handlePasswordResetRequest(email, 'broker', res);
   } catch (err) {
-    console.error('broker-forgot-password error:', err?.message || err);
+    logger.error('broker-forgot-password error', { error: err?.message || err });
     return res.status(500).json({ error: 'Request failed' });
   }
 });
@@ -8091,7 +8125,7 @@ app.post('/public/subcontractor-forgot-password', publicApiLimiter, async (req, 
       // Mock transporter for development
       transporter = {
         sendMail: async (options) => {
-          console.log('📧 MOCK EMAIL:', {
+          logger.info('MOCK EMAIL', {
             from: options.from,
             to: options.to,
             subject: options.subject
@@ -8123,14 +8157,14 @@ app.post('/public/subcontractor-forgot-password', publicApiLimiter, async (req, 
 
     try {
       await transporter.sendMail(mailOptions);
-      console.log('📧 Subcontractor password reset email sent to:', email);
+      logger.info('Subcontractor password reset email sent', { email });
     } catch (emailErr) {
-      console.error('Error sending subcontractor password reset email:', emailErr?.message);
+      logger.error('Error sending subcontractor password reset email', { error: emailErr?.message });
     }
 
     return res.json({ success: true, message: 'If email exists, reset link will be sent' });
   } catch (err) {
-    console.error('subcontractor-forgot-password error:', err?.message || err);
+    logger.error('subcontractor-forgot-password error', { error: err?.message || err });
     return res.status(500).json({ error: 'Request failed' });
   }
 });
@@ -8170,10 +8204,10 @@ app.post('/public/subcontractor-reset-password', publicApiLimiter, async (req, r
     subTokens.delete(email.toLowerCase());
     saveEntities();
 
-    console.log('🔑 Subcontractor password reset successfully for:', email);
+    logger.info('Subcontractor password reset successfully', { email });
     return res.json({ success: true, message: 'Password reset successful' });
   } catch (err) {
-    console.error('subcontractor-reset-password error:', err?.message || err);
+    logger.error('subcontractor-reset-password error', { error: err?.message || err });
     return res.status(500).json({ error: 'Password reset failed' });
   }
 });
@@ -8228,7 +8262,7 @@ app.post('/admin/set-broker-password', authLimiter, authenticateToken, async (re
       email: email 
     });
   } catch (err) {
-    console.error('set-broker-password error:', err?.message || err);
+    logger.error('set-broker-password error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to set password' });
   }
 });
@@ -8284,7 +8318,7 @@ app.post('/admin/set-gc-password', authLimiter, authenticateToken, async (req, r
       gc_id: entities.Contractor[gcIndex].id
     });
   } catch (err) {
-    console.error('set-gc-password error:', err?.message || err);
+    logger.error('set-gc-password error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to set password' });
   }
 });
@@ -8314,7 +8348,7 @@ app.post('/admin/generate-coi', apiLimiter, authenticateToken, async (req, res) 
           ? JSON.parse(subcontractor.master_insurance_data) 
           : subcontractor.master_insurance_data;
       } catch (parseErr) {
-        console.warn('Could not parse master_insurance_data:', parseErr?.message);
+        logger.warn('Could not parse master_insurance_data', { error: parseErr?.message });
       }
     }
     
@@ -8471,7 +8505,7 @@ app.post('/admin/generate-coi', apiLimiter, authenticateToken, async (req, res) 
     debouncedSave();
     return res.json(entities.GeneratedCOI[coiIdx]);
   } catch (err) {
-    console.error('admin generate-coi error:', err?.message || err);
+    logger.error('admin generate-coi error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to generate COI', details: err?.message });
   }
 });
@@ -8514,7 +8548,7 @@ app.post('/admin/generate-policy-pdf', apiLimiter, authenticateToken, async (req
     debouncedSave();
     return res.json(entities.InsuranceDocument[docIdx]);
   } catch (err) {
-    console.error('admin generate-policy-pdf error:', err?.message || err);
+    logger.error('admin generate-policy-pdf error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to generate policy PDF' });
   }
 });
@@ -8587,13 +8621,13 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
         }).catch(() => {});
       }
     } catch (notifyErr) {
-      console.warn('Could not send activation notifications after admin sign:', notifyErr?.message || notifyErr);
+      logger.warn('Could not send activation notifications after admin sign', { error: notifyErr?.message || notifyErr });
     }
 
     debouncedSave();
     return res.json(entities.GeneratedCOI[coiIdx]);
   } catch (err) {
-    console.error('admin sign-coi error:', err?.message || err);
+    logger.error('admin sign-coi error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to sign COI' });
   }
 });
@@ -8657,7 +8691,7 @@ app.post('/admin/approve-coi-with-deficiencies', apiLimiter, authenticateToken, 
     debouncedSave(); // Note: debounced, doesn't return promise
 
     // Log the approval for audit trail
-    console.log(`✅ COI ${coi_id} approved with deficiencies by ${approvalRecord.approved_by}`);
+    logger.info('COI approved with deficiencies', { coi_id, approvedBy: approvalRecord.approved_by });
     logAuth(
       AuditEventType.ADMIN_ACTION,
       req.user?.email || 'admin',
@@ -8693,7 +8727,7 @@ app.post('/admin/approve-coi-with-deficiencies', apiLimiter, authenticateToken, 
             body: `Your Certificate of Insurance for ${escapeHtml(project?.project_name || coi.project_name)} has been approved.\n\nNote: Some deficiencies were waived by the reviewing administrator.\n\nView certificate: ${escapeHtml(coi.final_coi_url || coi.first_coi_url || '(not available)')}`
           })
         }).catch(err => {
-          console.error('Failed to notify subcontractor:', err);
+          logger.error('Failed to notify subcontractor', { error: err?.message, stack: err?.stack });
         });
       }
 
@@ -8708,11 +8742,11 @@ app.post('/admin/approve-coi-with-deficiencies', apiLimiter, authenticateToken, 
             body: `A Certificate of Insurance has been approved for ${escapeHtml(coi.subcontractor_name)} on ${escapeHtml(project.project_name)}.\n\nNote: ${approvalRecord.deficiency_count} deficiencies were waived. Reason: ${emailJustification}\n\nView certificate: ${escapeHtml(coi.final_coi_url || coi.first_coi_url || '(not available)')}`
           })
         }).catch(err => {
-          console.error('Failed to notify GC:', err);
+          logger.error('Failed to notify GC', { error: err?.message, stack: err?.stack });
         });
       }
     } catch (notifyErr) {
-      console.error('Notification error:', notifyErr);
+      logger.error('Notification error', { error: notifyErr?.message, stack: notifyErr?.stack });
       // Don't fail the approval if notification fails
     }
 
@@ -8724,7 +8758,7 @@ app.post('/admin/approve-coi-with-deficiencies', apiLimiter, authenticateToken, 
     });
 
   } catch (err) {
-    console.error('admin approve-coi-with-deficiencies error:', err?.message || err);
+    logger.error('admin approve-coi-with-deficiencies error', { error: err?.message || err });
     return res.status(500).json({ error: 'Failed to approve COI', details: err.message });
   }
 });
@@ -8767,7 +8801,7 @@ app.post('/integrations/parse-program-pdf', authenticateToken, async (req, res) 
 
     res.json(result);
   } catch (err) {
-    console.error('parse-program-pdf failed', err);
+    logger.error('parse-program-pdf failed', { error: err?.message, stack: err?.stack });
     return res.status(500).json({ error: 'Failed to parse PDF' });
   }
 });
@@ -8793,7 +8827,7 @@ app.post('/integrations/upload-private-file', authenticateToken, upload.single('
     const host = req.get('host');
     const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
     
-    console.log('✅ Private file uploaded successfully:', {
+    logger.info('Private file uploaded successfully', {
       originalName: req.file.originalname,
       filename: req.file.filename,
       size: req.file.size,
@@ -8811,7 +8845,7 @@ app.post('/integrations/upload-private-file', authenticateToken, upload.single('
       mimetype: req.file.mimetype
     });
   } catch (error) {
-    console.error('❌ Private file upload error:', error);
+    logger.error('Private file upload error', { error: error?.message || error });
     return sendError(res, 500, 'File upload failed', { error: error.message });
   }
 });
@@ -9113,12 +9147,12 @@ app.post('/api/documents/:documentId/replace', authenticateToken, async (req, re
           });
 
           await transporter.sendMail(mailOptions);
-          console.log(`✅ Document replacement notification sent to GC: ${gcEmail}`);
+          logger.info('Document replacement notification sent to GC', { gcEmail });
         } else {
-          console.log(`📧 MOCK: Would send document replacement notification to GC: ${gcEmail}`);
+          logger.info('MOCK: Would send document replacement notification to GC', { gcEmail });
         }
       } catch (emailError) {
-        console.error(`❌ Failed to send notification to ${gcEmail}:`, emailError);
+        logger.error('Failed to send notification', { email: gcEmail, error: emailError?.message || emailError });
       }
     });
 
@@ -9135,7 +9169,7 @@ app.post('/api/documents/:documentId/replace', authenticateToken, async (req, re
     });
 
   } catch (error) {
-    console.error('❌ Document replacement error:', error);
+    logger.error('Document replacement error', { error: error?.message || error });
     res.status(500).json({ 
       error: 'Failed to process document replacement',
       details: error.message 
@@ -9190,7 +9224,7 @@ app.post('/public/hold-harmless-sign-link', publicApiLimiter, async (req, res) =
 
     return res.json({ ok: true, coi_id: coi.id, project_id: project?.id || null, sign_url: signUrl });
   } catch (err) {
-    console.error('hold-harmless-sign-link error:', err?.message || err);
+    logger.error('hold-harmless-sign-link error', { error: err?.message || err });
     return sendError(res, 500, 'Failed to create sign link');
   }
 });
@@ -9247,7 +9281,7 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
           const gcName = project?.gc_name || coi.gc_name || 'General Contractor';
           
           if (gcEmail && coi.hold_harmless_template_url) {
-            console.log(`📧 Sending hold harmless to GC for signature after sub signed: ${gcEmail}`);
+            logger.info('Sending hold harmless to GC for signature after sub signed', { gcEmail });
             
             const gcSignUrl = `${req.protocol}://${req.get('host')}/public/sign-hold-harmless?token=${encodeURIComponent(token)}&signer=gc`;
             const internalUrl = `${req.protocol}://${req.get('host')}/public/send-email`;
@@ -9289,12 +9323,12 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
               })
             });
             
-            console.log('✅ Hold harmless sent to GC for signature');
+            logger.info('Hold harmless sent to GC for signature');
           } else {
-            console.warn('⚠️ Could not send hold harmless to GC - missing email or template URL');
+            logger.warn('Could not send hold harmless to GC - missing email or template URL');
           }
         } catch (emailErr) {
-          console.error('❌ Failed to send hold harmless to GC:', emailErr?.message || emailErr);
+          logger.error('Failed to send hold harmless to GC', { error: emailErr?.message || emailErr });
         }
       }
     }
@@ -9302,7 +9336,7 @@ app.post('/public/complete-hold-harmless-signature', publicApiLimiter, async (re
     debouncedSave();
     return res.json(entities.GeneratedCOI[idx]);
   } catch (err) {
-    console.error('complete-hold-harmless-signature error:', err?.message || err);
+    logger.error('complete-hold-harmless-signature error', { error: err?.message || err });
     return sendError(res, 500, 'Failed to record hold harmless signature');
   }
 });
@@ -9395,17 +9429,17 @@ async function checkAndProcessRenewals() {
             }
           }
         } catch (notifyErr) {
-          console.warn('Failed to notify broker about renewal:', notifyErr?.message || notifyErr);
+          logger.warn('Failed to notify broker about renewal', { error: notifyErr?.message || notifyErr });
         }
       } catch (prErr) {
-        console.warn('Failed to create policy renewal task:', prErr?.message || prErr);
+        logger.warn('Failed to create policy renewal task', { error: prErr?.message || prErr });
       }
     }
 
     // Persist any changes
     debouncedSave();
   } catch (err) {
-    console.error('Renewal scan error:', err?.message || err);
+    logger.error('Renewal scan error', { error: err?.message || err });
   }
 }
 

@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
+import logger from '../utils/logger';
 
 export default function COIReview() {
   const navigate = useNavigate();
@@ -89,24 +90,22 @@ export default function COIReview() {
     queryKey: ['project', coi?.project_id],
     queryFn: async () => {
       if (!coi?.project_id) {
-        console.warn('No project_id in COI', { coiId: coi?.id, coi });
+        logger.warn('No project_id in COI', { context: 'COIReview', coiId: coi?.id });
         return null;
       }
       
-      console.log('🔍 Looking for project with id:', coi.project_id);
+      logger.info('Looking for project', { context: 'COIReview', projectId: coi.project_id });
       const projects = await apiClient.entities.Project.list();
-      console.log('📋 Total projects found:', projects.length);
-      console.log('📋 Project IDs:', projects.map(p => p.id));
+      logger.info('Total projects found', { context: 'COIReview', projectsCount: projects.length, projectIds: projects.map(p => p.id) });
       
       const foundProject = projects.find(p => p.id === coi.project_id);
       
       if (!foundProject) {
-        console.warn(`❌ Project not found with id: ${coi.project_id}`);
-        console.warn('Available project IDs:', projects.map(p => ({ id: p.id, name: p.project_name })));
+        logger.warn('Project not found', { context: 'COIReview', projectId: coi.project_id, availableProjectIds: projects.map(p => ({ id: p.id, name: p.project_name })) });
         
         // Try to get project data from COI itself as fallback
         if (coi.project_name) {
-          console.log('Using project data from COI as fallback');
+          logger.info('Using project data from COI as fallback', { context: 'COIReview', projectName: coi.project_name });
           return {
             id: coi.project_id,
             project_name: coi.project_name,
@@ -121,7 +120,7 @@ export default function COIReview() {
           };
         }
       } else {
-        console.log('✅ Project found:', foundProject.project_name);
+        logger.info('Project found', { context: 'COIReview', projectName: foundProject.project_name });
       }
       
       return foundProject;
@@ -186,7 +185,7 @@ export default function COIReview() {
       try {
         return await apiClient.entities.InsuranceProgram.read(project.program_id);
       } catch (err) {
-        console.error('Failed to load program', err);
+        logger.error('Failed to load program', { context: 'COIReview', error: err.message });
         return null;
       }
     },
@@ -220,7 +219,7 @@ export default function COIReview() {
 
   const analyzeCompliance = async () => {
     if (!coi || !project || !requirements.length) {
-      console.warn("Missing COI, Project, or Requirements data for compliance analysis.");
+      logger.warn('Missing COI, Project, or Requirements data for compliance analysis', { context: 'COIReview', hasCOI: !!coi, hasProject: !!project, requirementsCount: requirements.length });
       return;
     }
 
@@ -260,7 +259,7 @@ export default function COIReview() {
       });
 
     } catch (error) {
-      console.error('Compliance analysis error:', error);
+      logger.error('Compliance analysis error', { context: 'COIReview', error: error.message });
       alert(`Compliance analysis failed: ${error.message}\n\nPlease review manually or try again.`);
     } finally {
       setAnalyzingCompliance(false);
@@ -275,7 +274,7 @@ export default function COIReview() {
       queryClient.invalidateQueries(['coi', coi.id]);
       alert('COI generated from system data and set to Pending.');
     } catch (err) {
-      console.error('Generate COI failed:', err);
+      logger.error('Generate COI failed', { context: 'COIReview', error: err.message });
       alert('Failed to generate COI from system data.');
     }
   };
@@ -291,7 +290,7 @@ export default function COIReview() {
       queryClient.invalidateQueries(['coi', coi.id]);
       alert('Admin signature applied. Final COI URL updated.');
     } catch (err) {
-      console.error('Sign COI failed:', err);
+      logger.error('Sign COI failed', { context: 'COIReview', error: err.message });
       alert('Failed to apply admin signature.');
     }
   };
@@ -341,7 +340,7 @@ export default function COIReview() {
       alert('COI approved with deficiency waivers. Stakeholders have been notified.');
       navigate(createPageUrl("AdminDashboard"));
     } catch (err) {
-      console.error('Approve with waivers failed:', err);
+      logger.error('Approve with waivers failed', { context: 'COIReview', error: err.message });
       alert(`Failed to approve with waivers: ${err.message}`);
     }
   };
@@ -366,7 +365,7 @@ export default function COIReview() {
           extractedData = extractResult.data || {};
         }
       } catch (extractErr) {
-        console.warn('Failed to extract COI fields, continuing without extracted data:', extractErr);
+        logger.warn('Failed to extract COI fields, continuing without extracted data', { context: 'COIReview', error: extractErr.message });
       }
 
       await updateCOIMutation.mutateAsync({
@@ -508,7 +507,7 @@ export default function COIReview() {
           return mergeTemplate(text);
         }
       } catch (err) {
-        console.error('Failed to fetch program hold harmless template, falling back to default', err);
+        logger.error('Failed to fetch program hold harmless template, falling back to default', { context: 'COIReview', error: err.message });
       }
     }
 
@@ -578,11 +577,7 @@ export default function COIReview() {
     // Check if project is loaded
     if (!project) {
       alert('Cannot approve COI: Project information is not available. Please refresh the page and try again.');
-      console.error('Cannot approve COI: project not found', { 
-        coiId: coi?.id, 
-        projectId: coi?.project_id,
-        projectLoading 
-      });
+      logger.error('Cannot approve COI: project not found', { context: 'COIReview', coiId: coi?.id, projectId: coi?.project_id, projectLoading });
       return;
     }
 
@@ -593,7 +588,7 @@ export default function COIReview() {
         subcontractor = await apiClient.entities.Contractor.read(coi.subcontractor_id);
       }
     } catch (err) {
-      console.error('Failed to fetch subcontractor:', err);
+      logger.error('Failed to fetch subcontractor', { context: 'COIReview', error: err.message });
     }
 
     // Update confirmation message based on renewal status
@@ -639,7 +634,7 @@ Work may continue without interruption.
 Thank you!`
         });
       } catch (err) {
-        console.error('Failed to notify subcontractor:', err);
+        logger.error('Failed to notify subcontractor', { context: 'COIReview', error: err.message });
       }
 
       alert('COI renewal approved! No hold harmless signature required for renewals.');
@@ -658,7 +653,7 @@ Thank you!`
       try {
         holdHarmlessTemplateUrl = await uploadHoldHarmlessTemplate();
       } catch (templateErr) {
-        console.error('Failed to generate Hold Harmless template:', templateErr);
+        logger.error('Failed to generate Hold Harmless template', { context: 'COIReview', error: templateErr.message });
       }
     }
 
@@ -685,11 +680,7 @@ Thank you!`
     // Send approval notification with hold harmless requirement
     // This should never happen now due to early return, but keeping as safety check
     if (!project) {
-      console.error('Cannot send hold harmless email: project not found', {
-        coiId: coi?.id,
-        projectId: coi?.project_id,
-        projectLoading
-      });
+      logger.error('Cannot send hold harmless email: project not found', { context: 'COIReview', coiId: coi?.id, projectId: coi?.project_id, projectLoading });
       alert('COI approved, but notification email could not be sent (project not found). Please notify the subcontractor manually.');
     } else {
       try {
@@ -726,7 +717,7 @@ Trade: ${coi.trade_type}
 Thank you!`
         });
       } catch (err) {
-        console.error('Failed to notify subcontractor:', err);
+        logger.error('Failed to notify subcontractor', { context: 'COIReview', error: err.message });
       }
     }
 
@@ -753,7 +744,7 @@ Best regards,
 InsureTrack Team`
         });
       } catch (err) {
-        console.error('Failed to notify GC:', err);
+        logger.error('Failed to notify GC', { context: 'COIReview', error: err.message });
       }
     }
 
@@ -765,7 +756,7 @@ InsureTrack Team`
         await notifySubCOIApproved(coi, subcontractor, project);
       }
     } catch (err) {
-      console.error('Failed to send broker approval notification:', err);
+      logger.error('Failed to send broker approval notification', { context: 'COIReview', error: err.message });
     }
 
     alert('COI approved! Hold harmless agreement signature is now required before work can begin.');
@@ -819,7 +810,7 @@ InsureTrack Team`
           const isValidHostname = fileUrl.hostname === apiBaseUrl.hostname;
           return isValidProtocol && isValidHostname;
         } catch {
-          console.warn('Invalid attachment URL:', file.url);
+          logger.warn('Invalid attachment URL', { context: 'COIReview', url: file.url });
           return false;
         }
       });
@@ -908,7 +899,7 @@ Best regards,
 InsureTrack Team`
       });
     } else {
-      console.warn('Deficiency not sent: no broker/contact recipient available');
+      logger.warn('Deficiency not sent: no broker/contact recipient available', { context: 'COIReview' });
     }
 
     // Notify GC about deficiency
@@ -965,7 +956,7 @@ Best regards,
 InsureTrack Team`
       });
     } else {
-      console.warn('Subcontractor deficiency notice not sent: no recipient available');
+      logger.warn('Subcontractor deficiency notice not sent: no recipient available', { context: 'COIReview' });
     }
 
     // Reset form and close dialog
@@ -2173,7 +2164,7 @@ InsureTrack Team`
                       }
                       setDeficiencyAttachments(prev => [...prev, ...uploadedFiles]);
                     } catch (err) {
-                      console.error('Failed to upload attachment:', err);
+                      logger.error('Failed to upload attachment', { context: 'COIReview', error: err.message });
                       alert('Failed to upload file. Please try again.');
                     } finally {
                       setUploadingDeficiencyFile(false);

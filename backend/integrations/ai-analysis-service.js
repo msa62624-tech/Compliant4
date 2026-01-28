@@ -4,6 +4,8 @@
  * Analyzes insurance documents for compliance, extracts data, and provides recommendations
  */
 
+import logger from '../config/logger.js';
+
 // Use global fetch available in Node 18+
 export default class AIAnalysisService {
   constructor(config = {}) {
@@ -13,9 +15,9 @@ export default class AIAnalysisService {
     this.enabled = !!this.apiKey;
 
     if (this.enabled) {
-      console.log(`✅ AI Analysis Service: ENABLED (Provider: ${this.provider}, Model: ${this.model})`);
+      logger.info('AI Analysis Service enabled', { provider: this.provider, model: this.model });
     } else {
-      console.log(`⚠️  AI Analysis Service: DISABLED (set AI_API_KEY to enable)`);
+      logger.warn('AI Analysis Service disabled - set AI_API_KEY to enable');
     }
   }
 
@@ -27,14 +29,14 @@ export default class AIAnalysisService {
    */
   async analyzeCOICompliance(coiData, requirements = {}) {
     try {
-      console.log('🤖 AI: Analyzing COI for compliance...');
+      logger.info('Analyzing COI for compliance');
 
       const prompt = this.buildCompliancePrompt(coiData, requirements);
       const response = await this.callAI(prompt);
       
       return this.parseComplianceResponse(response, coiData);
     } catch (error) {
-      console.error('❌ COI compliance analysis error:', error.message);
+      logger.error('COI compliance analysis failed', { error: error?.message, stack: error?.stack });
       return this.getMockComplianceAnalysis(coiData);
     }
   }
@@ -47,7 +49,7 @@ export default class AIAnalysisService {
    */
   async extractPolicyData(policyText, policyType = 'gl') {
     try {
-      console.log(`🤖 AI: Extracting ${policyType} policy data...`);
+      logger.info('Extracting policy data', { policyType });
 
       const prompt = `Extract structured data from this ${policyType} insurance policy. Return valid JSON with:
 {
@@ -76,7 +78,7 @@ ${policyText.substring(0, 2000)}`;
       const response = await this.callAI(prompt);
       return this.parseJSON(response);
     } catch (error) {
-      console.error(`❌ Policy data extraction error:`, error.message);
+      logger.error('Policy data extraction failed', { policyType, error: error?.message, stack: error?.stack });
       return this.getMockPolicyData(policyType);
     }
   }
@@ -89,7 +91,7 @@ ${policyText.substring(0, 2000)}`;
    */
   async generateRecommendations(coiData, deficiencies = []) {
     try {
-      console.log('🤖 AI: Generating review recommendations...');
+      logger.info('Generating review recommendations', { deficiencyCount: deficiencies.length });
 
       const deficiencyText = deficiencies
         .map(d => `- ${d.title}: ${d.description}`)
@@ -112,7 +114,7 @@ Provide 3-5 specific, actionable recommendations for the reviewer.`;
       const response = await this.callAI(prompt);
       return this.parseRecommendations(response);
     } catch (error) {
-      console.error('❌ Recommendations generation error:', error.message);
+      logger.error('Recommendations generation failed', { error: error?.message, stack: error?.stack });
       return this.getMockRecommendations();
     }
   }
@@ -125,7 +127,7 @@ Provide 3-5 specific, actionable recommendations for the reviewer.`;
    */
   async assessRisk(coiData, _requirements = {}) {
     try {
-      console.log('🤖 AI: Assessing COI risk level...');
+      logger.info('Assessing COI risk level', { subcontractor: coiData.subcontractor_name });
 
       const prompt = `Rate the risk level (LOW, MEDIUM, HIGH, CRITICAL) of this insurance certificate on a scale 1-10:
       
@@ -139,7 +141,7 @@ Provide JSON: {"level": "HIGH", "score": 7, "factors": ["reason1", "reason2"]}`;
       const response = await this.callAI(prompt);
       return this.parseJSON(response);
     } catch (error) {
-      console.error('❌ Risk assessment error:', error.message);
+      logger.error('Risk assessment failed', { error: error?.message, stack: error?.stack });
       return this.getMockRiskAssessment();
     }
   }
@@ -199,7 +201,7 @@ Identify all deficiencies and compliance gaps. Return JSON array with objects: {
    */
   async callAI(prompt) {
     if (!this.enabled) {
-      console.log('⚠️  AI: Using mock response (service not configured)');
+      logger.warn('AI service not configured, using mock response');
       return JSON.stringify({ mock: true, message: 'Mock AI response' });
     }
 
@@ -212,7 +214,7 @@ Identify all deficiencies and compliance gaps. Return JSON array with objects: {
         throw new Error(`Unsupported AI provider: ${this.provider}`);
       }
     } catch (error) {
-      console.error('❌ AI API call error:', error.message);
+      logger.error('AI API call failed', { provider: this.provider, error: error?.message, stack: error?.stack });
       throw error;
     }
   }
@@ -278,7 +280,7 @@ Identify all deficiencies and compliance gaps. Return JSON array with objects: {
       }
       return JSON.parse(response);
     } catch (error) {
-      console.warn('⚠️  Could not parse JSON from AI response');
+      logger.warn('Could not parse JSON from AI response', { error: error?.message });
       return null;
     }
   }

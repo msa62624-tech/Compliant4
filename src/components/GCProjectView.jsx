@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import logger from '../utils/logger';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -116,7 +117,7 @@ export default function GCProjectView() {
         
         return Object.values(uniqueSubs);
       } catch (err) {
-        console.error('Error fetching subcontractors for typeahead:', err);
+        logger.error('Error fetching subcontractors for typeahead', { context: 'GCProjectView', error: err.message });
         return [];
       }
     },
@@ -224,13 +225,13 @@ export default function GCProjectView() {
         
         if (coiResponse.ok) {
           const coiData = await coiResponse.json();
-          console.log('✅ COI Request created:', coiData.id, 'with token:', coiData.coi_token);
+          logger.info('COI Request created', { context: 'GCProjectView', coiId: coiData.id, coiToken: coiData.coi_token });
         } else {
           const err = await coiResponse.json().catch(() => ({}));
-          console.warn('⚠️ COI creation response:', coiResponse.status, err);
+          logger.warn('COI creation response', { context: 'GCProjectView', status: coiResponse.status, error: err });
         }
       } catch (err) {
-        console.error('❌ COI creation error:', err);
+        logger.error('COI creation error', { context: 'GCProjectView', error: err.message });
       }
       
       // ONLY send notification email if this is a NEW subcontractor (has password)
@@ -489,7 +490,7 @@ export default function GCProjectView() {
                               origin.includes(':5176') ? origin.replace(':5176', ':3001') :
                               import.meta?.env?.VITE_API_BASE_URL || '';
         
-        console.log('📧 Sending email to:', contactEmail, 'with portal link:', portalUrl);
+        logger.info('Sending email', { context: 'GCProjectView', contactEmail, portalUrl });
         
         const emailResponse = await fetch(`${backendBaseUrl}/public/send-email`, {
           method: 'POST',
@@ -504,16 +505,16 @@ export default function GCProjectView() {
         
         if (!emailResponse.ok) {
           const errorData = await emailResponse.json().catch(() => ({}));
-          console.error('❌ Email send failed:', emailResponse.status, errorData);
+          logger.error('Email send failed', { context: 'GCProjectView', status: emailResponse.status, error: errorData });
         } else {
           const result = await emailResponse.json().catch(() => ({}));
-          console.log('✅ Email sent successfully:', result);
+          logger.info('Email sent successfully', { context: 'GCProjectView', result });
         }
       } catch (err) {
-        console.error('❌ Email notification error:', err);
+        logger.error('Email notification error', { context: 'GCProjectView', error: err.message });
       }
       } else {
-        console.log('ℹ️ Subcontractor already exists in system - no welcome email sent');
+        logger.info('Subcontractor already exists in system - no welcome email sent', { context: 'GCProjectView' });
         
         // HOWEVER: If this subcontractor already has a broker from a previous project,
         // we should notify that broker about the NEW COI request for this project
@@ -529,7 +530,7 @@ export default function GCProjectView() {
             );
             
             if (existingCOI?.broker_email) {
-              console.log('📧 Found existing broker:', existingCOI.broker_email, 'for subcontractor:', form.subcontractor_name);
+              logger.info('Found existing broker', { context: 'GCProjectView', brokerEmail: existingCOI.broker_email, subcontractor: form.subcontractor_name });
               
               // Find the COI we just created for this new project
               const newCOI = allCOIs.find(c => 
@@ -634,15 +635,15 @@ export default function GCProjectView() {
                 });
                 
                 if (brokerEmailResponse.ok) {
-                  console.log('✅ Broker notification sent to:', existingCOI.broker_email);
+                  logger.info('Broker notification sent', { context: 'GCProjectView', brokerEmail: existingCOI.broker_email });
                 } else {
-                  console.warn('⚠️ Broker notification failed:', brokerEmailResponse.status);
+                  logger.warn('Broker notification failed', { context: 'GCProjectView', status: brokerEmailResponse.status });
                 }
               }
             }
           }
         } catch (err) {
-          console.error('❌ Error checking for existing broker:', err);
+          logger.error('Error checking for existing broker', { context: 'GCProjectView', error: err.message });
         }
       }
       
@@ -666,7 +667,7 @@ export default function GCProjectView() {
       toast.success('Hold Harmless Agreement signed successfully!');
     },
     onError: (err) => {
-      console.error('Failed to sign hold harmless:', err);
+      logger.error('Failed to sign hold harmless', { context: 'GCProjectView', error: err.message });
       alert('Failed to sign agreement. Please try again.');
     }
   });
@@ -683,7 +684,7 @@ export default function GCProjectView() {
       toast.success('Subcontractor archived');
     },
     onError: (err) => {
-      console.error('Archive subcontractor failed', err);
+      logger.error('Archive subcontractor failed', { context: 'GCProjectView', error: err.message });
       toast.error(err?.message || 'Failed to archive subcontractor');
     }
   });

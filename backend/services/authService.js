@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import logger from '../config/logger.js';
 
 // Passwords are hashed using bcrypt with salt rounds = 10
 // Admin password loaded from environment variable for security
@@ -51,7 +52,7 @@ export function verifyToken(token, secret) {
   try {
     return jwt.verify(token, secret);
   } catch (err) {
-    console.log('Token verification failed:', err.message);
+    logger.info('Token verification failed', { error: err?.message });
     return null;
   }
 }
@@ -78,7 +79,7 @@ export function timingSafeEqual(a, b) {
   try {
     return crypto.timingSafeEqual(bufA, bufB);
   } catch (err) {
-    console.warn('timingSafeEqual comparison failed:', err?.message || err);
+    logger.warn('timingSafeEqual comparison failed', { error: err?.message });
     return false;
   }
 }

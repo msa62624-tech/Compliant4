@@ -1,4 +1,6 @@
 // Simple auth helper: stores bearer token in localStorage and provides login/logout helpers.
+import logger from './utils/logger';
+
 const STORAGE_KEY = 'insuretrack_token';
 const REFRESH_KEY = 'insuretrack_refresh_token';
 const LEGACY_SESSION_KEY = 'token'; // Legacy sessionStorage key for backward compatibility
@@ -20,26 +22,26 @@ export function getToken() {
   // Use memory storage if localStorage failed
   if (useMemoryStorage) {
     const token = memoryStorage.token;
-    console.log('🔑 getToken from memory:', { hasToken: !!token });
+    logger.debug('getToken from memory', { hasToken: !!token });
     return token;
   }
   
   try {
     const token = localStorage.getItem(STORAGE_KEY);
-    console.log('🔑 getToken from localStorage:', { hasToken: !!token });
+    logger.debug('getToken from localStorage', { hasToken: !!token });
     return token;
   } catch (e) {
-    console.error('❌ Failed to retrieve authentication token from storage:', e);
+    logger.error('Failed to retrieve authentication token from storage', { error: e.message });
     // Fall back to memory storage
     useMemoryStorage = true;
     const token = memoryStorage.token;
-    console.log('🔑 getToken fallback to memory:', { hasToken: !!token });
+    logger.debug('getToken fallback to memory', { hasToken: !!token });
     return token;
   }
 }
 
 export function setToken(token, refreshToken = null) {
-  console.log('🔑 setToken called:', { hasToken: !!token, hasRefreshToken: !!refreshToken });
+  logger.debug('setToken called', { hasToken: !!token, hasRefreshToken: !!refreshToken });
   
   // Update memory storage first (always works)
   memoryStorage.token = token;
@@ -50,24 +52,24 @@ export function setToken(token, refreshToken = null) {
     try {
       if (token) {
         localStorage.setItem(STORAGE_KEY, token);
-        console.log('✅ Token stored in localStorage successfully');
+        logger.debug('Token stored in localStorage successfully');
       } else {
         localStorage.removeItem(STORAGE_KEY);
       }
       if (refreshToken) {
         localStorage.setItem(REFRESH_KEY, refreshToken);
-        console.log('✅ Refresh token stored in localStorage successfully');
+        logger.debug('Refresh token stored in localStorage successfully');
       } else {
         localStorage.removeItem(REFRESH_KEY);
       }
     } catch (e) {
       // Log storage errors and switch to memory-only mode
-      console.error('❌ Failed to store token in localStorage:', e);
-      console.warn('⚠️ Switching to in-memory storage mode (tokens will not persist across page reloads)');
+      logger.error('Failed to store token in localStorage', { error: e.message });
+      logger.warn('Switching to in-memory storage mode (tokens will not persist across page reloads)');
       useMemoryStorage = true;
     }
   } else {
-    console.log('💾 Token stored in memory storage (localStorage unavailable)');
+    logger.debug('Token stored in memory storage (localStorage unavailable)');
   }
   
   // Notify listeners (e.g., App) when auth state changes so UI can react

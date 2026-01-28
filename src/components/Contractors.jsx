@@ -20,6 +20,7 @@ import ZipCodeLookup from "@/components/ZipCodeLookup.jsx";
 import { sendGCWelcomeEmail } from "@/gcNotifications";
 import { notificationLinks } from "@/notificationLinkBuilder";
 import { toast } from "sonner";
+import logger from '../utils/logger';
 import {
   Select,
   SelectContent,
@@ -121,7 +122,7 @@ export default function Contractors() {
       // Dialog closure is handled in handleSubmit after Portal creation and email sending complete
     },
     onError: (error) => {
-      console.error('❌ Error creating contractor:', error);
+      logger.error('Error creating contractor', { context: 'Contractors', error: error.message });
       alert(`Failed to create contractor: ${error.message}`);
     },
   });
@@ -274,16 +275,7 @@ export default function Contractors() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    console.log('📝 Form submission started');
-    console.log('Form data:', {
-      company_name: formData.company_name,
-      email: formData.email,
-      phone: formData.phone,
-      mailing_address: formData.mailing_address,
-      mailing_city: formData.mailing_city,
-      mailing_state: formData.mailing_state,
-      mailing_zip_code: formData.mailing_zip_code,
-    });
+    logger.info('Form submission started', { context: 'Contractors', companyName: formData.company_name, email: formData.email });
     
     // Validate required fields
     if (!formData.company_name?.trim()) {
@@ -365,21 +357,11 @@ export default function Contractors() {
             welcome_email_sent_date: null
           };
           
-          console.log('📝 Creating Portal for GC:', {
-            ...portalPayload,
-            access_token: portalToken.substring(0, 10) + '...' // Only show first 10 chars for security
-          });
+          logger.info('Creating Portal for GC', { context: 'Contractors', userType: portalPayload.user_type, userEmail: portalPayload.user_email });
           
-          console.log('🔄 Attempting Portal creation with payload:', {
-            ...portalPayload,
-            access_token: portalToken.substring(0, 10) + '...'
-          });
+          logger.info('Attempting Portal creation', { context: 'Contractors' });
           const createdPortal = await compliant.entities.Portal.create(portalPayload);
-          console.log('✅ Portal created successfully:', {
-            id: createdPortal.id,
-            user_type: createdPortal.user_type,
-            user_email: createdPortal.user_email
-          });
+          logger.info('Portal created successfully', { context: 'Contractors', portalId: createdPortal.id, userType: createdPortal.user_type, userEmail: createdPortal.user_email });
           portalCreated = true;
           
           // Send welcome email with login credentials and portal access information
@@ -401,22 +383,14 @@ export default function Contractors() {
                 welcome_email_sent_date: new Date().toISOString()
               });
             } else {
-              console.warn('⚠️ Welcome email was not sent (returned false)');
+              logger.warn('Welcome email was not sent (returned false)', { context: 'Contractors' });
             }
           } catch (emailError) {
-            console.error('❌ Failed to send welcome email:', emailError);
+            logger.error('Failed to send welcome email', { context: 'Contractors', error: emailError.message });
             emailSent = false;
           }
         } catch (portalError) {
-          console.error('❌ Failed to create portal:', portalError);
-          console.error('Portal error details:', {
-            name: portalError.name,
-            message: portalError.message,
-            status: portalError.status,
-            response: portalError.response,
-            stack: portalError.stack
-          });
-          console.error('Full error object:', JSON.stringify(portalError, Object.getOwnPropertyNames(portalError)));
+          logger.error('Failed to create portal', { context: 'Contractors', error: portalError.message, errorName: portalError.name, status: portalError.status, stack: portalError.stack });
           portalCreated = false;
           // Show user-friendly error with more details
           const errorMsg = portalError.message || 'Unknown error';
@@ -511,11 +485,11 @@ InsureTrack Team`
                   additionalContactResults.push({ name: contact.name, email: contact.email, success: false, reason: 'Email failed' });
                 }
               } catch (emailErr) {
-                console.error(`Failed to send email to ${contact.email}:`, emailErr);
+                logger.error('Failed to send email to contact', { context: 'Contractors', contactEmail: contact.email, error: emailErr.message });
                 additionalContactResults.push({ name: contact.name, email: contact.email, success: false, reason: emailErr.message });
               }
             } catch (contactErr) {
-              console.error(`Failed to create account for ${contact.name}:`, contactErr);
+              logger.error('Failed to create account for contact', { context: 'Contractors', contactName: contact.name, error: contactErr.message });
               additionalContactResults.push({ name: contact.name, email: contact.email, success: false, reason: contactErr.message });
             }
           }
@@ -552,7 +526,7 @@ InsureTrack Team`
         alert(`✅ General Contractor "${data.company_name}" has been added!${loginNote}${portalNote}${emailNote}${additionalContactsNote}${dashboardLinkNote}`);
       }
     } catch (error) {
-      console.error('❌ Submit error:', error);
+      logger.error('Submit error', { context: 'Contractors', error: error.message });
       
       // Provide specific guidance based on error type
       let errorMessage = error.message;
@@ -692,7 +666,7 @@ InsureTrack Team`
       
       alert(`✅ Welcome email resent successfully to ${contractor.email}\n\n🔗 GC Dashboard Link:\n${dashboardLink}`);
     } catch (err) {
-      console.error('Failed to resend welcome email:', err);
+      logger.error('Failed to resend welcome email', { context: 'Contractors', error: err.message });
       
       // Still show the dashboard link even if email failed
       // Use gc-dashboard (public access) not gc-details (admin only)
@@ -1208,12 +1182,7 @@ InsureTrack Team`
                   type="submit"
                   className="bg-red-600 hover:bg-red-700"
                   disabled={createContractorMutation.isPending || updateContractorMutation.isPending}
-                  onClick={() => console.log('🖱️ Submit button clicked', {
-                    isPending: createContractorMutation.isPending || updateContractorMutation.isPending,
-                    hasCompanyName: !!formData.company_name,
-                    hasEmail: !!formData.email,
-                    hasAddress: !!formData.mailing_address
-                  })}
+                  onClick={() => logger.info('Submit button clicked', { context: 'Contractors', isPending: createContractorMutation.isPending || updateContractorMutation.isPending, hasCompanyName: !!formData.company_name })}
                 >
                   {editingContractor ? 'Update' : 'Add'} General Contractor
                 </Button>

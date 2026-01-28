@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
 import { generateSecureToken } from "@/utils/tokenGenerator";
+import logger from '../utils/logger';
 import {
   Dialog,
   DialogContent,
@@ -180,7 +181,7 @@ export default function ProjectDetails() {
           
           // Send notifications asynchronously (don't wait for them)
           notifySubAddedToProject(subcontractor, projectData).catch(err => {
-            console.error('Sub notification failed:', err);
+            logger.error('Sub notification failed', { context: 'ProjectDetails', error: err.message });
             // Fallback minimal email so subs still get a link
             if (contactEmail) {
               const subDashboardLink = `${window.location.origin}/subcontractor-dashboard?id=${subcontractor.id}`;
@@ -193,10 +194,10 @@ export default function ProjectDetails() {
           });
           
           notifyGCSubcontractorAdded(projectData, subcontractor).catch(err => 
-            console.error('GC notification failed:', err)
+            logger.error('GC notification failed', { context: 'ProjectDetails', error: err.message })
           );
         } catch (err) {
-          console.error('Error fetching notification data:', err);
+          logger.error('Error fetching notification data', { context: 'ProjectDetails', error: err.message });
         }
       }
       
@@ -281,7 +282,7 @@ export default function ProjectDetails() {
       if (data.status && !project?.status) {
         setTimeout(() => {
           notifyGCProjectCreated(updated).catch(err => 
-            console.error('GC notification failed:', err)
+            logger.error('GC notification failed', { context: 'ProjectDetails', error: err.message })
           );
         }, 100);
       }
@@ -625,10 +626,10 @@ export default function ProjectDetails() {
           sampleCoiUrl = result.file_url || result.url || null;
         } else {
           const errText = await response.text();
-          console.error('Failed to generate sample COI (backend):', response.status, errText);
+          logger.error('Failed to generate sample COI (backend)', { context: 'ProjectDetails', status: response.status, error: errText });
         }
       } catch (error) {
-        console.error('Failed to generate sample COI:', error);
+        logger.error('Failed to generate sample COI', { context: 'ProjectDetails', error: error.message });
       }
 
       // Get all admin emails from the User entity
@@ -639,7 +640,7 @@ export default function ProjectDetails() {
         // Optimized: filter first to remove falsy emails
         adminEmails = admins.filter(a => a.email).map(a => a.email);
       } catch (error) {
-        console.error('Failed to fetch admin emails:', error);
+        logger.error('Failed to fetch admin emails', { context: 'ProjectDetails', error: error.message });
         adminEmails = user?.email ? [user.email] : [];
       }
 
@@ -760,7 +761,7 @@ export default function ProjectDetails() {
         dashboard_url: portalUrl,
         status: 'active',
         welcome_email_sent: false
-      }).catch(err => console.error('Failed to create subcontractor portal:', err));
+      }).catch(err => logger.error('Failed to create subcontractor portal', { context: 'ProjectDetails', error: err.message }));
 
       // Notify broker to upload/sign for this project
       if (insuranceData?.broker_email) {
@@ -825,9 +826,9 @@ export default function ProjectDetails() {
           InsureTrack Team`
                 });
               } catch (err) {
-                console.error('Failed to send broker welcome email:', err);
+                logger.error('Failed to send broker welcome email', { context: 'ProjectDetails', error: err.message });
               }
-            }).catch(err => console.error('Failed to create broker portal:', err));
+            }).catch(err => logger.error('Failed to create broker portal', { context: 'ProjectDetails', error: err.message }));
           } else {
             // brokerId = broker.id;
           }
@@ -849,7 +850,7 @@ Best regards,
 InsureTrack System`
           });
         } catch (emailError) {
-          console.error('Failed to send broker notification:', emailError);
+          logger.error('Failed to send broker notification', { context: 'ProjectDetails', error: emailError.message });
         }
       }
 
@@ -893,7 +894,7 @@ InsureTrack System`
       try {
         await sendEmail(emailParams);
       } catch (err) {
-        console.error('Failed to send subcontractor email:', err);
+        logger.error('Failed to send subcontractor email', { context: 'ProjectDetails', email: formData.contact_email, error: err.message });
         alert(`⚠️ Subcontractor added but email to ${formData.contact_email} failed. Error: ${err.message}`);
         return;
       }
@@ -933,7 +934,7 @@ We have attached a sample Certificate of Insurance for your reference.
 
 Best regards,
 InsureTrack System`
-        }).catch(err => console.error('Failed to send broker notification:', err));
+        }).catch(err => logger.error('Failed to send broker notification', { context: 'ProjectDetails', error: err.message }));
       }
 
       // Notify GC about new subcontractor (async)
@@ -954,12 +955,12 @@ InsureTrack System`
 
       Best regards,
       InsureTrack Team`
-        }).catch(err => console.error('Failed to send GC notification:', err));
+        }).catch(err => logger.error('Failed to send GC notification', { context: 'ProjectDetails', error: err.message }));
       }
 
       alert(`✅ Subcontractor added! Email sent to ${formData.contact_email} with broker info form.`);
       } catch (error) {
-        console.error("Failed to add subcontractor:", error);
+        logger.error('Failed to add subcontractor', { context: 'ProjectDetails', error: error.message });
         alert(`Failed to add subcontractor: ${error.message}`);
       }
     };
@@ -971,7 +972,7 @@ InsureTrack System`
     try {
       await deleteSubMutation.mutateAsync(id);
     } catch (error) {
-        console.error("Failed to remove subcontractor:", error);
+        logger.error('Failed to remove subcontractor', { context: 'ProjectDetails', error: error.message });
         alert('Failed to remove subcontractor. Please try again.');
     }
   };
