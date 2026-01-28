@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { getBackendBaseUrl } from "@/urlConfig";
+import { isValidEmail } from '@/utils';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Button } from '@/components/ui/button';
@@ -25,7 +26,7 @@ export default function SubcontractorLogin({ onLogin }) {
       }
 
       // Validate email format
-      if (!email.includes('@')) {
+      if (!isValidEmail(email)) {
         throw new Error('Please enter a valid email address');
       }
 

@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Building2 } from 'lucide-react';
 import ForgotPassword from '@/components/ForgotPassword';
+import { getBackendBaseUrl } from '@/urlConfig';
+import { isValidEmail } from '@/utils';
 
 export default function GCLogin({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -25,17 +27,12 @@ export default function GCLogin({ onLogin }) {
       }
 
       // Validate email format
-      if (!email.includes('@')) {
+      if (!isValidEmail(email)) {
         throw new Error('Please enter a valid email address');
       }
 
-      // Compute backend base
-      const { protocol, host, origin } = window.location;
-      const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-      const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
-                         origin.includes(':5175') ? origin.replace(':5175', ':3001') :
-                         origin.includes(':5176') ? origin.replace(':5176', ':3001') :
-                         import.meta?.env?.VITE_API_BASE_URL || '';
+      // Get backend URL from centralized utility
+      const backendBase = getBackendBaseUrl();
 
       // Authenticate GC via public endpoint
       const response = await fetch(`${backendBase}/public/gc-login`, {

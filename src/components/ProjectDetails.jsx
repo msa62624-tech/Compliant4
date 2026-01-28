@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
+import { getBackendBaseUrl } from "@/urlConfig";
 import { generateSecureToken } from "@/utils/tokenGenerator";
 import {
   Dialog,
@@ -225,15 +226,7 @@ export default function ProjectDetails() {
   // Archive mutation for ProjectSubcontractors
   const archiveSubMutation = useMutation({
     mutationFn: async ({ id, reason }) => {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
-        (() => {
-          const { protocol, host, origin } = window.location;
-          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
-          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
-          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
-          return 'http://localhost:3001';
-        })();
+      const baseUrl = getBackendBaseUrl();
       
       const response = await fetch(`${baseUrl}/entities/ProjectSubcontractor/${id}/archive`, {
         method: 'POST',

@@ -18,6 +18,7 @@ import { createPageUrl } from "@/utils";
 import AddressAutocomplete from "@/components/AddressAutocomplete.jsx";
 import ZipCodeLookup from "@/components/ZipCodeLookup.jsx";
 import { sendGCWelcomeEmail } from "@/gcNotifications";
+import { getBackendBaseUrl } from "@/urlConfig";
 import { notificationLinks } from "@/notificationLinkBuilder";
 import { toast } from "sonner";
 import {
@@ -145,15 +146,7 @@ export default function Contractors() {
   // Archive mutation
   const archiveContractorMutation = useMutation({
     mutationFn: async ({ id, reason }) => {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL ||
-        (() => {
-          const { protocol, host, origin } = window.location;
-          const withPortMatch = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
-          if (withPortMatch) return `${protocol}//${withPortMatch[1]}-3001${withPortMatch[3]}`;
-          if (origin.includes(':5175')) return origin.replace(':5175', ':3001');
-          if (origin.includes(':5176')) return origin.replace(':5176', ':3001');
-          return 'http://localhost:3001';
-        })();
+      const baseUrl = getBackendBaseUrl();
       
       const response = await fetch(`${baseUrl}/entities/Contractor/${id}/archive`, {
         method: 'POST',
