@@ -1,5 +1,7 @@
 import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
+import { calculateDaysUntilExpiry } from "@/utils/dateCalculations";
+import { calculateUrgency, formatTimeframe } from "@/utils/notificationUtils";
 
 
 
@@ -9,7 +11,6 @@ import { sendEmail } from "@/emailHelper";
  */
 export async function checkAndNotifyExpiringPolicies() {
   try {
-    const today = new Date();
     const documents = await apiClient.entities.InsuranceDocument.list();
     
     // Define notification thresholds (days before expiry)
@@ -18,8 +19,7 @@ export async function checkAndNotifyExpiringPolicies() {
     for (const doc of documents) {
       if (!doc.policy_expiration_date) continue;
       
-      const expiryDate = new Date(doc.policy_expiration_date);
-      const daysUntilExpiry = Math.floor((expiryDate - today) / (1000 * 60 * 60 * 24));
+      const daysUntilExpiry = calculateDaysUntilExpiry(doc.policy_expiration_date);
       
       // Check if this policy should be notified
       if (notificationThresholds.includes(daysUntilExpiry)) {
@@ -47,8 +47,8 @@ export async function checkAndNotifyExpiringPolicies() {
  * Notify broker about expiring policy
  */
 async function notifyBrokerPolicyExpiring(document, subcontractor, daysUntilExpiry) {
-  const urgency = daysUntilExpiry <= 0 ? 'URGENT' : daysUntilExpiry <= 7 ? 'HIGH' : 'STANDARD';
-  const timeframe = daysUntilExpiry === 0 ? 'TODAY' : `in ${daysUntilExpiry} days`;
+  const urgency = calculateUrgency(daysUntilExpiry);
+  const timeframe = formatTimeframe(daysUntilExpiry);
   
   try {
     await sendEmail({
@@ -84,8 +84,8 @@ InsureTrack System`
  * Notify subcontractor about expiring policy
  */
 async function notifySubPolicyExpiring(document, subcontractor, daysUntilExpiry) {
-  const urgency = daysUntilExpiry <= 0 ? 'URGENT' : daysUntilExpiry <= 7 ? 'HIGH' : 'STANDARD';
-  const timeframe = daysUntilExpiry === 0 ? 'TODAY' : `in ${daysUntilExpiry} days`;
+  const urgency = calculateUrgency(daysUntilExpiry);
+  const timeframe = formatTimeframe(daysUntilExpiry);
   
   try {
     await sendEmail({
@@ -123,7 +123,6 @@ InsureTrack System`
  */
 export async function getExpiringPoliciesSummary() {
   try {
-    const today = new Date();
     const documents = await apiClient.entities.InsuranceDocument.list();
     
     const upcoming = {
@@ -135,8 +134,7 @@ export async function getExpiringPoliciesSummary() {
     for (const doc of documents) {
       if (!doc.policy_expiration_date) continue;
       
-      const expiryDate = new Date(doc.policy_expiration_date);
-      const daysUntilExpiry = Math.floor((expiryDate - today) / (1000 * 60 * 60 * 24));
+      const daysUntilExpiry = calculateDaysUntilExpiry(doc.policy_expiration_date);
       
       if (daysUntilExpiry < 0) {
         // Policy already expired

@@ -1,5 +1,6 @@
 import { getAuthHeader } from '@/auth.js';
 import { createEmailTemplate } from '@/emailTemplates.js';
+import { escapeHtml } from '@/utils/htmlEscaping.js';
 
 /**
  * RFC 2606 Reserved Domains - These should never be sent to in production
@@ -46,13 +47,6 @@ const isDevEnvironment = () => {
  */
 export const sendEmail = async (payload) => {
   const apiBase = import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001');
-
-  const escapeHtml = (value) => String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 
   const formatBodyAsHtml = (body, subject) => {
     const safeBody = escapeHtml(body || '').replace(/\r\n/g, '\n');

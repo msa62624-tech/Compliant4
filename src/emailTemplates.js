@@ -3,23 +3,7 @@
  * Color scheme: #dc2626 (red), #991b1b (dark red) - matching app's red theme
  */
 
-/**
- * Escape HTML to prevent XSS attacks
- * @param {string} text - The text to escape
- * @returns {string} - The escaped text safe for HTML insertion
- */
-function escapeHtml(text) {
-  if (text == null) return '';
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#x27;',
-    '/': '&#x2F;',
-  };
-  return String(text).replace(/[&<>"'/]/g, (char) => map[char]);
-}
+import { escapeHtml } from '@/utils/htmlEscaping';
 
 export const EMAIL_STYLES = `
   <style>

@@ -1,5 +1,6 @@
 import { apiClient } from "@/api/apiClient";
 import { sendEmail } from "@/emailHelper";
+import { generateSecureToken } from "@/utils/tokenGenerator";
 
 
 
@@ -46,9 +47,7 @@ export async function handlePolicyRenewal(subcontractor, oldPolicy, newPolicy) {
 async function generateRenewalCOI(subcontractor, renewedPolicy, project, projectSub) {
   try {
     // Generate secure random token using crypto
-    const tokenBytes = new Uint8Array(24);
-    crypto.getRandomValues(tokenBytes);
-    const coiToken = Array.from(tokenBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    const coiToken = generateSecureToken();
     
     // Create new COI record marking it as renewal
     const newCOI = await apiClient.entities.GeneratedCOI.create({
