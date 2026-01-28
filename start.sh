@@ -108,7 +108,18 @@ echo ""
 # Start backend in background
 echo "🔧 Starting backend server..."
 cd backend
-npm install > /dev/null 2>&1
+
+# Install backend dependencies with error checking
+if ! npm install > /dev/null 2>&1; then
+    echo "⚠️  Backend npm install had issues, trying with output..."
+    npm install
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to install backend dependencies"
+        cd ..
+        exit 1
+    fi
+fi
+
 node server.js > ../backend.log 2>&1 &
 BACKEND_PID=$!
 cd ..
@@ -122,12 +133,24 @@ if ps -p $BACKEND_PID > /dev/null; then
     echo "✅ Backend running (PID: $BACKEND_PID)"
 else
     echo "❌ Backend failed to start. Check backend.log for errors"
+    tail -20 backend.log
     exit 1
 fi
 
 # Start frontend
 echo "🎨 Starting frontend..."
-npm install > /dev/null 2>&1
+
+# Install frontend dependencies with error checking
+if ! npm install > /dev/null 2>&1; then
+    echo "⚠️  Frontend npm install had issues, trying with output..."
+    npm install
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to install frontend dependencies"
+        kill $BACKEND_PID 2>/dev/null
+        exit 1
+    fi
+fi
+
 npm run dev
 
 # Cleanup on exit
