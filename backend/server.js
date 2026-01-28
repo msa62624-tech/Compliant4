@@ -5631,7 +5631,7 @@ app.post('/public/upload-coi', uploadLimiter, upload.single('file'), async (req,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(emailPayload)
         }).catch(err => {
-          logger.warn('Failed to send COI upload notification email', { error: err?.message || err });
+          logger.warn('Failed to send COI upload notification email', { error: err.message });
         });
       } catch (emailErr) {
         logger.warn('Could not send admin email', { error: emailErr?.message || emailErr });
@@ -5684,10 +5684,10 @@ app.post('/public/upload-policy', uploadLimiter, upload.single('file'), async (r
           body: `A binder has been uploaded for ${coi.subcontractor_name} on project ${coi.project_name}. Binder URL: ${fileUrl}`
         };
         await fetch(internalUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(err => {
-          logger.warn('Failed to send binder upload notification email', { error: err?.message || err });
+          logger.warn('Failed to send binder upload notification email', { error: err.message });
         });
       } catch (e) {
-        logger.warn('Could not send binder upload notification', { error: e?.message || e });
+        logger.warn('Could not send binder upload notification', { error: e.message });
       }
 
       debouncedSave();
@@ -5720,7 +5720,7 @@ app.post('/public/upload-policy', uploadLimiter, upload.single('file'), async (r
           body: `A policy has been uploaded for ${coi.subcontractor_name} on project ${coi.project_name}. Please review: ${fileUrl}`
         };
         await fetch(internalUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(err => {
-          logger.warn('Failed to send policy upload notification email', { error: err?.message || err });
+          logger.warn('Failed to send policy upload notification email', { error: err.message });
         });
       }
     } catch (notifyErr) {
@@ -8686,7 +8686,7 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
             body: `Your Certificate of Insurance for ${project?.project_name || coi.project_name} has been approved and is now active.\n\nView certificate: ${entities.GeneratedCOI[coiIdx].final_coi_url || entities.GeneratedCOI[coiIdx].first_coi_url || '(not available)'}`
           })
         }).catch(err => {
-          logger.warn('Failed to send COI approval notification to subcontractor', { error: err?.message || err });
+          logger.warn('Failed to send COI approval notification to subcontractor', { error: err.message });
         });
       }
 
@@ -8701,7 +8701,7 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
             body: `A Certificate of Insurance has been approved for ${coi.subcontractor_name} on ${project.project_name}.\n\nView certificate: ${entities.GeneratedCOI[coiIdx].final_coi_url || entities.GeneratedCOI[coiIdx].first_coi_url || '(not available)'}`
           })
         }).catch(err => {
-          logger.warn('Failed to send COI approval notification to GC', { error: err?.message || err });
+          logger.warn('Failed to send COI approval notification to GC', { error: err.message });
         });
       }
 
@@ -8716,7 +8716,7 @@ app.post('/admin/sign-coi', authenticateToken, async (req, res) => {
             body: `The Certificate of Insurance you generated has been approved and is now active.\n\nView certificate: ${entities.GeneratedCOI[coiIdx].final_coi_url || entities.GeneratedCOI[coiIdx].first_coi_url || '(not available)'}`
           })
         }).catch(err => {
-          logger.warn('Failed to send COI approval notification to broker', { error: err?.message || err });
+          logger.warn('Failed to send COI approval notification to broker', { error: err.message });
         });
       }
     } catch (notifyErr) {
