@@ -6192,7 +6192,7 @@ function extractFieldsWithRegex(text, schema) {
     if (glMatch) {
       const glSection = glMatch[0];
       // Extract policy number from GL section - require at least one digit
-      const policyMatch = glSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+      const policyMatch = glSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12})/i);
       if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.gl.policy_number = policyMatch[1].trim();
       }
@@ -6213,7 +6213,7 @@ function extractFieldsWithRegex(text, schema) {
     const autoMatch = tableText.match(/AUTOMOBILE\s+LIABILITY[^\n]*(?:\n[^\n]*){0,3}/i);
     if (autoMatch) {
       const autoSection = autoMatch[0];
-      const policyMatch = autoSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+      const policyMatch = autoSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12})/i);
       if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.auto.policy_number = policyMatch[1].trim();
       }
@@ -6233,7 +6233,7 @@ function extractFieldsWithRegex(text, schema) {
     const wcMatch = tableText.match(/WORKERS\s+COMPENSATION[^\n]*(?:\n[^\n]*){0,3}/i);
     if (wcMatch) {
       const wcSection = wcMatch[0];
-      const policyMatch = wcSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+      const policyMatch = wcSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12})/i);
       if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.wc.policy_number = policyMatch[1].trim();
       }
@@ -6253,7 +6253,7 @@ function extractFieldsWithRegex(text, schema) {
     const umbrellaMatch = tableText.match(/UMBRELLA\s+LIAB(?:ILITY)?[^\n]*(?:\n[^\n]*){0,3}/i);
     if (umbrellaMatch) {
       const umbrellaSection = umbrellaMatch[0];
-      const policyMatch = umbrellaSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+      const policyMatch = umbrellaSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12})/i);
       if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.umbrella.policy_number = policyMatch[1].trim();
       }
@@ -6273,7 +6273,7 @@ function extractFieldsWithRegex(text, schema) {
     const excessMatch = tableText.match(/EXCESS\s+LIAB(?:ILITY)?[^\n]*(?:\n[^\n]*){0,3}/i);
     if (excessMatch) {
       const excessSection = excessMatch[0];
-      const policyMatch = excessSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+      const policyMatch = excessSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12})/i);
       if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.excess.policy_number = policyMatch[1].trim();
       }
@@ -6352,7 +6352,7 @@ function extractFieldsWithRegex(text, schema) {
   if ('gl_effective_date' in schema && !extracted.gl_effective_date) {
     // First try context-specific extraction from GL section
     const glSection = text.match(new RegExp(`COMMERCIAL\\s+GENERAL\\s+LIABILITY[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
-    const v = getValueAfter('POLICY\\s+EFF') || getValueAfter('EFFECTIVE\\s+DATE') || (glSection && glSection[1]);
+    const v = (glSection && glSection[1]) || getValueAfter('POLICY\\s+EFF') || getValueAfter('EFFECTIVE\\s+DATE');
     if (v) {
       extracted.gl_effective_date = v;
       console.log('✅ GL Effective Date:', v);
@@ -6361,7 +6361,7 @@ function extractFieldsWithRegex(text, schema) {
   if ('gl_expiration_date' in schema && !extracted.gl_expiration_date) {
     // First try context-specific extraction from GL section  
     const glSection = text.match(new RegExp(`COMMERCIAL\\s+GENERAL\\s+LIABILITY[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(?:\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})[\\s\\S]{0,${DATE_PROXIMITY_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
-    const v = getValueAfter('POLICY\\s+EXP') || getValueAfter('EXPIRATION\\s+DATE') || (glSection && glSection[1]);
+    const v = (glSection && glSection[1]) || getValueAfter('POLICY\\s+EXP') || getValueAfter('EXPIRATION\\s+DATE');
     if (v) {
       extracted.gl_expiration_date = v;
       console.log('✅ GL Expiration Date:', v);

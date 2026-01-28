@@ -90,7 +90,7 @@ describe('Data Extraction Logic - Context-Aware Extraction', () => {
     expect(glMatch).not.toBeNull();
     
     const glSection = glMatch[0];
-    const glPolicyMatch = glSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+    const glPolicyMatch = glSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12})/i);
     expect(glPolicyMatch).not.toBeNull();
     expect(glPolicyMatch[1]).toBe('GL-2024-12345');
     
@@ -98,7 +98,7 @@ describe('Data Extraction Logic - Context-Aware Extraction', () => {
     expect(wcMatch).not.toBeNull();
     
     const wcSection = wcMatch[0];
-    const wcPolicyMatch = wcSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+    const wcPolicyMatch = wcSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12})/i);
     expect(wcPolicyMatch).not.toBeNull();
     expect(wcPolicyMatch[1]).toBe('WC-2024-67890');
   });
