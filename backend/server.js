@@ -5582,21 +5582,74 @@ async function extractTextFromPDF(filePath) {
 
 // Helper function to extract common fields using regex patterns (fallback when AI is not configured)
 function extractFieldsWithRegex(text, schema) {
-  console.log('🔧 Starting regex extraction with schema fields:', Object.keys(schema));
+  console.log('🔧 Starting AGGRESSIVE regex extraction with schema fields:', Object.keys(schema));
   const extracted = {};
   const upper = (text || '').toUpperCase();
   
-  // Extract policy numbers (various formats)
-  const policyPatterns = [
-    /(?:policy|pol)[\s#:]*([A-Z0-9-]{5,20})/gi,
-    /\b([A-Z]{2,4}[-]?\d{4,12})\b/g
+  // FLOOD THE SYSTEM: Extract ALL dates found in document
+  const allDates = [];
+  const datePatterns = [
+    /\b(\d{1,2}[-/]\d{1,2}[-/]\d{4})\b/g,  // MM/DD/YYYY or MM-DD-YYYY
+    /\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b/g,  // YYYY-MM-DD
+    /\b([A-Z][a-z]{2,8}\s+\d{1,2},?\s+\d{4})\b/g, // January 1, 2024
+    /\b(\d{1,2}[-/][A-Z][a-z]{2}[-/]\d{4})\b/gi, // 01-Jan-2024
   ];
   
-  // Extract dates (MM/DD/YYYY or MM-DD-YYYY or YYYY-MM-DD)
-  const datePattern = /\b(\d{1,2}[-/]\d{1,2}[-/]\d{4}|\d{4}[-/]\d{1,2}[-/]\d{1,2})\b/g;
+  for (const pattern of datePatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      allDates.push(...matches.map(d => d.trim()));
+    }
+  }
+  console.log(`📅 Found ${allDates.length} dates in document:`, allDates.slice(0, 10));
   
-  // Extract dollar amounts
-  const amountPattern = /\$[\d,]+(?:,\d{3})*(?:\.\d{2})?/g;
+  // FLOOD: Extract ALL dollar amounts
+  const allAmounts = [];
+  const amountPatterns = [
+    /\$\s?[\d,]+(?:\.\d{2})?/g,
+    /[\d,]+(?:\.\d{2})?\s?(?:USD|dollars?)/gi
+  ];
+  
+  for (const pattern of amountPatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      allAmounts.push(...matches.map(a => a.replace(/[$,\s]/g, '').replace(/dollars?/i, '').trim()));
+    }
+  }
+  console.log(`💰 Found ${allAmounts.length} dollar amounts in document:`, allAmounts.slice(0, 10));
+  
+  // FLOOD: Extract ALL policy numbers
+  const allPolicyNumbers = [];
+  const policyPatterns = [
+    /(?:policy|pol)[\s#:]+([A-Z0-9-]{5,25})/gi,
+    /\b([A-Z]{2,4}[-\s]?\d{4,12})\b/g,
+    /(?:policy|pol)\s*(?:number|no|#)\s*[:.]?\s*([A-Z0-9-]{5,25})/gi
+  ];
+  
+  for (const pattern of policyPatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      allPolicyNumbers.push(...matches.map(p => p.replace(/^(policy|pol)[\s#:]+/i, '').trim()));
+    }
+  }
+  console.log(`📋 Found ${allPolicyNumbers.length} policy numbers in document:`, allPolicyNumbers.slice(0, 10));
+  
+  // FLOOD: Extract ALL company/insured names
+  const allCompanyNames = [];
+  const companyPatterns = [
+    /INSURED[:\s]+([A-Z][A-Za-z0-9\s&.,'-]{5,100})(?:\n|$)/gi,
+    /NAMED\s+INSURED[:\s]+([A-Z][A-Za-z0-9\s&.,'-]{5,100})(?:\n|$)/gi,
+    /CERTIFICATE\s+HOLDER[:\s]+([A-Z][A-Za-z0-9\s&.,'-]{5,100})(?:\n|$)/gi,
+    /([A-Z][A-Za-z0-9\s&.,'-]+(?:LLC|Inc|Corp|Corporation|Company|Ltd|LTD|CO\.|L\.P\.))/g
+  ];
+  
+  for (const pattern of companyPatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      allCompanyNames.push(...matches.map(c => c.replace(/^(INSURED|NAMED INSURED|CERTIFICATE HOLDER)[:\s]+/i, '').trim()));
+    }
+  }
+  console.log(`🏢 Found ${allCompanyNames.length} company names in document:`, allCompanyNames.slice(0, 10));
   
   // Extract email addresses
   const emailPattern = /[\w.-]+@[\w.-]+\.\w+/g;
@@ -5608,42 +5661,63 @@ function extractFieldsWithRegex(text, schema) {
   for (const [fieldName, fieldType] of Object.entries(schema)) {
     const lowerField = fieldName.toLowerCase();
     
-    // Policy number fields
+    // Policy number fields - use first found policy number
     if (lowerField.includes('policy') && lowerField.includes('number')) {
-      const matches = [];
-      for (const pattern of policyPatterns) {
-        const found = text.match(pattern);
-        if (found) matches.push(...found);
-      }
-      if (matches.length > 0) {
-        extracted[fieldName] = matches[0].replace(/^(policy|pol)[\s#:]*/i, '').trim();
+      if (allPolicyNumbers.length > 0) {
+        // Try to match based on coverage type
+        if (lowerField.includes('gl') || lowerField.includes('general')) {
+          extracted[fieldName] = allPolicyNumbers[0];
+        } else if (lowerField.includes('wc') || lowerField.includes('worker')) {
+          extracted[fieldName] = allPolicyNumbers[Math.min(1, allPolicyNumbers.length - 1)];
+        } else if (lowerField.includes('auto')) {
+          extracted[fieldName] = allPolicyNumbers[Math.min(2, allPolicyNumbers.length - 1)];
+        } else if (lowerField.includes('umbrella') || lowerField.includes('excess')) {
+          extracted[fieldName] = allPolicyNumbers[Math.min(3, allPolicyNumbers.length - 1)];
+        } else {
+          extracted[fieldName] = allPolicyNumbers[0];
+        }
+        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
       }
     }
     
-    // Date fields (effective, expiration)
-    else if (lowerField.includes('date') && fieldType.toLowerCase().includes('date')) {
-      const matches = text.match(datePattern);
-      if (matches && matches.length > 0) {
+    // Date fields - AGGRESSIVE extraction
+    else if (lowerField.includes('date') || fieldType.toLowerCase().includes('date')) {
+      if (allDates.length > 0) {
         // Try to find the most relevant date based on field name
-        if (lowerField.includes('effective') || lowerField.includes('start')) {
-          extracted[fieldName] = matches[0];
-        } else if (lowerField.includes('expir') || lowerField.includes('end')) {
-          extracted[fieldName] = matches.length > 1 ? matches[1] : matches[0];
+        if (lowerField.includes('effective') || lowerField.includes('start') || lowerField.includes('eff')) {
+          extracted[fieldName] = allDates[0];
+          console.log(`✅ Extracted ${fieldName} (effective):`, extracted[fieldName]);
+        } else if (lowerField.includes('expir') || lowerField.includes('end') || lowerField.includes('exp')) {
+          extracted[fieldName] = allDates[Math.min(1, allDates.length - 1)];
+          console.log(`✅ Extracted ${fieldName} (expiration):`, extracted[fieldName]);
         } else {
-          extracted[fieldName] = matches[0];
+          extracted[fieldName] = allDates[0];
+          console.log(`✅ Extracted ${fieldName} (date):`, extracted[fieldName]);
         }
       }
     }
     
-    // Dollar amount fields (aggregate, occurrence, limit)
+    // Dollar amount fields - AGGRESSIVE extraction
     else if (fieldType.toLowerCase().includes('number') && 
              (lowerField.includes('aggregate') || lowerField.includes('occurrence') || 
               lowerField.includes('limit') || lowerField.includes('amount'))) {
-      const matches = text.match(amountPattern);
-      if (matches && matches.length > 0) {
-        // Convert to number (remove $ and commas)
-        const numStr = matches[0].replace(/[$,]/g, '');
-        extracted[fieldName] = parseFloat(numStr);
+      if (allAmounts.length > 0) {
+        // Try to match based on coverage type and amount size
+        const amounts = allAmounts.map(a => parseFloat(a)).filter(a => !isNaN(a) && a > 0);
+        if (amounts.length > 0) {
+          if (lowerField.includes('aggregate')) {
+            // Aggregates are usually larger
+            const largeAmounts = amounts.filter(a => a >= 1000000).sort((a, b) => b - a);
+            extracted[fieldName] = largeAmounts.length > 0 ? largeAmounts[0] : amounts[0];
+          } else if (lowerField.includes('occurrence') || lowerField.includes('each')) {
+            // Per occurrence is usually smaller than aggregate
+            const mediumAmounts = amounts.filter(a => a >= 500000 && a <= 5000000).sort((a, b) => b - a);
+            extracted[fieldName] = mediumAmounts.length > 0 ? mediumAmounts[0] : amounts[0];
+          } else {
+            extracted[fieldName] = amounts[0];
+          }
+          console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
+        }
       }
     }
     
@@ -5652,6 +5726,7 @@ function extractFieldsWithRegex(text, schema) {
       const matches = text.match(emailPattern);
       if (matches && matches.length > 0) {
         extracted[fieldName] = matches[0];
+        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
       }
     }
     
@@ -5660,27 +5735,29 @@ function extractFieldsWithRegex(text, schema) {
       const matches = text.match(phonePattern);
       if (matches && matches.length > 0) {
         extracted[fieldName] = matches[0];
+        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
       }
     }
     
-    // Name fields - extract first substantial text block
+    // Name fields - AGGRESSIVE extraction
     else if (lowerField.includes('name') && fieldType.toLowerCase().includes('string')) {
-      // Prefer ACORD INSURED block if present
-      const insuredBlock = upper.match(/INSURED\s+([A-Z0-9 &.,'-]{2,100})/);
-      if (insuredBlock && insuredBlock[1]) {
-        extracted[fieldName] = insuredBlock[1].trim();
-      } else {
-        // Fallback generic name pattern
-        const namePattern = /([A-Z][a-zA-Z\s&,.']+(?:LLC|Inc|Corp|Company|Corporation|Ltd)?)/;
-        const matches = text.match(namePattern);
-        if (matches && matches.length > 0) {
-          extracted[fieldName] = matches[0].trim();
+      if (allCompanyNames.length > 0) {
+        if (lowerField.includes('insured') || lowerField.includes('subcontractor')) {
+          // Use first company name for insured
+          extracted[fieldName] = allCompanyNames[0];
+        } else if (lowerField.includes('broker') || lowerField.includes('producer')) {
+          // Use second company name if available
+          extracted[fieldName] = allCompanyNames[Math.min(1, allCompanyNames.length - 1)];
+        } else {
+          extracted[fieldName] = allCompanyNames[0];
         }
+        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
       }
     }
   }
   
-  // ACORD 25 specific label-driven extraction for GL and common fields
+  // ACORD 25 specific label-driven extraction - FLOOD with more data
+  console.log('🔍 Running ACORD 25 specific extraction...');
   const getAmountAfter = (label) => {
     const re = new RegExp(label + "[\\s:]*\\$?([\\d,]+(?:\\.\\d{2})?)", 'i');
     const m = text.match(re);
@@ -5750,18 +5827,105 @@ function extractFieldsWithRegex(text, schema) {
     if (v) extracted.gl_med_exp = v;
   }
 
+  // AGGRESSIVE DATE EXTRACTION for all coverage types
   if ('gl_effective_date' in schema && !extracted.gl_effective_date) {
-    const v = getValueAfter('POLICY\\s+EFF');
-    if (v) extracted.gl_effective_date = v;
+    const v = getValueAfter('POLICY\\s+EFF') || getValueAfter('EFFECTIVE\\s+DATE') || (allDates.length > 0 ? allDates[0] : null);
+    if (v) {
+      extracted.gl_effective_date = v;
+      console.log('✅ GL Effective Date:', v);
+    }
   }
   if ('gl_expiration_date' in schema && !extracted.gl_expiration_date) {
-    const v = getValueAfter('POLICY\\s+EXP');
-    if (v) extracted.gl_expiration_date = v;
+    const v = getValueAfter('POLICY\\s+EXP') || getValueAfter('EXPIRATION\\s+DATE') || (allDates.length > 1 ? allDates[1] : null);
+    if (v) {
+      extracted.gl_expiration_date = v;
+      console.log('✅ GL Expiration Date:', v);
+    }
+  }
+  
+  // WC dates
+  if ('wc_effective_date' in schema && !extracted.wc_effective_date) {
+    const v = allDates.length > 2 ? allDates[2] : allDates[0];
+    if (v) {
+      extracted.wc_effective_date = v;
+      console.log('✅ WC Effective Date:', v);
+    }
+  }
+  if ('wc_expiration_date' in schema && !extracted.wc_expiration_date) {
+    const v = allDates.length > 3 ? allDates[3] : (allDates.length > 1 ? allDates[1] : null);
+    if (v) {
+      extracted.wc_expiration_date = v;
+      console.log('✅ WC Expiration Date:', v);
+    }
+  }
+  
+  // Auto dates
+  if ('auto_effective_date' in schema && !extracted.auto_effective_date && allDates.length > 0) {
+    extracted.auto_effective_date = allDates[0];
+    console.log('✅ Auto Effective Date:', allDates[0]);
+  }
+  if ('auto_expiration_date' in schema && !extracted.auto_expiration_date && allDates.length > 1) {
+    extracted.auto_expiration_date = allDates[1];
+    console.log('✅ Auto Expiration Date:', allDates[1]);
+  }
+  
+  // Umbrella dates
+  if ('umbrella_effective_date' in schema && !extracted.umbrella_effective_date && allDates.length > 0) {
+    extracted.umbrella_effective_date = allDates[0];
+    console.log('✅ Umbrella Effective Date:', allDates[0]);
+  }
+  if ('umbrella_expiration_date' in schema && !extracted.umbrella_expiration_date && allDates.length > 1) {
+    extracted.umbrella_expiration_date = allDates[1];
+    console.log('✅ Umbrella Expiration Date:', allDates[1]);
+  }
+  
+  // AGGRESSIVE INSURER/CARRIER EXTRACTION
+  if ('insurance_carrier_gl' in schema && !extracted.insurance_carrier_gl) {
+    const carrierMatch = text.match(/INSURER\s+A[:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
+    if (carrierMatch && carrierMatch[1]) {
+      extracted.insurance_carrier_gl = carrierMatch[1].trim();
+      console.log('✅ GL Carrier:', extracted.insurance_carrier_gl);
+    }
+  }
+  
+  if ('insurance_carrier_wc' in schema && !extracted.insurance_carrier_wc) {
+    const carrierMatch = text.match(/INSURER\s+[BC][:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
+    if (carrierMatch && carrierMatch[1]) {
+      extracted.insurance_carrier_wc = carrierMatch[1].trim();
+      console.log('✅ WC Carrier:', extracted.insurance_carrier_wc);
+    }
+  }
+  
+  if ('insurance_carrier_umbrella' in schema && !extracted.insurance_carrier_umbrella) {
+    const carrierMatch = text.match(/INSURER\s+[BCD][:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
+    if (carrierMatch && carrierMatch[1]) {
+      extracted.insurance_carrier_umbrella = carrierMatch[1].trim();
+      console.log('✅ Umbrella Carrier:', extracted.insurance_carrier_umbrella);
+    }
+  }
+  
+  if ('insurance_carrier_auto' in schema && !extracted.insurance_carrier_auto) {
+    const carrierMatch = text.match(/INSURER\s+[ABCD][:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
+    if (carrierMatch && carrierMatch[1]) {
+      extracted.insurance_carrier_auto = carrierMatch[1].trim();
+      console.log('✅ Auto Carrier:', extracted.insurance_carrier_auto);
+    }
   }
 
+  // NAMED INSURED - Multiple attempts
   if ('named_insured' in schema && !extracted.named_insured) {
-    const v = getValueAfter('INSURED');
-    if (v) extracted.named_insured = v;
+    const v = getValueAfter('INSURED') || getValueAfter('NAMED\\s+INSURED') || (allCompanyNames.length > 0 ? allCompanyNames[0] : null);
+    if (v) {
+      extracted.named_insured = v;
+      console.log('✅ Named Insured:', v);
+    }
+  }
+  
+  if ('subcontractor_name' in schema && !extracted.subcontractor_name) {
+    extracted.subcontractor_name = extracted.named_insured || (allCompanyNames.length > 0 ? allCompanyNames[0] : null);
+    if (extracted.subcontractor_name) {
+      console.log('✅ Subcontractor Name:', extracted.subcontractor_name);
+    }
   }
 
   if ('policy_number_gl' in schema && !extracted.policy_number_gl) {
