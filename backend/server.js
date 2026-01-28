@@ -2894,8 +2894,17 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
       doc.fontSize(6).font('Helvetica-Bold').text('DESCRIPTION OF OPERATIONS / LOCATIONS / VEHICLES', margin + 3, yPos + 3);
       doc.fontSize(7).font('Helvetica');
       const umbrellaText = (coiRecord.policy_number_umbrella || coiRecord.insurance_carrier_umbrella) ? ' & Umbrella' : '';
-      const descriptionText = coiRecord.description_of_operations ||
+      
+      // Build description with current project location
+      let descriptionText = coiRecord.description_of_operations ||
         `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`;
+      
+      // Add job location if available - with validation to avoid empty or punctuation-only addresses
+      const jobLocation = coiRecord.updated_project_address || coiRecord.project_address;
+      if (jobLocation && jobLocation.trim() && jobLocation.replace(/[,\s]/g, '')) {
+        descriptionText += `\n\nJob Location: ${jobLocation}`;
+      }
+      
       doc.text(descriptionText, margin + 3, yPos + 13, { width: contentWidth * 0.6 - 6, align: 'left' });
 
       // Additional Insureds
@@ -3208,8 +3217,14 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
           
           // Use stored description or default
           const umbrellaText = (coiRecord.policy_number_umbrella || coiRecord.insurance_carrier_umbrella) ? ' & Umbrella' : '';
-          const descriptionText = coiRecord.description_of_operations || 
+          let descriptionText = coiRecord.description_of_operations || 
             `Certificate holder and entities listed below are included in the GL${umbrellaText} policies as additional insureds for ongoing & completed operations on a primary & non-contributory basis, as required by written contract agreement, per policy terms & conditions. Waiver of subrogation is included in the GL${umbrellaText ? ', Umbrella' : ''} & Workers Compensation policies.`;
+          
+          // Add job location if available - with validation to avoid empty or punctuation-only addresses
+          const jobLocation = coiRecord.updated_project_address || coiRecord.project_address;
+          if (jobLocation && jobLocation.trim() && jobLocation.replace(/[,\s]/g, '')) {
+            descriptionText += `\n\nJob Location: ${jobLocation}`;
+          }
           
           doc.text(descriptionText, margin + 3, yPos + 13, { width: contentWidth * 0.6 - 6, align: 'left' });
 
@@ -4251,11 +4266,14 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           umbrella_effective_date: reusable.umbrella_effective_date,
           umbrella_expiration_date: reusable.umbrella_expiration_date,
           umbrella_form_type: reusable.umbrella_form_type || 'OCCUR',
-          description_of_operations: reusable.description_of_operations || '',
-          additional_insureds: reusable.additional_insureds || [],
+          // Clear old description_of_operations when reusing for a new project
+          // This allows the default description + current job location to be used
+          description_of_operations: '',
+          additional_insureds: additional_insureds || reusable.additional_insureds || [],
           updated_project_address: projectAddress || '',
           updated_project_name: project_name || '',
-          certificate_holder_name: reusable.certificate_holder_name || reusable.gc_name || gc_name || '',
+          certificate_holder_name: certificate_holder || reusable.certificate_holder_name || reusable.gc_name || gc_name || '',
+          certificate_holder_address: certificate_holder_address || reusable.certificate_holder_address || '',
           manually_entered_additional_insureds: []
         };
 
@@ -4311,7 +4329,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           gc_id,
           gc_name,
           certificate_holder: gc_name || reusable.certificate_holder,
-          certificate_holder_address: reusable.certificate_holder_address || '',
+          certificate_holder_address: certificate_holder_address || reusable.certificate_holder_address || '',
           trade_type,
           status: 'pending_broker_signature',
           admin_approved: true,
@@ -4325,7 +4343,12 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           is_reused: true,
           reused_for_project_id: project_id,
           linked_projects: Array.from(new Set([...(reusable.linked_projects || []), project_id])),
-          pdf_generation_note: pdfGenerationNote
+          pdf_generation_note: pdfGenerationNote,
+          // Clear old project-specific fields when reusing for new project
+          description_of_operations: '',
+          updated_project_address: projectAddress || '',
+          updated_project_name: project_name || '',
+          additional_insureds: additional_insureds || reusable.additional_insureds || []
         };
 
         if (!entities.GeneratedCOI) entities.GeneratedCOI = [];
