@@ -2678,6 +2678,28 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
   });
 }
 
+// Helper function to process email attachments (avoid code duplication)
+function processIncomingAttachments(incomingAttachments) {
+  const mailAttachments = [];
+  if (Array.isArray(incomingAttachments) && incomingAttachments.length > 0) {
+    for (const a of incomingAttachments) {
+      if (a && a.filename) {
+        const att = { filename: a.filename };
+        if (a.content && a.encoding === 'base64') {
+          att.content = Buffer.from(a.content, 'base64');
+        } else if (a.content && a.encoding === 'utf8') {
+          att.content = Buffer.from(a.content, 'utf8');
+        } else if (a.content) {
+          att.content = a.content;
+        }
+        if (a.contentType) att.contentType = a.contentType;
+        mailAttachments.push(att);
+      }
+    }
+  }
+  return mailAttachments;
+}
+
 // Public email endpoint - no authentication required (for broker portal)
 app.post('/public/send-email', emailLimiter, async (req, res) => {
   /* eslint-disable no-unused-vars */
@@ -3029,25 +3051,7 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
     }
 
     // Build attachments (incoming + optionally sample COI)
-    const mailAttachments = [];
-    
-    // Include any incoming attachments
-    if (Array.isArray(incomingAttachments) && incomingAttachments.length > 0) {
-      for (const a of incomingAttachments) {
-        if (a && a.filename) {
-          const att = { filename: a.filename };
-          if (a.content && a.encoding === 'base64') {
-            att.content = Buffer.from(a.content, 'base64');
-          } else if (a.content && a.encoding === 'utf8') {
-            att.content = Buffer.from(a.content, 'utf8');
-          } else if (a.content) {
-            att.content = a.content;
-          }
-          if (a.contentType) att.contentType = a.contentType;
-          mailAttachments.push(att);
-        }
-      }
-    }
+    const mailAttachments = processIncomingAttachments(incomingAttachments);
 
     // Optionally generate and attach a sample COI PDF for broker emails
     if (includeSampleCOI) {
@@ -3071,10 +3075,10 @@ app.post('/public/send-email', emailLimiter, async (req, res) => {
 
     const formatBodyAsHtml = (text, title) => {
       const safe = escapeHtml(text || '').replace(/\r\n/g, '\n');
+      // Optimized: single pass instead of split -> map -> map -> join
       const paragraphs = safe
         .split(/\n\s*\n/)
-        .map(p => p.replace(/\n/g, '<br>'))
-        .map(p => `<p>${p}</p>`)
+        .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
         .join('');
       return createEmailTemplate(title || 'Notification', '', paragraphs);
     };
@@ -3244,24 +3248,7 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
       await transporter.verify();
 
       // Prepare attachments array for nodemailer
-      const mailAttachments = [];
-      if (Array.isArray(incomingAttachments) && incomingAttachments.length > 0) {
-        for (const a of incomingAttachments) {
-          // Expecting { filename, content, contentType } with content as base64 or text
-          if (a && a.filename) {
-            const att = { filename: a.filename };
-            if (a.content && a.encoding === 'base64') {
-              att.content = Buffer.from(a.content, 'base64');
-            } else if (a.content && a.encoding === 'utf8') {
-              att.content = Buffer.from(a.content, 'utf8');
-            } else if (a.content) {
-              att.content = a.content;
-            }
-            if (a.contentType) att.contentType = a.contentType;
-            mailAttachments.push(att);
-          }
-        }
-      }
+      const mailAttachments = processIncomingAttachments(incomingAttachments);
 
       // Optionally generate and attach a sample COI PDF
       if (includeSampleCOI) {
@@ -3283,10 +3270,10 @@ app.post('/integrations/send-email', authenticateToken, async (req, res) => {
 
       const formatBodyAsHtml = (text, title) => {
         const safe = escapeHtml(text || '').replace(/\r\n/g, '\n');
+        // Optimized: single pass instead of split -> map -> map -> join
         const paragraphs = safe
           .split(/\n\s*\n/)
-          .map(p => p.replace(/\n/g, '<br>'))
-          .map(p => `<p>${p}</p>`)
+          .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
           .join('');
         return createEmailTemplate(title || 'Notification', '', paragraphs);
       };
