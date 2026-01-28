@@ -4740,7 +4740,7 @@ app.get('/public/project-subcontractors/:subId', (req, res) => {
     const projectSubs = (entities.ProjectSubcontractor || []).filter(ps => ps.subcontractor_id === subId);
     return res.json(projectSubs);
   } catch (err) {
-    logger.error('Error fetching project subcontractors for subcontractor', { subId, error: err?.message, stack: err?.stack });
+    logger.error('Error fetching project subcontractors for subcontractor', { subId: req.params.subId, error: err?.message, stack: err?.stack });
     return res.status(500).json({ error: 'Failed to load project subcontractors' });
   }
 });
