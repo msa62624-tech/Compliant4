@@ -11,11 +11,13 @@ import ForgotPassword from '@/components/ForgotPassword';
 export default function SubcontractorLogin({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [selectedSubId, setSelectedSubId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [multipleSubs, setMultipleSubs] = useState(null); // List of subs with same email
 
-  const submit = async (e) => {
+  const submit = async (e, subIdOverride = null) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -31,10 +33,18 @@ export default function SubcontractorLogin({ onLogin }) {
 
       // Call backend contractor login endpoint for proper bcrypt verification
       const apiBase = getBackendBaseUrl();
+
+      // Use subIdOverride if provided (for selection button), otherwise use state
+      const subIdToUse = subIdOverride !== null ? subIdOverride : selectedSubId;
+
       const response = await fetch(`${apiBase}/public/contractor-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ 
+          email: email.toLowerCase(), 
+          password,
+          subId: subIdToUse // Include selected sub ID if multiple subs with same email
+        })
       });
 
       if (!response.ok) {
@@ -42,7 +52,17 @@ export default function SubcontractorLogin({ onLogin }) {
         throw new Error(err.error || 'Login failed');
       }
 
-      const { contractor } = await response.json();
+      const data = await response.json();
+
+      // If multiple subs with same email, show selection screen
+      if (data.requiresSelection && data.contractors) {
+        setMultipleSubs(data.contractors);
+        setSelectedSubId(null);
+        setLoading(false);
+        return;
+      }
+
+      const contractor = data.contractor;
 
       if (!contractor) {
         throw new Error('Email not found. Please check and try again.');
@@ -66,6 +86,51 @@ export default function SubcontractorLogin({ onLogin }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-600 via-rose-600 to-orange-700 p-4">
         <ForgotPassword onBackToLogin={() => setShowForgotPassword(false)} portalType="sub" />
+      </div>
+    );
+  }
+
+  // Show sub selection if multiple subs with same email
+  if (multipleSubs && multipleSubs.length > 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-600 via-rose-600 to-orange-700 p-4">
+        <div className="w-full max-w-md">
+          <Card className="shadow-2xl border-0">
+            <CardHeader className="bg-gradient-to-r from-red-50 to-rose-50 border-b">
+              <CardTitle className="text-2xl text-slate-900">Select Your Company</CardTitle>
+              <p className="text-sm text-slate-600 mt-2">Multiple companies found with this email</p>
+            </CardHeader>
+            <CardContent className="p-8">
+              <div className="space-y-3">
+                {multipleSubs.map(sub => (
+                  <button
+                    key={sub.id}
+                    onClick={(e) => {
+                      submit(e, sub.id);
+                    }}
+                    disabled={loading}
+                    className="w-full p-4 border-2 border-slate-300 rounded-lg hover:border-red-500 hover:bg-red-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="font-bold text-slate-900">{sub.company_name}</div>
+                    <div className="text-sm text-slate-600">{sub.address}</div>
+                  </button>
+                ))}
+              </div>
+              <Button
+                onClick={() => {
+                  setMultipleSubs(null);
+                  setEmail('');
+                  setPassword('');
+                  setSelectedSubId(null);
+                }}
+                variant="outline"
+                className="w-full mt-6"
+              >
+                Back to Login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

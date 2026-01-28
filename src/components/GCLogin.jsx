@@ -16,7 +16,7 @@ export default function GCLogin({ onLogin }) {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [multipleGCs, setMultipleGCs] = useState(null); // List of GCs with same email
 
-  const submit = async (e) => {
+  const submit = async (e, gcIdOverride = null) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -32,6 +32,9 @@ export default function GCLogin({ onLogin }) {
 
       const backendBase = getBackendBaseUrl();
 
+      // Use gcIdOverride if provided (for selection button), otherwise use state
+      const gcIdToUse = gcIdOverride !== null ? gcIdOverride : selectedGcId;
+
       // Authenticate GC via public endpoint
       const response = await fetch(`${backendBase}/public/gc-login`, {
         method: 'POST',
@@ -39,7 +42,7 @@ export default function GCLogin({ onLogin }) {
         body: JSON.stringify({ 
           email: email.toLowerCase(), 
           password,
-          gcId: selectedGcId // Include selected GC ID if multiple GCs with same email
+          gcId: gcIdToUse // Include selected GC ID if multiple GCs with same email
         })
       });
 
@@ -54,6 +57,7 @@ export default function GCLogin({ onLogin }) {
       if (gcData.requiresSelection && gcData.gcs) {
         setMultipleGCs(gcData.gcs);
         setSelectedGcId(null);
+        setLoading(false);
         return;
       }
 
@@ -93,12 +97,11 @@ export default function GCLogin({ onLogin }) {
                 {multipleGCs.map(gc => (
                   <button
                     key={gc.id}
-                    onClick={() => {
-                      setSelectedGcId(gc.id);
-                      setMultipleGCs(null);
-                      submit({ preventDefault: () => {} });
+                    onClick={(e) => {
+                      submit(e, gc.id);
                     }}
-                    className="w-full p-4 border-2 border-slate-300 rounded-lg hover:border-red-500 hover:bg-red-50 transition-all text-left"
+                    disabled={loading}
+                    className="w-full p-4 border-2 border-slate-300 rounded-lg hover:border-red-500 hover:bg-red-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <div className="font-bold text-slate-900">{gc.company_name}</div>
                     <div className="text-sm text-slate-600">{gc.address}</div>
