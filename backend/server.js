@@ -6662,8 +6662,14 @@ function extractFieldsWithRegex(text, schema) {
     ];
     
     // Check for negation words within 50 chars before "ADDITIONAL INSURED"
-    const negationPattern = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)[\s\S]{0,50}ADDITIONAL\s+INSURED/i;
-    const hasNegation = negationPattern.test(text);
+    // Find the keyword and check if any negation word appears in the 50 chars before it
+    let hasNegation = false;
+    const keywordMatch = /ADDITIONAL\s+INSURED/i.exec(text);
+    if (keywordMatch) {
+      const startPos = Math.max(0, keywordMatch.index - 50);
+      const precedingText = text.substring(startPos, keywordMatch.index);
+      hasNegation = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i.test(precedingText);
+    }
     
     let hasAddlInsured = false;
     if (!hasNegation) {
@@ -6689,8 +6695,14 @@ function extractFieldsWithRegex(text, schema) {
     ];
     
     // Check for negation words within 50 chars before "WAIVER" or "SUBROGATION"
-    const negationPattern = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)[\s\S]{0,50}(?:WAIVER|SUBROGATION)/i;
-    const hasNegation = negationPattern.test(text);
+    // Find the keyword and check if any negation word appears in the 50 chars before it
+    let hasNegation = false;
+    const keywordMatch = /(?:WAIVER|SUBROGATION)/i.exec(text);
+    if (keywordMatch) {
+      const startPos = Math.max(0, keywordMatch.index - 50);
+      const precedingText = text.substring(startPos, keywordMatch.index);
+      hasNegation = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i.test(precedingText);
+    }
     
     let hasWaiver = false;
     if (!hasNegation) {
