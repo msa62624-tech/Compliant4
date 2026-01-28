@@ -14,9 +14,11 @@ export async function fetchAdminEmails(baseUrl) {
       const data = await response.json();
       return data.emails || defaultEmails;
     }
+    
+    // Return defaults if response is not ok
+    return defaultEmails;
   } catch (error) {
     console.warn('Could not fetch admin emails, using default:', error.message);
+    return defaultEmails;
   }
-  
-  return defaultEmails;
 }

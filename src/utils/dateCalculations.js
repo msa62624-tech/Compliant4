@@ -5,7 +5,11 @@
  */
 export function calculateDaysUntil(targetDate) {
   const today = new Date();
+  today.setHours(0, 0, 0, 0); // Normalize to midnight for accurate day calculation
+  
   const target = new Date(targetDate);
+  target.setHours(0, 0, 0, 0); // Normalize to midnight for accurate day calculation
+  
   return Math.floor((target - today) / (1000 * 60 * 60 * 24));
 }
 

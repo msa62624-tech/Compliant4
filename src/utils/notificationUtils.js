@@ -12,9 +12,14 @@ export function calculateUrgency(daysUntilExpiry) {
 /**
  * Format timeframe description based on days until expiry
  * @param {number} daysUntilExpiry - Number of days until expiry
- * @returns {string} - Timeframe description (e.g., 'TODAY', 'in 5 days')
+ * @returns {string} - Timeframe description (e.g., 'TODAY', 'in 5 days', 'EXPIRED')
  */
 export function formatTimeframe(daysUntilExpiry) {
-  if (daysUntilExpiry === 0) return 'TODAY';
+  if (daysUntilExpiry < 0) {
+    return 'EXPIRED';
+  }
+  if (daysUntilExpiry === 0) {
+    return 'TODAY';
+  }
   return `in ${daysUntilExpiry} days`;
 }
