@@ -3,7 +3,7 @@
  * Uses environment variable or derives from current origin
  * Works on both frontend and backend contexts
  */
-export function getFrontendBaseUrl() {
+export function getFrontendBaseUrl(): string {
   // Backend context: Check Node.js process.env (e.g., FRONTEND_URL)
   if (typeof process !== 'undefined' && process.env && process.env.FRONTEND_URL) {
     return process.env.FRONTEND_URL.replace(/\/$/, ''); // Remove trailing slash
@@ -33,7 +33,7 @@ export function getFrontendBaseUrl() {
  * Get the proper backend base URL for API calls
  * Handles Codespaces, localhost development, and production environments
  */
-export function getBackendBaseUrl() {
+export function getBackendBaseUrl(): string {
   // Check environment variable first
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
@@ -74,7 +74,7 @@ export function getBackendBaseUrl() {
 /**
  * Create a broker dashboard link
  */
-export function createBrokerDashboardLink(brokerName, brokerEmail) {
+export function createBrokerDashboardLink(brokerName?: string, brokerEmail?: string): string {
   const baseUrl = getFrontendBaseUrl();
   // Prefer email for reliability; include name when email unavailable
   if (brokerEmail) {
@@ -91,11 +91,11 @@ export function createBrokerDashboardLink(brokerName, brokerEmail) {
 
 /**
  * Create a broker upload link for COI uploads
- * @param {string} coiToken - The COI token for direct upload access
- * @param {number} step - The step in the upload process (1=COI, 2=Policies, 3=Signature)
- * @param {string} action - Action type (default: 'upload')
+ * @param coiToken - The COI token for direct upload access
+ * @param step - The step in the upload process (1=COI, 2=Policies, 3=Signature)
+ * @param action - Action type (default: 'upload')
  */
-export function createBrokerUploadLink(coiToken, step = 1, action = 'upload') {
+export function createBrokerUploadLink(coiToken: string, step: number = 1, action: string = 'upload'): string {
   const baseUrl = getFrontendBaseUrl();
   return `${baseUrl}/broker-upload-coi?token=${coiToken}&step=${step}&action=${action}`;
 }
@@ -103,25 +103,25 @@ export function createBrokerUploadLink(coiToken, step = 1, action = 'upload') {
 /**
  * Create a subcontractor dashboard link
  */
-export function createSubcontractorDashboardLink(subId) {
+export function createSubcontractorDashboardLink(subId: string): string {
   const baseUrl = getFrontendBaseUrl();
   return `${baseUrl}/subcontractor-dashboard?id=${subId}`;
 }
 
 /**
  * Create a COI review link
- * @param {string} coiId - COI ID
+ * @param coiId - COI ID
  */
-export function createCOIReviewLink(coiId) {
+export function createCOIReviewLink(coiId: string): string {
   const baseUrl = getFrontendBaseUrl();
   return `${baseUrl}/coi-review?id=${coiId}`;
 }
 
 /**
  * Create a project details link
- * @param {string} projectId - Project ID
+ * @param projectId - Project ID
  */
-export function createProjectDetailsLink(projectId) {
+export function createProjectDetailsLink(projectId: string): string {
   const baseUrl = getFrontendBaseUrl();
   return `${baseUrl}/project-details?id=${projectId}`;
 }

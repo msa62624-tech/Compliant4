@@ -3,8 +3,56 @@
  * Ensures every notification includes direct links to relevant portal sections
  */
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+export interface EmailSection {
+  title: string;
+  content: string;
+  actionLink?: string;
+  actionText?: string;
+}
+
+export interface EmailWithLinks {
+  subject: string;
+  links: Record<string, string>;
+  sections: EmailSection[];
+}
+
+export interface Subcontractor {
+  id?: string;
+  company_name?: string;
+  contact_person?: string;
+  email?: string;
+  broker_email?: string;
+  coi_token?: string;
+  coiToken?: string;
+  coi_id?: string;
+  coiId?: string;
+  [key: string]: unknown;
+}
+
+export interface COI {
+  id: string;
+  [key: string]: unknown;
+}
+
+export interface Project {
+  id: string;
+  project_name?: string;
+  project_address?: string;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// CLASS
+// ============================================================================
+
 export class NotificationLinkBuilder {
-  constructor(baseUrl = window.location.origin) {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = typeof window !== 'undefined' ? window.location.origin : '') {
     this.baseUrl = baseUrl;
   }
 
@@ -12,32 +60,32 @@ export class NotificationLinkBuilder {
   // SUBCONTRACTOR PORTAL LINKS
   // =============================================
 
-  getSubDashboardLink(subId, section = null) {
+  getSubDashboardLink(subId: string, section: string | null = null): string {
     const url = `${this.baseUrl}/subcontractor-dashboard?id=${subId}`;
     return section ? `${url}&section=${section}` : url;
   }
 
-  getSubProjectLink(subId, projectId) {
+  getSubProjectLink(subId: string, projectId: string): string {
     return `${this.baseUrl}/subcontractor-dashboard?id=${subId}&section=projects&projectId=${projectId}`;
   }
 
-  getSubCertificatesLink(subId) {
+  getSubCertificatesLink(subId: string): string {
     return `${this.baseUrl}/subcontractor-dashboard?id=${subId}&section=certificates`;
   }
 
-  getSubInsuranceLink(subId, projectId) {
+  getSubInsuranceLink(subId: string, projectId: string): string {
     return `${this.baseUrl}/subcontractor-dashboard?id=${subId}&section=insurance&projectId=${projectId}`;
   }
 
-  getSubIssuesLink(subId) {
+  getSubIssuesLink(subId: string): string {
     return `${this.baseUrl}/subcontractor-dashboard?id=${subId}&section=issues`;
   }
 
-  getSubUploadLink(subId) {
+  getSubUploadLink(subId: string): string {
     return `${this.baseUrl}/UploadDocuments?sub=${encodeURIComponent(subId)}`;
   }
 
-  getSubMessagesLink(subId) {
+  getSubMessagesLink(subId: string): string {
     return `${this.baseUrl}/subcontractor-dashboard?id=${subId}&section=messages`;
   }
 
@@ -45,24 +93,24 @@ export class NotificationLinkBuilder {
   // BROKER PORTAL LINKS
   // =============================================
 
-  getBrokerDashboardLink(brokerName, section = null) {
+  getBrokerDashboardLink(brokerName: string, section: string | null = null): string {
     const url = `${this.baseUrl}/broker-dashboard?name=${encodeURIComponent(brokerName)}`;
     return section ? `${url}&section=${section}` : url;
   }
 
-  getBrokerClientsLink(brokerName) {
+  getBrokerClientsLink(brokerName: string): string {
     return `${this.baseUrl}/broker-dashboard?name=${encodeURIComponent(brokerName)}&section=clients`;
   }
 
-  getBrokerCertificatesLink(brokerName) {
+  getBrokerCertificatesLink(brokerName: string): string {
     return `${this.baseUrl}/broker-dashboard?name=${encodeURIComponent(brokerName)}&section=certificates`;
   }
 
-  getBrokerRequestsLink(brokerName) {
+  getBrokerRequestsLink(brokerName: string): string {
     return `${this.baseUrl}/broker-dashboard?name=${encodeURIComponent(brokerName)}&section=requests`;
   }
 
-  getBrokerUploadLink(coiToken, step = 1) {
+  getBrokerUploadLink(coiToken: string | null | undefined, step: number = 1): string {
     // For COI uploads, use the broker-upload-coi page with token and step
     if (coiToken) {
       return `${this.baseUrl}/broker-upload-coi?token=${coiToken}&step=${step}&action=upload`;
@@ -72,11 +120,11 @@ export class NotificationLinkBuilder {
     return `${this.baseUrl}/broker-upload`;
   }
 
-  getBrokerCOILink(brokerName, coiId) {
+  getBrokerCOILink(brokerName: string, coiId: string): string {
     return `${this.baseUrl}/broker-dashboard?name=${encodeURIComponent(brokerName)}&section=certificates&coiId=${coiId}`;
   }
 
-  getBrokerMessagesLink(brokerName) {
+  getBrokerMessagesLink(brokerName: string): string {
     return `${this.baseUrl}/broker-dashboard?name=${encodeURIComponent(brokerName)}&section=messages`;
   }
 
@@ -84,21 +132,21 @@ export class NotificationLinkBuilder {
   // GC PORTAL LINKS
   // =============================================
 
-  getGCDashboardLink(gcId, section = null) {
+  getGCDashboardLink(gcId: string, section: string | null = null): string {
     const url = `${this.baseUrl}/gc-dashboard?id=${gcId}`;
     return section ? `${url}&section=${section}` : url;
   }
 
   // Admin-only route for managing GC information (not for GC portal access)
-  getGCDetailsLink(gcId) {
+  getGCDetailsLink(gcId: string): string {
     return `${this.baseUrl}/gc-details?id=${gcId}`;
   }
 
-  getGCProjectsLink(gcId) {
+  getGCProjectsLink(gcId: string): string {
     return `${this.baseUrl}/gc-projects?id=${gcId}`;
   }
 
-  getGCProjectLink(projectId, gcId) {
+  getGCProjectLink(projectId: string, gcId: string): string {
     return `${this.baseUrl}/gc-project?project=${projectId}&id=${gcId}`;
   }
 
@@ -106,40 +154,40 @@ export class NotificationLinkBuilder {
   // ADMIN PORTAL LINKS
   // =============================================
 
-  getAdminDashboardLink(section = null) {
+  getAdminDashboardLink(section: string | null = null): string {
     const url = `${this.baseUrl}/admin-dashboard`;
     return section ? `${url}?section=${section}` : url;
   }
 
-  getAdminPendingReviewsLink() {
+  getAdminPendingReviewsLink(): string {
     return `${this.baseUrl}/admin-dashboard?section=PendingReviews`;
   }
 
-  getAdminCOIReviewLink(coiId) {
+  getAdminCOIReviewLink(coiId: string): string {
     return `${this.baseUrl}/COIReview?id=${coiId}`;
   }
 
-  getAdminProjectsLink() {
+  getAdminProjectsLink(): string {
     return `${this.baseUrl}/admin-dashboard?section=ProjectsSetup`;
   }
 
-  getAdminProjectLink(projectId) {
+  getAdminProjectLink(projectId: string): string {
     return `${this.baseUrl}/ProjectDetails?id=${projectId}`;
   }
 
-  getAdminSubcontractorsLink() {
+  getAdminSubcontractorsLink(): string {
     return `${this.baseUrl}/admin-dashboard?section=SubcontractorsManagement`;
   }
 
-  getAdminComplianceLink() {
+  getAdminComplianceLink(): string {
     return `${this.baseUrl}/admin-dashboard?section=ComplianceReview`;
   }
 
-  getAdminMessagesLink() {
+  getAdminMessagesLink(): string {
     return `${this.baseUrl}/admin-dashboard?section=Messages`;
   }
 
-  getAdminExpiringLink() {
+  getAdminExpiringLink(): string {
     return `${this.baseUrl}/admin-dashboard?section=ExpiringPolicies`;
   }
 
@@ -147,19 +195,19 @@ export class NotificationLinkBuilder {
   // PROJECT PORTAL LINKS
   // =============================================
 
-  getProjectDashboardLink(projectId) {
+  getProjectDashboardLink(projectId: string): string {
     return `${this.baseUrl}/ProjectDetails?id=${projectId}`;
   }
 
-  getProjectSubcontractorsLink(projectId) {
+  getProjectSubcontractorsLink(projectId: string): string {
     return `${this.baseUrl}/ProjectDetails?id=${projectId}&section=subcontractors`;
   }
 
-  getProjectRequirementsLink(projectId) {
+  getProjectRequirementsLink(projectId: string): string {
     return `${this.baseUrl}/ProjectDetails?id=${projectId}&section=requirements`;
   }
 
-  getProjectComplianceLink(projectId) {
+  getProjectComplianceLink(projectId: string): string {
     return `${this.baseUrl}/ProjectDetails?id=${projectId}&section=compliance`;
   }
 
@@ -167,15 +215,15 @@ export class NotificationLinkBuilder {
   // COI & COMPLIANCE LINKS
   // =============================================
 
-  getCOIReviewLink(coiId) {
+  getCOIReviewLink(coiId: string): string {
     return `${this.baseUrl}/COIReview?id=${coiId}`;
   }
 
-  getCOIApprovalLink(coiId) {
+  getCOIApprovalLink(coiId: string): string {
     return `${this.baseUrl}/COIReview?id=${coiId}&action=approve`;
   }
 
-  getComplianceReviewLink(projectId) {
+  getComplianceReviewLink(projectId: string): string {
     return `${this.baseUrl}/ComplianceReview?projectId=${projectId}`;
   }
 
@@ -183,7 +231,11 @@ export class NotificationLinkBuilder {
   // BUILD COMPLETE NOTIFICATION BODY WITH LINKS
   // =============================================
 
-  buildBrokerAssignmentEmailWithLinks(subcontractor, brokerEmail, isFirstTime) {
+  buildBrokerAssignmentEmailWithLinks(
+    subcontractor: Subcontractor,
+    brokerEmail: string,
+    isFirstTime: boolean
+  ): EmailWithLinks {
     const links = {
       dashboard: this.getBrokerDashboardLink(brokerEmail),
       clients: this.getBrokerClientsLink(brokerEmail),
@@ -214,7 +266,11 @@ export class NotificationLinkBuilder {
     };
   }
 
-  buildCOIUploadEmailWithLinks(coi, subcontractor, project) {
+  buildCOIUploadEmailWithLinks(
+    coi: COI,
+    subcontractor: Subcontractor,
+    project: Project
+  ): EmailWithLinks {
     const links = {
       review: this.getAdminCOIReviewLink(coi.id),
       project: this.getAdminProjectLink(project.id),
@@ -244,8 +300,13 @@ export class NotificationLinkBuilder {
     };
   }
 
-  buildCOIApprovedEmailWithLinks(coi, subcontractor, project, recipient = 'sub') {
-    let links = {};
+  buildCOIApprovedEmailWithLinks(
+    coi: COI,
+    subcontractor: Subcontractor,
+    project: Project,
+    recipient: 'sub' | 'broker' | 'admin' = 'sub'
+  ): EmailWithLinks {
+    let links: Record<string, string> = {};
 
     if (recipient === 'sub') {
       links = {
@@ -284,7 +345,11 @@ export class NotificationLinkBuilder {
     };
   }
 
-  buildRequirementsReferralEmailWithLinks(project, subcontractor, trade) {
+  buildRequirementsReferralEmailWithLinks(
+    project: Project,
+    subcontractor: Subcontractor,
+    trade: string
+  ): EmailWithLinks {
     const links = {
       requirements: this.getProjectRequirementsLink(project.id),
       subDashboard: this.getSubDashboardLink(subcontractor.id),
@@ -311,7 +376,11 @@ export class NotificationLinkBuilder {
     };
   }
 
-  buildPolicyRenewalEmailWithLinks(subcontractor, project, policyType) {
+  buildPolicyRenewalEmailWithLinks(
+    subcontractor: Subcontractor,
+    project: Project,
+    policyType: string
+  ): EmailWithLinks {
     const links = {
       subDashboard: this.getSubDashboardLink(subcontractor.id),
       project: this.getSubProjectLink(subcontractor.id, project.id),
@@ -341,7 +410,7 @@ export class NotificationLinkBuilder {
 export const notificationLinks = new NotificationLinkBuilder();
 
 // Export helper function to add links to any email
-export function enhanceEmailWithLinks(emailBody, links) {
+export function enhanceEmailWithLinks(emailBody: string, links: Record<string, string>): string {
   if (!links || Object.keys(links).length === 0) return emailBody;
 
   let enhancedBody = emailBody;

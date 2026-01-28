@@ -5,6 +5,19 @@
 
 import { escapeHtml } from '@/utils/htmlEscaping';
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+export type UserType = 'general' | 'gc' | 'broker' | 'subcontractor';
+
+export interface EmailTemplateOptions {
+  title: string;
+  subtitle?: string;
+  content: string;
+  footer?: string | null;
+}
+
 export const EMAIL_STYLES = `
   <style>
     body { 
@@ -180,7 +193,12 @@ export const EMAIL_STYLES = `
  * NOTE: Title and subtitle are escaped for XSS protection.
  * Content is assumed to be pre-formatted HTML from trusted template functions.
  */
-export function createEmailTemplate(title, subtitle, content, footer = null) {
+export function createEmailTemplate(
+  title: string,
+  subtitle: string | null,
+  content: string,
+  footer: string | null = null
+): string {
   const defaultFooter = `
     <div class="footer">
       <p><strong>compliant.team</strong> - Insurance Compliance Management</p>
@@ -217,7 +235,11 @@ export function createEmailTemplate(title, subtitle, content, footer = null) {
 /**
  * Password reset email template
  */
-export function getPasswordResetEmail(name, resetLink, type = 'general') {
+export function getPasswordResetEmail(
+  name: string,
+  resetLink: string,
+  type: UserType = 'general'
+): string {
   const userType = type === 'gc' ? 'GC Account' : type === 'broker' ? 'Broker Account' : type === 'subcontractor' ? 'Subcontractor Account' : 'Account';
   
   // Escape user-provided data but NOT the URL
@@ -261,7 +283,11 @@ export function getPasswordResetEmail(name, resetLink, type = 'general') {
 /**
  * Broker COI submission confirmation
  */
-export function getBrokerCOIConfirmationEmail(subcontractorName, projectName, tradeType) {
+export function getBrokerCOIConfirmationEmail(
+  subcontractorName: string,
+  projectName: string,
+  tradeType: string
+): string {
   // Escape all user-provided data
   const safeName = escapeHtml(subcontractorName);
   const safeProject = escapeHtml(projectName);
@@ -303,7 +329,13 @@ export function getBrokerCOIConfirmationEmail(subcontractorName, projectName, tr
 /**
  * Document replacement notification for GC
  */
-export function getDocumentReplacementNotificationEmail(subcontractorName, brokerName, brokerEmail, docType, reason = null) {
+export function getDocumentReplacementNotificationEmail(
+  subcontractorName: string,
+  brokerName: string,
+  brokerEmail: string,
+  docType: string,
+  reason: string | null = null
+): string {
   // Escape all user-provided data
   const safeName = escapeHtml(subcontractorName);
   const safeBrokerName = escapeHtml(brokerName);
@@ -347,7 +379,15 @@ export function getDocumentReplacementNotificationEmail(subcontractorName, broke
 /**
  * New subcontractor onboarding email (for GC portal)
  */
-export function getSubcontractorOnboardingEmail(subcontractorName, projectName, address, tradeType, username, password, portalUrl) {
+export function getSubcontractorOnboardingEmail(
+  subcontractorName: string,
+  projectName: string,
+  address: string,
+  tradeType: string,
+  username: string,
+  password: string,
+  portalUrl: string
+): string {
   // Escape all user-provided data but NOT the URL
   const safeName = escapeHtml(subcontractorName);
   const safeProject = escapeHtml(projectName);

@@ -3,14 +3,13 @@ import { sendEmail } from "@/emailHelper";
 import { calculateDaysUntilExpiry } from "@/utils/dateCalculations";
 import { calculateUrgency, formatTimeframe, sendEmailWithErrorHandling } from "@/utils/notificationUtils";
 import { EMAIL_SIGNATURE, formatInsuranceType, createEmailGreeting, buildEmailSubject } from "@/utils/emailTemplates";
-
-
+import type { InsuranceDocument, Subcontractor } from '@/notification-types';
 
 /**
  * Send expiring policy notifications to broker and subcontractor
  * Called on a schedule (e.g., daily) to check for expiring policies
  */
-export async function checkAndNotifyExpiringPolicies() {
+export async function checkAndNotifyExpiringPolicies(): Promise<void> {
   try {
     const documents = await apiClient.entities.InsuranceDocument.list();
     
@@ -47,7 +46,11 @@ export async function checkAndNotifyExpiringPolicies() {
 /**
  * Notify broker about expiring policy
  */
-async function notifyBrokerPolicyExpiring(document, subcontractor, daysUntilExpiry) {
+async function notifyBrokerPolicyExpiring(
+  document: InsuranceDocument,
+  subcontractor: Subcontractor,
+  daysUntilExpiry: number
+): Promise<void> {
   const urgency = calculateUrgency(daysUntilExpiry);
   const timeframe = formatTimeframe(daysUntilExpiry);
   const subject = buildEmailSubject(`Policy Expiring ${timeframe} - ${subcontractor.company_name}`, urgency);
@@ -80,7 +83,11 @@ ${EMAIL_SIGNATURE}`
 /**
  * Notify subcontractor about expiring policy
  */
-async function notifySubPolicyExpiring(document, subcontractor, daysUntilExpiry) {
+async function notifySubPolicyExpiring(
+  document: InsuranceDocument,
+  subcontractor: Subcontractor,
+  daysUntilExpiry: number
+): Promise<void> {
   const urgency = calculateUrgency(daysUntilExpiry);
   const timeframe = formatTimeframe(daysUntilExpiry);
   const subject = buildEmailSubject(`Insurance Policy Expiring ${timeframe}`, urgency);

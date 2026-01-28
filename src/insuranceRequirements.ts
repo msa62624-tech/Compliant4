@@ -4,10 +4,159 @@
  */
 
 // ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+export interface Endorsement {
+  code: string;
+  name: string;
+  required: boolean;
+  blanketBasis: boolean;
+}
+
+export interface MinimumLimits {
+  eachOccurrence?: number;
+  generalAggregate?: number;
+  productsComplOps?: number;
+  aggregate?: number;
+  eachAccident?: number;
+  diseasePerEmployee?: number;
+  diseasePolicyLimit?: number;
+  combinedSingleLimit?: number;
+}
+
+export interface AdditionalInsuredRequirement {
+  required: boolean;
+  namedFromProject: boolean;
+}
+
+export interface GLRequirements {
+  endorsements: Endorsement[];
+  waiverOfSubrogation: boolean;
+  additionalInsured: AdditionalInsuredRequirement;
+  excludeProjectArea: boolean;
+  minimumLimits: MinimumLimits;
+  noCondoLimitation?: boolean;
+}
+
+export interface UmbrellaRequirements {
+  endorsements: Endorsement[];
+  waiverOfSubrogation: boolean;
+  followForm: boolean;
+  minimumLimits: MinimumLimits;
+}
+
+export interface WCRequirements {
+  waiverOfSubrogation: boolean;
+  waiverOfExcess: boolean;
+  minimumLimits: MinimumLimits;
+  mandatory?: boolean;
+}
+
+export interface AutoRequirements {
+  hiredNonOwnedAuto: boolean;
+  minimumLimits: MinimumLimits;
+}
+
+export interface UniversalRequirements {
+  gl: GLRequirements;
+  umbrella: UmbrellaRequirements;
+  wc: WCRequirements;
+  auto: AutoRequirements;
+}
+
+export type InsuranceType = 'gl' | 'umbrella' | 'wc' | 'auto';
+
+export interface TradeSpecificRequirements {
+  gl?: Partial<GLRequirements>;
+  umbrella?: Partial<UmbrellaRequirements>;
+  wc?: Partial<WCRequirements>;
+  auto?: Partial<AutoRequirements>;
+}
+
+export interface TradeRequirement {
+  tier: number;
+  requiredInsurance: string[];
+  specificRequirements: TradeSpecificRequirements;
+}
+
+export interface ProjectModifier {
+  name: string;
+  minimumLimitIncrease?: number;
+  requiredInsurance?: string[];
+  gl?: Partial<GLRequirements>;
+}
+
+export type ProjectType = 'condo' | 'high_rise' | 'standard';
+
+export interface Project {
+  id: string;
+  project_type?: ProjectType;
+  project_name?: string;
+  project_address?: string;
+  additional_insured?: string[];
+  [key: string]: unknown;
+}
+
+export interface COI {
+  id?: string;
+  gl_each_occurrence?: number;
+  gl_general_aggregate?: number;
+  gl_products_completed_ops?: number;
+  gl_endorsements?: Endorsement[];
+  gl_waiver_of_subrogation?: boolean;
+  gl_additional_insured?: string[];
+  gl_has_condo_exclusion?: boolean;
+  gl_has_project_area_exclusion?: boolean;
+  gl_expiration_date?: string;
+  umbrella_each_occurrence?: number;
+  umbrella_aggregate?: number;
+  umbrella_follow_form?: boolean;
+  umbrella_waiver_of_subrogation?: boolean;
+  umbrella_expiration_date?: string;
+  wc_each_accident?: number;
+  wc_waiver_of_subrogation?: boolean;
+  wc_waiver_of_excess?: boolean;
+  wc_expiration_date?: string;
+  auto_combined_single_limit?: number;
+  auto_hired_non_owned?: boolean;
+  auto_expiration_date?: string;
+  [key: string]: unknown;
+}
+
+export type IssueSeverity = 'error' | 'warning';
+
+export interface ComplianceIssue {
+  type: string;
+  field: string;
+  severity: IssueSeverity;
+  required?: number;
+  provided?: number;
+  endorsement?: string;
+  detail?: string;
+  expirationDate?: string;
+  missing?: string;
+  daysUntilExpiry?: number;
+}
+
+export interface ValidationResult {
+  compliant: boolean;
+  issues: ComplianceIssue[];
+  warnings: ComplianceIssue[];
+  requirementsApplied?: Record<string, unknown>;
+}
+
+export interface TradeOption {
+  value: string;
+  label: string;
+  tier: number;
+}
+
+// ============================================================================
 // BASE INSURANCE REQUIREMENTS - UNIVERSAL REQUIREMENTS FOR ALL PROJECTS
 // ============================================================================
 
-export const UNIVERSAL_REQUIREMENTS = {
+export const UNIVERSAL_REQUIREMENTS: UniversalRequirements = {
   gl: {
     endorsements: [
       { code: 'CG2010', name: 'Additional Insured (ISO CG 20 10)', required: true, blanketBasis: true },
@@ -61,7 +210,7 @@ export const UNIVERSAL_REQUIREMENTS = {
 // TRADE-SPECIFIC REQUIREMENTS (Tiered by Trade Type)
 // ============================================================================
 
-export const TRADE_REQUIREMENTS = {
+export const TRADE_REQUIREMENTS: Record<string, TradeRequirement> = {
   // TIER 1: General Construction Trades
   carpentry: {
     tier: 1,
@@ -314,7 +463,7 @@ export const TRADE_REQUIREMENTS = {
 // PROJECT-SPECIFIC MODIFIERS
 // ============================================================================
 
-export const PROJECT_MODIFIERS = {
+export const PROJECT_MODIFIERS: Record<string, ProjectModifier> = {
   condo: {
     name: 'Condo Project',
     gl: {
@@ -347,14 +496,14 @@ export const PROJECT_MODIFIERS = {
 
 /**
  * Check if a COI meets all project requirements
- * @param {Object} coi - GeneratedCOI object with insurance details
- * @param {Object} project - Project object
- * @param {string[]} subTrades - Array of trade types for the subcontractor
- * @returns {Object} - { compliant: boolean, issues: [], warnings: [] }
  */
-export async function validateCOICompliance(coi, project, subTrades) {
-  const issues = [];
-  const warnings = [];
+export async function validateCOICompliance(
+  coi: COI,
+  project: Project,
+  subTrades: string[]
+): Promise<ValidationResult> {
+  const issues: ComplianceIssue[] = [];
+  const warnings: ComplianceIssue[] = [];
 
   // Get all applicable requirements
   const allRequirements = buildApplicableRequirements(project, subTrades);
@@ -626,8 +775,11 @@ export async function validateCOICompliance(coi, project, subTrades) {
 /**
  * Build all applicable insurance requirements for a project/subcontractor combination
  */
-function buildApplicableRequirements(project, subTrades = []) {
-  const requirements = {};
+function buildApplicableRequirements(
+  project: Project,
+  subTrades: string[] = []
+): Record<string, unknown> {
+  const requirements: Record<string, unknown> = {};
 
   // Start with universal requirements
   requirements.gl = { ...UNIVERSAL_REQUIREMENTS.gl };
@@ -681,40 +833,44 @@ function buildApplicableRequirements(project, subTrades = []) {
 /**
  * Get readable requirement description for display
  */
-export function getRequirementDescription(requirement, project, subTrades) {
+export function getRequirementDescription(
+  requirement: unknown,
+  project: Project,
+  subTrades: string[]
+): string {
   const allReqs = buildApplicableRequirements(project, subTrades);
-  const desc = [];
+  const desc: string[] = [];
 
-  if (allReqs.gl) {
-    desc.push(`GL: $${(allReqs.gl.minimumLimits.eachOccurrence / 1000000).toFixed(1)}M each/$${(allReqs.gl.minimumLimits.generalAggregate / 1000000).toFixed(1)}M aggregate`);
-    if (allReqs.gl.endorsements) {
-      desc.push(`  Requires: ${allReqs.gl.endorsements.map((e) => e.code).join(', ')}`);
+  if ((allReqs as any).gl) {
+    desc.push(`GL: $${((allReqs as any).gl.minimumLimits.eachOccurrence / 1000000).toFixed(1)}M each/$${((allReqs as any).gl.minimumLimits.generalAggregate / 1000000).toFixed(1)}M aggregate`);
+    if ((allReqs as any).gl.endorsements) {
+      desc.push(`  Requires: ${(allReqs as any).gl.endorsements.map((e: Endorsement) => e.code).join(', ')}`);
     }
-    if (allReqs.gl.waiverOfSubrogation) {
+    if ((allReqs as any).gl.waiverOfSubrogation) {
       desc.push(`  Waiver of Subrogation: Required`);
     }
   }
 
-  if (allReqs.umbrella) {
-    desc.push(`Umbrella: $${(allReqs.umbrella.minimumLimits.eachOccurrence / 1000000).toFixed(1)}M each/$${(allReqs.umbrella.minimumLimits.aggregate / 1000000).toFixed(1)}M aggregate`);
-    if (allReqs.umbrella.followForm) {
+  if ((allReqs as any).umbrella) {
+    desc.push(`Umbrella: $${((allReqs as any).umbrella.minimumLimits.eachOccurrence / 1000000).toFixed(1)}M each/$${((allReqs as any).umbrella.minimumLimits.aggregate / 1000000).toFixed(1)}M aggregate`);
+    if ((allReqs as any).umbrella.followForm) {
       desc.push(`  Follow Form: Required`);
     }
   }
 
-  if (allReqs.wc) {
-    desc.push(`WC: $${(allReqs.wc.minimumLimits.eachAccident / 1000000).toFixed(1)}M each accident`);
-    if (allReqs.wc.waiverOfSubrogation) {
+  if ((allReqs as any).wc) {
+    desc.push(`WC: $${((allReqs as any).wc.minimumLimits.eachAccident / 1000000).toFixed(1)}M each accident`);
+    if ((allReqs as any).wc.waiverOfSubrogation) {
       desc.push(`  Waiver of Subrogation: Required`);
     }
-    if (allReqs.wc.waiverOfExcess) {
+    if ((allReqs as any).wc.waiverOfExcess) {
       desc.push(`  Waiver of Excess: Required`);
     }
   }
 
-  if (allReqs.auto) {
-    desc.push(`Auto: $${(allReqs.auto.minimumLimits.combinedSingleLimit / 1000000).toFixed(1)}M CSL`);
-    if (allReqs.auto.hiredNonOwnedAuto) {
+  if ((allReqs as any).auto) {
+    desc.push(`Auto: $${((allReqs as any).auto.minimumLimits.combinedSingleLimit / 1000000).toFixed(1)}M CSL`);
+    if ((allReqs as any).auto.hiredNonOwnedAuto) {
       desc.push(`  Hired & Non-Owned: Required`);
     }
   }
@@ -725,7 +881,7 @@ export function getRequirementDescription(requirement, project, subTrades) {
 /**
  * Get all available trades for selection
  */
-export function getAvailableTrades() {
+export function getAvailableTrades(): TradeOption[] {
   const base = Object.keys(TRADE_REQUIREMENTS).map((key) => ({
     value: key,
     label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
@@ -752,7 +908,7 @@ export function getAvailableTrades() {
 /**
  * Get tier-specific trades only
  */
-export function getTradesByTier(tier) {
+export function getTradesByTier(tier: number): TradeOption[] {
   return Object.entries(TRADE_REQUIREMENTS)
     .filter(([, req]) => req.tier === tier)
     .map(([key, req]) => ({
@@ -766,7 +922,7 @@ export function getTradesByTier(tier) {
  * Extract unique tiers from program requirements
  * Returns tiers sorted (e.g., [A, B, C, D] or [1, 2, 3])
  */
-export function getTiersFromRequirements(requirements = []) {
+export function getTiersFromRequirements(requirements: any[] = []): string[] {
   if (!Array.isArray(requirements)) return [];
   // Optimized: filter first, then map
   const tierSet = new Set(requirements.filter(r => r.tier).map(r => r.tier));
@@ -774,7 +930,7 @@ export function getTiersFromRequirements(requirements = []) {
   
   // Sort tiers - handles both letter (A, B, C, D) and numeric (1, 2, 3) tiers
   const tierArray = Array.from(tierSet);
-  return tierArray.sort((a, b) => {
+  return tierArray.sort((a: any, b: any) => {
     // If both are single letters, sort alphabetically
     if (/^[a-z]$/.test(a) && /^[a-z]$/.test(b)) {
       return a.localeCompare(b);
@@ -792,13 +948,13 @@ export function getTiersFromRequirements(requirements = []) {
  * Get tier label/description for display
  * Handles both letter tiers (A, B, C, D) and numeric tiers (1, 2, 3)
  */
-export function getTierLabel(tier) {
+export function getTierLabel(tier: string | number | null | undefined): string {
   if (!tier) return 'Standard';
   
   const tierStr = String(tier).toUpperCase();
   
   // Letter-based tier descriptions
-  const letterTierLabels = {
+  const letterTierLabels: Record<string, string> = {
     'A': 'Tier A - Prime Contractor (Highest Risk)',
     'B': 'Tier B - Major Subcontractor',
     'C': 'Tier C - Standard Subcontractor',
@@ -807,7 +963,7 @@ export function getTierLabel(tier) {
   };
   
   // Number-based tier descriptions (legacy)
-  const numberTierLabels = {
+  const numberTierLabels: Record<string, string> = {
     '1': 'Tier 1 - General Construction',
     '2': 'Tier 2 - Specialty Trades',
     '3': 'Tier 3 - High-Risk Trades'

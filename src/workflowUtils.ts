@@ -1,31 +1,67 @@
 import { compliant } from "@/api/compliantClient";
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+export interface FirstTimeStatusResult {
+  isFirstTime: boolean;
+  previousSubmissions: number;
+  hasActiveInsurance: boolean;
+  allSubmissions: number;
+}
+
+export interface WorkflowInstructions {
+  title: string;
+  brokerInstructions: string;
+  subInstructions: string;
+  emailSubject: string;
+  requiresPolicyUpload: boolean;
+}
+
+export type COIStatus = 'active' | 'approved' | 'pending' | 'rejected' | 'expired';
+
+export interface GeneratedCOI {
+  id?: string;
+  subcontractor_id?: string;
+  contractor_id?: string;
+  project_id?: string;
+  first_coi_uploaded?: boolean;
+  first_coi_url?: string;
+  status?: COIStatus;
+  broker_signature_url?: string;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// FUNCTIONS
+// ============================================================================
+
 /**
  * Determines if a subcontractor is submitting for the first time
- * 
- * @param {string} subcontractorId - The subcontractor ID
- * @param {string} projectId - The project ID (optional)
- * @returns {Promise<{isFirstTime: boolean, previousSubmissions: number, hasActiveInsurance: boolean}>}
  */
-export async function isFirstTimeSubcontractor(subcontractorId, projectId = null) {
+export async function isFirstTimeSubcontractor(
+  subcontractorId: string,
+  projectId: string | null = null
+): Promise<FirstTimeStatusResult> {
   try {
     // Get all COIs for this subcontractor
-    const allCOIs = await compliant.entities.GeneratedCOI.list();
+    const allCOIs = await compliant.entities.GeneratedCOI.list() as GeneratedCOI[];
     
     // Note: Some records use subcontractor_id, others use contractor_id
     // This handles both field names for backward compatibility
-    const subCOIs = allCOIs.filter(coi => 
+    const subCOIs = allCOIs.filter((coi: GeneratedCOI) => 
       coi.subcontractor_id === subcontractorId || 
       coi.contractor_id === subcontractorId
     );
 
     // Filter for project if specified
     const relevantCOIs = projectId 
-      ? subCOIs.filter(coi => coi.project_id === projectId)
+      ? subCOIs.filter((coi: GeneratedCOI) => coi.project_id === projectId)
       : subCOIs;
 
     // Check if any COIs have been uploaded before
-    const uploadedCOIs = relevantCOIs.filter(coi => 
+    const uploadedCOIs = relevantCOIs.filter((coi: GeneratedCOI) => 
       coi.first_coi_uploaded || 
       coi.first_coi_url || 
       coi.status === 'active' ||
@@ -34,7 +70,7 @@ export async function isFirstTimeSubcontractor(subcontractorId, projectId = null
     );
 
     // Check if any active insurance exists
-    const activeCOIs = relevantCOIs.filter(coi => 
+    const activeCOIs = relevantCOIs.filter((coi: GeneratedCOI) => 
       coi.status === 'active' || coi.status === 'approved'
     );
 
@@ -60,11 +96,8 @@ export async function isFirstTimeSubcontractor(subcontractorId, projectId = null
 
 /**
  * Get appropriate workflow message based on first-time status
- * 
- * @param {boolean} isFirstTime
- * @returns {object} - Workflow instructions and messaging
  */
-export function getWorkflowInstructions(isFirstTime) {
+export function getWorkflowInstructions(isFirstTime: boolean): WorkflowInstructions {
   if (isFirstTime) {
     return {
       title: "First Time Setup Required",

@@ -3,22 +3,38 @@
  * Centralized functions for user creation and password management
  */
 
+export interface PasswordValidationResult {
+  isValid: boolean;
+  errors: string[];
+}
+
+export interface UserCredentials {
+  username: string;
+  email: string;
+  password: string;
+  name: string;
+  role: string;
+  must_change_password: boolean;
+  created_at: string;
+  [key: string]: unknown;
+}
+
 /**
  * Generate a secure random password
  * Format: Capital letter + lowercase + numbers + special char + random string
  * Example: Insure7k4m2p!
  */
-export function generateSecurePassword() {
+export function generateSecurePassword(): string {
   const numbers = '0123456789';
   const special = '!@#$%';
   const lowercase = 'abcdefghijklmnopqrstuvwxyz';
   
   // Generate cryptographically secure random characters using rejection sampling
   // to avoid bias from modulo operation
-  const getRandomChar = (charset) => {
+  const getRandomChar = (charset: string): string => {
     const charsetSize = charset.length;
     const maxValid = Math.floor(256 / charsetSize) * charsetSize;
-    let randomByte;
+    let randomByte: number;
     do {
       const arr = new Uint8Array(1);
       crypto.getRandomValues(arr);
@@ -46,18 +62,23 @@ export function generateSecurePassword() {
 /**
  * Get username from email (username is always the email)
  */
-export function getUsernameFromEmail(email) {
+export function getUsernameFromEmail(email: string): string {
   return email;
 }
 
 /**
  * Create user credentials object
- * @param {string} email - User's email address (will be username)
- * @param {string} name - User's full name
- * @param {string} role - User role (gc, broker, subcontractor, admin, admin_assistant)
- * @param {object} additionalFields - Additional fields like gc_id, subcontractor_id, assigned_gc_ids
+ * @param email - User's email address (will be username)
+ * @param name - User's full name
+ * @param role - User role (gc, broker, subcontractor, admin, admin_assistant)
+ * @param additionalFields - Additional fields like gc_id, subcontractor_id, assigned_gc_ids
  */
-export function createUserCredentials(email, name, role, additionalFields = {}) {
+export function createUserCredentials(
+  email: string, 
+  name: string, 
+  role: string, 
+  additionalFields: Record<string, unknown> = {}
+): UserCredentials {
   const username = getUsernameFromEmail(email);
   const password = generateSecurePassword();
   
@@ -76,7 +97,12 @@ export function createUserCredentials(email, name, role, additionalFields = {}) 
 /**
  * Format login credentials for email
  */
-export function formatLoginCredentialsForEmail(email, password, portalUrl, dashboardUrl = portalUrl) {
+export function formatLoginCredentialsForEmail(
+  email: string, 
+  password: string, 
+  portalUrl: string, 
+  dashboardUrl: string = portalUrl
+): string {
   return `🔐 YOUR LOGIN CREDENTIALS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 Portal URL: ${dashboardUrl}
@@ -91,14 +117,14 @@ Temporary Password: ${password}
  * Password validation rules
  * Enhanced security requirements: 12 character minimum
  */
-export function validatePassword(password) {
+export function validatePassword(password: string): PasswordValidationResult {
   const minLength = 12;
   const hasUppercase = /[A-Z]/.test(password);
   const hasLowercase = /[a-z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
   const hasSpecial = /[!@#$%^&*()_+=[\]{};':"\\|,.<>/?-]/.test(password);
   
-  const errors = [];
+  const errors: string[] = [];
   
   if (password.length < minLength) {
     errors.push(`Password must be at least ${minLength} characters`);

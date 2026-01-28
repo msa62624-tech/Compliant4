@@ -4,11 +4,17 @@ import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl, createBrokerDashboardLink, createSubcontractorDashboardLink } from "@/urlConfig";
 import { generateSecureToken } from "@/utils/tokenGenerator";
 import logger from './utils/logger';
+import type { Subcontractor, Project, GeneratedCOI } from '@/notification-types';
 
 /**
  * Send notification emails when broker is assigned or changed for a subcontractor
  */
-export async function notifyBrokerAssignment(subcontractor, oldBrokerEmail = null, isFirstTime = true, assignedPolicies = null) {
+export async function notifyBrokerAssignment(
+  subcontractor: Subcontractor,
+  oldBrokerEmail: string | null = null,
+  isFirstTime: boolean = true,
+  assignedPolicies: string[] | null = null
+): Promise<void> {
   const dashboardLink = createBrokerDashboardLink(subcontractor.broker_name, subcontractor.broker_email);
   const subDashboardLink = createSubcontractorDashboardLink(subcontractor.id);
 
@@ -236,7 +242,10 @@ InsureTrack System`
 /**
  * Send notification when subcontractor is added to a project
  */
-export async function notifySubAddedToProject(subcontractor, project) {
+export async function notifySubAddedToProject(
+  subcontractor: Subcontractor,
+  project: Project
+): Promise<void> {
   const subEmail = subcontractor.email || subcontractor.contact_email;
 
   // Notify subcontractor
@@ -535,7 +544,11 @@ InsureTrack System`
 /**
  * Send notification when COI is generated and needs broker approval
  */
-export async function notifyBrokerCOIPending(coi, subcontractor, project) {
+export async function notifyBrokerCOIPending(
+  coi: GeneratedCOI,
+  subcontractor: Subcontractor,
+  project: Project
+): Promise<void> {
   const brokerDashboardLink = createBrokerDashboardLink(subcontractor.broker_name, subcontractor.broker_email);
 
   if (subcontractor.broker_email) {
@@ -578,7 +591,11 @@ InsureTrack System`
 /**
  * Send notification when broker approves COI
  */
-export async function notifySubCOIApproved(coi, subcontractor, project) {
+export async function notifySubCOIApproved(
+  coi: GeneratedCOI,
+  subcontractor: Subcontractor,
+  project: Project
+): Promise<void> {
   const baseUrl = getFrontendBaseUrl();
   const subDashboardLink = `${baseUrl}/subcontractor-dashboard?id=${subcontractor.id}`;
 

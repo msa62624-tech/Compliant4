@@ -1,5 +1,5 @@
 /**
- * policyTradeValidator.js
+ * policyTradeValidator.ts
  * 
  * Validates insurance policies against trade requirements
  * Checks for:
@@ -10,6 +10,84 @@
  */
 
 // ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+export type TradeType = 
+  | 'carpentry' | 'roofing' | 'electrical' | 'plumbing' | 'hvac'
+  | 'excavation' | 'crane_operator' | 'scaffold' | 'concrete' | 'steel';
+
+export type IssueSeverity = 'error' | 'warning' | 'high' | 'medium' | 'low';
+
+export interface TradeExclusion {
+  trade: string;
+  exclusion: string;
+  source: string;
+}
+
+export interface LimitedTrade {
+  trade: string;
+  classCode: number;
+  message: string;
+}
+
+export interface ValidationIssue {
+  type: 'error' | 'warning';
+  trade?: string;
+  message: string;
+  severity: IssueSeverity;
+  trades?: string[];
+}
+
+export interface ValidationResult {
+  compliant: boolean;
+  issues: ValidationIssue[];
+  excludedTrades: TradeExclusion[];
+  classifications: LimitedTrade[];
+  warnings: ValidationIssue[];
+  reviewNotes: string;
+}
+
+export interface COIPolicy {
+  gl_policy_notes?: string;
+  gl_exclusions?: string;
+  gl_class_codes?: number;
+  gl_premium_basis?: string;
+  gl_inherent_exclusions?: string;
+  auto_hired_coverage?: boolean;
+  auto_nonowned_coverage?: boolean;
+  gl_limits_per_occurrence?: number;
+  umbrella_limit?: number;
+  [key: string]: unknown;
+}
+
+export interface TradeRestriction {
+  type: 'error' | 'warning';
+  message: string;
+  trade: string;
+  recommendedLimit?: number;
+}
+
+export interface TradeComparison {
+  added: string[];
+  removed: string[];
+  unchanged: string[];
+  addedTradesValidation: Array<{ trade: string; validation: TradeRestriction[] }>;
+  reviewRequired: boolean;
+  summary: {
+    tradesAdded: number;
+    tradesRemoved: number;
+    tradesUnchanged: number;
+  };
+}
+
+export interface ClassificationValidation {
+  compliant: boolean;
+  limitedTrades: LimitedTrade[];
+  issues: ValidationIssue[];
+}
+
+// ============================================================================
 // TRADE EXCLUSION PATTERNS - Common phrases that indicate trade exclusions
 // ============================================================================
 
@@ -17,7 +95,7 @@
  * Patterns to detect trade exclusions in policy text
  * Used to match exclusion language in GL policy notes and exclusions
  */
-export const TRADE_EXCLUSION_PATTERNS = {
+export const TRADE_EXCLUSION_PATTERNS: Record<string, string[]> = {
     carpentry: [
       'no carpentry',
       'carpentry excluded',
@@ -83,7 +161,7 @@ export const TRADE_EXCLUSION_PATTERNS = {
  * NCCI classification codes mapped to construction trades
  * Reference: https://www.ncci.com/pages/classificationcodes.aspx
  */
-export const NCCI_CLASS_CODE_MAPPINGS = {
+export const NCCI_CLASS_CODE_MAPPINGS: Record<number, string[]> = {
   5402: ['carpentry'],
   5405: ['carpentry', 'framing'],
   5474: ['roofing', 'slate roofing'],
@@ -98,7 +176,7 @@ export const NCCI_CLASS_CODE_MAPPINGS = {
 /**
  * Minimum GL limits for high-risk trades (in dollars)
  */
-export const TRADE_MINIMUM_LIMITS = {
+export const TRADE_MINIMUM_LIMITS: Record<string, { gl_per_occurrence?: number; umbrella_required?: boolean; umbrella_minimum?: number }> = {
   excavation: {
     gl_per_occurrence: 2000000, // $2M
   },
@@ -117,16 +195,15 @@ export const TRADE_MINIMUM_LIMITS = {
 
 /**
  * Validates that a COI policy covers all required trades
- * 
- * @param {Object} coi - Certificate of Insurance
- * @param {Array<string>} requiredTrades - Trades that must be covered (e.g., ['carpentry', 'roofing'])
- * @returns {Object} { compliant, excludedTrades, classifications, warnings }
  */
-export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
-  const issues = [];
-  const excludedTrades = [];
-  const classifications = [];
-  const warnings = [];
+export function validatePolicyTradeCoverage(
+  coi: COIPolicy | null | undefined,
+  requiredTrades: string[] = []
+): ValidationResult {
+  const issues: ValidationIssue[] = [];
+  const excludedTrades: TradeExclusion[] = [];
+  const classifications: LimitedTrade[] = [];
+  const warnings: ValidationIssue[] = [];
 
   if (!coi || !requiredTrades || requiredTrades.length === 0) {
     return {
@@ -251,13 +328,12 @@ export function validatePolicyTradeCoverage(coi, requiredTrades = []) {
 /**
  * Checks for trade-specific policy restrictions
  * Validates minimum limits and coverage requirements for high-risk trades
- * 
- * @param {Object} coi - Certificate of Insurance
- * @param {string} trade - Trade type to validate
- * @returns {Array} Array of restriction objects with type, message, and recommended limits
  */
-export function validateTradeRestrictions(coi, trade) {
-  const restrictions = [];
+export function validateTradeRestrictions(
+  coi: COIPolicy | null | undefined,
+  trade: string
+): TradeRestriction[] {
+  const restrictions: TradeRestriction[] = [];
 
   if (!coi) return restrictions;
 
@@ -329,13 +405,12 @@ export function validateTradeRestrictions(coi, trade) {
 /**
  * Compares trades between different scenarios
  * Identifies added, removed, and unchanged trades, and validates newly added trades
- * 
- * @param {Array<string>} oldTrades - Previously assigned trades
- * @param {Array<string>} newTrades - Newly assigned trades
- * @param {Object} coi - Certificate of Insurance
- * @returns {Object} Comparison results with validation for added trades
  */
-export function compareTradesCoverage(oldTrades, newTrades, coi) {
+export function compareTradesCoverage(
+  oldTrades: string[],
+  newTrades: string[],
+  coi: COIPolicy
+): TradeComparison {
   const added = newTrades.filter(t => !oldTrades.includes(t));
   const removed = oldTrades.filter(t => !newTrades.includes(t));
   const unchanged = oldTrades.filter(t => newTrades.includes(t));
@@ -362,13 +437,12 @@ export function compareTradesCoverage(oldTrades, newTrades, coi) {
 /**
  * Generates detailed broker message about trade coverage issues
  * Creates a formatted message for brokers explaining validation issues
- * 
- * @param {Object} coi - Certificate of Insurance
- * @param {Array<string>} requiredTrades - Trades that need coverage
- * @param {Object} validation - Results from validatePolicyTradeCoverage
- * @returns {string} Formatted message for broker notification
  */
-export function generateBrokerTradeMessage(coi, requiredTrades, validation) {
+export function generateBrokerTradeMessage(
+  coi: COIPolicy,
+  requiredTrades: string[],
+  validation: ValidationResult
+): string {
   const { excludedTrades, warnings, issues } = validation;
 
   let message = 'Certificate of Insurance Review - Trade Coverage Issues\n\n';
@@ -416,15 +490,14 @@ export function generateBrokerTradeMessage(coi, requiredTrades, validation) {
 /**
  * Validates class codes against required trades
  * Uses NCCI classification code mappings to determine coverage
- * 
  * @private
- * @param {number} classCode - NCCI classification code
- * @param {Array<string>} requiredTrades - Trades that need coverage
- * @returns {Object} { compliant, limitedTrades, issues }
  */
-function validateClassifications(classCode, requiredTrades) {
-  const limitedTrades = [];
-  const issues = [];
+function validateClassifications(
+  classCode: number,
+  requiredTrades: string[]
+): ClassificationValidation {
+  const limitedTrades: LimitedTrade[] = [];
+  const issues: ValidationIssue[] = [];
 
   // Check each required trade
   for (const trade of requiredTrades) {
@@ -469,15 +542,14 @@ function validateClassifications(classCode, requiredTrades) {
 
 /**
  * Generates admin review notes from validation results
- * 
  * @private
- * @param {Array} issues - Validation issues found
- * @param {Array} warnings - Validation warnings
- * @param {Array} excludedTrades - Trades excluded by policy
- * @returns {string} Compiled review notes for admin
  */
-function compileReviewNotes(issues, warnings, excludedTrades) {
-  const notes = [];
+function compileReviewNotes(
+  issues: ValidationIssue[],
+  warnings: ValidationIssue[],
+  excludedTrades: TradeExclusion[]
+): string {
+  const notes: string[] = [];
 
   if (excludedTrades.length > 0) {
     notes.push(

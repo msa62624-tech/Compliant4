@@ -1,5 +1,5 @@
 import { getAuthHeader } from '@/auth';
-import { createEmailTemplate } from '@/emailTemplates.js';
+import { createEmailTemplate } from '@/emailTemplates';
 import { escapeHtml } from '@/utils/htmlEscaping';
 
 /**
@@ -18,10 +18,24 @@ const RFC_2606_RESERVED_DOMAINS = [
   '127.0.0.1'
 ];
 
+export interface EmailPayload {
+  to: string;
+  subject: string;
+  body?: string;
+  html?: string;
+  [key: string]: unknown;
+}
+
+export interface EmailResponse {
+  success: boolean;
+  skipped?: boolean;
+  reason?: string;
+}
+
 /**
  * Check if an email address uses a reserved/test domain
  */
-export const isReservedEmailDomain = (email) => {
+export const isReservedEmailDomain = (email: string): boolean => {
   if (!email || typeof email !== 'string') return false;
   const domain = email.split('@')[1]?.toLowerCase();
   if (!domain) return false;
@@ -31,7 +45,7 @@ export const isReservedEmailDomain = (email) => {
 /**
  * Check if we're in a development-like environment
  */
-const isDevEnvironment = () => {
+const isDevEnvironment = (): boolean => {
   return (
     (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') ||
     (typeof window !== 'undefined' && (
@@ -45,10 +59,10 @@ const isDevEnvironment = () => {
 /**
  * Direct email sending helper - uses backend API directly
  */
-export const sendEmail = async (payload) => {
+export const sendEmail = async (payload: EmailPayload): Promise<EmailResponse> => {
   const apiBase = import.meta.env.VITE_API_BASE_URL || window.location.origin.replace(':5173', ':3001').replace(':5175', ':3001');
 
-  const formatBodyAsHtml = (body, subject) => {
+  const formatBodyAsHtml = (body: string, subject: string): string => {
     const safeBody = escapeHtml(body || '').replace(/\r\n/g, '\n');
     const paragraphs = safeBody
       .split(/\n\s*\n/)
@@ -58,7 +72,7 @@ export const sendEmail = async (payload) => {
     return createEmailTemplate(subject || 'Notification', '', paragraphs);
   };
 
-  const finalPayload = { ...payload };
+  const finalPayload: EmailPayload = { ...payload };
   if (!finalPayload.html && finalPayload.body) {
     finalPayload.html = formatBodyAsHtml(finalPayload.body, finalPayload.subject);
   }
@@ -107,7 +121,8 @@ export const sendEmail = async (payload) => {
       throw new Error(`Public email fallback failed: ${fallback.status} ${fallbackErr}`);
     } catch (e) {
       const originalErr = await res.text().catch(() => '');
-      throw new Error(`Email send failed (auth) and public fallback failed. Original: ${res.status} ${originalErr}. Fallback error: ${e.message}`);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      throw new Error(`Email send failed (auth) and public fallback failed. Original: ${res.status} ${originalErr}. Fallback error: ${errorMessage}`);
     }
   } else {
     const error = await res.text().catch(() => '');

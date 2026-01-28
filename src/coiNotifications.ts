@@ -6,6 +6,7 @@ import { escapeHtml } from "@/utils/htmlEscaping";
 import { fetchAdminEmails } from "@/utils/adminEmails";
 import { prepareAttachments } from "@/utils/notificationUtils";
 import logger from './utils/logger';
+import type { GeneratedCOI, Subcontractor, Project, SampleCOIData, EmailAttachment } from '@/notification-types';
 
 /**
  * COI Upload & Approval Notification System
@@ -16,7 +17,10 @@ import logger from './utils/logger';
  * Generate sample COI data from program requirements
  * Shows brokers what the actual program requires
  */
-async function generateSampleCOIFromProgram(project, coi) {
+async function generateSampleCOIFromProgram(
+  project: Project,
+  coi: GeneratedCOI
+): Promise<SampleCOIData> {
   const sampleData = {
     subcontractor_name: coi?.subcontractor_name || 'Your Company',
     project_name: project?.project_name,
@@ -77,7 +81,11 @@ async function generateSampleCOIFromProgram(project, coi) {
  * Notify when subcontractor uploads a COI to the system
  * Triggers admin notification and creates approval task
  */
-export async function notifyAdminCOIUploaded(coi, subcontractor, project) {
+export async function notifyAdminCOIUploaded(
+  coi: GeneratedCOI,
+  subcontractor: Subcontractor,
+  project: Project
+): Promise<void> {
   if (!coi || !subcontractor || !project) return;
 
   const baseUrl = getFrontendBaseUrl();
@@ -155,7 +163,12 @@ InsureTrack System`,
 /**
  * Notify subcontractor when their COI is approved
  */
-export async function notifySubCOIApproved(coi, subcontractor, project, complianceDetails = null) {
+export async function notifySubCOIApproved(
+  coi: GeneratedCOI,
+  subcontractor: Subcontractor,
+  project: Project,
+  complianceDetails: unknown = null
+): Promise<void> {
   if (!coi || !subcontractor || !project) return;
 
   const baseUrl = getFrontendBaseUrl();
@@ -255,7 +268,11 @@ InsureTrack System`
 /**
  * Notify GC when COI is approved and ready
  */
-export async function notifyGCCOIApprovedReady(coi, subcontractor, project) {
+export async function notifyGCCOIApprovedReady(
+  coi: GeneratedCOI,
+  subcontractor: Subcontractor,
+  project: Project
+): Promise<void> {
   if (!coi || !subcontractor || !project) return;
 
   const baseUrl = getFrontendBaseUrl();
@@ -303,7 +320,12 @@ InsureTrack System`,
 /**
  * Notify when COI requires corrections/deficiencies
  */
-export async function notifyCOIDeficiencies(coi, subcontractor, project, deficiencies) {
+export async function notifyCOIDeficiencies(
+  coi: GeneratedCOI,
+  subcontractor: Subcontractor,
+  project: Project,
+  deficiencies: string[]
+): Promise<void> {
   if (!coi || !subcontractor || !deficiencies || deficiencies.length === 0) return;
 
   const baseUrl = getFrontendBaseUrl();
@@ -473,7 +495,11 @@ export async function notifyCOIDeficiencies(coi, subcontractor, project, deficie
 /**
  * Notify broker when COI is submitted for their review/signature
  */
-export async function notifyBrokerCOIReview(coi, subcontractor, project) {
+export async function notifyBrokerCOIReview(
+  coi: GeneratedCOI,
+  subcontractor: Subcontractor,
+  project: Project
+): Promise<void> {
   if (!coi || !subcontractor || !project) return;
 
   const baseUrl = getFrontendBaseUrl();

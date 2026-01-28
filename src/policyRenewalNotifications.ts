@@ -4,14 +4,17 @@ import { generateSecureToken } from "@/utils/tokenGenerator";
 import { sendEmailWithErrorHandling } from "@/utils/notificationUtils";
 import { createBrokerDashboardLink, createSubcontractorDashboardLink, createProjectDetailsLink } from "@/urlConfig";
 import { EMAIL_SIGNATURE, formatInsuranceType, createEmailGreeting } from "@/utils/emailTemplates";
-
-
+import type { Subcontractor, Policy, Project } from '@/notification-types';
 
 /**
  * Handle policy renewal workflow
  * When a policy is renewed/updated, trigger new COI generation and broker approval flow
  */
-export async function handlePolicyRenewal(subcontractor, oldPolicy, newPolicy) {
+export async function handlePolicyRenewal(
+  subcontractor: Subcontractor,
+  oldPolicy: Policy,
+  newPolicy: Policy
+): Promise<void> {
   try {
     // Get all projects this subcontractor is assigned to
     const projectSubs = await apiClient.entities.ProjectSubcontractor.filter({
@@ -81,7 +84,12 @@ async function generateRenewalCOI(subcontractor, renewedPolicy, project, project
 /**
  * Notify broker that a subcontractor's policy has been renewed
  */
-export async function notifyBrokerPolicyRenewal(subcontractor, oldPolicy, newPolicy, project) {
+export async function notifyBrokerPolicyRenewal(
+  subcontractor: Subcontractor,
+  oldPolicy: Policy,
+  newPolicy: Policy,
+  project: Project
+): Promise<void> {
   if (!subcontractor.broker_email) return;
 
   const brokerDashboardLink = createBrokerDashboardLink(subcontractor.broker_name, subcontractor.broker_email);

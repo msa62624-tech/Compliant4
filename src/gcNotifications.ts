@@ -3,11 +3,12 @@ import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl } from "@/urlConfig";
 import { sendEmailWithErrorHandling } from "@/utils/notificationUtils";
 import logger from './utils/logger';
+import type { GeneralContractor } from '@/notification-types';
 
 /**
  * Send welcome email when GC first joins the system
  */
-export async function sendGCWelcomeEmail(gc) {
+export async function sendGCWelcomeEmail(gc: GeneralContractor): Promise<boolean> {
   if (!gc.email) {
     logger.warn('No GC email provided for welcome notification', {});
     return false;
