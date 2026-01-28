@@ -29,23 +29,25 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
     },
   });
 
-  // Load existing brokers from subcontractor data on mount
+  // Load existing brokers from subcontractor data on mount or when subcontractor ID changes
   useEffect(() => {
     if (!subcontractor) return;
     
     // If using old global model, convert to new multi-broker model
     if (subcontractor.broker_email && !Array.isArray(subcontractor.brokers)) {
       // Legacy: single broker for all policies
-      setBrokers([{
+      const legacyBroker = {
         name: subcontractor.broker_name || "",
         email: subcontractor.broker_email || "",
         phone: subcontractor.broker_phone || "",
         company: subcontractor.broker_company || "",
         policies: { gl: true, auto: true, wc: true, umbrella: true },
-      }]);
+      };
+      setBrokers([legacyBroker]);
     } else if (Array.isArray(subcontractor.brokers)) {
-      // New multi-broker model
-      setBrokers(subcontractor.brokers);
+      // New multi-broker model - create a new array copy to ensure React detects changes
+      // even if the subcontractor object reference stays the same but brokers array is mutated
+      setBrokers([...subcontractor.brokers]);
     } else {
       setBrokers([]);
     }
