@@ -174,10 +174,15 @@ export default function MessagingCenter() {
       
       // Log structured failure information for monitoring
       if (failedEmails.length > 0) {
-        const failureDetails = failedEmails.map((result) => ({
-          recipient: selectedRecipients[results.indexOf(result)]?.email || 'unknown',
-          error: result.reason?.message || 'Unknown error'
-        }));
+        const failureDetails = results.reduce((acc, result, index) => {
+          if (result.status === 'rejected') {
+            acc.push({
+              recipient: selectedRecipients[index]?.email || 'unknown',
+              error: result.reason?.message || 'Unknown error'
+            });
+          }
+          return acc;
+        }, []);
         console.error(`Email delivery: ${successCount}/${results.length} successful`, failureDetails);
         
         // Notify user of partial failure
