@@ -2491,17 +2491,47 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
         doc.fontSize(6).text(coiRecord.broker_email, contactBoxX + 50, yPos + 32);
       }
 
-      // INSURER INFO BOX (Right side, bottom)
-      drawBox(contactBoxX, yPos + 42, contentWidth * 0.4 - 2, 38);
+      // INSURER INFO BOX (Right side, bottom) - DYNAMIC INSURER DISPLAY
+      // Display all insurers that were extracted, up to 6 (A-F)
+      const allInsurers = coiRecord.all_insurers || {};
+      const insurerEntries = Object.entries(allInsurers).sort((a, b) => a[0].localeCompare(b[0]));
+      const insurerBoxHeight = Math.max(48, 10 + (insurerEntries.length * 10));
+      
+      drawBox(contactBoxX, yPos + 42, contentWidth * 0.4 - 2, insurerBoxHeight);
       doc.fontSize(6).font('Helvetica-Bold').text('INSURER(S) AFFORDING COVERAGE', contactBoxX + 3, yPos + 44);
-      doc.fontSize(6).font('Helvetica').text('INSURER A:', contactBoxX + 3, yPos + 54);
-      doc.fontSize(6).text(coiRecord.insurance_carrier_gl || '', contactBoxX + 50, yPos + 54);
-      doc.fontSize(6).text('INSURER B:', contactBoxX + 3, yPos + 64);
-      doc.fontSize(6).text(coiRecord.insurance_carrier_umbrella || '', contactBoxX + 50, yPos + 64);
-      doc.fontSize(6).text('INSURER C:', contactBoxX + 3, yPos + 74);
-      doc.fontSize(6).text(coiRecord.insurance_carrier_wc || '', contactBoxX + 50, yPos + 74);
+      
+      let insurerYPos = yPos + 54;
+      for (const [letter, carrier] of insurerEntries) {
+        doc.fontSize(6).font('Helvetica').text(`INSURER ${letter}:`, contactBoxX + 3, insurerYPos);
+        doc.fontSize(6).text(carrier || '', contactBoxX + 50, insurerYPos, { width: contentWidth * 0.4 - 55 });
+        insurerYPos += 10;
+      }
+      
+      // If no insurers extracted, show the specific carriers we have
+      if (insurerEntries.length === 0) {
+        if (coiRecord.insurance_carrier_gl) {
+          doc.fontSize(6).font('Helvetica').text('INSURER A:', contactBoxX + 3, insurerYPos);
+          doc.fontSize(6).text(coiRecord.insurance_carrier_gl, contactBoxX + 50, insurerYPos);
+          insurerYPos += 10;
+        }
+        if (coiRecord.insurance_carrier_auto) {
+          doc.fontSize(6).font('Helvetica').text('INSURER B:', contactBoxX + 3, insurerYPos);
+          doc.fontSize(6).text(coiRecord.insurance_carrier_auto, contactBoxX + 50, insurerYPos);
+          insurerYPos += 10;
+        }
+        if (coiRecord.insurance_carrier_wc) {
+          doc.fontSize(6).font('Helvetica').text('INSURER C:', contactBoxX + 3, insurerYPos);
+          doc.fontSize(6).text(coiRecord.insurance_carrier_wc, contactBoxX + 50, insurerYPos);
+          insurerYPos += 10;
+        }
+        if (coiRecord.insurance_carrier_umbrella) {
+          doc.fontSize(6).font('Helvetica').text('INSURER D:', contactBoxX + 3, insurerYPos);
+          doc.fontSize(6).text(coiRecord.insurance_carrier_umbrella, contactBoxX + 50, insurerYPos);
+          insurerYPos += 10;
+        }
+      }
 
-      yPos += 82;
+      yPos += insurerBoxHeight + 10;
 
       // INSURED BOX
       drawBox(margin, yPos, contentWidth * 0.6, 45);
@@ -2549,7 +2579,9 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
         margin + 25,
         yPos + 20
       );
-      doc.fontSize(6).text('A', margin + 5, yPos + 3);
+      // Use dynamic insurer letter if available
+      const glInsurerLetter = coiRecord.gl_insurer_letter || 'A';
+      doc.fontSize(6).text(glInsurerLetter, margin + 5, yPos + 3);
       doc.fontSize(6).text(coiRecord.policy_number_gl || '(Policy #)', margin + 180, yPos + 8);
       doc.fontSize(6).text(coiRecord.gl_effective_date ? new Date(coiRecord.gl_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 8);
       doc.fontSize(6).text(coiRecord.gl_expiration_date ? new Date(coiRecord.gl_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 8);
@@ -2573,7 +2605,9 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
           yPos + 12
         );
         doc.fontSize(6).text('☐ HIRED  ☐ NON-OWNED', margin + 25, yPos + 20);
-        doc.fontSize(6).text('B', margin + 5, yPos + 3);
+        // Use dynamic insurer letter if available
+        const autoInsurerLetter = coiRecord.auto_insurer_letter || 'B';
+        doc.fontSize(6).text(autoInsurerLetter, margin + 5, yPos + 3);
         doc.fontSize(6).text(coiRecord.policy_number_auto || '(Policy #)', margin + 180, yPos + 12);
         doc.fontSize(6).text(coiRecord.auto_effective_date ? new Date(coiRecord.auto_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
         doc.fontSize(6).text(coiRecord.auto_expiration_date ? new Date(coiRecord.auto_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
@@ -2588,7 +2622,9 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
       doc.fontSize(6).font('Helvetica').text('AND EMPLOYERS\' LIABILITY', margin + 25, yPos + 11);
       const wcType = coiRecord.wc_form_type || 'STATUTORY LIMITS';
       doc.fontSize(6).text(wcType === 'STATUTORY LIMITS' ? '☒ STATUTORY LIMITS' : '☐ STATUTORY LIMITS', margin + 25, yPos + 20);
-      doc.fontSize(6).text('C', margin + 5, yPos + 3);
+      // Use dynamic insurer letter if available
+      const wcInsurerLetter = coiRecord.wc_insurer_letter || 'C';
+      doc.fontSize(6).text(wcInsurerLetter, margin + 5, yPos + 3);
       doc.fontSize(6).text(coiRecord.policy_number_wc || '(Policy #)', margin + 180, yPos + 12);
       doc.fontSize(6).text(coiRecord.wc_effective_date ? new Date(coiRecord.wc_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
       doc.fontSize(6).text(coiRecord.wc_expiration_date ? new Date(coiRecord.wc_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
@@ -2610,7 +2646,9 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
           yPos + 12
         );
         doc.fontSize(6).text('☒ FOLLOW FORM', margin + 25, yPos + 20);
-        doc.fontSize(6).text('D', margin + 5, yPos + 3);
+        // Use dynamic insurer letter if available
+        const umbrellaInsurerLetter = coiRecord.umbrella_insurer_letter || 'D';
+        doc.fontSize(6).text(umbrellaInsurerLetter, margin + 5, yPos + 3);
         doc.fontSize(6).text(coiRecord.policy_number_umbrella || '(Policy #)', margin + 180, yPos + 12);
         doc.fontSize(6).text(coiRecord.umbrella_effective_date ? new Date(coiRecord.umbrella_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
         doc.fontSize(6).text(coiRecord.umbrella_expiration_date ? new Date(coiRecord.umbrella_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
@@ -5916,36 +5954,152 @@ function extractFieldsWithRegex(text, schema) {
     console.log('✅ Umbrella Expiration Date:', allDates[1]);
   }
   
-  // AGGRESSIVE INSURER/CARRIER EXTRACTION
+  // DYNAMIC INSURER/CARRIER EXTRACTION - Extract all insurers A-F dynamically
+  // Step 1: Extract all insurers into a map from "INSURER(S) AFFORDING COVERAGE" section
+  const insurerMap = {};
+  const insurerMatches = text.matchAll(/INSURER\s+([A-F])[:\s]+([A-Za-z0-9\s&.,'-]{5,80})/gi);
+  for (const match of insurerMatches) {
+    const letter = match[1].toUpperCase();
+    const carrier = match[2].trim();
+    if (carrier && !insurerMap[letter]) {
+      insurerMap[letter] = carrier;
+      console.log(`✅ Found INSURER ${letter}: ${carrier}`);
+    }
+  }
+  
+  // Step 2: Find which insurer letter corresponds to each coverage type
+  // by looking for the "INSR LTR" value in each coverage section
+  
+  // Helper function to find insurer letter for a coverage type
+  const findInsurerLetterForCoverage = (coverageKeywords) => {
+    for (const keyword of coverageKeywords) {
+      // Look for coverage type followed by insurer letter nearby
+      // Pattern: COVERAGE_TYPE ... (up to 500 chars) ... single letter A-F
+      const coverageRegex = new RegExp(
+        keyword + '[\\s\\S]{0,500}?(?:INSR\\s+LTR[\\s\\n:]+)?\\b([A-F])\\b',
+        'i'
+      );
+      const match = text.match(coverageRegex);
+      if (match && match[1]) {
+        const letter = match[1].toUpperCase();
+        if (insurerMap[letter]) {
+          return { letter, carrier: insurerMap[letter] };
+        }
+      }
+    }
+    return null;
+  };
+  
+  // Extract GL carrier by finding which letter is associated with GL coverage
   if ('insurance_carrier_gl' in schema && !extracted.insurance_carrier_gl) {
-    const carrierMatch = text.match(/INSURER\s+A[:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
-    if (carrierMatch && carrierMatch[1]) {
-      extracted.insurance_carrier_gl = carrierMatch[1].trim();
-      console.log('✅ GL Carrier:', extracted.insurance_carrier_gl);
+    const glInsurer = findInsurerLetterForCoverage([
+      'COMMERCIAL\\s+GENERAL\\s+LIABILITY',
+      'GENERAL\\s+LIABILITY',
+      'CGL'
+    ]);
+    if (glInsurer) {
+      extracted.insurance_carrier_gl = glInsurer.carrier;
+      extracted.gl_insurer_letter = glInsurer.letter; // Store letter for PDF generation
+      console.log(`✅ GL Carrier: ${glInsurer.carrier} (INSURER ${glInsurer.letter})`);
     }
   }
   
-  if ('insurance_carrier_wc' in schema && !extracted.insurance_carrier_wc) {
-    const carrierMatch = text.match(/INSURER\s+[BC][:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
-    if (carrierMatch && carrierMatch[1]) {
-      extracted.insurance_carrier_wc = carrierMatch[1].trim();
-      console.log('✅ WC Carrier:', extracted.insurance_carrier_wc);
-    }
-  }
-  
-  if ('insurance_carrier_umbrella' in schema && !extracted.insurance_carrier_umbrella) {
-    const carrierMatch = text.match(/INSURER\s+[BCD][:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
-    if (carrierMatch && carrierMatch[1]) {
-      extracted.insurance_carrier_umbrella = carrierMatch[1].trim();
-      console.log('✅ Umbrella Carrier:', extracted.insurance_carrier_umbrella);
-    }
-  }
-  
+  // Extract Auto carrier
   if ('insurance_carrier_auto' in schema && !extracted.insurance_carrier_auto) {
-    const carrierMatch = text.match(/INSURER\s+[ABCD][:\s]+([A-Za-z0-9\s&.,'-]{5,80})/i);
-    if (carrierMatch && carrierMatch[1]) {
-      extracted.insurance_carrier_auto = carrierMatch[1].trim();
-      console.log('✅ Auto Carrier:', extracted.insurance_carrier_auto);
+    const autoInsurer = findInsurerLetterForCoverage([
+      'AUTOMOBILE\\s+LIABILITY',
+      'AUTO\\s+LIABILITY',
+      'BUSINESS\\s+AUTO'
+    ]);
+    if (autoInsurer) {
+      extracted.insurance_carrier_auto = autoInsurer.carrier;
+      extracted.auto_insurer_letter = autoInsurer.letter;
+      console.log(`✅ Auto Carrier: ${autoInsurer.carrier} (INSURER ${autoInsurer.letter})`);
+    }
+  }
+  
+  // Extract WC carrier
+  if ('insurance_carrier_wc' in schema && !extracted.insurance_carrier_wc) {
+    const wcInsurer = findInsurerLetterForCoverage([
+      'WORKERS\\s+COMPENSATION',
+      'WORKERS\\s+COMP',
+      'WC'
+    ]);
+    if (wcInsurer) {
+      extracted.insurance_carrier_wc = wcInsurer.carrier;
+      extracted.wc_insurer_letter = wcInsurer.letter;
+      console.log(`✅ WC Carrier: ${wcInsurer.carrier} (INSURER ${wcInsurer.letter})`);
+    }
+  }
+  
+  // Extract Umbrella carrier
+  if ('insurance_carrier_umbrella' in schema && !extracted.insurance_carrier_umbrella) {
+    const umbrellaInsurer = findInsurerLetterForCoverage([
+      'UMBRELLA\\s+LIAB',
+      'UMBRELLA\\s+LIABILITY',
+      'EXCESS\\s+LIAB'
+    ]);
+    if (umbrellaInsurer) {
+      extracted.insurance_carrier_umbrella = umbrellaInsurer.carrier;
+      extracted.umbrella_insurer_letter = umbrellaInsurer.letter;
+      console.log(`✅ Umbrella Carrier: ${umbrellaInsurer.carrier} (INSURER ${umbrellaInsurer.letter})`);
+    }
+  }
+  
+  // Store all insurers map for reference (useful for regeneration)
+  if (Object.keys(insurerMap).length > 0) {
+    extracted.all_insurers = insurerMap;
+    console.log('✅ All insurers extracted:', insurerMap);
+  }
+
+  // PRODUCER/BROKER SECTION EXTRACTION
+  if ('broker_name' in schema && !extracted.broker_name) {
+    const producerBlock = getBlockAfterLabel('PRODUCER', ['CONTACT', 'INSURED', 'INSURER']);
+    if (producerBlock) {
+      const lines = producerBlock.split(/\n/).map(l => l.trim()).filter(Boolean);
+      // First line after PRODUCER is typically the broker name
+      if (lines[0] && !lines[0].match(/^(NAME|PHONE|E-MAIL|FAX)/i)) {
+        extracted.broker_name = lines[0];
+        console.log('✅ Broker Name (from PRODUCER):', extracted.broker_name);
+        
+        // Extract address from remaining lines (skip contact info lines)
+        const addressLines = lines.slice(1).filter(line => 
+          !line.match(/^(NAME|PHONE|E-MAIL|FAX|CONTACT)[:]/i) &&
+          line.length > 3
+        );
+        if (addressLines.length > 0 && 'broker_address' in schema && !extracted.broker_address) {
+          extracted.broker_address = addressLines.join(', ');
+          console.log('✅ Broker Address (from PRODUCER):', extracted.broker_address);
+        }
+      }
+    }
+  }
+  
+  // CONTACT SECTION EXTRACTION (for broker contact name)
+  if ('broker_contact' in schema && !extracted.broker_contact) {
+    // Look for "CONTACT" section with NAME field
+    const contactMatch = text.match(/CONTACT[\s\n]+NAME[\s:]+([A-Za-z\s.'-]{3,50})/i);
+    if (contactMatch && contactMatch[1]) {
+      extracted.broker_contact = contactMatch[1].trim();
+      console.log('✅ Broker Contact Name:', extracted.broker_contact);
+    }
+  }
+  
+  // Extract broker phone if not already found
+  if ('broker_phone' in schema && !extracted.broker_phone) {
+    const phoneMatch = text.match(/(?:PRODUCER|CONTACT)[\s\S]{0,200}?PHONE[\s:]+(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/i);
+    if (phoneMatch && phoneMatch[1]) {
+      extracted.broker_phone = phoneMatch[1].trim();
+      console.log('✅ Broker Phone (from PRODUCER/CONTACT):', extracted.broker_phone);
+    }
+  }
+  
+  // Extract broker email if not already found
+  if ('broker_email' in schema && !extracted.broker_email) {
+    const emailMatch = text.match(/(?:PRODUCER|CONTACT)[\s\S]{0,200}?E-MAIL[\s:]+([^\s\n]+@[^\s\n]+)/i);
+    if (emailMatch && emailMatch[1]) {
+      extracted.broker_email = emailMatch[1].trim();
+      console.log('✅ Broker Email (from PRODUCER/CONTACT):', extracted.broker_email);
     }
   }
 
