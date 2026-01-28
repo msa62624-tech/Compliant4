@@ -2230,6 +2230,7 @@ async function generateSampleCOIPDF(data = {}) {
       // ACORD 25 FORM HEADER
       doc.fontSize(7).font('Helvetica').text('ACORD', margin, margin);
       doc.fontSize(6).text('CERTIFICATE OF LIABILITY INSURANCE', margin, margin + 8);
+      doc.fontSize(5).text('ACORD 25 (2016/03)', margin, margin + 14);
       doc.fontSize(6).text('DATE (MM/DD/YYYY)', pageWidth - margin - 100, margin);
       doc.fontSize(8).text(new Date().toLocaleDateString('en-US'), pageWidth - margin - 100, margin + 10);
 
@@ -2251,13 +2252,14 @@ async function generateSampleCOIPDF(data = {}) {
       doc.fontSize(6).text('E-MAIL:', contactBoxX + 3, yPos + 32);
 
       // INSURER INFO BOX (Right side, bottom)
-      drawBox(contactBoxX, yPos + 42, contentWidth * 0.4 - 2, 38);
+      drawBox(contactBoxX, yPos + 42, contentWidth * 0.4 - 2, 48);
       doc.fontSize(6).font('Helvetica-Bold').text('INSURER(S) AFFORDING COVERAGE', contactBoxX + 3, yPos + 44);
-      doc.fontSize(6).font('Helvetica').text('INSURER A:', contactBoxX + 3, yPos + 54);
-      doc.fontSize(6).text('INSURER B:', contactBoxX + 3, yPos + 64);
-      doc.fontSize(6).text('INSURER C:', contactBoxX + 3, yPos + 74);
+      doc.fontSize(6).font('Helvetica-Bold').text('NAIC #', contactBoxX + 3, yPos + 52);
+      doc.fontSize(6).font('Helvetica').text('INSURER A:', contactBoxX + 3, yPos + 62);
+      doc.fontSize(6).text('INSURER B:', contactBoxX + 3, yPos + 72);
+      doc.fontSize(6).text('INSURER C:', contactBoxX + 3, yPos + 82);
 
-      yPos += 82;
+      yPos += 92;
 
       // INSURED BOX
       drawBox(margin, yPos, contentWidth * 0.6, 45);
@@ -2273,95 +2275,114 @@ async function generateSampleCOIPDF(data = {}) {
 
       yPos += 30;
 
-      // Coverage Table Header
+      // DISCLAIMER TEXT
+      doc.fontSize(5).font('Helvetica').text(
+        'NOTWITHSTANDING ANY REQUIREMENT, TERM OR CONDITION OF ANY CONTRACT OR OTHER DOCUMENT WITH RESPECT TO WHICH THIS CERTIFICATE MAY BE ISSUED OR MAY PERTAIN, THE INSURANCE AFFORDED BY THE POLICIES DESCRIBED HEREIN IS SUBJECT TO ALL THE TERMS, EXCLUSIONS AND CONDITIONS OF SUCH POLICIES. LIMITS SHOWN MAY HAVE BEEN REDUCED BY PAID CLAIMS.',
+        margin,
+        yPos,
+        { width: contentWidth, align: 'justify' }
+      );
+
+      yPos += 18;
+
+      // Coverage Table Header with new columns
       drawBox(margin, yPos, contentWidth, 20);
       doc.fontSize(6).font('Helvetica-Bold');
-      doc.text('TYPE OF INSURANCE', margin + 3, yPos + 3);
-      doc.text('INSR', margin + 3, yPos + 12);
-      doc.text('LTR', margin + 3, yPos + 12);
-      doc.text('POLICY NUMBER', margin + 180, yPos + 8);
-      doc.text('POLICY EFF', margin + 300, yPos + 3);
-      doc.text('(MM/DD/YYYY)', margin + 300, yPos + 11);
-      doc.text('POLICY EXP', margin + 380, yPos + 3);
-      doc.text('(MM/DD/YYYY)', margin + 380, yPos + 11);
-      doc.text('LIMITS', margin + 460, yPos + 8);
+      doc.text('TYPE OF INSURANCE', margin + 3, yPos + 8);
+      doc.text('INSR LTR', margin + 115, yPos + 8);
+      doc.text('ADDL INSD', margin + 145, yPos + 5);
+      doc.text('SUBR WVD', margin + 175, yPos + 5);
+      doc.text('POLICY NUMBER', margin + 210, yPos + 8);
+      doc.text('POLICY EFF', margin + 310, yPos + 3);
+      doc.text('(MM/DD/YYYY)', margin + 310, yPos + 11);
+      doc.text('POLICY EXP', margin + 390, yPos + 3);
+      doc.text('(MM/DD/YYYY)', margin + 390, yPos + 11);
+      doc.text('LIMITS', margin + 470, yPos + 8);
 
       yPos += 22;
 
       // GENERAL LIABILITY ROW
       drawBox(margin, yPos, contentWidth, 60);
-      doc.fontSize(7).font('Helvetica-Bold').text('COMMERCIAL GENERAL LIABILITY', margin + 25, yPos + 3);
-      doc.fontSize(6).font('Helvetica').text('☐ CLAIMS-MADE  ☒ OCCUR', margin + 25, yPos + 12);
-      doc.fontSize(6).text('☐ PER PROJECT  ☒ PER OCCURRENCE', margin + 25, yPos + 20);
-      doc.fontSize(6).text('A', margin + 5, yPos + 3);
-      doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 8);
-      doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 8);
-      doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 8);
+      doc.fontSize(7).font('Helvetica-Bold').text('COMMERCIAL GENERAL LIABILITY', margin + 3, yPos + 3);
+      doc.fontSize(6).font('Helvetica').text('☐ CLAIMS-MADE  ☒ OCCUR', margin + 3, yPos + 12);
+      doc.fontSize(6).text('☐ PER PROJECT  ☒ PER OCCURRENCE', margin + 3, yPos + 20);
+      doc.fontSize(6).text('A', margin + 122, yPos + 8);
+      doc.fontSize(6).text('☐', margin + 151, yPos + 8);
+      doc.fontSize(6).text('☐', margin + 181, yPos + 8);
+      doc.fontSize(6).text('(Policy #)', margin + 210, yPos + 8);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 310, yPos + 8);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 390, yPos + 8);
       
       // GL Limits
-      doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 460, yPos + 3);
+      doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 470, yPos + 3);
       const glLimit = tierReqByType['general_liability']?.gl_each_occurrence || 
         getFieldValue('gl_each_occurrence') || 1000000;
-      doc.text(`$ ${glLimit.toLocaleString()}`, margin + 460, yPos + 10);
-      doc.text('GENERAL AGGREGATE', margin + 460, yPos + 22);
+      doc.text(`$ ${glLimit.toLocaleString()}`, margin + 470, yPos + 10);
+      doc.text('GENERAL AGGREGATE', margin + 470, yPos + 22);
       const glAgg = tierReqByType['general_liability']?.gl_general_aggregate || 
         getFieldValue('gl_general_aggregate') || 2000000;
-      doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 29);
-      doc.text('PRODUCTS - COMP/OP AGG', margin + 460, yPos + 41);
-      doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 48);
+      doc.text(`$ ${glAgg.toLocaleString()}`, margin + 470, yPos + 29);
+      doc.text('PRODUCTS - COMP/OP AGG', margin + 470, yPos + 41);
+      doc.text(`$ ${glAgg.toLocaleString()}`, margin + 470, yPos + 48);
 
       yPos += 62;
 
       // AUTOMOBILE LIABILITY ROW
       drawBox(margin, yPos, contentWidth, 35);
-      doc.fontSize(7).font('Helvetica-Bold').text('AUTOMOBILE LIABILITY', margin + 25, yPos + 3);
-      doc.fontSize(6).font('Helvetica').text('☐ ANY AUTO  ☐ OWNED  ☐ SCHEDULED', margin + 25, yPos + 12);
-      doc.fontSize(6).text('☐ HIRED  ☐ NON-OWNED', margin + 25, yPos + 20);
-      doc.fontSize(6).text('B', margin + 5, yPos + 3);
-      doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
-      doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
-      doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
-      doc.text('COMBINED SINGLE LIMIT', margin + 460, yPos + 8);
+      doc.fontSize(7).font('Helvetica-Bold').text('AUTOMOBILE LIABILITY', margin + 3, yPos + 3);
+      doc.fontSize(6).font('Helvetica').text('☐ ANY AUTO  ☐ OWNED  ☐ SCHEDULED', margin + 3, yPos + 12);
+      doc.fontSize(6).text('☐ HIRED  ☐ NON-OWNED', margin + 3, yPos + 20);
+      doc.fontSize(6).text('B', margin + 122, yPos + 12);
+      doc.fontSize(6).text('☐', margin + 151, yPos + 12);
+      doc.fontSize(6).text('☐', margin + 181, yPos + 12);
+      doc.fontSize(6).text('(Policy #)', margin + 210, yPos + 12);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 310, yPos + 12);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 390, yPos + 12);
+      doc.text('COMBINED SINGLE LIMIT', margin + 470, yPos + 8);
       const autoLimit = tierReqByType['auto_liability']?.auto_combined_single_limit || 
         getFieldValue('auto_combined_single_limit') || 1000000;
-      doc.text(`$ ${autoLimit.toLocaleString()}`, margin + 460, yPos + 15);
+      doc.text(`$ ${autoLimit.toLocaleString()}`, margin + 470, yPos + 15);
 
       yPos += 37;
 
       // WORKERS COMPENSATION ROW
       drawBox(margin, yPos, contentWidth, 35);
-      doc.fontSize(7).font('Helvetica-Bold').text('WORKERS COMPENSATION', margin + 25, yPos + 3);
-      doc.fontSize(6).font('Helvetica').text('AND EMPLOYERS\' LIABILITY', margin + 25, yPos + 11);
-      doc.fontSize(6).text('☒ STATUTORY LIMITS', margin + 25, yPos + 20);
-      doc.fontSize(6).text('C', margin + 5, yPos + 3);
-      doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
-      doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
-      doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
-      doc.text('E.L. EACH ACCIDENT', margin + 460, yPos + 3);
+      doc.fontSize(7).font('Helvetica-Bold').text('WORKERS COMPENSATION', margin + 3, yPos + 3);
+      doc.fontSize(6).font('Helvetica').text('AND EMPLOYERS\' LIABILITY', margin + 3, yPos + 11);
+      doc.fontSize(6).text('☒ STATUTORY LIMITS', margin + 3, yPos + 20);
+      doc.fontSize(6).text('C', margin + 122, yPos + 12);
+      doc.fontSize(6).text('☐', margin + 151, yPos + 12);
+      doc.fontSize(6).text('☐', margin + 181, yPos + 12);
+      doc.fontSize(6).text('(Policy #)', margin + 210, yPos + 12);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 310, yPos + 12);
+      doc.fontSize(6).text('MM/DD/YYYY', margin + 390, yPos + 12);
+      doc.text('E.L. EACH ACCIDENT', margin + 470, yPos + 3);
       const wcLimit = tierReqByType['workers_compensation']?.wc_each_accident || 
         getFieldValue('wc_each_accident') || 1000000;
-      doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 10);
-      doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 460, yPos + 18);
-      doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 25);
+      doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 470, yPos + 10);
+      doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 470, yPos + 18);
+      doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 470, yPos + 25);
 
       yPos += 37;
 
       // UMBRELLA ROW (if required)
       if (hasUmbrellaRequirement) {
         drawBox(margin, yPos, contentWidth, 35);
-        doc.fontSize(7).font('Helvetica-Bold').text('UMBRELLA LIAB', margin + 25, yPos + 3);
-        doc.fontSize(6).font('Helvetica').text('☐ OCCUR  ☐ CLAIMS-MADE', margin + 25, yPos + 12);
-        doc.fontSize(6).text('☒ FOLLOW FORM', margin + 25, yPos + 20);
-        doc.fontSize(6).text('D', margin + 5, yPos + 3);
-        doc.fontSize(6).text('(Policy #)', margin + 180, yPos + 12);
-        doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
-        doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
-        doc.text('EACH OCCURRENCE', margin + 460, yPos + 8);
+        doc.fontSize(7).font('Helvetica-Bold').text('UMBRELLA LIAB', margin + 3, yPos + 3);
+        doc.fontSize(6).font('Helvetica').text('☐ OCCUR  ☐ CLAIMS-MADE', margin + 3, yPos + 12);
+        doc.fontSize(6).text('☒ FOLLOW FORM', margin + 3, yPos + 20);
+        doc.fontSize(6).text('D', margin + 122, yPos + 12);
+        doc.fontSize(6).text('☐', margin + 151, yPos + 12);
+        doc.fontSize(6).text('☐', margin + 181, yPos + 12);
+        doc.fontSize(6).text('(Policy #)', margin + 210, yPos + 12);
+        doc.fontSize(6).text('MM/DD/YYYY', margin + 310, yPos + 12);
+        doc.fontSize(6).text('MM/DD/YYYY', margin + 390, yPos + 12);
+        doc.text('EACH OCCURRENCE', margin + 470, yPos + 8);
         const umbLimit = tierReqByType['umbrella_policy']?.umbrella_each_occurrence || 
           getFieldValue('umbrella_each_occurrence') || 2000000;
-        doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 15);
-        doc.text('AGGREGATE', margin + 460, yPos + 23);
-        doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 30);
+        doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 470, yPos + 15);
+        doc.text('AGGREGATE', margin + 470, yPos + 23);
+        doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 470, yPos + 30);
         yPos += 37;
       }
 
@@ -2461,6 +2482,7 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
       // ACORD 25 FORM HEADER
       doc.fontSize(7).font('Helvetica').text('ACORD', margin, margin);
       doc.fontSize(6).text('CERTIFICATE OF LIABILITY INSURANCE', margin, margin + 8);
+      doc.fontSize(5).text('ACORD 25 (2016/03)', margin, margin + 14);
       doc.fontSize(6).text('DATE (MM/DD/YYYY)', pageWidth - margin - 100, margin);
       doc.fontSize(8).text(new Date().toLocaleDateString('en-US'), pageWidth - margin - 100, margin + 10);
 
@@ -2495,12 +2517,13 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
       // Display all insurers that were extracted, up to 6 (A-F)
       const allInsurers = coiRecord.all_insurers || {};
       const insurerEntries = Object.entries(allInsurers).sort((a, b) => a[0].localeCompare(b[0]));
-      const insurerBoxHeight = Math.max(48, 10 + (insurerEntries.length * 10));
+      const insurerBoxHeight = Math.max(58, 10 + (insurerEntries.length * 10));
       
       drawBox(contactBoxX, yPos + 42, contentWidth * 0.4 - 2, insurerBoxHeight);
       doc.fontSize(6).font('Helvetica-Bold').text('INSURER(S) AFFORDING COVERAGE', contactBoxX + 3, yPos + 44);
+      doc.fontSize(6).font('Helvetica-Bold').text('NAIC #', contactBoxX + 3, yPos + 52);
       
-      let insurerYPos = yPos + 54;
+      let insurerYPos = yPos + 62;
       for (const [letter, carrier] of insurerEntries) {
         doc.fontSize(6).font('Helvetica').text(`INSURER ${letter}:`, contactBoxX + 3, insurerYPos);
         doc.fontSize(6).text(carrier || '', contactBoxX + 50, insurerYPos, { width: contentWidth * 0.4 - 55 });
@@ -2549,113 +2572,132 @@ async function generateGeneratedCOIPDF(coiRecord = {}) {
 
       yPos += 30;
 
-      // Coverage Table Header
+      // DISCLAIMER TEXT
+      doc.fontSize(5).font('Helvetica').text(
+        'NOTWITHSTANDING ANY REQUIREMENT, TERM OR CONDITION OF ANY CONTRACT OR OTHER DOCUMENT WITH RESPECT TO WHICH THIS CERTIFICATE MAY BE ISSUED OR MAY PERTAIN, THE INSURANCE AFFORDED BY THE POLICIES DESCRIBED HEREIN IS SUBJECT TO ALL THE TERMS, EXCLUSIONS AND CONDITIONS OF SUCH POLICIES. LIMITS SHOWN MAY HAVE BEEN REDUCED BY PAID CLAIMS.',
+        margin,
+        yPos,
+        { width: contentWidth, align: 'justify' }
+      );
+
+      yPos += 18;
+
+      // Coverage Table Header with new columns
       drawBox(margin, yPos, contentWidth, 20);
       doc.fontSize(6).font('Helvetica-Bold');
-      doc.text('TYPE OF INSURANCE', margin + 3, yPos + 3);
-      doc.text('INSR', margin + 3, yPos + 12);
-      doc.text('LTR', margin + 3, yPos + 12);
-      doc.text('POLICY NUMBER', margin + 180, yPos + 8);
-      doc.text('POLICY EFF', margin + 300, yPos + 3);
-      doc.text('(MM/DD/YYYY)', margin + 300, yPos + 11);
-      doc.text('POLICY EXP', margin + 380, yPos + 3);
-      doc.text('(MM/DD/YYYY)', margin + 380, yPos + 11);
-      doc.text('LIMITS', margin + 460, yPos + 8);
+      doc.text('TYPE OF INSURANCE', margin + 3, yPos + 8);
+      doc.text('INSR LTR', margin + 115, yPos + 8);
+      doc.text('ADDL INSD', margin + 145, yPos + 5);
+      doc.text('SUBR WVD', margin + 175, yPos + 5);
+      doc.text('POLICY NUMBER', margin + 210, yPos + 8);
+      doc.text('POLICY EFF', margin + 310, yPos + 3);
+      doc.text('(MM/DD/YYYY)', margin + 310, yPos + 11);
+      doc.text('POLICY EXP', margin + 390, yPos + 3);
+      doc.text('(MM/DD/YYYY)', margin + 390, yPos + 11);
+      doc.text('LIMITS', margin + 470, yPos + 8);
 
       yPos += 22;
 
       // GENERAL LIABILITY ROW
       drawBox(margin, yPos, contentWidth, 60);
-      doc.fontSize(7).font('Helvetica-Bold').text('COMMERCIAL GENERAL LIABILITY', margin + 25, yPos + 3);
+      doc.fontSize(7).font('Helvetica-Bold').text('COMMERCIAL GENERAL LIABILITY', margin + 3, yPos + 3);
       const glFormType = coiRecord.gl_form_type || 'OCCUR';
       const glBasis = coiRecord.gl_basis || 'PER OCCURRENCE';
       doc.fontSize(6).font('Helvetica').text(
         glFormType === 'CLAIMS-MADE' ? '☒ CLAIMS-MADE  ☐ OCCUR' : '☐ CLAIMS-MADE  ☒ OCCUR',
-        margin + 25,
+        margin + 3,
         yPos + 12
       );
       doc.fontSize(6).text(
         glBasis === 'PER PROJECT' ? '☒ PER PROJECT  ☐ PER OCCURRENCE' : '☐ PER PROJECT  ☒ PER OCCURRENCE',
-        margin + 25,
+        margin + 3,
         yPos + 20
       );
       // Use dynamic insurer letter if available
       const glInsurerLetter = coiRecord.gl_insurer_letter || 'A';
-      doc.fontSize(6).text(glInsurerLetter, margin + 5, yPos + 3);
-      doc.fontSize(6).text(coiRecord.policy_number_gl || '(Policy #)', margin + 180, yPos + 8);
-      doc.fontSize(6).text(coiRecord.gl_effective_date ? new Date(coiRecord.gl_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 8);
-      doc.fontSize(6).text(coiRecord.gl_expiration_date ? new Date(coiRecord.gl_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 8);
-      doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 460, yPos + 3);
-      doc.text(`$ ${(coiRecord.gl_each_occurrence || 1000000).toLocaleString()}`, margin + 460, yPos + 10);
-      doc.text('GENERAL AGGREGATE', margin + 460, yPos + 22);
-      doc.text(`$ ${(coiRecord.gl_general_aggregate || 2000000).toLocaleString()}`, margin + 460, yPos + 29);
-      doc.text('PRODUCTS - COMP/OP AGG', margin + 460, yPos + 41);
-      doc.text(`$ ${(coiRecord.gl_products_completed_ops || 2000000).toLocaleString()}`, margin + 460, yPos + 48);
+      doc.fontSize(6).text(glInsurerLetter, margin + 122, yPos + 8);
+      doc.fontSize(6).text('☐', margin + 151, yPos + 8);
+      doc.fontSize(6).text('☐', margin + 181, yPos + 8);
+      doc.fontSize(6).text(coiRecord.policy_number_gl || '(Policy #)', margin + 210, yPos + 8);
+      doc.fontSize(6).text(coiRecord.gl_effective_date ? new Date(coiRecord.gl_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 310, yPos + 8);
+      doc.fontSize(6).text(coiRecord.gl_expiration_date ? new Date(coiRecord.gl_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 390, yPos + 8);
+      doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 470, yPos + 3);
+      doc.text(`$ ${(coiRecord.gl_each_occurrence || 1000000).toLocaleString()}`, margin + 470, yPos + 10);
+      doc.text('GENERAL AGGREGATE', margin + 470, yPos + 22);
+      doc.text(`$ ${(coiRecord.gl_general_aggregate || 2000000).toLocaleString()}`, margin + 470, yPos + 29);
+      doc.text('PRODUCTS - COMP/OP AGG', margin + 470, yPos + 41);
+      doc.text(`$ ${(coiRecord.gl_products_completed_ops || 2000000).toLocaleString()}`, margin + 470, yPos + 48);
 
       yPos += 62;
 
       // AUTOMOBILE LIABILITY ROW
       if (coiRecord.policy_number_auto || coiRecord.insurance_carrier_auto) {
         drawBox(margin, yPos, contentWidth, 35);
-        doc.fontSize(7).font('Helvetica-Bold').text('AUTOMOBILE LIABILITY', margin + 25, yPos + 3);
+        doc.fontSize(7).font('Helvetica-Bold').text('AUTOMOBILE LIABILITY', margin + 3, yPos + 3);
         const autoFormType = coiRecord.auto_form_type || 'ANY AUTO';
         doc.fontSize(6).font('Helvetica').text(
           autoFormType === 'ANY AUTO' ? '☒ ANY AUTO  ☐ OWNED  ☐ SCHEDULED' : '☐ ANY AUTO  ☐ OWNED  ☐ SCHEDULED',
-          margin + 25,
+          margin + 3,
           yPos + 12
         );
-        doc.fontSize(6).text('☐ HIRED  ☐ NON-OWNED', margin + 25, yPos + 20);
+        doc.fontSize(6).text('☐ HIRED  ☐ NON-OWNED', margin + 3, yPos + 20);
         // Use dynamic insurer letter if available
         const autoInsurerLetter = coiRecord.auto_insurer_letter || 'B';
-        doc.fontSize(6).text(autoInsurerLetter, margin + 5, yPos + 3);
-        doc.fontSize(6).text(coiRecord.policy_number_auto || '(Policy #)', margin + 180, yPos + 12);
-        doc.fontSize(6).text(coiRecord.auto_effective_date ? new Date(coiRecord.auto_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
-        doc.fontSize(6).text(coiRecord.auto_expiration_date ? new Date(coiRecord.auto_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
-        doc.text('COMBINED SINGLE LIMIT', margin + 460, yPos + 8);
-        doc.text(`$ ${(coiRecord.auto_combined_single_limit || 1000000).toLocaleString()}`, margin + 460, yPos + 15);
+        doc.fontSize(6).text(autoInsurerLetter, margin + 122, yPos + 12);
+        doc.fontSize(6).text('☐', margin + 151, yPos + 12);
+        doc.fontSize(6).text('☐', margin + 181, yPos + 12);
+        doc.fontSize(6).text(coiRecord.policy_number_auto || '(Policy #)', margin + 210, yPos + 12);
+        doc.fontSize(6).text(coiRecord.auto_effective_date ? new Date(coiRecord.auto_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 310, yPos + 12);
+        doc.fontSize(6).text(coiRecord.auto_expiration_date ? new Date(coiRecord.auto_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 390, yPos + 12);
+        doc.text('COMBINED SINGLE LIMIT', margin + 470, yPos + 8);
+        doc.text(`$ ${(coiRecord.auto_combined_single_limit || 1000000).toLocaleString()}`, margin + 470, yPos + 15);
         yPos += 37;
       }
 
       // WORKERS COMPENSATION ROW
       drawBox(margin, yPos, contentWidth, 35);
-      doc.fontSize(7).font('Helvetica-Bold').text('WORKERS COMPENSATION', margin + 25, yPos + 3);
-      doc.fontSize(6).font('Helvetica').text('AND EMPLOYERS\' LIABILITY', margin + 25, yPos + 11);
+      doc.fontSize(7).font('Helvetica-Bold').text('WORKERS COMPENSATION', margin + 3, yPos + 3);
+      doc.fontSize(6).font('Helvetica').text('AND EMPLOYERS\' LIABILITY', margin + 3, yPos + 11);
       const wcType = coiRecord.wc_form_type || 'STATUTORY LIMITS';
-      doc.fontSize(6).text(wcType === 'STATUTORY LIMITS' ? '☒ STATUTORY LIMITS' : '☐ STATUTORY LIMITS', margin + 25, yPos + 20);
+      doc.fontSize(6).text(wcType === 'STATUTORY LIMITS' ? '☒ STATUTORY LIMITS' : '☐ STATUTORY LIMITS', margin + 3, yPos + 20);
       // Use dynamic insurer letter if available
       const wcInsurerLetter = coiRecord.wc_insurer_letter || 'C';
-      doc.fontSize(6).text(wcInsurerLetter, margin + 5, yPos + 3);
-      doc.fontSize(6).text(coiRecord.policy_number_wc || '(Policy #)', margin + 180, yPos + 12);
-      doc.fontSize(6).text(coiRecord.wc_effective_date ? new Date(coiRecord.wc_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
-      doc.fontSize(6).text(coiRecord.wc_expiration_date ? new Date(coiRecord.wc_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
-      doc.text('E.L. EACH ACCIDENT', margin + 460, yPos + 3);
-      doc.text(`$ ${(coiRecord.wc_each_accident || 1000000).toLocaleString()}`, margin + 460, yPos + 10);
-      doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 460, yPos + 18);
-      doc.text(`$ ${(coiRecord.wc_disease_each_employee || 1000000).toLocaleString()}`, margin + 460, yPos + 25);
+      doc.fontSize(6).text(wcInsurerLetter, margin + 122, yPos + 12);
+      doc.fontSize(6).text('☐', margin + 151, yPos + 12);
+      doc.fontSize(6).text('☐', margin + 181, yPos + 12);
+      doc.fontSize(6).text(coiRecord.policy_number_wc || '(Policy #)', margin + 210, yPos + 12);
+      doc.fontSize(6).text(coiRecord.wc_effective_date ? new Date(coiRecord.wc_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 310, yPos + 12);
+      doc.fontSize(6).text(coiRecord.wc_expiration_date ? new Date(coiRecord.wc_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 390, yPos + 12);
+      doc.text('E.L. EACH ACCIDENT', margin + 470, yPos + 3);
+      doc.text(`$ ${(coiRecord.wc_each_accident || 1000000).toLocaleString()}`, margin + 470, yPos + 10);
+      doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 470, yPos + 18);
+      doc.text(`$ ${(coiRecord.wc_disease_each_employee || 1000000).toLocaleString()}`, margin + 470, yPos + 25);
 
       yPos += 37;
 
       // UMBRELLA ROW
       if (coiRecord.policy_number_umbrella || coiRecord.insurance_carrier_umbrella) {
         drawBox(margin, yPos, contentWidth, 35);
-        doc.fontSize(7).font('Helvetica-Bold').text('UMBRELLA LIAB', margin + 25, yPos + 3);
+        doc.fontSize(7).font('Helvetica-Bold').text('UMBRELLA LIAB', margin + 3, yPos + 3);
         const umbFormType = coiRecord.umbrella_form_type || 'OCCUR';
         doc.fontSize(6).font('Helvetica').text(
           umbFormType === 'CLAIMS-MADE' ? '☒ CLAIMS-MADE  ☐ OCCUR' : '☐ CLAIMS-MADE  ☒ OCCUR',
-          margin + 25,
+          margin + 3,
           yPos + 12
         );
-        doc.fontSize(6).text('☒ FOLLOW FORM', margin + 25, yPos + 20);
+        doc.fontSize(6).text('☒ FOLLOW FORM', margin + 3, yPos + 20);
         // Use dynamic insurer letter if available
         const umbrellaInsurerLetter = coiRecord.umbrella_insurer_letter || 'D';
-        doc.fontSize(6).text(umbrellaInsurerLetter, margin + 5, yPos + 3);
-        doc.fontSize(6).text(coiRecord.policy_number_umbrella || '(Policy #)', margin + 180, yPos + 12);
-        doc.fontSize(6).text(coiRecord.umbrella_effective_date ? new Date(coiRecord.umbrella_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 300, yPos + 12);
-        doc.fontSize(6).text(coiRecord.umbrella_expiration_date ? new Date(coiRecord.umbrella_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 380, yPos + 12);
-        doc.text('EACH OCCURRENCE', margin + 460, yPos + 8);
-        doc.text(`$ ${(coiRecord.umbrella_each_occurrence || 2000000).toLocaleString()}`, margin + 460, yPos + 15);
-        doc.text('AGGREGATE', margin + 460, yPos + 23);
-        doc.text(`$ ${(coiRecord.umbrella_aggregate || 2000000).toLocaleString()}`, margin + 460, yPos + 30);
+        doc.fontSize(6).text(umbrellaInsurerLetter, margin + 122, yPos + 12);
+        doc.fontSize(6).text('☐', margin + 151, yPos + 12);
+        doc.fontSize(6).text('☐', margin + 181, yPos + 12);
+        doc.fontSize(6).text(coiRecord.policy_number_umbrella || '(Policy #)', margin + 210, yPos + 12);
+        doc.fontSize(6).text(coiRecord.umbrella_effective_date ? new Date(coiRecord.umbrella_effective_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 310, yPos + 12);
+        doc.fontSize(6).text(coiRecord.umbrella_expiration_date ? new Date(coiRecord.umbrella_expiration_date).toLocaleDateString() : 'MM/DD/YYYY', margin + 390, yPos + 12);
+        doc.text('EACH OCCURRENCE', margin + 470, yPos + 8);
+        doc.text(`$ ${(coiRecord.umbrella_each_occurrence || 2000000).toLocaleString()}`, margin + 470, yPos + 15);
+        doc.text('AGGREGATE', margin + 470, yPos + 23);
+        doc.text(`$ ${(coiRecord.umbrella_aggregate || 2000000).toLocaleString()}`, margin + 470, yPos + 30);
         yPos += 37;
       }
 
