@@ -4,7 +4,7 @@ import { apiClient } from "@/api/apiClient";
 import { createEmailTemplate } from "@/emailTemplates";
 import { escapeHtml } from "@/utils/htmlEscaping";
 import { fetchAdminEmails } from "@/utils/adminEmails";
-import { prepareAttachments, sendEmailWithErrorHandling } from "@/utils/notificationUtils";
+import { prepareAttachments } from "@/utils/notificationUtils";
 
 /**
  * COI Upload & Approval Notification System

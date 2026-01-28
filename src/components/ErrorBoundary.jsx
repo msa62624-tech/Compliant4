@@ -19,7 +19,7 @@ class ErrorBoundary extends React.Component {
     };
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(_error) {
     // Update state so the next render will show the fallback UI
     return { hasError: true };
   }
@@ -62,8 +62,8 @@ class ErrorBoundary extends React.Component {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-gray-600">
-                We're sorry, but something unexpected happened. The error has been logged
-                and we'll look into it.
+                We&apos;re sorry, but something unexpected happened. The error has been logged
+                and we&apos;ll look into it.
               </p>
 
               {process.env.NODE_ENV === 'development' && this.state.error && (

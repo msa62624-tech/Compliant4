@@ -207,8 +207,6 @@ InsureTrack System`
  * Notify all stakeholders that renewal COI has been approved
  */
 export async function notifyRenewalCOIApproved(subcontractor, project, newCOI) {
-  const baseUrl = getFrontendBaseUrl();
-  
   try {
     // Notify subcontractor
     if (subcontractor.email) {

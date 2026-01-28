@@ -66,7 +66,7 @@ export class ExternalServiceError extends ApplicationError {
  * Global error handler middleware
  * Catches all errors and formats them consistently
  */
-export function errorHandler(err, req, res, next) {
+export function errorHandler(err, req, res, _next) {
   // Default to 500 server error if not set
   const statusCode = err.statusCode || 500;
   const isOperational = err.isOperational !== undefined ? err.isOperational : false;
