@@ -5,6 +5,7 @@ import { createEmailTemplate } from "@/emailTemplates";
 import { escapeHtml } from "@/utils/htmlEscaping";
 import { fetchAdminEmails } from "@/utils/adminEmails";
 import { prepareAttachments } from "@/utils/notificationUtils";
+import logger from './utils/logger';
 
 /**
  * COI Upload & Approval Notification System
@@ -65,7 +66,7 @@ async function generateSampleCOIFromProgram(project, coi) {
       
       sampleData.program_requirements = sampleData.tiers;
     } catch (error) {
-      console.warn('Could not fetch program requirements for sample COI:', error?.message);
+      logger.warn('Could not fetch program requirements for sample COI', { error: error?.message });
     }
   }
 
@@ -144,10 +145,10 @@ InsureTrack System`,
         created_at: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('Error creating admin message:', error);
+      logger.error('Error creating admin message', { error: error?.message, stack: error?.stack });
     }
   } catch (error) {
-    console.error('Error sending admin COI upload notification:', error);
+    logger.error('Error sending admin COI upload notification', { error: error?.message, stack: error?.stack });
   }
 }
 
@@ -227,7 +228,7 @@ Thank you,
 InsureTrack System`
       });
     } catch (err) {
-      console.warn('Error sending broker reply/upload links email:', err?.message || err);
+      logger.warn('Error sending broker reply/upload links email', { error: err?.message || err?.toString() });
     }
 
     // Create notification record for sub
@@ -244,10 +245,10 @@ InsureTrack System`
         created_at: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('Error creating sub message:', error);
+      logger.error('Error creating sub message', { error: error?.message, stack: error?.stack });
     }
   } catch (error) {
-    console.error('Error sending sub COI approved notification:', error);
+    logger.error('Error sending sub COI approved notification', { error: error?.message, stack: error?.stack });
   }
 }
 
@@ -295,7 +296,7 @@ Best regards,
 InsureTrack System`,
     });
   } catch (error) {
-    console.error('Error sending GC COI approved notification:', error);
+    logger.error('Error sending GC COI approved notification', { error: error?.message, stack: error?.stack });
   }
 }
 
@@ -462,10 +463,10 @@ export async function notifyCOIDeficiencies(coi, subcontractor, project, deficie
         created_at: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('Error creating deficiency message:', error);
+      logger.error('Error creating deficiency message', { error: error?.message, stack: error?.stack });
     }
   } catch (error) {
-    console.error('Error sending COI deficiencies notification:', error);
+    logger.error('Error sending COI deficiencies notification', { error: error?.message, stack: error?.stack });
   }
 }
 
@@ -525,7 +526,7 @@ Best regards,
 InsureTrack System`,
     });
   } catch (error) {
-    console.error('Error sending broker COI review notification:', error);
+    logger.error('Error sending broker COI review notification', { error: error?.message, stack: error?.stack });
   }
 }
 
@@ -583,10 +584,10 @@ InsureTrack System`,
         created_at: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('Error creating sub approval message:', error);
+      logger.error('Error creating sub approval message', { error: error?.message, stack: error?.stack });
     }
   } catch (error) {
-    console.error('Error sending subcontractor COI approved notification:', error);
+    logger.error('Error sending subcontractor COI approved notification', { error: error?.message, stack: error?.stack });
   }
 }
 
@@ -613,7 +614,7 @@ export async function notifyAllStakeholdersCOIApproved(coi, subcontractor, proje
       created_at: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Error logging approval:', error);
+    logger.error('Error logging approval', { error: error?.message, stack: error?.stack });
   }
 }
 /**
@@ -672,6 +673,6 @@ Please review the attached broker information and generate new COI upload reques
     }
 
   } catch (error) {
-    console.error('Error notifying admin of broker change:', error);
+    logger.error('Error notifying admin of broker change', { error: error?.message, stack: error?.stack });
   }
 }

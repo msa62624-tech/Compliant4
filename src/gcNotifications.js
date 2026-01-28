@@ -2,13 +2,14 @@ import { generateSecurePassword } from "@/passwordUtils";
 import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl } from "@/urlConfig";
 import { sendEmailWithErrorHandling } from "@/utils/notificationUtils";
+import logger from './utils/logger';
 
 /**
  * Send welcome email when GC first joins the system
  */
 export async function sendGCWelcomeEmail(gc) {
   if (!gc.email) {
-    console.warn('No GC email provided for welcome notification');
+    logger.warn('No GC email provided for welcome notification', {});
     return false;
   }
 
@@ -19,7 +20,7 @@ export async function sendGCWelcomeEmail(gc) {
   const username = gc?.gcLogin?.username || gc?.email || gc?.loginUsername || gc.email;
   const tempPassword = gc?.gcLogin?.password || gc?.tempPassword || generateSecurePassword();
   
-  console.log('🔐 GC Welcome Email - Using credentials:', {
+  logger.info('GC Welcome Email - Using credentials', {
     username,
     passwordLength: tempPassword?.length || 0,
     hasGcLogin: !!gc?.gcLogin,
@@ -115,7 +116,7 @@ export async function sendGCWelcomeEmail(gc) {
     });
     return true;
   } catch (error) {
-    console.error('Failed to send GC welcome email:', error);
+    logger.error('Failed to send GC welcome email', { error: error?.message, stack: error?.stack });
     return false;
   }
 }
@@ -125,7 +126,7 @@ export async function sendGCWelcomeEmail(gc) {
  */
 export async function notifyGCProjectCreated(project) {
   if (!project.gc_email) {
-    console.warn('No GC email provided for project notification');
+    logger.warn('No GC email provided for project notification', {});
     return;
   }
 
@@ -316,7 +317,7 @@ InsureTrack System`
  */
 export async function notifyGCDocumentReplaced(project, subcontractor, documentInfo, broker, reason) {
   if (!project.gc_email) {
-    console.warn('No GC email provided for document replacement notification');
+    logger.warn('No GC email provided for document replacement notification', {});
     return;
   }
 

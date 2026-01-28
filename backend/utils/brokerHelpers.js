@@ -1,4 +1,5 @@
 import { entities, debouncedSave } from '../config/database.js';
+import logger from '../config/logger.js';
 
 // =======================
 // BROKER MANAGEMENT HELPERS
@@ -49,7 +50,7 @@ export function getOrCreateBroker(email, additionalInfo = {}) {
     entities.Broker.push(broker);
     
     debouncedSave();
-    console.log('✅ Created new broker record:', broker.id, emailLower);
+    logger.info('New broker record created', { brokerId: broker.id, email: emailLower });
   }
 
   return broker;

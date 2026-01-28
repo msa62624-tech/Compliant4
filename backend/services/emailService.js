@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import logger from '../config/logger.js';
 import { escapeHtml } from '../utils/htmlEscaping.js';
 
 /**
@@ -16,7 +17,7 @@ export function createEmailTransporter() {
     // Mock transporter for development
     return {
       sendMail: async (options) => {
-        console.log('📧 MOCK EMAIL:', {
+        logger.info('Mock email sent', {
           from: options.from,
           to: options.to,
           subject: options.subject
@@ -178,10 +179,10 @@ export async function sendPasswordResetEmail(email, resetLink, user = {}) {
   
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`✅ Password reset email sent to: ${email}`);
+    logger.info('Password reset email sent', { email });
     return true;
   } catch (emailErr) {
-    console.error('Failed to send password reset email:', emailErr?.message);
+    logger.error('Failed to send password reset email', { email, error: emailErr?.message, stack: emailErr?.stack });
     return false;
   }
 }

@@ -7,6 +7,7 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
+import logger from '../config/logger.js';
 import { acord25Template, generateCOIData } from '../data/acord25Template.js';
 
 // No external http client needed; using mock and Node fetch where necessary
@@ -18,9 +19,9 @@ export default class AdobePDFService {
     this.enabled = !!(this.apiKey && this.clientId);
     
     if (this.enabled) {
-      console.log('✅ Adobe PDF Services: ENABLED');
+      logger.info('Adobe PDF Services enabled');
     } else {
-      console.log('⚠️  Adobe PDF Services: DISABLED (set ADOBE_API_KEY and ADOBE_CLIENT_ID to enable)');
+      logger.warn('Adobe PDF Services disabled - set ADOBE_API_KEY and ADOBE_CLIENT_ID to enable');
     }
   }
 
@@ -35,12 +36,12 @@ export default class AdobePDFService {
     }
 
     try {
-      console.log(`📄 Adobe: Extracting text from ${fileUrl}`);
+      logger.info('Extracting text from PDF', { fileUrl });
       // In production, call Adobe PDF Extract API
       // For now, return mock data
       return this.mockExtractText(fileUrl);
     } catch (error) {
-      console.error('❌ Adobe PDF extraction error:', error.message);
+      logger.error('Adobe PDF extraction failed', { fileUrl, error: error?.message, stack: error?.stack });
       throw error;
     }
   }
@@ -120,7 +121,7 @@ INSURED: MPI Plumbing Corp
 
       return extracted;
     } catch (error) {
-      console.error('❌ COI field extraction error:', error.message);
+      logger.error('COI field extraction failed', { fileUrl, error: error?.message, stack: error?.stack });
       throw error;
     }
   }
@@ -133,17 +134,17 @@ INSURED: MPI Plumbing Corp
    */
   async signPDF(fileUrl, _signatureData) {
     if (!this.enabled) {
-      console.log('⚠️  Adobe: Using mock signature (service not configured)');
+      logger.warn('Adobe PDF service not configured, using mock signature');
       return `${fileUrl}?signed=true&timestamp=${Date.now()}`;
     }
 
     try {
-      console.log(`🔐 Adobe: Signing PDF at ${fileUrl}`);
+      logger.info('Signing PDF', { fileUrl });
       // In production, call Adobe Sign API
       // For now, return mock signed URL
       return `${fileUrl}?signed=true&timestamp=${Date.now()}`;
     } catch (error) {
-      console.error('❌ Adobe PDF signing error:', error.message);
+      logger.error('Adobe PDF signing failed', { fileUrl, error: error?.message, stack: error?.stack });
       throw error;
     }
   }
@@ -155,12 +156,12 @@ INSURED: MPI Plumbing Corp
    */
   async mergePDFs(fileUrls) {
     try {
-      console.log(`📑 Adobe: Merging ${fileUrls.length} PDFs`);
+      logger.info('Merging PDFs', { count: fileUrls.length });
       // In production, call Adobe PDF Combine API
       // For now, return mock merged URL
       return `https://storage.example.com/merged-${Date.now()}.pdf`;
     } catch (error) {
-      console.error('❌ PDF merge error:', error.message);
+      logger.error('PDF merge failed', { count: fileUrls.length, error: error?.message, stack: error?.stack });
       throw error;
     }
   }
@@ -173,7 +174,7 @@ INSURED: MPI Plumbing Corp
    */
   async generateCOIPDF(coiData, uploadDir) {
     try {
-      console.log(`📄 Adobe: Generating ACORD 25 COI PDF for ${coiData.subcontractorName || 'subcontractor'}`);
+      logger.info('Generating ACORD 25 COI PDF', { subcontractor: coiData.subcontractorName, coiId: coiData.coiId });
       
       const filename = `coi-${coiData.coiId || Date.now()}-${Date.now()}.pdf`;
       const filepath = path.join(uploadDir, filename);
@@ -436,10 +437,10 @@ INSURED: MPI Plumbing Corp
         });
       });
       
-      console.log(`✅ COI PDF generated: ${filename}`);
+      logger.info('COI PDF generated successfully', { filename });
       return filename;
     } catch (error) {
-      console.error('❌ COI PDF generation error:', error.message);
+      logger.error('COI PDF generation failed', { subcontractor: coiData.subcontractorName, error: error?.message, stack: error?.stack });
       throw error;
     }
   }
@@ -452,7 +453,7 @@ INSURED: MPI Plumbing Corp
    */
   async generatePolicyPDF(policyData, uploadDir) {
     try {
-      console.log(`📄 Adobe: Generating Policy PDF for ${policyData.policyNumber || 'policy'}`);
+      logger.info('Generating Policy PDF', { policyNumber: policyData.policyNumber });
       
       const filename = `policy-${policyData.policyId || Date.now()}-${Date.now()}.pdf`;
       const filepath = path.join(uploadDir, filename);
@@ -545,10 +546,10 @@ INSURED: MPI Plumbing Corp
         });
       });
       
-      console.log(`✅ Policy PDF generated: ${filename}`);
+      logger.info('Policy PDF generated successfully', { filename });
       return filename;
     } catch (error) {
-      console.error('❌ Policy PDF generation error:', error.message);
+      logger.error('Policy PDF generation failed', { policyNumber: policyData.policyNumber, error: error?.message, stack: error?.stack });
       throw error;
     }
   }
@@ -561,7 +562,7 @@ INSURED: MPI Plumbing Corp
    */
   async generateSampleCOI(overrides = {}, uploadDir) {
     try {
-      console.log(`📄 Adobe: Generating Sample ACORD 25 COI`);
+      logger.info('Generating Sample ACORD 25 COI');
       
       // Generate COI data using template
       const coiData = generateCOIData({
@@ -580,7 +581,7 @@ INSURED: MPI Plumbing Corp
         message: 'Sample COI generated successfully'
       };
     } catch (error) {
-      console.error('❌ Sample COI generation error:', error.message);
+      logger.error('Sample COI generation failed', { error: error?.message, stack: error?.stack });
       throw error;
     }
   }

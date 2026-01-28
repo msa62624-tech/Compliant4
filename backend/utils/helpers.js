@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import logger from '../config/logger.js';
 
 /**
  * Validate and sanitize filename to prevent directory traversal
@@ -55,9 +56,9 @@ export function ensureDirectoryExists(dirPath) {
   try {
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
-      console.log('📁 Created directory:', dirPath);
+      logger.info('Directory created', { path: dirPath });
     }
   } catch (e) {
-    console.warn('⚠️ Could not ensure directory exists:', e?.message || e);
+    logger.warn('Could not ensure directory exists', { path: dirPath, error: e?.message });
   }
 }

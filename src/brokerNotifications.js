@@ -3,6 +3,7 @@ import { generateSecurePassword, formatLoginCredentialsForEmail, createUserCrede
 import { sendEmail } from "@/emailHelper";
 import { getFrontendBaseUrl, createBrokerDashboardLink, createSubcontractorDashboardLink } from "@/urlConfig";
 import { generateSecureToken } from "@/utils/tokenGenerator";
+import logger from './utils/logger';
 
 /**
  * Send notification emails when broker is assigned or changed for a subcontractor
@@ -93,7 +94,7 @@ InsureTrack System`
       }
       
     } catch (error) {
-      console.error('❌ Error sending broker notification email:', error);
+      logger.error('Error sending broker notification email', { error: error?.message, stack: error?.stack });
       throw error; // Re-throw so caller knows it failed
     }
   }
@@ -124,7 +125,7 @@ Best regards,
 InsureTrack System`
       });
     } catch (error) {
-      console.error('Error sending old broker notification:', error);
+      logger.error('Error sending old broker notification', { error: error?.message, stack: error?.stack });
     }
   }
 
@@ -181,7 +182,7 @@ InsureTrack System`
       }
       
     } catch (error) {
-      console.error('Error sending subcontractor notification:', error);
+      logger.error('Error sending subcontractor notification', { error: error?.message, stack: error?.stack });
     }
   }
 
@@ -228,7 +229,7 @@ InsureTrack System`
       });
     }
   } catch (error) {
-    console.error('Error creating portal entries:', error);
+    logger.error('Error creating portal entries', { error: error?.message, stack: error?.stack });
   }
 }
 
@@ -252,7 +253,7 @@ export async function notifySubAddedToProject(subcontractor, project) {
           coiTokenForEmail = coisForSub[0].coi_token || null;
         }
       } catch (err) {
-        console.warn('Could not load COI for sub email token', err);
+        logger.warn('Could not load COI for sub email token', { error: err?.message });
       }
 
       const baseUrl = getFrontendBaseUrl();
@@ -333,11 +334,11 @@ You have been added to a new construction project!
           password: password
         });
       } catch (_pwError) {
-        console.error('Failed to store password on contractor:', _pwError);
+        logger.error('Failed to store password on contractor', { error: _pwError?.message, stack: _pwError?.stack });
       }
       
     } catch (error) {
-      console.error('Error sending subcontractor project notification:', error);
+      logger.error('Error sending subcontractor project notification', { error: error?.message, stack: error?.stack });
     }
   }
 
@@ -385,7 +386,7 @@ You have been added to a new construction project!
           ));
         }
       } catch (coiCheckError) {
-        console.warn('⚠️ Could not check existing COI uploads for subcontractor:', subcontractor.id, coiCheckError?.message || coiCheckError);
+        logger.warn('Could not check existing COI uploads for subcontractor', { subcontractor_id: subcontractor.id, error: coiCheckError?.message });
       }
 
       const additionalInsuredList = [];
@@ -420,7 +421,7 @@ You have been added to a new construction project!
           directSignLink = `${baseUrl}/broker-upload-coi?token=${activeCoi.coi_token}&action=sign&step=3`;
         }
       } catch (err) {
-        console.error('❌ Error fetching COI for direct links:', err?.message || err);
+        logger.error('Error fetching COI for direct links', { error: err?.message });
       }
       
       // If this appears to be the first time this broker is onboarding for this subcontractor/GC
@@ -443,7 +444,7 @@ You have been added to a new construction project!
           // Continue to next broker (notifyBrokerAssignment handles user creation and email)
           continue;
         } catch (nbErr) {
-          console.warn('Could not run notifyBrokerAssignment, falling back to email:', nbErr?.message || nbErr);
+          logger.warn('Could not run notifyBrokerAssignment, falling back to email', { error: nbErr?.message });
         }
       }
 
@@ -521,14 +522,13 @@ InsureTrack System`
       });
       
     } catch (error) {
-      console.error('❌ Error sending broker project notification:', error);
-      console.error('   Error details:', error.message, error.stack);
+      logger.error('Error sending broker project notification', { error: error?.message, stack: error?.stack });
       // Don't throw - continue to notify other brokers
     }
   }
   
   if (brokerEmails.length === 0) {
-    console.warn('⚠️ No broker email found for subcontractor:', subcontractor.company_name);
+    logger.warn('No broker email found for subcontractor', { company_name: subcontractor.company_name });
   }
 }
 
@@ -570,7 +570,7 @@ Best regards,
 InsureTrack System`
       });
     } catch (error) {
-      console.error('Error sending COI pending notification:', error);
+      logger.error('Error sending COI pending notification', { error: error?.message, stack: error?.stack });
     }
   }
 }
@@ -606,7 +606,7 @@ Best regards,
 InsureTrack System`
       });
     } catch (error) {
-      console.error('Error sending COI approved notification:', error);
+      logger.error('Error sending COI approved notification', { error: error?.message, stack: error?.stack });
     }
   }
 }
