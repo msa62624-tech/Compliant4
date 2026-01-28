@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { promises as fsPromises } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -90,17 +91,17 @@ export const entities = {
 /**
  * Load entities from disk on server start
  */
-export function loadEntities() {
+export async function loadEntities() {
   try {
     // Ensure data directory exists
     if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+      await fsPromises.mkdir(DATA_DIR, { recursive: true });
       console.log('📁 Created data directory:', DATA_DIR);
     }
 
     // Load existing data if file exists
     if (fs.existsSync(DATA_FILE)) {
-      const data = fs.readFileSync(DATA_FILE, 'utf8');
+      const data = await fsPromises.readFile(DATA_FILE, 'utf8');
       
       // Parse JSON with error handling
       let loadedEntities;
@@ -109,7 +110,7 @@ export function loadEntities() {
       } catch (parseError) {
         console.error('❌ Failed to parse entities.json:', parseError.message);
         console.log('⚠️ File may be corrupted. Starting with default data.');
-        saveEntities(); // Overwrite corrupted file
+        await saveEntities(); // Overwrite corrupted file
         return;
       }
       
@@ -133,7 +134,7 @@ export function loadEntities() {
     } else {
       console.log('ℹ️ No existing data file, starting with empty data');
       // Save initial empty data
-      saveEntities();
+      await saveEntities();
     }
   } catch (error) {
     console.error('❌ Error loading entities:', error.message);
@@ -144,15 +145,15 @@ export function loadEntities() {
 /**
  * Save entities to disk
  */
-export function saveEntities() {
+export async function saveEntities() {
   try {
     // Ensure data directory exists
     if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+      await fsPromises.mkdir(DATA_DIR, { recursive: true });
     }
 
-    // Write data to file
-    fs.writeFileSync(DATA_FILE, JSON.stringify(entities, null, 2), 'utf8');
+    // Write data to file (compact format for performance)
+    await fsPromises.writeFile(DATA_FILE, JSON.stringify(entities), 'utf8');
     
     // More informative logging based on environment
     const isEphemeralPlatform = !!process.env.RENDER || !!process.env.VERCEL || !!process.env.DYNO;
@@ -177,9 +178,9 @@ export function debouncedSave() {
   }
   
   // Schedule new save
-  saveTimeout = setTimeout(() => {
+  saveTimeout = setTimeout(async () => {
     try {
-      saveEntities();
+      await saveEntities();
     } catch (error) {
       console.error('❌ Error in debounced save:', error.message);
     } finally {

@@ -5,6 +5,7 @@ import pdfParse from 'pdf-parse';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
+import { promises as fsPromises } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import helmet from 'helmet';
@@ -230,11 +231,17 @@ function seedBrokersFromData() {
   }
 }
 
-// Load data on startup
-loadEntities();
-
-// Ensure broker records exist for authentication
-seedBrokersFromData();
+// Load data on startup - will be awaited in server initialization
+// Temporary for module-level, but properly awaited during server startup
+let dataLoaded = false;
+async function initializeData() {
+  if (!dataLoaded) {
+    await loadEntities();
+    dataLoaded = true;
+    // Ensure broker records exist for authentication
+    seedBrokersFromData();
+  }
+}
 
 // Remove sample placeholder GC once a real GC exists to avoid duplicate records
 function cleanupPlaceholderGCs() {
@@ -1553,10 +1560,15 @@ app.post('/entities/:entityName', authenticateToken, async (req, res) => {
     if (!data.name) return res.status(400).json({ error: 'Name is required for User creation' });
     if (!data.password) return res.status(400).json({ error: 'Password is required for User creation' });
     if (!validateEmail(data.email)) return res.status(400).json({ error: 'Invalid email format' });
-    if (users.find(u => u.email === data.email)) return res.status(400).json({ error: 'Email already exists' });
-    if (entities.User.find(u => u.email === data.email)) return res.status(400).json({ error: 'Email already exists' });
+    
+    // Optimize email/username checks with Set for O(1) lookup instead of repeated O(n) .find() calls
+    const existingEmails = new Set([...users.map(u => u.email), ...entities.User.map(u => u.email)]);
+    const existingUsernames = new Set(users.map(u => u.username));
+    
+    if (existingEmails.has(data.email)) return res.status(400).json({ error: 'Email already exists' });
     const username = data.username || data.email.split('@')[0];
-    if (users.find(u => u.username === username)) return res.status(400).json({ error: 'Username already exists' });
+    if (existingUsernames.has(username)) return res.status(400).json({ error: 'Username already exists' });
+    
     const hashedPassword = await bcrypt.hash(data.password, 10);
     const userId = `user-${Date.now()}`;
     const newUser = { id: userId, username, password: hashedPassword, email: data.email, name: data.name, role: data.role || 'admin', is_active: data.is_active !== undefined ? data.is_active : true, createdAt: new Date().toISOString(), createdBy: req.user.id };
@@ -2169,6 +2181,17 @@ async function generateSampleCOIPDF(data = {}) {
         ? reqsForTiering.filter(r => String(r.tier) === String(selectedTier))
         : reqsForTiering;
 
+      // Cache tier requirements by insurance type for efficient lookup (avoid repeated .find() calls)
+      const tierReqByType = {};
+      const tierReqGeneral = {}; // fallback for any field regardless of type
+      for (const req of tierRequirements) {
+        if (req.insurance_type) {
+          tierReqByType[req.insurance_type] = req;
+        }
+        // Store in general cache for fallback
+        Object.assign(tierReqGeneral, req);
+      }
+
       // Determine if umbrella is required
       const hasUmbrellaRequirement = tierRequirements.length > 0 && tierRequirements.some(req => 
         req.insurance_type === 'umbrella_policy' || req.umbrella_each_occurrence
@@ -2267,12 +2290,12 @@ async function generateSampleCOIPDF(data = {}) {
       
       // GL Limits
       doc.fontSize(6).font('Helvetica').text('EACH OCCURRENCE', margin + 460, yPos + 3);
-      const glLimit = tierRequirements.find(r => r.insurance_type === 'general_liability' && r.gl_each_occurrence)?.gl_each_occurrence ||
-        tierRequirements.find(r => r.gl_each_occurrence)?.gl_each_occurrence || 1000000;
+      const glLimit = tierReqByType['general_liability']?.gl_each_occurrence || 
+        tierReqGeneral.gl_each_occurrence || 1000000;
       doc.text(`$ ${glLimit.toLocaleString()}`, margin + 460, yPos + 10);
       doc.text('GENERAL AGGREGATE', margin + 460, yPos + 22);
-      const glAgg = tierRequirements.find(r => r.insurance_type === 'general_liability' && r.gl_general_aggregate)?.gl_general_aggregate ||
-        tierRequirements.find(r => r.gl_general_aggregate)?.gl_general_aggregate || 2000000;
+      const glAgg = tierReqByType['general_liability']?.gl_general_aggregate || 
+        tierReqGeneral.gl_general_aggregate || 2000000;
       doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 29);
       doc.text('PRODUCTS - COMP/OP AGG', margin + 460, yPos + 41);
       doc.text(`$ ${glAgg.toLocaleString()}`, margin + 460, yPos + 48);
@@ -2289,8 +2312,8 @@ async function generateSampleCOIPDF(data = {}) {
       doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
       doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
       doc.text('COMBINED SINGLE LIMIT', margin + 460, yPos + 8);
-      const autoLimit = tierRequirements.find(r => r.insurance_type === 'auto_liability' && r.auto_combined_single_limit)?.auto_combined_single_limit ||
-        tierRequirements.find(r => r.auto_combined_single_limit)?.auto_combined_single_limit || 1000000;
+      const autoLimit = tierReqByType['auto_liability']?.auto_combined_single_limit || 
+        tierReqGeneral.auto_combined_single_limit || 1000000;
       doc.text(`$ ${autoLimit.toLocaleString()}`, margin + 460, yPos + 15);
 
       yPos += 37;
@@ -2305,8 +2328,8 @@ async function generateSampleCOIPDF(data = {}) {
       doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
       doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
       doc.text('E.L. EACH ACCIDENT', margin + 460, yPos + 3);
-      const wcLimit = tierRequirements.find(r => r.insurance_type === 'workers_compensation' && r.wc_each_accident)?.wc_each_accident ||
-        tierRequirements.find(r => r.wc_each_accident)?.wc_each_accident || 1000000;
+      const wcLimit = tierReqByType['workers_compensation']?.wc_each_accident || 
+        tierReqGeneral.wc_each_accident || 1000000;
       doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 10);
       doc.text('E.L. DISEASE - EA EMPLOYEE', margin + 460, yPos + 18);
       doc.text(`$ ${wcLimit.toLocaleString()}`, margin + 460, yPos + 25);
@@ -2324,8 +2347,8 @@ async function generateSampleCOIPDF(data = {}) {
         doc.fontSize(6).text('MM/DD/YYYY', margin + 300, yPos + 12);
         doc.fontSize(6).text('MM/DD/YYYY', margin + 380, yPos + 12);
         doc.text('EACH OCCURRENCE', margin + 460, yPos + 8);
-        const umbLimit = tierRequirements.find(r => r.insurance_type === 'umbrella_policy' && r.umbrella_each_occurrence)?.umbrella_each_occurrence ||
-          tierRequirements.find(r => r.umbrella_each_occurrence)?.umbrella_each_occurrence || 2000000;
+        const umbLimit = tierReqByType['umbrella_policy']?.umbrella_each_occurrence || 
+          tierReqGeneral.umbrella_each_occurrence || 2000000;
         doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 15);
         doc.text('AGGREGATE', margin + 460, yPos + 23);
         doc.text(`$ ${umbLimit.toLocaleString()}`, margin + 460, yPos + 30);
@@ -3939,7 +3962,7 @@ app.post('/public/create-coi-request', publicApiLimiter, async (req, res) => {
           const pdfBuffer = await generateGeneratedCOIPDF(regenData);
           const filename = `gen-coi-${reusable.id}-${Date.now()}.pdf`;
           const filepath = path.join(UPLOADS_DIR, filename);
-          fs.writeFileSync(filepath, pdfBuffer);
+          await fsPromises.writeFile(filepath, pdfBuffer);
           const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
           regeneratedUrl = `${backendBase}/uploads/${filename}`;
         } catch (pdfErr) {
@@ -4445,7 +4468,7 @@ app.patch('/public/coi-by-token', publicApiLimiter, async (req, res) => {
                 // Persist as an HTML file in uploads
                 const filename = `hold-harmless-${applied.id}-${Date.now()}.html`;
                 const filepath = path.join(UPLOADS_DIR, filename);
-                fs.writeFileSync(filepath, templateText, 'utf8');
+                await fsPromises.writeFile(filepath, templateText, 'utf8');
                 const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
 
                 entities.GeneratedCOI[idx] = {
@@ -4566,7 +4589,7 @@ app.post('/integrations/generate-sample-coi', authenticateToken, async (req, res
     const filePath = path.join(UPLOADS_DIR, filename);
     verifyPathWithinDirectory(filePath, UPLOADS_DIR);
 
-    fs.writeFileSync(filePath, pdfBuffer);
+    await fsPromises.writeFile(filePath, pdfBuffer);
 
     const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
     return res.json({ success: true, url: fileUrl, file_url: fileUrl, filename });
@@ -5093,7 +5116,7 @@ app.post('/public/regenerate-coi', uploadLimiter, async (req, res) => {
       const pdfBuffer = await generateGeneratedCOIPDF(regenData);
       const filename = `gen-coi-${coi.id}-${Date.now()}.pdf`;
       const filepath = path.join(UPLOADS_DIR, filename);
-      fs.writeFileSync(filepath, pdfBuffer);
+      await fsPromises.writeFile(filepath, pdfBuffer);
       
       const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
       const frontendBase = process.env.FRONTEND_URL || backendBase.replace(/:3001$/, ':5175');
@@ -5370,7 +5393,7 @@ app.post('/integrations/generate-image', authenticateToken, (req, res) => {
 // Helper function to extract text from PDF file
 async function extractTextFromPDF(filePath) {
   try {
-    const dataBuffer = fs.readFileSync(filePath);
+    const dataBuffer = await fsPromises.readFile(filePath);
     const pdfData = await pdfParse(dataBuffer);
     const extractedText = pdfData.text || '';
     console.log(`📄 Extracted ${extractedText.length} characters from PDF`);
@@ -7746,6 +7769,9 @@ if (!process.env.VERCEL) {
   });
 
   (async () => {
+    // Initialize data before starting server
+    await initializeData();
+    
     // Validate environment before starting
     try {
       validateEnvironment();
