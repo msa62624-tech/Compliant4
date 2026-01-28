@@ -340,7 +340,7 @@ const getEnvironmentConfig = () => {
   }[env];
 };
 
-module.exports = {
+export {
   helmetConfig,
   cspConfig,
   corsConfig,

@@ -3,7 +3,7 @@
  * Enterprise-grade monitoring, tracing, and performance tracking
  */
 
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 /**
  * Generate unique request ID
@@ -449,7 +449,7 @@ const getMonitoringDashboard = () => {
   };
 };
 
-module.exports = {
+export {
   requestTracker,
   performanceMonitor,
   errorTracker,

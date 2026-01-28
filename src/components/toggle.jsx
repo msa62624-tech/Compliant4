@@ -2,7 +2,7 @@ import * as React from "react"
 import * as TogglePrimitive from "@radix-ui/react-toggle"
 
 import { cn } from "@/lib/utils"
-import { toggleVariants } from "./toggle-variants"
+import { toggleVariants } from "./ui/toggle-variants"
 
 const Toggle = React.forwardRef(({ className, variant, size, ...props }, ref) => (
   <TogglePrimitive.Root
@@ -14,4 +14,4 @@ const Toggle = React.forwardRef(({ className, variant, size, ...props }, ref) =>
 Toggle.displayName = TogglePrimitive.Root.displayName
 
 export { Toggle }
-// toggleVariants can be imported directly from "./toggle-variants" if needed
+// toggleVariants can be imported directly from "./ui/toggle-variants" if needed

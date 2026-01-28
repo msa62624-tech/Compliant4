@@ -269,7 +269,7 @@ const setupVersioning = (app, express, options = {}) => {
     });
   }
 };
-module.exports = {
+export {
   API_VERSIONS,
   getCurrentVersion,
   getSupportedVersions,

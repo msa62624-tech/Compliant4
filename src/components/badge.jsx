@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils"
-import { badgeVariants } from "./badge-variants"
+import { badgeVariants } from "./ui/badge-variants"
 
 function Badge({
   className,
@@ -10,4 +10,4 @@ function Badge({
 }
 
 export { Badge }
-// badgeVariants can be imported directly from "./badge-variants" if needed
+// badgeVariants can be imported directly from "./ui/badge-variants" if needed

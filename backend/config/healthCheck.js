@@ -3,8 +3,8 @@
  * Kubernetes-ready health checks with detailed diagnostics
  */
 
-const os = require('os');
-const process = require('process');
+import os from 'os';
+import process from 'process';
 
 /**
  * Health check status enum
@@ -305,7 +305,7 @@ const getHealthMetrics = () => {
   };
 };
 
-module.exports = {
+export {
   HealthStatus,
   getSystemMetrics,
   getProcessMetrics,

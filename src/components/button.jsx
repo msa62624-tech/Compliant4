@@ -2,7 +2,7 @@ import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 
 import { cn } from "@/lib/utils"
-import { buttonVariants } from "./button-variants"
+import { buttonVariants } from "./ui/button-variants"
 
 const Button = React.forwardRef(({ className, variant, size, asChild = false, ...props }, ref) => {
   const Comp = asChild ? Slot : "button"
@@ -16,4 +16,4 @@ const Button = React.forwardRef(({ className, variant, size, asChild = false, ..
 Button.displayName = "Button"
 
 export { Button }
-// buttonVariants can be imported directly from "./button-variants" if needed
+// buttonVariants can be imported directly from "./ui/button-variants" if needed
