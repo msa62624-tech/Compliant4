@@ -5870,6 +5870,23 @@ function extractFieldsWithRegex(text, schema) {
   const extracted = {};
   const upper = (text || '').toUpperCase();
   
+  // Constants for extraction patterns
+  const COVERAGE_SECTION_CHAR_LIMIT = 500; // Max chars to search within a coverage section
+  const DATE_PROXIMITY_CHAR_LIMIT = 100; // Max chars between effective and expiration dates
+  const INSURER_LETTER_PROXIMITY = 200; // Max chars from coverage keyword to insurer letter
+  
+  // Helper to validate policy number format
+  const isValidPolicyNumber = (str) => {
+    if (!str || str.length < 5) return false;
+    // Must contain at least one digit
+    if (!/\d/.test(str)) return false;
+    // Must not be mostly just letters (like "COMMERCIAL" or "LIABILITY")
+    const letterCount = (str.match(/[A-Z]/gi) || []).length;
+    const digitCount = (str.match(/\d/g) || []).length;
+    if (letterCount > 15 && digitCount < 3) return false; // Likely a keyword, not a policy number
+    return true;
+  };
+  
   // FLOOD THE SYSTEM: Extract ALL dates found in document
   const allDates = [];
   const datePatterns = [
@@ -6174,9 +6191,9 @@ function extractFieldsWithRegex(text, schema) {
     const glMatch = tableText.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[^\n]*(?:\n[^\n]*){0,3}/i);
     if (glMatch) {
       const glSection = glMatch[0];
-      // Extract policy number from GL section
+      // Extract policy number from GL section - require at least one digit
       const policyMatch = glSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
-      if (policyMatch && policyMatch[1]) {
+      if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.gl.policy_number = policyMatch[1].trim();
       }
       // Extract dates from GL section
@@ -6197,7 +6214,7 @@ function extractFieldsWithRegex(text, schema) {
     if (autoMatch) {
       const autoSection = autoMatch[0];
       const policyMatch = autoSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
-      if (policyMatch && policyMatch[1]) {
+      if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.auto.policy_number = policyMatch[1].trim();
       }
       const dateMatches = autoSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
@@ -6217,7 +6234,7 @@ function extractFieldsWithRegex(text, schema) {
     if (wcMatch) {
       const wcSection = wcMatch[0];
       const policyMatch = wcSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
-      if (policyMatch && policyMatch[1]) {
+      if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.wc.policy_number = policyMatch[1].trim();
       }
       const dateMatches = wcSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
@@ -6237,7 +6254,7 @@ function extractFieldsWithRegex(text, schema) {
     if (umbrellaMatch) {
       const umbrellaSection = umbrellaMatch[0];
       const policyMatch = umbrellaSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
-      if (policyMatch && policyMatch[1]) {
+      if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.umbrella.policy_number = policyMatch[1].trim();
       }
       const dateMatches = umbrellaSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
@@ -6257,7 +6274,7 @@ function extractFieldsWithRegex(text, schema) {
     if (excessMatch) {
       const excessSection = excessMatch[0];
       const policyMatch = excessSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
-      if (policyMatch && policyMatch[1]) {
+      if (policyMatch && policyMatch[1] && isValidPolicyNumber(policyMatch[1])) {
         coverages.excess.policy_number = policyMatch[1].trim();
       }
       const dateMatches = excessSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
@@ -6334,7 +6351,7 @@ function extractFieldsWithRegex(text, schema) {
   // CONTEXT-AWARE DATE EXTRACTION for GL coverage
   if ('gl_effective_date' in schema && !extracted.gl_effective_date) {
     // First try context-specific extraction from GL section
-    const glSection = text.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,500}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const glSection = text.match(new RegExp(`COMMERCIAL\\s+GENERAL\\s+LIABILITY[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     const v = getValueAfter('POLICY\\s+EFF') || getValueAfter('EFFECTIVE\\s+DATE') || (glSection && glSection[1]);
     if (v) {
       extracted.gl_effective_date = v;
@@ -6343,7 +6360,7 @@ function extractFieldsWithRegex(text, schema) {
   }
   if ('gl_expiration_date' in schema && !extracted.gl_expiration_date) {
     // First try context-specific extraction from GL section  
-    const glSection = text.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,500}?(?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const glSection = text.match(new RegExp(`COMMERCIAL\\s+GENERAL\\s+LIABILITY[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(?:\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})[\\s\\S]{0,${DATE_PROXIMITY_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     const v = getValueAfter('POLICY\\s+EXP') || getValueAfter('EXPIRATION\\s+DATE') || (glSection && glSection[1]);
     if (v) {
       extracted.gl_expiration_date = v;
@@ -6354,7 +6371,7 @@ function extractFieldsWithRegex(text, schema) {
   // WC dates - Extract from WC coverage section instead of using index
   if ('wc_effective_date' in schema && !extracted.wc_effective_date) {
     // Try to find dates near Workers Compensation keyword
-    const wcSection = text.match(/WORKERS\s+COMPENSATION[\s\S]{0,500}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const wcSection = text.match(new RegExp(`WORKERS\\s+COMPENSATION[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (wcSection && wcSection[1]) {
       extracted.wc_effective_date = wcSection[1];
       console.log('✅ WC Effective Date (from WC section):', extracted.wc_effective_date);
@@ -6362,7 +6379,7 @@ function extractFieldsWithRegex(text, schema) {
   }
   if ('wc_expiration_date' in schema && !extracted.wc_expiration_date) {
     // Look for second date in WC section
-    const wcSection = text.match(/WORKERS\s+COMPENSATION[\s\S]{0,500}?(?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const wcSection = text.match(new RegExp(`WORKERS\\s+COMPENSATION[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(?:\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})[\\s\\S]{0,${DATE_PROXIMITY_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (wcSection && wcSection[1]) {
       extracted.wc_expiration_date = wcSection[1];
       console.log('✅ WC Expiration Date (from WC section):', extracted.wc_expiration_date);
@@ -6371,7 +6388,7 @@ function extractFieldsWithRegex(text, schema) {
   
   // Auto dates - Extract from Auto coverage section instead of using index
   if ('auto_effective_date' in schema && !extracted.auto_effective_date) {
-    const autoSection = text.match(/AUTOMOBILE\s+LIABILITY[\s\S]{0,500}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const autoSection = text.match(new RegExp(`AUTOMOBILE\\s+LIABILITY[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (autoSection && autoSection[1]) {
       extracted.auto_effective_date = autoSection[1];
       console.log('✅ Auto Effective Date (from Auto section):', extracted.auto_effective_date);
@@ -6379,7 +6396,7 @@ function extractFieldsWithRegex(text, schema) {
   }
   if ('auto_expiration_date' in schema && !extracted.auto_expiration_date) {
     // Look for second date in Auto section
-    const autoSection = text.match(/AUTOMOBILE\s+LIABILITY[\s\S]{0,500}?(?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const autoSection = text.match(new RegExp(`AUTOMOBILE\\s+LIABILITY[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(?:\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})[\\s\\S]{0,${DATE_PROXIMITY_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (autoSection && autoSection[1]) {
       extracted.auto_expiration_date = autoSection[1];
       console.log('✅ Auto Expiration Date (from Auto section):', extracted.auto_expiration_date);
@@ -6388,7 +6405,7 @@ function extractFieldsWithRegex(text, schema) {
   
   // Umbrella dates - Extract from Umbrella coverage section instead of using index
   if ('umbrella_effective_date' in schema && !extracted.umbrella_effective_date) {
-    const umbrellaSection = text.match(/UMBRELLA\s+LIAB(?:ILITY)?[\s\S]{0,500}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const umbrellaSection = text.match(new RegExp(`UMBRELLA\\s+LIAB(?:ILITY)?[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (umbrellaSection && umbrellaSection[1]) {
       extracted.umbrella_effective_date = umbrellaSection[1];
       console.log('✅ Umbrella Effective Date (from Umbrella section):', extracted.umbrella_effective_date);
@@ -6396,7 +6413,7 @@ function extractFieldsWithRegex(text, schema) {
   }
   if ('umbrella_expiration_date' in schema && !extracted.umbrella_expiration_date) {
     // Look for second date in Umbrella section
-    const umbrellaSection = text.match(/UMBRELLA\s+LIAB(?:ILITY)?[\s\S]{0,500}?(?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const umbrellaSection = text.match(new RegExp(`UMBRELLA\\s+LIAB(?:ILITY)?[\\s\\S]{0,${COVERAGE_SECTION_CHAR_LIMIT}}?(?:\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})[\\s\\S]{0,${DATE_PROXIMITY_CHAR_LIMIT}}?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})`, 'i'));
     if (umbrellaSection && umbrellaSection[1]) {
       extracted.umbrella_expiration_date = umbrellaSection[1];
       console.log('✅ Umbrella Expiration Date (from Umbrella section):', extracted.umbrella_expiration_date);
@@ -6427,10 +6444,10 @@ function extractFieldsWithRegex(text, schema) {
   const findInsurerLetterForCoverage = (coverageKeywords) => {
     for (const keyword of coverageKeywords) {
       // Look for coverage type followed by insurer letter nearby
-      // Pattern: COVERAGE_TYPE ... (up to 500 chars) ... single letter A-F
+      // Pattern: COVERAGE_TYPE ... (up to COVERAGE_SECTION_CHAR_LIMIT chars) ... single letter A-F
       // More restrictive: Look for INSR LTR or letter in table structure
       const coverageRegex = new RegExp(
-        keyword + '[\\s\\S]{0,500}?(?:INSR\\s+LTR[\\s\\n:]+)([A-F])\\b',
+        keyword + '[\\s\\S]{0,' + COVERAGE_SECTION_CHAR_LIMIT + '}?(?:INSR\\s+LTR[\\s\\n:]+)([A-F])\\b',
         'i'
       );
       let match = text.match(coverageRegex);
@@ -6438,7 +6455,7 @@ function extractFieldsWithRegex(text, schema) {
       // If no match with INSR LTR, try to find single letter in coverage line (less reliable, so only if found)
       if (!match) {
         const fallbackRegex = new RegExp(
-          keyword + '[^\\n]{0,200}?\\b([A-F])\\b',
+          keyword + '[^\\n]{0,' + INSURER_LETTER_PROXIMITY + '}?\\b([A-F])\\b',
           'i'
         );
         match = text.match(fallbackRegex);
