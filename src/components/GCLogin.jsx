@@ -57,6 +57,7 @@ export default function GCLogin({ onLogin }) {
       if (gcData.requiresSelection && gcData.gcs) {
         setMultipleGCs(gcData.gcs);
         setSelectedGcId(null);
+        setLoading(false);
         return;
       }
 
@@ -99,7 +100,8 @@ export default function GCLogin({ onLogin }) {
                     onClick={(e) => {
                       submit(e, gc.id);
                     }}
-                    className="w-full p-4 border-2 border-slate-300 rounded-lg hover:border-red-500 hover:bg-red-50 transition-all text-left"
+                    disabled={loading}
+                    className="w-full p-4 border-2 border-slate-300 rounded-lg hover:border-red-500 hover:bg-red-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <div className="font-bold text-slate-900">{gc.company_name}</div>
                     <div className="text-sm text-slate-600">{gc.address}</div>

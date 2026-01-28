@@ -41,7 +41,7 @@ export default function SubcontractorLogin({ onLogin }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          email, 
+          email: email.toLowerCase(), 
           password,
           subId: subIdToUse // Include selected sub ID if multiple subs with same email
         })
@@ -58,6 +58,7 @@ export default function SubcontractorLogin({ onLogin }) {
       if (data.requiresSelection && data.contractors) {
         setMultipleSubs(data.contractors);
         setSelectedSubId(null);
+        setLoading(false);
         return;
       }
 
@@ -107,7 +108,8 @@ export default function SubcontractorLogin({ onLogin }) {
                     onClick={(e) => {
                       submit(e, sub.id);
                     }}
-                    className="w-full p-4 border-2 border-slate-300 rounded-lg hover:border-red-500 hover:bg-red-50 transition-all text-left"
+                    disabled={loading}
+                    className="w-full p-4 border-2 border-slate-300 rounded-lg hover:border-red-500 hover:bg-red-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <div className="font-bold text-slate-900">{sub.company_name}</div>
                     <div className="text-sm text-slate-600">{sub.address}</div>

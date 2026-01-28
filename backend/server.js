@@ -3655,15 +3655,21 @@ app.post('/public/contractor-login', publicApiLimiter, async (req, res) => {
     } else if (matchingSubs.length === 1) {
       contractor = matchingSubs[0];
     } else if (matchingSubs.length > 1) {
-      // Verify password for first match before showing selection
-      // This prevents revealing that multiple accounts exist without valid credentials
-      const firstMatch = matchingSubs[0];
-      if (!firstMatch.password) {
-        return res.status(401).json({ error: 'Invalid email or password' });
+      // When multiple subs exist, validate that at least one has a valid password
+      // This prevents revealing multiple accounts exist without valid credentials
+      let hasValidPassword = false;
+      
+      for (const sub of matchingSubs) {
+        if (sub.password) {
+          const isValid = await bcrypt.compare(password, sub.password);
+          if (isValid) {
+            hasValidPassword = true;
+            break;
+          }
+        }
       }
       
-      const isPasswordValid = await bcrypt.compare(password, firstMatch.password);
-      if (!isPasswordValid) {
+      if (!hasValidPassword) {
         return res.status(401).json({ error: 'Invalid email or password' });
       }
 
@@ -6364,6 +6370,16 @@ app.post('/public/gc-login', publicApiLimiter, async (req, res) => {
     } else if (matchingGCs.length === 1) {
       gc = matchingGCs[0];
     } else if (matchingGCs.length > 1) {
+      // Verify password for first match before showing selection
+      // This prevents revealing that multiple accounts exist without valid credentials
+      const firstMatch = matchingGCs[0];
+      const passwordToCheck = (firstMatch && firstMatch.password) ? firstMatch.password : DUMMY_PASSWORD_HASH;
+      const isPasswordValid = await bcrypt.compare(password, passwordToCheck);
+      
+      if (!firstMatch.password || !isPasswordValid) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
       // Multiple GCs with same email - return list for user to choose
       return res.status(200).json({
         requiresSelection: true,
