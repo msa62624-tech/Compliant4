@@ -246,40 +246,6 @@ async function initializeData() {
   if (!dataLoaded) {
     await loadEntities();
     dataLoaded = true;
-    
-    // Sync in-memory users array from persisted entities.User
-    // This ensures authentication works with users loaded from disk
-    if (entities.User && Array.isArray(entities.User)) {
-      for (const userEntity of entities.User) {
-        // Check if user already exists in users array (avoid duplicates)
-        const existsInUsers = users.find(u => u.id === userEntity.id);
-        if (!existsInUsers && userEntity.password) {
-          // Add user to in-memory array for authentication
-          users.push({
-            id: userEntity.id,
-            username: userEntity.username,
-            password: userEntity.password,
-            email: userEntity.email,
-            name: userEntity.name,
-            role: userEntity.role,
-            gc_id: userEntity.gc_id,
-            is_active: userEntity.is_active
-          });
-        }
-      }
-      console.log('✅ Synced', users.filter(u => u.role === 'gc').length, 'GC users from disk');
-    }
-    
-    // Ensure all GC contractors have login credentials (idempotent)
-    // This syncs passwords from User records to Contractor records for the login endpoint
-    try {
-      for (const c of entities.Contractor.filter(c => c.contractor_type === 'general_contractor')) {
-        await ensureGcLogin(c);
-      }
-    } catch (err) {
-      console.error('Error ensuring GC logins:', err);
-    }
-    
     // Ensure broker records exist for authentication
     seedBrokersFromData();
   }
@@ -832,28 +798,10 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
   // Check if this specific contractor already has a login
   const existingForThisContractor = users.find(u => u.gc_id === contractor.id);
   if (existingForThisContractor) {
-    console.log('✅ ensureGcLogin: found existing user for contractor', {
+    console.log('🔴 ensureGcLogin early return 3: contractor already has login', {
       contractorId: contractor.id,
-      existingUserId: existingForThisContractor.id,
-      contractorHasPassword: !!contractor.password
+      existingUserId: existingForThisContractor.id
     });
-    
-    // Ensure contractor has the password from the existing user
-    // This is critical for the /public/gc-login endpoint which checks contractor.password
-    if (existingForThisContractor.password && !contractor.password) {
-      contractor.password = existingForThisContractor.password;
-      
-      // Also update in the entities array if it exists there
-      if (contractor.id && entities.Contractor) {
-        const contractorIndex = entities.Contractor.findIndex(c => c.id === contractor.id);
-        if (contractorIndex !== -1) {
-          entities.Contractor[contractorIndex].password = existingForThisContractor.password;
-        }
-      }
-      
-      console.log('✅ Password synced from user to contractor entity');
-    }
-    
     return null;
   }
 
@@ -906,7 +854,6 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
   entities.User.push({
     id: userId,
     username,
-    password: hashedPassword, // Include password for persistence
     email,
     name,
     role: 'gc',
@@ -939,6 +886,17 @@ async function ensureGcLogin(contractor, { forceCreate = false } = {}) {
   });
   return returnValue;
 }
+
+// Ensure seeded GCs get logins (idempotent) - using async/await
+(async () => {
+  try {
+    for (const c of entities.Contractor.filter(c => c.contractor_type === 'general_contractor')) {
+      await ensureGcLogin(c);
+    }
+  } catch (err) {
+    console.error('Error ensuring GC logins:', err);
+  }
+})();
 
 // =======================
 // MIDDLEWARE CONFIGURATION
