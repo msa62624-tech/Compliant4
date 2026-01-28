@@ -5945,40 +5945,18 @@ function extractFieldsWithRegex(text, schema) {
   for (const [fieldName, fieldType] of Object.entries(schema)) {
     const lowerField = fieldName.toLowerCase();
     
-    // Policy number fields - use first found policy number
+    // Policy number fields - SKIP HERE, will be handled by table extraction below
+    // This prevents incorrect index-based assignment
     if (lowerField.includes('policy') && lowerField.includes('number')) {
-      if (allPolicyNumbers.length > 0) {
-        // Try to match based on coverage type
-        if (lowerField.includes('gl') || lowerField.includes('general')) {
-          extracted[fieldName] = allPolicyNumbers[0];
-        } else if (lowerField.includes('wc') || lowerField.includes('worker')) {
-          extracted[fieldName] = allPolicyNumbers[Math.min(1, allPolicyNumbers.length - 1)];
-        } else if (lowerField.includes('auto')) {
-          extracted[fieldName] = allPolicyNumbers[Math.min(2, allPolicyNumbers.length - 1)];
-        } else if (lowerField.includes('umbrella') || lowerField.includes('excess')) {
-          extracted[fieldName] = allPolicyNumbers[Math.min(3, allPolicyNumbers.length - 1)];
-        } else {
-          extracted[fieldName] = allPolicyNumbers[0];
-        }
-        console.log(`✅ Extracted ${fieldName}:`, extracted[fieldName]);
-      }
+      // Skip - will be extracted from coverage table with proper context
+      continue;
     }
     
-    // Date fields - AGGRESSIVE extraction
+    // Date fields - SKIP HERE, will be handled by coverage-specific extraction below
+    // This prevents incorrect index-based assignment
     else if (lowerField.includes('date') || fieldType.toLowerCase().includes('date')) {
-      if (allDates.length > 0) {
-        // Try to find the most relevant date based on field name
-        if (lowerField.includes('effective') || lowerField.includes('start') || lowerField.includes('eff')) {
-          extracted[fieldName] = allDates[0];
-          console.log(`✅ Extracted ${fieldName} (effective):`, extracted[fieldName]);
-        } else if (lowerField.includes('expir') || lowerField.includes('end') || lowerField.includes('exp')) {
-          extracted[fieldName] = allDates[Math.min(1, allDates.length - 1)];
-          console.log(`✅ Extracted ${fieldName} (expiration):`, extracted[fieldName]);
-        } else {
-          extracted[fieldName] = allDates[0];
-          console.log(`✅ Extracted ${fieldName} (date):`, extracted[fieldName]);
-        }
-      }
+      // Skip - will be extracted from coverage table with proper context
+      continue;
     }
     
     // Dollar amount fields - AGGRESSIVE extraction
@@ -6191,49 +6169,107 @@ function extractFieldsWithRegex(text, schema) {
     
     const tableText = text.substring(tableStart, tableStart + 3000);
     
-    // Extract GL coverage row - limit to 3 lines after the coverage type
-    const glMatch = tableText.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[^\n]*(?:\n[^\n]*){0,2}(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    // Extract GL coverage row - improved to handle various formats
+    // Look for policy number, eff date, and exp date in coverage row (within reasonable proximity)
+    const glMatch = tableText.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[^\n]*(?:\n[^\n]*){0,3}/i);
     if (glMatch) {
-      if (glMatch[1]) coverages.gl.policy_number = glMatch[1].trim();
-      if (glMatch[2]) coverages.gl.effective_date = glMatch[2].trim();
-      if (glMatch[3]) coverages.gl.expiration_date = glMatch[3].trim();
-      console.log('✅ GL Coverage extracted from table:', coverages.gl);
+      const glSection = glMatch[0];
+      // Extract policy number from GL section
+      const policyMatch = glSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+      if (policyMatch && policyMatch[1]) {
+        coverages.gl.policy_number = policyMatch[1].trim();
+      }
+      // Extract dates from GL section
+      const dateMatches = glSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+      if (dateMatches && dateMatches.length >= 1) {
+        coverages.gl.effective_date = dateMatches[0];
+        if (dateMatches.length >= 2) {
+          coverages.gl.expiration_date = dateMatches[1];
+        }
+      }
+      if (coverages.gl.policy_number || coverages.gl.effective_date) {
+        console.log('✅ GL Coverage extracted from table:', coverages.gl);
+      }
     }
     
-    // Extract Auto coverage row - limit to 3 lines after the coverage type
-    const autoMatch = tableText.match(/AUTOMOBILE\s+LIABILITY[^\n]*(?:\n[^\n]*){0,2}(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    // Extract Auto coverage row - improved to handle various formats
+    const autoMatch = tableText.match(/AUTOMOBILE\s+LIABILITY[^\n]*(?:\n[^\n]*){0,3}/i);
     if (autoMatch) {
-      if (autoMatch[1]) coverages.auto.policy_number = autoMatch[1].trim();
-      if (autoMatch[2]) coverages.auto.effective_date = autoMatch[2].trim();
-      if (autoMatch[3]) coverages.auto.expiration_date = autoMatch[3].trim();
-      console.log('✅ Auto Coverage extracted from table:', coverages.auto);
+      const autoSection = autoMatch[0];
+      const policyMatch = autoSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+      if (policyMatch && policyMatch[1]) {
+        coverages.auto.policy_number = policyMatch[1].trim();
+      }
+      const dateMatches = autoSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+      if (dateMatches && dateMatches.length >= 1) {
+        coverages.auto.effective_date = dateMatches[0];
+        if (dateMatches.length >= 2) {
+          coverages.auto.expiration_date = dateMatches[1];
+        }
+      }
+      if (coverages.auto.policy_number || coverages.auto.effective_date) {
+        console.log('✅ Auto Coverage extracted from table:', coverages.auto);
+      }
     }
     
-    // Extract WC coverage row - limit to 3 lines after the coverage type
-    const wcMatch = tableText.match(/WORKERS\s+COMPENSATION[^\n]*(?:\n[^\n]*){0,2}(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    // Extract WC coverage row - improved to handle various formats
+    const wcMatch = tableText.match(/WORKERS\s+COMPENSATION[^\n]*(?:\n[^\n]*){0,3}/i);
     if (wcMatch) {
-      if (wcMatch[1]) coverages.wc.policy_number = wcMatch[1].trim();
-      if (wcMatch[2]) coverages.wc.effective_date = wcMatch[2].trim();
-      if (wcMatch[3]) coverages.wc.expiration_date = wcMatch[3].trim();
-      console.log('✅ WC Coverage extracted from table:', coverages.wc);
+      const wcSection = wcMatch[0];
+      const policyMatch = wcSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+      if (policyMatch && policyMatch[1]) {
+        coverages.wc.policy_number = policyMatch[1].trim();
+      }
+      const dateMatches = wcSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+      if (dateMatches && dateMatches.length >= 1) {
+        coverages.wc.effective_date = dateMatches[0];
+        if (dateMatches.length >= 2) {
+          coverages.wc.expiration_date = dateMatches[1];
+        }
+      }
+      if (coverages.wc.policy_number || coverages.wc.effective_date) {
+        console.log('✅ WC Coverage extracted from table:', coverages.wc);
+      }
     }
     
-    // Extract Umbrella coverage row - limit to 3 lines after the coverage type
-    const umbrellaMatch = tableText.match(/UMBRELLA\s+LIAB(?:ILITY)?[^\n]*(?:\n[^\n]*){0,2}(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    // Extract Umbrella coverage row - improved to handle various formats
+    const umbrellaMatch = tableText.match(/UMBRELLA\s+LIAB(?:ILITY)?[^\n]*(?:\n[^\n]*){0,3}/i);
     if (umbrellaMatch) {
-      if (umbrellaMatch[1]) coverages.umbrella.policy_number = umbrellaMatch[1].trim();
-      if (umbrellaMatch[2]) coverages.umbrella.effective_date = umbrellaMatch[2].trim();
-      if (umbrellaMatch[3]) coverages.umbrella.expiration_date = umbrellaMatch[3].trim();
-      console.log('✅ Umbrella Coverage extracted from table:', coverages.umbrella);
+      const umbrellaSection = umbrellaMatch[0];
+      const policyMatch = umbrellaSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+      if (policyMatch && policyMatch[1]) {
+        coverages.umbrella.policy_number = policyMatch[1].trim();
+      }
+      const dateMatches = umbrellaSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+      if (dateMatches && dateMatches.length >= 1) {
+        coverages.umbrella.effective_date = dateMatches[0];
+        if (dateMatches.length >= 2) {
+          coverages.umbrella.expiration_date = dateMatches[1];
+        }
+      }
+      if (coverages.umbrella.policy_number || coverages.umbrella.effective_date) {
+        console.log('✅ Umbrella Coverage extracted from table:', coverages.umbrella);
+      }
     }
     
-    // Extract Excess Liability coverage row - limit to 3 lines after the coverage type
-    const excessMatch = tableText.match(/EXCESS\s+LIAB(?:ILITY)?[^\n]*(?:\n[^\n]*){0,2}(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*([A-Za-z0-9-]{5,30}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EFF[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?[^\n]*(?:\n[^\n]*){0,1}(?:POLICY\s+EXP[^\d]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/i);
+    // Extract Excess Liability coverage row - improved to handle various formats
+    const excessMatch = tableText.match(/EXCESS\s+LIAB(?:ILITY)?[^\n]*(?:\n[^\n]*){0,3}/i);
     if (excessMatch) {
-      if (excessMatch[1]) coverages.excess.policy_number = excessMatch[1].trim();
-      if (excessMatch[2]) coverages.excess.effective_date = excessMatch[2].trim();
-      if (excessMatch[3]) coverages.excess.expiration_date = excessMatch[3].trim();
-      console.log('✅ Excess Liability Coverage extracted from table:', coverages.excess);
+      const excessSection = excessMatch[0];
+      const policyMatch = excessSection.match(/(?:POLICY\s+(?:NUMBER|NO|#)\s*[:.]?\s*)?([A-Z]{2,4}[-\s]?\d{4,12}|[A-Z0-9-]{7,30})/i);
+      if (policyMatch && policyMatch[1]) {
+        coverages.excess.policy_number = policyMatch[1].trim();
+      }
+      const dateMatches = excessSection.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+      if (dateMatches && dateMatches.length >= 1) {
+        coverages.excess.effective_date = dateMatches[0];
+        if (dateMatches.length >= 2) {
+          coverages.excess.expiration_date = dateMatches[1];
+        }
+      }
+      if (coverages.excess.policy_number || coverages.excess.effective_date) {
+        console.log('✅ Excess Liability Coverage extracted from table:', coverages.excess);
+      }
     }
     
     return coverages;
@@ -6295,56 +6331,76 @@ function extractFieldsWithRegex(text, schema) {
     console.log('✅ Umbrella Expiration Date (from table):', extracted.umbrella_expiration_date);
   }
 
-  // AGGRESSIVE DATE EXTRACTION for all coverage types
+  // CONTEXT-AWARE DATE EXTRACTION for GL coverage
   if ('gl_effective_date' in schema && !extracted.gl_effective_date) {
-    const v = getValueAfter('POLICY\\s+EFF') || getValueAfter('EFFECTIVE\\s+DATE') || (allDates.length > 0 ? allDates[0] : null);
+    // First try context-specific extraction from GL section
+    const glSection = text.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,500}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const v = getValueAfter('POLICY\\s+EFF') || getValueAfter('EFFECTIVE\\s+DATE') || (glSection && glSection[1]);
     if (v) {
       extracted.gl_effective_date = v;
       console.log('✅ GL Effective Date:', v);
     }
   }
   if ('gl_expiration_date' in schema && !extracted.gl_expiration_date) {
-    const v = getValueAfter('POLICY\\s+EXP') || getValueAfter('EXPIRATION\\s+DATE') || (allDates.length > 1 ? allDates[1] : null);
+    // First try context-specific extraction from GL section  
+    const glSection = text.match(/COMMERCIAL\s+GENERAL\s+LIABILITY[\s\S]{0,500}?(?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    const v = getValueAfter('POLICY\\s+EXP') || getValueAfter('EXPIRATION\\s+DATE') || (glSection && glSection[1]);
     if (v) {
       extracted.gl_expiration_date = v;
       console.log('✅ GL Expiration Date:', v);
     }
   }
   
-  // WC dates
+  // WC dates - Extract from WC coverage section instead of using index
   if ('wc_effective_date' in schema && !extracted.wc_effective_date) {
-    const v = allDates.length > 2 ? allDates[2] : allDates[0];
-    if (v) {
-      extracted.wc_effective_date = v;
-      console.log('✅ WC Effective Date:', v);
+    // Try to find dates near Workers Compensation keyword
+    const wcSection = text.match(/WORKERS\s+COMPENSATION[\s\S]{0,500}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    if (wcSection && wcSection[1]) {
+      extracted.wc_effective_date = wcSection[1];
+      console.log('✅ WC Effective Date (from WC section):', extracted.wc_effective_date);
     }
   }
   if ('wc_expiration_date' in schema && !extracted.wc_expiration_date) {
-    const v = allDates.length > 3 ? allDates[3] : (allDates.length > 1 ? allDates[1] : null);
-    if (v) {
-      extracted.wc_expiration_date = v;
-      console.log('✅ WC Expiration Date:', v);
+    // Look for second date in WC section
+    const wcSection = text.match(/WORKERS\s+COMPENSATION[\s\S]{0,500}?(?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    if (wcSection && wcSection[1]) {
+      extracted.wc_expiration_date = wcSection[1];
+      console.log('✅ WC Expiration Date (from WC section):', extracted.wc_expiration_date);
     }
   }
   
-  // Auto dates
-  if ('auto_effective_date' in schema && !extracted.auto_effective_date && allDates.length > 0) {
-    extracted.auto_effective_date = allDates[0];
-    console.log('✅ Auto Effective Date:', allDates[0]);
+  // Auto dates - Extract from Auto coverage section instead of using index
+  if ('auto_effective_date' in schema && !extracted.auto_effective_date) {
+    const autoSection = text.match(/AUTOMOBILE\s+LIABILITY[\s\S]{0,500}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    if (autoSection && autoSection[1]) {
+      extracted.auto_effective_date = autoSection[1];
+      console.log('✅ Auto Effective Date (from Auto section):', extracted.auto_effective_date);
+    }
   }
-  if ('auto_expiration_date' in schema && !extracted.auto_expiration_date && allDates.length > 1) {
-    extracted.auto_expiration_date = allDates[1];
-    console.log('✅ Auto Expiration Date:', allDates[1]);
+  if ('auto_expiration_date' in schema && !extracted.auto_expiration_date) {
+    // Look for second date in Auto section
+    const autoSection = text.match(/AUTOMOBILE\s+LIABILITY[\s\S]{0,500}?(?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    if (autoSection && autoSection[1]) {
+      extracted.auto_expiration_date = autoSection[1];
+      console.log('✅ Auto Expiration Date (from Auto section):', extracted.auto_expiration_date);
+    }
   }
   
-  // Umbrella dates
-  if ('umbrella_effective_date' in schema && !extracted.umbrella_effective_date && allDates.length > 0) {
-    extracted.umbrella_effective_date = allDates[0];
-    console.log('✅ Umbrella Effective Date:', allDates[0]);
+  // Umbrella dates - Extract from Umbrella coverage section instead of using index
+  if ('umbrella_effective_date' in schema && !extracted.umbrella_effective_date) {
+    const umbrellaSection = text.match(/UMBRELLA\s+LIAB(?:ILITY)?[\s\S]{0,500}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    if (umbrellaSection && umbrellaSection[1]) {
+      extracted.umbrella_effective_date = umbrellaSection[1];
+      console.log('✅ Umbrella Effective Date (from Umbrella section):', extracted.umbrella_effective_date);
+    }
   }
-  if ('umbrella_expiration_date' in schema && !extracted.umbrella_expiration_date && allDates.length > 1) {
-    extracted.umbrella_expiration_date = allDates[1];
-    console.log('✅ Umbrella Expiration Date:', allDates[1]);
+  if ('umbrella_expiration_date' in schema && !extracted.umbrella_expiration_date) {
+    // Look for second date in Umbrella section
+    const umbrellaSection = text.match(/UMBRELLA\s+LIAB(?:ILITY)?[\s\S]{0,500}?(?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})[\s\S]{0,100}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    if (umbrellaSection && umbrellaSection[1]) {
+      extracted.umbrella_expiration_date = umbrellaSection[1];
+      console.log('✅ Umbrella Expiration Date (from Umbrella section):', extracted.umbrella_expiration_date);
+    }
   }
   
   // DYNAMIC INSURER/CARRIER EXTRACTION - Extract all insurers A-F dynamically
@@ -6372,11 +6428,26 @@ function extractFieldsWithRegex(text, schema) {
     for (const keyword of coverageKeywords) {
       // Look for coverage type followed by insurer letter nearby
       // Pattern: COVERAGE_TYPE ... (up to 500 chars) ... single letter A-F
+      // More restrictive: Look for INSR LTR or letter in table structure
       const coverageRegex = new RegExp(
-        keyword + '[\\s\\S]{0,500}?(?:INSR\\s+LTR[\\s\\n:]+)?\\b([A-F])\\b',
+        keyword + '[\\s\\S]{0,500}?(?:INSR\\s+LTR[\\s\\n:]+)([A-F])\\b',
         'i'
       );
-      const match = text.match(coverageRegex);
+      let match = text.match(coverageRegex);
+      
+      // If no match with INSR LTR, try to find single letter in coverage line (less reliable, so only if found)
+      if (!match) {
+        const fallbackRegex = new RegExp(
+          keyword + '[^\\n]{0,200}?\\b([A-F])\\b',
+          'i'
+        );
+        match = text.match(fallbackRegex);
+        // Validate that this letter actually exists in insurerMap
+        if (match && match[1] && !insurerMap[match[1].toUpperCase()]) {
+          match = null; // Reject if letter not found in insurer list
+        }
+      }
+      
       if (match && match[1]) {
         const letter = match[1].toUpperCase();
         if (insurerMap[letter]) {
