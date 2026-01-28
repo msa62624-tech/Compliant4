@@ -60,6 +60,27 @@ export function requireAdmin(req, res, next) {
 }
 
 /**
+ * Middleware to block access to internal entities (those starting with _)
+ * Internal entities are restricted to admin users only
+ */
+export function blockInternalEntities(req, res, next) {
+  const { entityName } = req.params;
+  
+  // Check if entity name starts with underscore (internal entity)
+  if (entityName && entityName.startsWith('_')) {
+    // Allow admin users to access internal entities
+    if (req.user && (req.user.role === 'super_admin' || req.user.role === 'admin')) {
+      return next();
+    }
+    
+    // Block non-admin users
+    return sendError(res, 403, 'Access to internal entities is restricted');
+  }
+  
+  next();
+}
+
+/**
  * Optional authentication middleware - sets req.user if token is valid, but doesn't fail if not
  * Useful for endpoints that provide different levels of detail based on authentication
  */
