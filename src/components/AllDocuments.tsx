@@ -12,32 +12,72 @@ import StatusBadge from "@/components/insurance/StatusBadge";
 import ApprovalModal from "@/components/insurance/ApprovalModal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-export default function AllDocuments() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDocument, setSelectedDocument] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+interface User {
+  email: string;
+  role: string;
+}
+
+interface InsuranceDocument {
+  id: string;
+  subcontractor_name: string;
+  policy_number: string;
+  insurance_type: string;
+  insurance_provider?: string;
+  coverage_amount?: number;
+  created_date: string;
+  approval_status: string;
+  document_url: string;
+  reviewed_by?: string;
+  review_date?: string;
+  notes?: string;
+  rejection_reason?: string;
+}
+
+interface UpdateDocumentData {
+  approval_status: string;
+  reviewed_by: string;
+  review_date: string;
+  notes?: string;
+  rejection_reason?: string;
+}
+
+interface UpdateDocumentVariables {
+  id: string;
+  data: UpdateDocumentData;
+}
+
+export default function AllDocuments(): JSX.Element {
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedDocument, setSelectedDocument] = useState<InsuranceDocument | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const queryClient = useQueryClient();
 
   // Get current user to check access
   const { data: currentUser, isLoading: userLoading } = useQuery({
     queryKey: ['current-user'],
-    queryFn: () => apiClient.auth.me(),
+    queryFn: async (): Promise<User> => {
+      return await apiClient.auth.me() as User;
+    },
   });
 
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ['insurance-documents'],
-    queryFn: () => apiClient.entities.InsuranceDocument.list('-created_date'),
-  });
-
-  const updateDocumentMutation = useMutation({
-    mutationFn: ({ id, data }) => apiClient.entities.InsuranceDocument.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['insurance-documents']);
+    queryFn: async (): Promise<InsuranceDocument[]> => {
+      return await apiClient.entities.InsuranceDocument.list('-created_date') as InsuranceDocument[];
     },
   });
 
-  const handleApprove = async (document, notes) => {
-    const user = await apiClient.auth.me();
+  const updateDocumentMutation = useMutation({
+    mutationFn: async ({ id, data }: UpdateDocumentVariables): Promise<void> => {
+      await apiClient.entities.InsuranceDocument.update(id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['insurance-documents'] });
+    },
+  });
+
+  const handleApprove = async (document: InsuranceDocument, notes?: string): Promise<void> => {
+    const user = await apiClient.auth.me() as User;
     await updateDocumentMutation.mutateAsync({
       id: document.id,
       data: {
@@ -49,8 +89,8 @@ export default function AllDocuments() {
     });
   };
 
-  const handleReject = async (document, reason) => {
-    const user = await apiClient.auth.me();
+  const handleReject = async (document: InsuranceDocument, reason: string): Promise<void> => {
+    const user = await apiClient.auth.me() as User;
     await updateDocumentMutation.mutateAsync({
       id: document.id,
       data: {
@@ -62,12 +102,12 @@ export default function AllDocuments() {
     });
   };
 
-  const openApprovalModal = (document) => {
+  const openApprovalModal = (document: InsuranceDocument): void => {
     setSelectedDocument(document);
     setIsModalOpen(true);
   };
 
-  const filteredDocuments = documents.filter(doc =>
+  const filteredDocuments: InsuranceDocument[] = documents.filter((doc: InsuranceDocument) =>
     doc.subcontractor_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     doc.policy_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     doc.insurance_type?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -132,7 +172,7 @@ export default function AllDocuments() {
                 <Input
                   placeholder="Search by contractor, policy, or type..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -155,7 +195,7 @@ export default function AllDocuments() {
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    Array(8).fill(0).map((_, i) => (
+                    Array(8).fill(0).map((_, i: number) => (
                       <TableRow key={i}>
                         <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-28" /></TableCell>
@@ -174,7 +214,7 @@ export default function AllDocuments() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredDocuments.map((doc) => (
+                    filteredDocuments.map((doc: InsuranceDocument) => (
                       <TableRow key={doc.id} className="hover:bg-slate-50 transition-colors">
                         <TableCell className="font-medium text-slate-900">
                           {doc.subcontractor_name}
