@@ -22,7 +22,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import logger from '../utils/logger';
 import type { GeneratedCOI, Project, SubInsuranceRequirement, InsuranceProgram } from "@/api-types";
-import type * as ApiTypes from '@/api-types';
 
 export default function COIReview() {
   const navigate = useNavigate();
