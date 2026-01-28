@@ -1322,9 +1322,22 @@ export default function BrokerUploadCOI() {
             <div className="flex gap-3 justify-center">
               <Button
                 onClick={() => {
+                  // Reset all state variables for a clean start
                   setIsComplete(false);
                   setCurrentStep(1);
-                  setBrokerSignature(null);
+                  setBrokerSignature('');
+                  setSignatureText('');
+                  setUploadedFiles({
+                    coi: null,
+                    gl_policy: null,
+                    wc_policy: null,
+                    auto_policy: null,
+                    umbrella_policy: null,
+                  });
+                  setUploadProgress('');
+                  setError(null);
+                  setAnalysisResults({});
+                  setBrokerContacts({ all: { name: '', email: '', phone: '' } });
                 }}
                 className="bg-red-600 hover:bg-red-700"
               >
