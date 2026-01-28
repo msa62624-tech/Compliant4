@@ -6662,19 +6662,34 @@ function extractFieldsWithRegex(text, schema) {
     ];
     
     // Check for negation words within 50 chars before "ADDITIONAL INSURED"
-    // Find the keyword and check if any negation word appears in the 50 chars before it
-    let hasNegation = false;
-    const keywordMatch = /ADDITIONAL\s+INSURED/i.exec(text);
-    if (keywordMatch) {
-      const startPos = Math.max(0, keywordMatch.index - 50);
-      const precedingText = text.substring(startPos, keywordMatch.index);
-      hasNegation = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i.test(precedingText);
+    // Find ALL keyword occurrences and check if at least one is not negated
+    let hasAddlInsured = false;
+    const allMatches = [];
+    let match;
+    const regex = /ADDITIONAL\s+INSURED/gi;
+    while ((match = regex.exec(text)) !== null) {
+      allMatches.push(match.index);
     }
     
-    let hasAddlInsured = false;
-    if (!hasNegation) {
+    // If we find any occurrence, check if at least one is not negated
+    if (allMatches.length > 0) {
+      for (const matchIndex of allMatches) {
+        const startPos = Math.max(0, matchIndex - 50);
+        const precedingText = text.substring(startPos, matchIndex);
+        const hasNegation = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i.test(precedingText);
+        
+        // If this occurrence is not negated, we found a valid endorsement
+        if (!hasNegation) {
+          hasAddlInsured = true;
+          break;
+        }
+      }
+    }
+    
+    // If no "ADDITIONAL INSURED" found, check other patterns
+    if (!hasAddlInsured) {
       for (const pattern of addlInsuredIndicators) {
-        if (pattern.test(text)) {
+        if (pattern !== /ADDITIONAL\s+INSURED/i && pattern.test(text)) {
           hasAddlInsured = true;
           break;
         }
@@ -6695,19 +6710,34 @@ function extractFieldsWithRegex(text, schema) {
     ];
     
     // Check for negation words within 50 chars before "WAIVER" or "SUBROGATION"
-    // Find the keyword and check if any negation word appears in the 50 chars before it
-    let hasNegation = false;
-    const keywordMatch = /(?:WAIVER|SUBROGATION)/i.exec(text);
-    if (keywordMatch) {
-      const startPos = Math.max(0, keywordMatch.index - 50);
-      const precedingText = text.substring(startPos, keywordMatch.index);
-      hasNegation = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i.test(precedingText);
+    // Find ALL keyword occurrences and check if at least one is not negated
+    let hasWaiver = false;
+    const allMatches = [];
+    let match;
+    const regex = /(?:WAIVER|SUBROGATION)/gi;
+    while ((match = regex.exec(text)) !== null) {
+      allMatches.push(match.index);
     }
     
-    let hasWaiver = false;
-    if (!hasNegation) {
+    // If we find any occurrence, check if at least one is not negated
+    if (allMatches.length > 0) {
+      for (const matchIndex of allMatches) {
+        const startPos = Math.max(0, matchIndex - 50);
+        const precedingText = text.substring(startPos, matchIndex);
+        const hasNegation = /(?:NO|NOT|EXCLUDED|EXCEPT|WITHOUT|DOES\s+NOT\s+INCLUDE|EXCLUDING)/i.test(precedingText);
+        
+        // If this occurrence is not negated, we found a valid waiver
+        if (!hasNegation) {
+          hasWaiver = true;
+          break;
+        }
+      }
+    }
+    
+    // If no "WAIVER" or "SUBROGATION" found non-negated, check other patterns
+    if (!hasWaiver) {
       for (const pattern of waiverIndicators) {
-        if (pattern.test(text)) {
+        if (!/(WAIVER|SUBROGATION)/i.test(pattern.source) && pattern.test(text)) {
           hasWaiver = true;
           break;
         }
