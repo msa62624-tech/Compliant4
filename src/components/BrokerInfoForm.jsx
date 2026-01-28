@@ -170,13 +170,20 @@ export default function BrokerInfoForm({ subcontractor, subId }) {
       : '';
 
     // Detect if brokers changed by comparing with existing
-    // Use efficient shallow comparison instead of JSON.stringify
+    // Use Set-based comparison for robust detection regardless of order
     const existingBrokers = Array.isArray(subcontractor.brokers) ? subcontractor.brokers : [];
-    const brokersChanged = existingBrokers.length !== brokers.length ||
-      brokers.some((broker, idx) => {
-        const existing = existingBrokers[idx];
+    
+    // Create sets of broker emails for efficient comparison
+    const existingEmails = new Set(existingBrokers.map(b => b.email));
+    const newEmails = new Set(brokers.map(b => b.email));
+    
+    // Check if any brokers were added or removed
+    const brokersChanged = existingEmails.size !== newEmails.size ||
+      [...newEmails].some(email => !existingEmails.has(email)) ||
+      // Also check if any broker properties changed (excluding order)
+      brokers.some(broker => {
+        const existing = existingBrokers.find(e => e.email === broker.email);
         return !existing ||
-          broker.email !== existing.email ||
           broker.name !== existing.name ||
           broker.phone !== existing.phone ||
           broker.company !== existing.company;

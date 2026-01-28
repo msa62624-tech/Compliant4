@@ -382,9 +382,6 @@ InsureTrack Billing Team`
     let sentCount = 0;
     
     try {
-      // Create Map for O(1) contractor lookups (performance optimization)
-      const contractorsMap = new Map(contractors.map(c => [c.id, c]));
-
       // Find subscriptions expiring in 7 days
       const dueSoon = subscriptions.filter(s => {
         if (!s.next_billing_date || s.status !== 'active') return false;
