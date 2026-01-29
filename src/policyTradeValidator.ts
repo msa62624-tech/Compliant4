@@ -218,7 +218,7 @@ export function validatePolicyTradeCoverage(
 
   // Check GL policy for exclusions
   if (coi.gl_policy_notes || coi.gl_exclusions) {
-    const policyText = `${coi.gl_policy_notes || ''} ${coi.gl_exclusions || ''}`.toLowerCase();
+    const policyText = `${coi.gl_policy_notes ?? ''} ${coi.gl_exclusions ?? ''}`.toLowerCase();
 
     // Track which trades have already been excluded to avoid redundant checks
     const excludedTradeSet = new Set();

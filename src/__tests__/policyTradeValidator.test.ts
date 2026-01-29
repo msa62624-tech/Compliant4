@@ -43,6 +43,36 @@ describe('policyTradeValidator', () => {
       
       expect(result.warnings.length).toBeGreaterThan(0);
     });
+
+    test('handles null/undefined properties gracefully', () => {
+      const coi = {
+        gl_premium_basis: undefined,
+        gl_inherent_exclusions: null,
+        gl_policy_notes: null,
+        gl_exclusions: undefined,
+      };
+      const requiredTrades = ['carpentry', 'roofing'];
+      
+      // Should not throw error with null/undefined values
+      expect(() => validatePolicyTradeCoverage(coi, requiredTrades)).not.toThrow();
+      
+      const result = validatePolicyTradeCoverage(coi, requiredTrades);
+      expect(result).toBeDefined();
+    });
+
+    test('preserves empty strings with nullish coalescing', () => {
+      const coi = {
+        gl_policy_notes: '', // Empty string should be preserved, not treated as falsy
+        gl_exclusions: 'no roofing',
+      };
+      const requiredTrades = ['roofing'];
+      
+      const result = validatePolicyTradeCoverage(coi, requiredTrades);
+      
+      // Empty string should be included in concatenation
+      expect(result.compliant).toBe(false);
+      expect(result.excludedTrades).toHaveLength(1);
+    });
   });
 
   describe('TRADE_EXCLUSION_PATTERNS', () => {
