@@ -44,7 +44,6 @@ if (import.meta.env.DEV) {
     /^DEBUGvscs:web-client/,  // Codespaces web client debug
     /tunnelClient verbose/,   // Codespaces tunnel client verbose messages
     /^ERROR%c.*Can't find variable: Notification/,  // VS Code workbench Notification API errors
-    /Can't find variable: Notification/,  // Any Notification API errors
   ];
 
   // Helper function to check if message should be suppressed
