@@ -60,10 +60,15 @@ async def detailed_health_check():
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
     
+    # Calculate uptime in seconds
+    import time
+    process = psutil.Process()
+    uptime_seconds = time.time() - process.create_time()
+    
     return {
         "status": "healthy",
         "timestamp": get_timestamp(),
-        "uptime": get_timestamp(),
+        "uptime": uptime_seconds,
         "system": {
             "cpu_percent": cpu_percent,
             "memory": {
