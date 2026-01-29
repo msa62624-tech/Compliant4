@@ -412,7 +412,7 @@ export default function Contractors() {
               const contactToken = Array.from(contactTokenBytes, byte => byte.toString(16).padStart(2, '0')).join('');
               
               // Create username from email (before @ sign)
-              const username = contact.email.split('@')[0];
+              const username = contact.email?.split('@')[0] ?? 'user';
               
               // Generate temporary password
               const tempPassword = Math.random().toString(36).slice(-10) + 'A1!';
