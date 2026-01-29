@@ -6,6 +6,8 @@ Full-stack insurance tracking application for General Contractors and their subc
 
 > 🎉 **A+++++ Achievement**: This application features exceptional enterprise-grade capabilities including advanced security, Kubernetes-ready health monitoring, API versioning, distributed tracing, and automated deployment. See [A_PLUS_PLUS_PLUS_PLUS_PLUS_ACHIEVEMENT.md](A_PLUS_PLUS_PLUS_PLUS_PLUS_ACHIEVEMENT.md) for details.
 
+> 📦 **Repository Structure**: This is a multi-package repository (not a traditional monorepo) with separate frontend and backend packages. See [REPOSITORY_STRUCTURE.md](REPOSITORY_STRUCTURE.md) for details.
+
 ---
 
 ## ⚠️ SECURITY NOTICE - CRITICAL ACTION REQUIRED
