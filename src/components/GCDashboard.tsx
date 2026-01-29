@@ -1,0 +1,466 @@
+import { useEffect, useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import logger from '../utils/logger';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { FolderOpen, AlertTriangle, Search, Users } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import UserProfile from "@/components/UserProfile.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getBackendBaseUrl } from "@/urlConfig";
+
+interface Project {
+  id: string;
+  project_name: string;
+  address?: string;
+  gc_id?: string;
+  status?: string;
+}
+
+interface ProjectSubcontractor {
+  id: string;
+  project_id: string;
+  subcontractor_id: string;
+  subcontractor_name?: string;
+  compliance_status?: string;
+  trade_type?: string;
+}
+
+interface COI {
+  id: string;
+  project_id?: string;
+  subcontractor_id?: string;
+  project_sub_id?: string;
+  status: string;
+  created_date?: string;
+}
+
+type SearchType = 'all' | 'job' | 'subcontractor';
+
+export default function GCDashboard(): JSX.Element {
+  const urlParams = new URLSearchParams(window.location.search);
+  const gcId: string | null = urlParams.get('id');
+  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchType, setSearchType] = useState<SearchType>('all');
+
+
+  // Set public access mode
+  useEffect(() => {
+    if (gcId) {
+      sessionStorage.setItem('public_access_enabled', 'true');
+    }
+  }, [gcId]);
+
+  // Fetch projects - don't filter by status, show all
+  const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
+    queryKey: ['gc-projects', gcId],
+    queryFn: async (): Promise<Project[]> => {
+      try {
+        const backendBase = getBackendBaseUrl();
+        const response = await fetch(`${backendBase}/public/projects`);
+        if (!response.ok) throw new Error('Failed to fetch projects');
+        const allProjects = await response.json();
+        return allProjects.filter((p: Project) => p.gc_id === gcId);
+      } catch (err: any) {
+        logger.error('Error fetching projects', { context: 'GCDashboard', error: err.message });
+        return [];
+      }
+    },
+    enabled: !!gcId,
+    retry: 1,
+  });
+
+  // Fetch subcontractors
+  const { data: projectSubs = [] } = useQuery<ProjectSubcontractor[]>({
+    queryKey: ['gc-subs', gcId],
+    queryFn: async (): Promise<ProjectSubcontractor[]> => {
+      try {
+        // Use public endpoint to fetch all project subcontractors
+        const { protocol, host, origin } = window.location;
+        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                           import.meta?.env?.VITE_API_BASE_URL || '';
+        
+        const response = await fetch(`${backendBase}/public/all-project-subcontractors`);
+        if (!response.ok) throw new Error('Failed to fetch subcontractors');
+        const allSubs = await response.json();
+        
+        // Filter to only show subcontractors for projects owned by this GC
+        const projectIds = new Set(projects.map((p: Project) => p.id));
+        return allSubs.filter((ps: ProjectSubcontractor) => projectIds.has(ps.project_id));
+      } catch (err: any) {
+        logger.error('Error fetching subcontractors', { context: 'GCDashboard', error: err.message });
+        return [];
+      }
+    },
+    enabled: !!gcId && projects.length > 0,
+    retry: 1,
+  });
+
+  // Fetch COIs to determine actual compliance status
+  const { data: cois = [] } = useQuery<COI[]>({
+    queryKey: ['gc-cois', gcId],
+    queryFn: async (): Promise<COI[]> => {
+      try {
+        // Use public endpoint to fetch all COIs
+        const { protocol, host, origin } = window.location;
+        const m = host.match(/^(.+)-(\d+)(\.app\.github\.dev)$/);
+        const backendBase = m ? `${protocol}//${m[1]}-3001${m[3]}` : 
+                           origin.includes(':5175') ? origin.replace(':5175', ':3001') :
+                           origin.includes(':5176') ? origin.replace(':5176', ':3001') :
+                           import.meta?.env?.VITE_API_BASE_URL || '';
+        
+        const response = await fetch(`${backendBase}/public/all-cois`);
+        if (!response.ok) throw new Error('Failed to fetch COIs');
+        const allCois = await response.json();
+        
+        // Filter to COIs for this GC's projects
+        const projectIds = new Set(projects.map((p: Project) => p.id));
+        return allCois.filter((coi: COI) => projectIds.has(coi.project_id || ''));
+      } catch (err: any) {
+        logger.error('Error fetching COIs', { context: 'GCDashboard', error: err.message });
+        return [];
+      }
+    },
+    enabled: !!gcId && projects.length > 0,
+    retry: 1,
+  });
+
+  // Create optimized COI lookup maps for O(1) access instead of O(n) filtering
+  const coiMaps = useMemo(() => {
+    if (!cois || cois.length === 0) return { bySubId: new Map<string, COI[]>(), byProjectSubId: new Map<string, COI[]>() };
+    
+    const bySubId = new Map<string, COI[]>();
+    const byProjectSubId = new Map<string, COI[]>();
+    
+    cois.forEach((coi: COI) => {
+      // Group COIs by subcontractor_id
+      if (coi.subcontractor_id) {
+        if (!bySubId.has(coi.subcontractor_id)) {
+          bySubId.set(coi.subcontractor_id, []);
+        }
+        bySubId.get(coi.subcontractor_id)!.push(coi);
+      }
+      
+      // Group COIs by project_sub_id
+      if (coi.project_sub_id) {
+        if (!byProjectSubId.has(coi.project_sub_id)) {
+          byProjectSubId.set(coi.project_sub_id, []);
+        }
+        byProjectSubId.get(coi.project_sub_id)!.push(coi);
+      }
+    });
+    
+    return { bySubId, byProjectSubId };
+  }, [cois]);
+
+  // Helper function to get actual status for a subcontractor (optimized with Map lookup)
+  const getActualStatus = (sub: ProjectSubcontractor): string => {
+    // Use Map lookup instead of filtering entire array - O(1) vs O(n)
+    const subCois = coiMaps.bySubId.get(sub.subcontractor_id) || [];
+    const projectSubCois = coiMaps.byProjectSubId.get(sub.id) || [];
+    const relatedCois = [...subCois, ...projectSubCois];
+    
+    if (relatedCois.length === 0) {
+      logger.info('No COIs found, returning status', { context: 'GCDashboard', subcontractor: sub.subcontractor_name, status: sub.compliance_status || 'pending_broker' });
+      return sub.compliance_status || 'pending_broker';
+    }
+    
+    // Find the most recent COI
+    const latestCoi = relatedCois.sort((a, b) => {
+      const aDate = new Date(a.created_date || 0);
+      const bDate = new Date(b.created_date || 0);
+      return bDate - aDate;
+    })[0];
+    
+    logger.info('Found COI with status', { context: 'GCDashboard', subcontractor: sub.subcontractor_name, status: latestCoi.status, coiId: latestCoi.id });
+    
+    // Map COI status to compliance status
+    if (latestCoi.status === 'approved' || latestCoi.status === 'compliant') {
+      return 'compliant';
+    } else if (latestCoi.status === 'awaiting_admin_review') {
+      return 'awaiting_admin_review';
+    } else if (latestCoi.status === 'awaiting_broker_upload') {
+      return 'awaiting_broker_upload';
+    }
+    
+    return latestCoi.status || sub.compliance_status || 'pending_broker';
+  };
+
+  // Memoize expensive filter computation for performance
+  const filteredProjects = useMemo<Project[]>(() => {
+    return projects.filter((project: Project) => {
+      const searchLower = searchTerm.toLowerCase();
+      
+      if (!searchTerm) return true;
+      
+      if (searchType === 'all') {
+        const projectSubsList = projectSubs.filter((ps: ProjectSubcontractor) => ps.project_id === project.id);
+        const hasMatchingSub = projectSubsList.some((ps: ProjectSubcontractor) => 
+          ps.subcontractor_name?.toLowerCase().includes(searchLower)
+        );
+        return (
+          project.project_name?.toLowerCase().includes(searchLower) ||
+          project.address?.toLowerCase().includes(searchLower) ||
+          hasMatchingSub
+        );
+      } else if (searchType === 'job') {
+        return (
+          project.project_name?.toLowerCase().includes(searchLower) ||
+          project.address?.toLowerCase().includes(searchLower)
+        );
+      } else if (searchType === 'subcontractor') {
+        const projectSubsList = projectSubs.filter((ps: ProjectSubcontractor) => ps.project_id === project.id);
+        return projectSubsList.some((ps: ProjectSubcontractor) => 
+          ps.subcontractor_name?.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      return true;
+    });
+  }, [projects, projectSubs, searchTerm, searchType]);
+
+  // Log COI data for debugging
+  useEffect(() => {
+    logger.info('GC Dashboard Debug', { context: 'GCDashboard', gcId, projectsCount: projects.length, coisCount: cois.length, subsCount: projectSubs.length, searchTerm, searchType, filteredProjectsCount: filteredProjects.length });
+  }, [cois, projects, projectSubs, gcId, searchTerm, searchType, filteredProjects]);
+
+  if (!gcId) {
+    logger.warn('No GC ID provided in URL', { context: 'GCDashboard', fullURL: window.location.href, searchParams: window.location.search });
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center">
+            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold mb-2">Invalid Access</h2>
+            <p className="text-slate-600">Please use the link from your email to access your portal.</p>
+            <p className="text-xs text-slate-500 mt-4">Debug: No ID parameter found in URL</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+                General Contractor Portal
+              </h1>
+              <p className="text-sm text-slate-600">Manage Your Projects & Subcontractors</p>
+            </div>
+            <UserProfile 
+              user={{ 
+                id: gcId, 
+                name: `General Contractor (${gcId})`,
+                email: '',
+                role: 'gc'
+              }}
+              companyName={`General Contractor (${gcId})`}
+              companyId={gcId}
+            />
+          </div>
+          {/* GC portal: view/manage subs only - no project creation */}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-5xl mx-auto p-4 md:p-8">
+
+        <Card>
+          <CardHeader className="border-b">
+            <div className="flex flex-col gap-4">
+              <CardTitle className="flex items-center gap-2">
+                <FolderOpen className="w-5 h-5" />
+                Your Projects
+              </CardTitle>
+              <div className="flex flex-col md:flex-row gap-3">
+                <Select value={searchType} onValueChange={(value: string) => setSearchType(value as SearchType)}>
+                  <SelectTrigger className="w-full md:w-48">
+                    <SelectValue placeholder="Filter by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Fields</SelectItem>
+                    <SelectItem value="job">Job/Project</SelectItem>
+                    <SelectItem value="subcontractor">Subcontractor</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    placeholder={`Search ${searchType === 'all' ? 'all fields' : searchType === 'job' ? 'by job/project' : 'by subcontractor'}...`}
+                    value={searchTerm}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {projectsLoading ? (
+              <div className="p-6 space-y-4">
+                {Array(3).fill(0).map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            ) : filteredProjects.length === 0 ? (
+              <div className="p-12 text-center">
+                <FolderOpen className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+                <h3 className="text-xl font-semibold mb-2">
+                  {searchTerm ? 'No matching projects' : 'No projects assigned'}
+                </h3>
+                <p className="text-slate-600">
+                  {searchTerm ? 'Try a different search term' : 'Contact your administrator to have projects added to your portal.'}
+                </p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50">
+                    <TableHead>Project</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead>Subcontractors</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Open</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProjects.map((project: Project) => {
+                    const projectSubsList = projectSubs.filter((ps: ProjectSubcontractor) => ps.project_id === project.id);
+                    
+                    // If searching by subcontractor, filter the subs to show only matching ones
+                    let displaySubsList = projectSubsList;
+                    if (searchType === 'subcontractor' && searchTerm) {
+                      const searchLower = searchTerm.toLowerCase();
+                      displaySubsList = projectSubsList.filter((ps: ProjectSubcontractor) => 
+                        ps.subcontractor_name?.toLowerCase().includes(searchLower)
+                      );
+                    }
+                    
+                    const compliantCount = displaySubsList.filter((ps: ProjectSubcontractor) => {
+                      const actualStatus = getActualStatus(ps);
+                      return actualStatus === 'compliant';
+                    }).length;
+
+                    return (
+                      <TableRow
+                        key={project.id}
+                        className="hover:bg-slate-50 cursor-pointer"
+                        onClick={() => navigate(`/gc-project?project=${project.id}&id=${gcId}`)}
+                      >
+                        <TableCell className="font-medium">{project.project_name}</TableCell>
+                        <TableCell className="text-slate-600">{project.address || 'Address not provided'}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            <span className="font-semibold text-emerald-700">{compliantCount}</span>
+                            <span className="text-slate-500"> / {displaySubsList.length} compliant</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700">
+                            {project.status || 'active'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" variant="outline" onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                            e.stopPropagation();
+                            navigate(`/gc-project?project=${project.id}&id=${gcId}`);
+                          }}>
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Subcontractor Details when searching by subcontractor */}
+        {searchType === 'subcontractor' && searchTerm && (
+          <Card className="mt-6">
+            <CardHeader className="border-b">
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Matching Subcontractors ({filteredProjects.length} projects found)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {filteredProjects.length === 0 ? (
+                <div className="p-6 text-center text-slate-500">
+                  No subcontractors found matching &quot;{searchTerm}&quot;
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead>Company</TableHead>
+                      <TableHead>Trade</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProjects.flatMap((project: Project) => {
+                      const projectSubsList = projectSubs.filter((ps: ProjectSubcontractor) => ps.project_id === project.id);
+                      const searchLower = searchTerm.toLowerCase();
+                      const matchingSubs = projectSubsList.filter((ps: ProjectSubcontractor) => 
+                        ps.subcontractor_name?.toLowerCase().includes(searchLower)
+                      );
+                      
+                      logger.info('Project matching subs', { context: 'GCDashboard', projectName: project.project_name, matchingSubsCount: matchingSubs.length });
+                      
+                      return matchingSubs.map((sub: ProjectSubcontractor) => {
+                        const status = getActualStatus(sub);
+                        const statusColor = status === 'compliant' ? 'bg-emerald-50 text-emerald-700' :
+                                           status === 'awaiting_broker_upload' ? 'bg-yellow-50 text-yellow-700' :
+                                           status === 'awaiting_admin_review' ? 'bg-blue-50 text-blue-700' :
+                                           'bg-slate-100 text-slate-700';
+                        
+                        return (
+                          <TableRow key={sub.id} className="hover:bg-slate-50">
+                            <TableCell className="font-medium">{sub.subcontractor_name}</TableCell>
+                            <TableCell>{sub.trade_type || 'N/A'}</TableCell>
+                            <TableCell className="text-slate-600">{project.project_name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={statusColor}>
+                                {status === 'compliant' ? '✓ Compliant' :
+                                 status === 'awaiting_broker_upload' ? 'Awaiting Broker' :
+                                 status === 'awaiting_admin_review' ? 'Under Review' :
+                                 'Pending'}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      });
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -10,16 +10,30 @@ const idempotencyStore = new Map();
 // TTL for idempotency keys (15 minutes)
 const IDEMPOTENCY_TTL = 15 * 60 * 1000;
 
+// Cleanup interval duration (5 minutes)
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
+/**
+ * Start or restart the cleanup interval
+ * Starts the cleanup interval for removing expired idempotency keys
+ * @private
+ * @returns {NodeJS.Timeout} The interval timer reference
+ */
+function startCleanupInterval() {
+  return setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of idempotencyStore.entries()) {
+      if (now - value.timestamp > IDEMPOTENCY_TTL) {
+        idempotencyStore.delete(key);
+      }
+    }
+  }, CLEANUP_INTERVAL_MS);
+}
+
 // Cleanup expired keys every 5 minutes
 // Store interval reference to allow cleanup and prevent memory leak
-const cleanupInterval = setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of idempotencyStore.entries()) {
-    if (now - value.timestamp > IDEMPOTENCY_TTL) {
-      idempotencyStore.delete(key);
-    }
-  }
-}, 5 * 60 * 1000);
+// Use let instead of const to allow restart in testing
+let cleanupInterval = startCleanupInterval();
 
 // Allow process to exit if this is the only active resource
 // but keep running when other resources are active
@@ -38,17 +52,27 @@ export function cleanupIdempotency() {
   
   isCleanedUp = true;
   clearInterval(cleanupInterval);
+  cleanupInterval = null;
   idempotencyStore.clear();
   logger.info('Idempotency cleanup completed');
 }
 
 /**
  * Reset cleanup state (for testing purposes only)
+ * Restarts the cleanup interval to ensure proper test isolation
  * @private
  */
 export function resetIdempotencyForTesting() {
   isCleanedUp = false;
   idempotencyStore.clear();
+  
+  // Restart the cleanup interval if it was stopped
+  // This ensures test isolation when tests call cleanupIdempotency()
+  clearInterval(cleanupInterval);
+  cleanupInterval = startCleanupInterval();
+  
+  // Allow process to exit if this is the only active resource
+  cleanupInterval.unref();
 }
 
 /**
