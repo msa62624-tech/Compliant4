@@ -6,7 +6,7 @@
 
 ### Current Structure
 
-This repository contains **two separate packages** with distinct dependency management:
+This repository contains **three separate packages** with distinct dependency management:
 
 1. **Frontend Package** (Root Directory)
    - Location: `/` (repository root)
@@ -15,12 +15,20 @@ This repository contains **two separate packages** with distinct dependency mana
    - Tech Stack: React + Vite + TypeScript + Tailwind CSS
    - Dependencies: Managed independently in root `package.json`
 
-2. **Backend Package** (Backend Directory)
+2. **Backend Package - Node.js** (Backend Directory)
    - Location: `/backend/`
    - Package Manager: npm
    - Configuration: `backend/package.json`
    - Tech Stack: Node.js + Express.js + PostgreSQL
    - Dependencies: Managed independently in `backend/package.json`
+
+3. **Backend Package - Python** (Backend-Python Directory)
+   - Location: `/backend-python/`
+   - Package Manager: pip
+   - Configuration: `backend-python/requirements.txt`
+   - Tech Stack: Python + FastAPI + PostgreSQL
+   - Dependencies: Managed independently in `requirements.txt`
+   - Note: Full feature parity with Node.js backend
 
 ### What Makes It NOT a Traditional Monorepo?
 
@@ -56,10 +64,15 @@ This is a **loosely coupled full-stack project** or **multi-package repository**
 npm install
 npm run dev
 
-# Backend setup (separate directory)
+# Backend setup - Node.js (separate directory)
 cd backend
 npm install
 npm run dev
+
+# OR Backend setup - Python (separate directory)
+cd backend-python
+pip install -r requirements.txt
+uvicorn main:app --reload --port 3001
 ```
 
 ### Additional Packages
@@ -105,15 +118,22 @@ Converting to a monorepo would add complexity without significant benefits at th
 ## Quick Reference
 
 ### Package Locations
-| Package | Location | Package.json | Purpose |
-|---------|----------|--------------|---------|
+| Package | Location | Package.json/Requirements | Purpose |
+|---------|----------|---------------------------|---------|
 | Frontend | `/` | `/package.json` | React application |
-| Backend | `/backend/` | `/backend/package.json` | Express.js API server |
+| Backend (Node.js) | `/backend/` | `/backend/package.json` | Express.js API server |
+| Backend (Python) | `/backend-python/` | `/backend-python/requirements.txt` | FastAPI API server |
 
 ### Installation Commands
 ```bash
-# Install all dependencies (both packages)
-npm install && cd backend && npm install
+# Install frontend dependencies
+npm install
+
+# Install Node.js backend dependencies
+cd backend && npm install
+
+# OR Install Python backend dependencies
+cd backend-python && pip install -r requirements.txt
 
 # Or use the convenience script (if available)
 npm run setup
@@ -121,8 +141,16 @@ npm run setup
 
 ### Running the Application
 ```bash
-# Terminal 1: Backend
+# Option 1: Node.js Backend
+# Terminal 1: Node.js Backend
 cd backend && npm run dev
+
+# Terminal 2: Frontend
+npm run dev
+
+# Option 2: Python Backend
+# Terminal 1: Python Backend
+cd backend-python && uvicorn main:app --reload --port 3001
 
 # Terminal 2: Frontend
 npm run dev
@@ -133,8 +161,11 @@ npm run dev
 # Frontend tests
 npm test
 
-# Backend tests
+# Node.js backend tests
 cd backend && npm test
+
+# Python backend tests
+cd backend-python && pytest
 
 # E2E tests (requires both frontend and backend running)
 npm run test:e2e
@@ -142,4 +173,9 @@ npm run test:e2e
 
 ## Conclusion
 
-This repository follows a **multi-package structure** that is commonly used for full-stack applications. It is **not a monorepo** in the technical sense because it lacks monorepo management tools and workspace configuration. The current structure is appropriate for the project's size and complexity.
+This repository follows a **multi-package structure** that is commonly used for full-stack applications. It is **not a monorepo** in the technical sense because it lacks monorepo management tools and workspace configuration. The current structure includes:
+- One frontend package (React + Vite)
+- Two backend options with full feature parity (Node.js/Express.js and Python/FastAPI)
+- Independent package management for each
+
+The current structure is appropriate for the project's size and complexity, offering flexibility in backend technology choice while maintaining a clean separation of concerns.
