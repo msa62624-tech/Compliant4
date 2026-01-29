@@ -70,6 +70,7 @@ def create_refresh_token(data: dict):
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit("5/minute")
 async def login(req: Request, request: LoginRequest):
     """User login endpoint"""
     

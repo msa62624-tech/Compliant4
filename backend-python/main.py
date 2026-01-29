@@ -7,9 +7,11 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import uvicorn
 import logging
+import os
 
 # Import configuration
 from config.env import settings
@@ -98,6 +100,11 @@ app.include_router(public.router, prefix="/public", tags=["Public"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 app.include_router(health.router, prefix="/health", tags=["Health"])
 app.include_router(metrics_router.router, prefix="/metrics", tags=["Metrics"])
+
+# Serve static files (uploads)
+uploads_dir = os.environ.get("UPLOADS_DIR", "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 # Error handler
 @app.exception_handler(Exception)

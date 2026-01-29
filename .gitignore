@@ -31,6 +31,7 @@ backend/data/.jwt-secret
 
 # Backend uploads (user-uploaded files)
 backend/uploads/
+backend-python/uploads/
 
 # Backend test files
 backend/test-pdf-generation.js
@@ -43,3 +44,16 @@ test-results/
 playwright-report/
 e2e/screenshot-*.png
 e2e/videos/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+.pytest_cache/
+*.egg-info/
+backend-python/data/entities.json
+backend-python/uploads/*.pdf

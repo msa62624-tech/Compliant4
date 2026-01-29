@@ -118,7 +118,7 @@ def parse_insurance_program_pdf(text: str) -> Dict[str, Any]:
     # Extract additional insurance types if present
     # Workers' Compensation
     wc_matches = re.finditer(
-        r'Workers?\s*[\'']?\s*Comp(?:ensation)?[:\s]+\$([0-9,]+)',
+        r"Workers?\s*['\"]?\s*Comp(?:ensation)?[:\s]+\$([0-9,]+)",
         text,
         re.IGNORECASE
     )
