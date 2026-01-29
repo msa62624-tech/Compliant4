@@ -303,7 +303,8 @@ export default function GCProjectView(): JSX.Element {
           portalUrl = origin + '/subcontractor-login';
         }
         
-        // Use form.contact_email directly - already validated and trimmed in mutationFn
+        // Email validation in mutationFn ensures form.contact_email is valid
+        const contactEmail = form.contact_email.trim();
         
         // Create formatted HTML email with standardized styling
         const emailHtml = `
@@ -539,13 +540,13 @@ export default function GCProjectView(): JSX.Element {
                               origin.includes(':5176') ? origin.replace(':5176', ':3001') :
                               import.meta?.env?.VITE_API_BASE_URL || '';
         
-        logger.info('Sending email', { context: 'GCProjectView', contactEmail: form.contact_email.trim(), portalUrl });
+        logger.info('Sending email', { context: 'GCProjectView', contactEmail, portalUrl });
         
         const emailResponse = await fetch(`${backendBaseUrl}/public/send-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            to: form.contact_email.trim(),
+            to: contactEmail,
             subject: `Welcome to InsureTrack - ${project?.project_name}`,
             html: emailHtml,
             includeSampleCOI: false
