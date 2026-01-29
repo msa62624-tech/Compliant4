@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from config.env import settings
 from config.logger_config import setup_logger
 from middleware.rate_limiting import auth_rate_limit, limiter
+from middleware.auth import verify_token
 from typing import Optional
 
 logger = setup_logger(__name__)
@@ -69,8 +70,7 @@ def create_refresh_token(data: dict):
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit("5/minute")
-async def login(request: LoginRequest, req: Request):
+async def login(req: Request, request: LoginRequest):
     """User login endpoint"""
     
     # Find user
