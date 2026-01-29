@@ -229,10 +229,10 @@ export default function BrokerUpload(): JSX.Element {
       
       if (uploadType === 'global') {
         updateData = {
-          broker_name: globalBroker.broker_name.trim(),
-          broker_email: globalBroker.broker_email.trim(),
-          broker_phone: globalBroker.broker_phone?.trim() || '',
-          broker_company: globalBroker.broker_company?.trim() || '',
+          broker_name: globalBroker.broker_name?.trim() ?? '',
+          broker_email: globalBroker.broker_email?.trim() ?? '',
+          broker_phone: globalBroker.broker_phone?.trim() ?? '',
+          broker_company: globalBroker.broker_company?.trim() ?? '',
           broker_type: 'global',
         };
       } else {
@@ -240,18 +240,18 @@ export default function BrokerUpload(): JSX.Element {
         const brokerMap: Record<string, string> = {};
         for (const broker of brokers) {
           broker.policies.forEach((policyKey: string) => {
-            brokerMap[`broker_${policyKey}_name`] = broker.name.trim();
-            brokerMap[`broker_${policyKey}_email`] = broker.email.trim();
-            brokerMap[`broker_${policyKey}_phone`] = broker.phone?.trim() || '';
+            brokerMap[`broker_${policyKey}_name`] = broker.name?.trim() ?? '';
+            brokerMap[`broker_${policyKey}_email`] = broker.email?.trim() ?? '';
+            brokerMap[`broker_${policyKey}_phone`] = broker.phone?.trim() ?? '';
           });
         }
         updateData = { ...brokerMap, broker_type: 'per-policy' };
         
         // Also set primary broker (first one)
         if (brokers.length > 0) {
-          updateData.broker_name = brokers[0]?.name?.trim() || '';
-          updateData.broker_email = brokers[0]?.email?.trim() || '';
-          updateData.broker_phone = brokers[0]?.phone?.trim() || '';
+          updateData.broker_name = brokers[0]?.name?.trim() ?? '';
+          updateData.broker_email = brokers[0]?.email?.trim() ?? '';
+          updateData.broker_phone = brokers[0]?.phone?.trim() ?? '';
         }
       }
       
@@ -340,8 +340,8 @@ export default function BrokerUpload(): JSX.Element {
         if (uploadType === 'global') {
           const brokerData: Subcontractor = {
             ...subcontractor,
-            broker_email: globalBroker.broker_email.trim(),
-            broker_name: globalBroker.broker_name.trim(),
+            broker_email: globalBroker.broker_email?.trim() ?? '',
+            broker_name: globalBroker.broker_name?.trim() ?? '',
           };
           await notifyBrokerAssignment(brokerData as any, null, true);
         } else {
@@ -349,8 +349,8 @@ export default function BrokerUpload(): JSX.Element {
           for (const broker of brokers) {
             const brokerData: Subcontractor = {
               ...subcontractor,
-              broker_email: broker.email.trim(),
-              broker_name: broker.name.trim(),
+              broker_email: broker.email?.trim() ?? '',
+              broker_name: broker.name?.trim() ?? '',
             };
             // Map policy keys to display names
             const policyNames: string[] = broker.policies.map((key: string) => {
