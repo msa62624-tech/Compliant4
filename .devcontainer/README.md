@@ -3,30 +3,58 @@
 ## Automatic Setup
 
 When you open this repository in GitHub Codespaces, the environment will automatically:
-1. Install Node.js 20
-2. Install frontend dependencies (`npm install`)
-3. Install backend dependencies (`cd backend && npm install`)
-4. Forward ports 5175 (frontend) and 3001 (backend)
+1. Install Node.js 20 (for frontend)
+2. Install Python 3.11 (for backend)
+3. Install frontend dependencies (`npm install`)
+4. Install Python backend dependencies including code quality tools (`cd backend-python && pip install -r requirements.txt`)
+5. Forward ports 5175 (frontend) and 3001 (backend)
+6. Install VS Code extensions for JavaScript/TypeScript and Python development (including Black formatter)
 
 This is configured in `.devcontainer/devcontainer.json`.
 
+> **Note:** The Node.js backend is no longer the default. Python (FastAPI) is now the primary backend.
+
 ## Starting the Application
 
-### Option 1: Automatic Start (Recommended)
+This repository uses **Python (FastAPI)** as the primary backend. The Node.js backend is available but no longer the default.
+
+### Option 1: Using Python Backend (Recommended)
+
+**Terminal 1 - Backend:**
+```bash
+cd backend-python
+# Start the server (dependencies already installed)
+uvicorn main:app --reload --host 0.0.0.0 --port 3001
+```
+
+**Terminal 2 - Frontend:**
+```bash
+npm run dev
+```
+
+> **Note**: Python dependencies are automatically installed during Codespace creation!
+
+### Option 2: Automatic Start Script (Uses Node.js Backend)
+
+If you prefer the Node.js backend, you can use the start script:
+
 ```bash
 ./start.sh
 ```
 
-This single command will:
-- Create necessary `.env` files with Codespaces URLs
-- Start the backend server on port 3001
+This will:
+- Start the Node.js backend server on port 3001
 - Start the frontend dev server on port 5175
+- Create necessary `.env` files with Codespaces URLs
 
-### Option 2: Manual Start (Two Terminals)
+> **Note**: The start script will install Node.js backend dependencies if needed.
+
+### Option 3: Manual Node.js Backend (Legacy)
 
 **Terminal 1 - Backend:**
 ```bash
 cd backend
+npm install  # First time only
 npm run dev
 ```
 
@@ -52,21 +80,42 @@ The application automatically detects Codespaces using the `CODESPACE_NAME` envi
 
 These are set in:
 - Frontend: `.env` → `VITE_API_BASE_URL`
-- Backend: `backend/.env` → `FRONTEND_URL`
+- Python Backend: `backend-python/.env` → `FRONTEND_URL`
+- Node.js Backend (Legacy): `backend/.env` → `FRONTEND_URL`
 
 ## Troubleshooting
 
-### Backend Won't Start
+### Python Backend Won't Start (Primary Backend)
 
-If you see `Cannot find package 'express'` or similar errors:
+If you see Python import errors or missing packages:
+
+```bash
+cd backend-python
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 3001
+```
+
+If you prefer using a virtual environment:
+
+```bash
+cd backend-python
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 3001
+```
+
+### Node.js Backend Won't Start (Legacy)
+
+If you need to use the Node.js backend and see `Cannot find package 'express'` or similar errors:
 
 ```bash
 cd backend
 npm install
 npm run dev
 ```
-
-The dependencies should be installed automatically, but if the `postCreateCommand` failed, run it manually.
 
 ### Port Forwarding Issues
 
@@ -96,9 +145,12 @@ If things are really broken:
 ## VSCode Extensions
 
 The following extensions are automatically installed:
-- ESLint
-- Prettier
-- Tailwind CSS IntelliSense
+- **ESLint** - JavaScript/TypeScript linting
+- **Prettier** - Code formatting for JavaScript/TypeScript
+- **Tailwind CSS IntelliSense** - Tailwind CSS class completions
+- **Python** - Python language support
+- **Pylance** - Fast Python language server
+- **Black Formatter** - Python code formatter (auto-formats on save)
 
 ## Known Limitations
 

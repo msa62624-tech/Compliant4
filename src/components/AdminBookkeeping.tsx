@@ -134,25 +134,41 @@ export default function AdminBookkeeping() {
       end: now
     });
 
-    // Monthly revenue trend
+    // Pre-filter completed subscriptions once (avoid repeated filtering)
+    const completedSubscriptions = subscriptions.filter(
+      s => s && s.id && s.payment_status === 'completed' && s.payment_date
+    );
+
+    // Monthly revenue trend - optimized to single pass per month
     const monthlyRevenue = last6Months.map(month => {
-      const revenue = subscriptions
-        .filter(s => s && s.id && s.payment_status === 'completed' && s.payment_date)
-        .filter(s => {
-          const paymentDate = new Date(s.payment_date);
-          return paymentDate.getMonth() === month.getMonth() && 
-                 paymentDate.getFullYear() === month.getFullYear();
-        })
-        .reduce((sum, s) => sum + (s.amount_paid || 0), 0);
+      const targetMonth = month.getMonth();
+      const targetYear = month.getFullYear();
+      
+      // Single pass through subscriptions for both revenue and count
+      let revenue = 0;
+      let count = 0;
+      
+      for (const s of completedSubscriptions) {
+        const paymentDate = new Date(s.payment_date);
+        if (paymentDate.getMonth() === targetMonth && paymentDate.getFullYear() === targetYear) {
+          revenue += s.amount_paid || 0;
+        }
+      }
+      
+      // Count subscriptions started in this month
+      for (const s of subscriptions) {
+        if (s && s.id && s.start_date) {
+          const startDate = new Date(s.start_date);
+          if (startDate.getMonth() === targetMonth && startDate.getFullYear() === targetYear) {
+            count++;
+          }
+        }
+      }
       
       return {
         month: format(month, 'MMM yyyy'),
         revenue,
-        subscriptions: subscriptions.filter(s => 
-          s && s.id && s.start_date &&
-          new Date(s.start_date).getMonth() === month.getMonth() &&
-          new Date(s.start_date).getFullYear() === month.getFullYear()
-        ).length
+        subscriptions: count
       };
     });
 
@@ -163,10 +179,8 @@ export default function AdminBookkeeping() {
       { name: 'Annual', value: revenueByPlan.annual || 0, color: '#8b5cf6' }
     ].filter(p => p.value > 0);
 
-    // Customer lifetime value
-    const avgSubscriptionValue = subscriptions
-      .filter(s => s && s.id && s.payment_status === 'completed')
-      .reduce((sum, s) => sum + (s.amount_paid || 0), 0) / 
+    // Customer lifetime value - use pre-filtered array
+    const avgSubscriptionValue = completedSubscriptions.reduce((sum, s) => sum + (s.amount_paid || 0), 0) / 
       Math.max(contractors.length, 1);
 
     // Churn rate (cancelled this month / active last month)

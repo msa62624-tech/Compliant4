@@ -7,8 +7,11 @@
  * - Integration points for error tracking services
  * - Correlation ID support for request tracking
  * - Performance monitoring hooks
+ * - Protected from console suppression via marker symbol
  */
 
+// Import marker from suppressDebugMessages to bypass console suppression
+import { LOGGER_MARKER } from '@/suppressDebugMessages';
 // Type definitions
 interface ErrorTrackingService {
   captureException: (_error: Error, _options?: { extra?: Record<string, unknown> }) => void;
@@ -120,7 +123,7 @@ const sendToErrorTracking = (message: string, context: LogContext = {}): void =>
     }
   } catch (e) {
     // Fail silently to avoid breaking the application
-    console.error('Failed to send to error tracking service:', e);
+    console.error(LOGGER_MARKER, 'Failed to send to error tracking service:', e);
   }
 };
 
@@ -130,7 +133,7 @@ export const logger = {
    */
   log: (message: string, context?: LogContext): void => {
     if (isDevelopment) {
-      console.log(...formatMessage(message, context));
+      console.log(LOGGER_MARKER, ...formatMessage(message, context));
     }
     // In production, could send to log aggregation service
   },
@@ -140,7 +143,7 @@ export const logger = {
    */
   info: (message: string, context?: LogContext): void => {
     if (isDevelopment) {
-      console.log(...formatMessage(message, context));
+      console.log(LOGGER_MARKER, ...formatMessage(message, context));
     }
     
     // In production, send structured logs to aggregation service
@@ -157,7 +160,7 @@ export const logger = {
    */
   warn: (message: string, context?: LogContext): void => {
     createStructuredLog('warn', message, context); // For future log aggregation
-    console.warn(...formatMessage(message, context));
+    console.warn(LOGGER_MARKER, ...formatMessage(message, context));
     
     // Send warnings to error tracking in production
     if (isProduction) {
@@ -170,7 +173,7 @@ export const logger = {
    */
   error: (message: string, context?: LogContext): void => {
     createStructuredLog('error', message, context); // For future log aggregation
-    console.error(...formatMessage(message, context));
+    console.error(LOGGER_MARKER, ...formatMessage(message, context));
     
     // Always send errors to error tracking service
     sendToErrorTracking(message, { ...context, level: 'error' });
@@ -181,7 +184,7 @@ export const logger = {
    */
   debug: (message: string, context?: LogContext): void => {
     if (isDevelopment) {
-      console.debug(...formatMessage(message, context));
+      console.debug(LOGGER_MARKER, ...formatMessage(message, context));
     }
   },
 
@@ -190,6 +193,8 @@ export const logger = {
    */
   table: (data: unknown): void => {
     if (isDevelopment) {
+      // Note: console.table is not overridden by suppressDebugMessages,
+      // but we include the marker for consistency and future-proofing
       console.table(data);
     }
   },
@@ -206,7 +211,7 @@ export const logger = {
     }); // For future log aggregation
     
     if (isDevelopment) {
-      console.log(`⏱️ ${operation}: ${duration}ms`, context);
+      console.log(LOGGER_MARKER, `⏱️ ${operation}: ${duration}ms`, context);
     }
     
     // In production, send to performance monitoring service
