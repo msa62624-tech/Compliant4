@@ -1,7 +1,11 @@
 import { compliant } from "@/api/compliantClient";
 import { generateSecurePassword, formatLoginCredentialsForEmail, createUserCredentials } from "@/passwordUtils";
 import { sendEmail } from "@/emailHelper";
-import { getFrontendBaseUrl, createBrokerDashboardLink, createSubcontractorDashboardLink } from "@/urlConfig";
+import { 
+  getFrontendBaseUrl,
+  createBrokerDashboardLink, 
+  createSubcontractorDashboardLink 
+} from "@/urlConfig";
 import { generateSecureToken } from "@/utils/tokenGenerator";
 import logger from './utils/logger';
 import type { Subcontractor, Project, GeneratedCOI } from '@/notification-types';
@@ -597,8 +601,7 @@ export async function notifySubCOIApproved(
   subcontractor: Subcontractor,
   project: Project
 ): Promise<void> {
-  const baseUrl = getFrontendBaseUrl();
-  const subDashboardLink = `${baseUrl}/subcontractor-dashboard?id=${subcontractor.id}`;
+  const subDashboardLink = createSubcontractorDashboardLink(subcontractor.id);
 
   if (subcontractor.email) {
     try {

@@ -6,8 +6,8 @@ In-memory storage for development (can be migrated to PostgreSQL)
 import json
 import os
 from typing import Dict, List, Any
-from datetime import datetime, timezone
 import asyncio
+from utils.timestamps import get_timestamp
 
 
 # In-memory database storage
@@ -80,6 +80,20 @@ async def close_db():
     await save_entities()
 
 
+def _schedule_async_save():
+    """
+    Schedule an async save operation if event loop is running
+    Helper to reduce duplication across create/update/delete operations
+    """
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(save_entities())
+    except RuntimeError:
+        # No event loop running, skip async save
+        # Data will be saved on next successful operation or shutdown
+        pass
+
+
 def get_entity(entity_type: str, entity_id: str) -> Dict[str, Any] | None:
     """Get a single entity by ID"""
     if entity_type not in entities:
@@ -102,24 +116,15 @@ def create_entity(entity_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
         import uuid
         data["id"] = str(uuid.uuid4())
     
-    # Add timestamps
-    data["created_at"] = datetime.now(timezone.utc).isoformat()
-    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    # Add timestamps using utility function
+    timestamp = get_timestamp()
+    data["created_at"] = timestamp
+    data["updated_at"] = timestamp
     
     entities[entity_type].append(data)
     
-    # Async save - await to prevent data loss
-    # Note: This is a synchronous function, so we schedule the save
-    # In production, consider using a background task queue
-    try:
-        # Try to get the running event loop
-        loop = asyncio.get_running_loop()
-        # Create task in the running loop
-        loop.create_task(save_entities())
-    except RuntimeError:
-        # No event loop running, skip async save
-        # Data will be saved on next successful operation or shutdown
-        pass
+    # Schedule async save
+    _schedule_async_save()
     
     return data
 
@@ -133,16 +138,11 @@ def update_entity(entity_type: str, entity_id: str, data: Dict[str, Any]) -> Dic
         if str(entity.get("id")) == str(entity_id):
             # Update fields
             entity.update(data)
-            entity["updated_at"] = datetime.now(timezone.utc).isoformat()
+            entity["updated_at"] = get_timestamp()
             entities[entity_type][i] = entity
             
-            # Async save - schedule task if event loop exists
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(save_entities())
-            except RuntimeError:
-                # No event loop running, skip async save
-                pass
+            # Schedule async save
+            _schedule_async_save()
             
             return entity
     
@@ -161,13 +161,8 @@ def delete_entity(entity_type: str, entity_id: str) -> bool:
     ]
     
     if len(entities[entity_type]) < original_length:
-        # Async save - schedule task if event loop exists
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(save_entities())
-        except RuntimeError:
-            # No event loop running, skip async save
-            pass
+        # Schedule async save
+        _schedule_async_save()
         return True
     
     return False

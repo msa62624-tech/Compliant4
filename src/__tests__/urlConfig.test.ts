@@ -48,12 +48,12 @@ describe('urlConfig - New URL Utilities', () => {
   describe('createCOIReviewLink', () => {
     test('creates COI review link', () => {
       const link = createCOIReviewLink('coi-123');
-      expect(link).toBe('http://localhost:5175/coi-review?id=coi-123');
+      expect(link).toBe('http://localhost:5175/COIReview?id=coi-123');
     });
 
     test('handles numeric IDs', () => {
       const link = createCOIReviewLink(456);
-      expect(link).toBe('http://localhost:5175/coi-review?id=456');
+      expect(link).toBe('http://localhost:5175/COIReview?id=456');
     });
 
     test('handles UUID format IDs', () => {

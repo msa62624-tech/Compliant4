@@ -114,14 +114,94 @@ export function createSubcontractorDashboardLink(subId: string): string {
  */
 export function createCOIReviewLink(coiId: string): string {
   const baseUrl = getFrontendBaseUrl();
-  return `${baseUrl}/coi-review?id=${coiId}`;
+  return `${baseUrl}/COIReview?id=${coiId}`;
 }
 
 /**
  * Create a project details link
  * @param projectId - Project ID
+ * @param section - Optional section to navigate to (e.g., 'subcontractors')
  */
-export function createProjectDetailsLink(projectId: string): string {
+export function createProjectDetailsLink(projectId: string, section?: string): string {
   const baseUrl = getFrontendBaseUrl();
-  return `${baseUrl}/project-details?id=${projectId}`;
+  const url = new URL(`${baseUrl}/project-details`);
+  url.searchParams.set('id', projectId);
+  if (section) url.searchParams.set('section', section);
+  return url.toString();
+}
+
+/**
+ * Create a GC project link
+ * @param projectId - Project ID
+ * @param gcId - GC ID
+ */
+export function createGCProjectLink(projectId: string, gcId: string): string {
+  const baseUrl = getFrontendBaseUrl();
+  const url = new URL(`${baseUrl}/gc-project`);
+  url.searchParams.set('project', projectId);
+  url.searchParams.set('id', gcId);
+  return url.toString();
+}
+
+/**
+ * Create a GC login link
+ */
+export function createGCLoginLink(): string {
+  const baseUrl = getFrontendBaseUrl();
+  return `${baseUrl}/gc-login`;
+}
+
+/**
+ * Create an admin dashboard link
+ * @param section - Optional section to navigate to
+ * @param coiId - Optional COI ID for direct navigation
+ */
+export function createAdminDashboardLink(section?: string, coiId?: string): string {
+  const baseUrl = getFrontendBaseUrl();
+  const url = new URL(`${baseUrl}/admin-dashboard`);
+  if (section) url.searchParams.set('section', section);
+  if (coiId) url.searchParams.set('coiId', coiId);
+  return url.toString();
+}
+
+/**
+ * Create a subcontractor dashboard link with optional parameters
+ * @param subId - Subcontractor ID
+ * @param section - Optional section (e.g., 'certificates', 'projects', 'active_projects')
+ * @param projectId - Optional project ID for filtering
+ */
+export function createSubcontractorDashboardLinkWithParams(subId: string, section?: string, projectId?: string): string {
+  const baseUrl = getFrontendBaseUrl();
+  const url = new URL(`${baseUrl}/subcontractor-dashboard`);
+  url.searchParams.set('id', subId);
+  if (section) url.searchParams.set('section', section);
+  if (projectId) url.searchParams.set('projectId', projectId);
+  return url.toString();
+}
+
+/**
+ * Create a broker portal link with optional COI
+ * @param brokerName - Broker name
+ * @param coiId - Optional COI ID for direct navigation
+ */
+export function createBrokerPortalLink(brokerName: string, coiId?: string): string {
+  const baseUrl = getFrontendBaseUrl();
+  const url = new URL(`${baseUrl}/broker-dashboard`);
+  url.searchParams.set('name', brokerName);
+  if (coiId) url.searchParams.set('coiId', coiId);
+  return url.toString();
+}
+
+/**
+ * Create a broker sign link
+ * @param coiToken - The COI token for signing
+ * @param step - The step in the signing process (default: 3)
+ */
+export function createBrokerSignLink(coiToken: string, step: number = 3): string {
+  const baseUrl = getFrontendBaseUrl();
+  const url = new URL(`${baseUrl}/broker-upload-coi`);
+  url.searchParams.set('token', coiToken);
+  url.searchParams.set('action', 'sign');
+  url.searchParams.set('step', step.toString());
+  return url.toString();
 }
