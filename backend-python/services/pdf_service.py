@@ -201,7 +201,7 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
     if gl_expiration:
         try:
             gl_exp_date = datetime.fromisoformat(gl_expiration.replace("Z", "+00:00"))
-            if gl_exp_date <= current_date:
+            if gl_exp_date < current_date:
                 compliant = False
                 issues.append({
                     "type": "coverage_expired",
@@ -210,7 +210,7 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
                     "severity": "critical"
                 })
         except (ValueError, AttributeError) as e:
-            logger.warning(f"Invalid GL expiration date format: {gl_expiration}")
+            logger.warning(f"Invalid GL expiration date format: {gl_expiration} - {e}")
             issues.append({
                 "type": "invalid_date_format",
                 "coverage_type": "General Liability",
@@ -222,7 +222,7 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
     if wc_expiration:
         try:
             wc_exp_date = datetime.fromisoformat(wc_expiration.replace("Z", "+00:00"))
-            if wc_exp_date <= current_date:
+            if wc_exp_date < current_date:
                 compliant = False
                 issues.append({
                     "type": "coverage_expired",
@@ -231,7 +231,7 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
                     "severity": "critical"
                 })
         except (ValueError, AttributeError) as e:
-            logger.warning(f"Invalid WC expiration date format: {wc_expiration}")
+            logger.warning(f"Invalid WC expiration date format: {wc_expiration} - {e}")
             issues.append({
                 "type": "invalid_date_format",
                 "coverage_type": "Workers Compensation",
@@ -241,7 +241,8 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
     # Check additional insured requirements
     required_additional_insureds = []
     for req in program_requirements:
-        if req.get("requires_additional_insured", True):  # Default to True if not specified
+        # Only check if explicitly required (default to False to avoid false positives)
+        if req.get("requires_additional_insured", False):
             party = req.get("additional_insured_party", "Certificate Holder")
             if party not in required_additional_insureds:
                 required_additional_insureds.append(party)
@@ -249,19 +250,26 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
     # Get actual additional insureds from COI
     actual_additional_insureds = coi_data.get("additional_insureds", [])
     if isinstance(actual_additional_insureds, str):
-        # Handle case where it might be a comma-separated string
-        actual_additional_insureds = [ai.strip() for ai in actual_additional_insureds.split(",")]
+        # Handle case where it might be a comma-separated string, filtering empty strings
+        actual_additional_insureds = [ai.strip() for ai in actual_additional_insureds.split(",") if ai.strip()]
     
-    # Check if required additional insureds are present
+    # Check if required additional insureds are present (case-insensitive exact match after normalization)
     for required in required_additional_insureds:
-        if required and not any(required.lower() in ai.lower() for ai in actual_additional_insureds if ai):
-            compliant = False
-            issues.append({
-                "type": "missing_additional_insured",
-                "required_party": required,
-                "actual_parties": actual_additional_insureds,
-                "severity": "high"
-            })
+        if required:
+            required_normalized = required.strip().lower()
+            found = any(
+                ai.strip().lower() == required_normalized 
+                for ai in actual_additional_insureds 
+                if ai
+            )
+            if not found:
+                compliant = False
+                issues.append({
+                    "type": "missing_additional_insured",
+                    "required_party": required,
+                    "actual_parties": actual_additional_insureds,
+                    "severity": "high"
+                })
     
     return {
         "compliant": compliant,
