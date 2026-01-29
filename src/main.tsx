@@ -1,3 +1,5 @@
+// Suppress debug messages from Vite HMR and Codespaces infrastructure
+import '@/suppressDebugMessages'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.tsx'
 import '@/index.css'
