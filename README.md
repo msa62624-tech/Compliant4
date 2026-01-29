@@ -2,7 +2,7 @@
 
 **Grade: A+++++ (Exceptional Enterprise-Ready)** 🌟🏆
 
-Full-stack insurance tracking application for General Contractors and their subcontractors. Built with React frontend and Express.js backend.
+Full-stack insurance tracking application for General Contractors and their subcontractors. Built with React frontend and Express.js backend (Node.js) or FastAPI backend (Python).
 
 > 🎉 **A+++++ Achievement**: This application features exceptional enterprise-grade capabilities including advanced security, Kubernetes-ready health monitoring, API versioning, distributed tracing, and automated deployment. See [A_PLUS_PLUS_PLUS_PLUS_PLUS_ACHIEVEMENT.md](A_PLUS_PLUS_PLUS_PLUS_PLUS_ACHIEVEMENT.md) for details.
 
@@ -47,6 +47,7 @@ npm run dev
 
 ### Backend Setup
 
+**Node.js Backend (Recommended - Production Ready):**
 ```bash
 cd backend
 npm install
@@ -55,8 +56,17 @@ npm run dev
    - Example quick-test: see `scripts/test-requests.sh` to exercise debug, public users, login and protected calls (requires `jq` locally)
 ```
 
+**Python Backend (Alternative - ~40% Complete):**
+```bash
+cd backend-python
+./setup.sh  # Or manually: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 3001
+```
+
 Backend runs on `http://localhost:3001`  
 Frontend runs on `http://localhost:5175`
+
+> **Note:** See [BACKEND_COMPARISON.md](BACKEND_COMPARISON.md) for a detailed comparison of Node.js vs Python backends.
 
 For email configuration, see [docs/EMAIL_SETUP.md](docs/EMAIL_SETUP.md).
 
@@ -241,11 +251,14 @@ Expected output: All 19 entities should return HTTP 200 ✅
 ## 🏛️ Architecture
 
 - **Frontend:** React + Vite + Shadcn/ui + Tailwind CSS
-- **Backend:** Express.js + JWT auth (custom implementation, no external services)
+- **Backend (Node.js):** Express.js + JWT auth (in `backend/` - production ready)
+- **Backend (Python):** FastAPI + JWT auth (in `backend-python/` - ~40% complete)
 - **API Client:** Custom REST client (legacy name: "compliant" - purely internal, no external dependency)
 - **State:** React Query (@tanstack/react-query)
 - **Storage:** In-memory (migrate to PostgreSQL/MongoDB for production)
 - **Auth:** Bearer tokens (1hr expiry) + Refresh tokens (7d expiry)
+
+> **Note:** The repository now includes both Node.js and Python backend implementations. See [BACKEND_COMPARISON.md](BACKEND_COMPARISON.md) and [MIGRATION_DIFFICULTIES.md](MIGRATION_DIFFICULTIES.md) for details.
 
 ## 🔧 Environment Variables
 
