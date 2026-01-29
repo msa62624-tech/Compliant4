@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from jose import jwt
 import bcrypt
 from datetime import datetime, timedelta, timezone
-from config.env import settings
+from config.env import settings, get_admin_password_hash
 from config.logger_config import setup_logger
 from middleware.rate_limiting import auth_rate_limit, limiter
 from middleware.auth import verify_token
@@ -15,12 +15,6 @@ from typing import Optional
 
 logger = setup_logger(__name__)
 router = APIRouter()
-
-# Pre-computed password hash for development/testing default admin user
-# NOTE: For production, use environment variables or a secure secrets management system
-# This hash is for the default password "INsure2026!" - MUST be changed in production
-# Generated with: bcrypt.hashpw(b"INsure2026!", bcrypt.gensalt())
-ADMIN_PASSWORD_HASH = "$2b$12$5EeUXqaODR9fBs5KayB43egoQ6eajmIm3MqZ0UgS/7LTCxvyg/L3m"
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
@@ -61,11 +55,12 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 # Mock users database (equivalent to utils/users.js)
+# Initialize with admin user using password hash from environment
 users_db = {
     "admin": {
         "id": "1",
         "username": "admin",
-        "password_hash": ADMIN_PASSWORD_HASH,
+        "password_hash": get_admin_password_hash(),
         "email": "admin@compliant.team",
         "role": "super_admin",
         "full_name": "System Administrator"
