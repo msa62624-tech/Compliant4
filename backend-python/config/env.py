@@ -39,7 +39,15 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
+    SMTP_PASS: str = ""  # Alias for SMTP_PASSWORD
     SMTP_FROM: str = "noreply@compliant.team"
+    SMTP_SECURE: bool = True  # Use TLS
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Use SMTP_PASSWORD if SMTP_PASS not provided
+        if not self.SMTP_PASS and self.SMTP_PASSWORD:
+            self.SMTP_PASS = self.SMTP_PASSWORD
     
     # Adobe PDF Service (optional)
     ADOBE_API_KEY: str = ""

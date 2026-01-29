@@ -6,6 +6,8 @@ from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from typing import Dict, Any, Optional, List
 from middleware.auth import verify_token
 from config.logger_config import setup_logger
+from services.file_storage import save_upload_file, get_file_path, delete_file, get_file_info
+from services.pdf_service import extract_text_from_pdf, parse_insurance_program_pdf, analyze_coi_compliance
 import base64
 import uuid
 
@@ -16,29 +18,37 @@ router = APIRouter()
 @router.post("/upload-file")
 async def upload_file(
     file: UploadFile = File(...),
+    entity_type: Optional[str] = None,
+    entity_id: Optional[str] = None,
     user: dict = Depends(verify_token)
 ) -> Dict[str, Any]:
-    """Upload a file"""
+    """Upload a file with real disk storage"""
     try:
-        contents = await file.read()
-        file_id = str(uuid.uuid4())
+        # Save file to disk with validation
+        file_metadata = await save_upload_file(file, entity_type, entity_id)
         
-        # In production, save to cloud storage (S3, Azure Blob, etc.)
-        # For now, return mock data
-        logger.info(f"File uploaded: {file.filename} ({len(contents)} bytes)")
+        logger.info(f"File uploaded: {file_metadata['filename']} (ID: {file_metadata['id']})")
         
         return {
             "success": True,
-            "fileId": file_id,
-            "filename": file.filename,
-            "size": len(contents),
-            "mimeType": file.content_type
+            "fileId": file_metadata["id"],
+            "filename": file_metadata["filename"],
+            "size": file_metadata["size"],
+            "mimeType": file_metadata["mimeType"],
+            "path": file_metadata["relativePath"]
         }
+    except ValueError as e:
+        # Validation errors
+        logger.warning(f"File validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
         logger.error(f"File upload error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=f"File upload failed: {str(e)}"
         )
 
 
@@ -47,17 +57,33 @@ async def extract_data(
     data: Dict[str, Any],
     user: dict = Depends(verify_token)
 ) -> Dict[str, Any]:
-    """Extract data from uploaded file"""
+    """Extract data from uploaded PDF file"""
     try:
         file_id = data.get("fileId")
+        if not file_id:
+            raise ValueError("fileId is required")
+        
+        # Get file path
+        file_path = get_file_path(file_id)
+        if not file_path or not file_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found"
+            )
+        
         logger.info(f"Extracting data from file: {file_id}")
         
-        # Mock extraction result
+        # Extract text from PDF
+        text = await extract_text_from_pdf(file_path)
+        
         return {
             "success": True,
             "data": {
-                "text": "Extracted text content",
-                "metadata": {}
+                "text": text,
+                "metadata": {
+                    "fileId": file_id,
+                    "textLength": len(text)
+                }
             }
         }
     except Exception as e:
@@ -73,16 +99,29 @@ async def parse_program_pdf(
     data: Dict[str, Any],
     user: dict = Depends(verify_token)
 ) -> Dict[str, Any]:
-    """Parse insurance program PDF"""
+    """Parse insurance program PDF to extract requirements"""
     try:
         file_id = data.get("fileId")
+        if not file_id:
+            raise ValueError("fileId is required")
+        
+        # Get file path
+        file_path = get_file_path(file_id)
+        if not file_path or not file_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found"
+            )
+        
         logger.info(f"Parsing program PDF: {file_id}")
         
-        # Mock parsing result
-        return {
-            "success": True,
-            "requirements": []
-        }
+        # Extract text from PDF
+        text = await extract_text_from_pdf(file_path)
+        
+        # Parse insurance requirements
+        result = parse_insurance_program_pdf(text)
+        
+        return result
     except Exception as e:
         logger.error(f"PDF parsing error: {e}")
         raise HTTPException(
@@ -98,21 +137,26 @@ async def send_email(
 ) -> Dict[str, Any]:
     """Send email via SMTP"""
     try:
+        from services.email_service import email_service
+        
         to = data.get("to")
         subject = data.get("subject")
         body = data.get("body")
+        html = data.get("html")
+        
+        if not to or not subject or not body:
+            raise ValueError("to, subject, and body are required")
         
         logger.info(f"Sending email to: {to} - Subject: {subject}")
         
-        # In production, use aiosmtp or similar
-        # For now, log the email
-        logger.info(f"Email content: {body[:100]}...")
+        result = await email_service.send_email(
+            to=to,
+            subject=subject,
+            body=body,
+            html=html
+        )
         
-        return {
-            "success": True,
-            "message": "Email sent successfully",
-            "messageId": str(uuid.uuid4())
-        }
+        return result
     except Exception as e:
         logger.error(f"Email sending error: {e}")
         raise HTTPException(
@@ -224,27 +268,37 @@ async def create_signed_url(
 @router.post("/upload-private-file")
 async def upload_private_file(
     file: UploadFile = File(...),
+    entity_type: Optional[str] = None,
+    entity_id: Optional[str] = None,
     user: dict = Depends(verify_token)
 ) -> Dict[str, Any]:
     """Upload private file to secure storage"""
     try:
-        contents = await file.read()
-        file_id = str(uuid.uuid4())
+        # Use the same storage service with private flag in entity_type
+        private_entity_type = f"private/{entity_type}" if entity_type else "private"
+        file_metadata = await save_upload_file(file, private_entity_type, entity_id)
         
-        logger.info(f"Private file uploaded: {file.filename} ({len(contents)} bytes)")
+        logger.info(f"Private file uploaded: {file_metadata['filename']} (ID: {file_metadata['id']})")
         
         return {
             "success": True,
-            "fileId": file_id,
-            "filename": file.filename,
-            "size": len(contents),
-            "private": True
+            "fileId": file_metadata["id"],
+            "filename": file_metadata["filename"],
+            "size": file_metadata["size"],
+            "private": True,
+            "path": file_metadata["relativePath"]
         }
+    except ValueError as e:
+        logger.warning(f"Private file validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
         logger.error(f"Private file upload error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=f"Private file upload failed: {str(e)}"
         )
 
 
