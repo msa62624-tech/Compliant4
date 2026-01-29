@@ -3,52 +3,27 @@
 ## Automatic Setup
 
 When you open this repository in GitHub Codespaces, the environment will automatically:
-1. Install Node.js 20
-2. Install Python 3.11
+1. Install Node.js 20 (for frontend)
+2. Install Python 3.11 (for backend)
 3. Install frontend dependencies (`npm install`)
-4. Install Node.js backend dependencies (`cd backend && npm install`)
-5. Install Python backend dependencies (`cd backend-python && pip install -r requirements.txt`)
-6. Forward ports 5175 (frontend) and 3001 (backend)
-7. Install VS Code extensions for JavaScript/TypeScript and Python development
+4. Install Python backend dependencies (`cd backend-python && pip install -r requirements.txt`)
+5. Forward ports 5175 (frontend) and 3001 (backend)
+6. Install VS Code extensions for JavaScript/TypeScript and Python development
 
 This is configured in `.devcontainer/devcontainer.json`.
 
+> **Note:** The Node.js backend is no longer the default. Python (FastAPI) is now the primary backend.
+
 ## Starting the Application
 
-This repository includes **two production-ready backends**: Node.js (Express) and Python (FastAPI). Both have full feature parity.
+This repository uses **Python (FastAPI)** as the primary backend. The Node.js backend is available but no longer the default.
 
-### Option 1: Automatic Start with Node.js Backend (Recommended)
-```bash
-./start.sh
-```
-
-This single command will:
-- Create necessary `.env` files with Codespaces URLs
-- Start the Node.js backend server on port 3001
-- Start the frontend dev server on port 5175
-
-### Option 2: Manual Start with Node.js Backend
-
-**Terminal 1 - Backend:**
-```bash
-cd backend
-npm run dev
-```
-
-**Terminal 2 - Frontend:**
-```bash
-npm run dev
-```
-
-### Option 3: Using Python Backend
+### Option 1: Using Python Backend (Recommended)
 
 **Terminal 1 - Backend:**
 ```bash
 cd backend-python
-# Activate virtual environment (optional but recommended)
-python3 -m venv venv
-source venv/bin/activate
-# Start the server
+# Start the server (dependencies already installed)
 uvicorn main:app --reload --host 0.0.0.0 --port 3001
 ```
 
@@ -57,7 +32,36 @@ uvicorn main:app --reload --host 0.0.0.0 --port 3001
 npm run dev
 ```
 
-> **Note**: Python dependencies are automatically installed during Codespace creation, so you can use the Python backend immediately!
+> **Note**: Python dependencies are automatically installed during Codespace creation!
+
+### Option 2: Automatic Start Script (Uses Node.js Backend)
+
+If you prefer the Node.js backend, you can use the start script:
+
+```bash
+./start.sh
+```
+
+This will:
+- Start the Node.js backend server on port 3001
+- Start the frontend dev server on port 5175
+- Create necessary `.env` files with Codespaces URLs
+
+> **Note**: The start script will install Node.js backend dependencies if needed.
+
+### Option 3: Manual Node.js Backend (Legacy)
+
+**Terminal 1 - Backend:**
+```bash
+cd backend
+npm install  # First time only
+npm run dev
+```
+
+**Terminal 2 - Frontend:**
+```bash
+npm run dev
+```
 
 ## Accessing the Application
 
@@ -80,19 +84,7 @@ These are set in:
 
 ## Troubleshooting
 
-### Node.js Backend Won't Start
-
-If you see `Cannot find package 'express'` or similar errors:
-
-```bash
-cd backend
-npm install
-npm run dev
-```
-
-The dependencies should be installed automatically, but if the `postCreateCommand` failed, run it manually.
-
-### Python Backend Won't Start
+### Python Backend Won't Start (Primary Backend)
 
 If you see Python import errors or missing packages:
 
@@ -112,6 +104,16 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 uvicorn main:app --reload --host 0.0.0.0 --port 3001
+```
+
+### Node.js Backend Won't Start (Legacy)
+
+If you need to use the Node.js backend and see `Cannot find package 'express'` or similar errors:
+
+```bash
+cd backend
+npm install
+npm run dev
 ```
 
 ### Port Forwarding Issues

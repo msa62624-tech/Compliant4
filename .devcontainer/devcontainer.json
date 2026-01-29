@@ -43,7 +43,7 @@
     }
   },
 
-  "postCreateCommand": "npm install && cd backend && npm install && cd ../backend-python && python3 -m pip install --upgrade pip && python3 -m pip install -r requirements.txt",
+  "postCreateCommand": "npm install && cd backend-python && python3 -m pip install --upgrade pip && python3 -m pip install -r requirements.txt",
 
   "remoteEnv": {
     "NODE_ENV": "development"
