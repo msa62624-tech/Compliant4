@@ -177,7 +177,7 @@ def find_valid_coi_for_sub(sub_id: str) -> Dict[str, Any] | None:
             # Check if COI is still valid
             expiry = coi.get("expiration_date")
             if expiry:
-                from datetime import datetime
+                from datetime import datetime, timezone
                 try:
                     expiry_date = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
                     if expiry_date > datetime.now(timezone.utc):
