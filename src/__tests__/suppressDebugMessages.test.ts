@@ -50,14 +50,14 @@ describe('suppressDebugMessages', () => {
     it('should suppress Vite HMR debug messages starting with [vite]', () => {
       // Note: In a real test, suppressDebugMessages would already be loaded
       // This test documents the expected behavior
-      const viteMssages = [
+      const viteMessages = [
         '[vite] DEBUG connecting...',
         '[vite] DEBUG connected.',
         '[vite] DEBUG some other message'
       ];
 
       // These patterns should be suppressed
-      viteMssages.forEach(msg => {
+      viteMessages.forEach(msg => {
         expect(msg).toMatch(/^\[vite\].*DEBUG/);
       });
     });
@@ -112,15 +112,18 @@ describe('suppressDebugMessages', () => {
     it('should document that logger calls include LOGGER_MARKER', () => {
       // The logger utility adds LOGGER_MARKER as the first argument
       // This ensures logger messages are never suppressed
-      const _LOGGER_MARKER = Symbol.for('__LOGGER_UTILITY_MARKER__');
+      // Note: LOGGER_MARKER is a private symbol exported from suppressDebugMessages
+      const testSymbol = Symbol('__LOGGER_UTILITY_MARKER__');
       
-      // Verify the marker exists
-      expect(typeof _LOGGER_MARKER).toBe('symbol');
-      expect(_LOGGER_MARKER.toString()).toContain('__LOGGER_UTILITY_MARKER__');
+      // Verify symbols work as expected
+      expect(typeof testSymbol).toBe('symbol');
+      expect(testSymbol.toString()).toContain('__LOGGER_UTILITY_MARKER__');
     });
 
     it('should verify marker-protected messages are not affected by patterns', () => {
-      const _LOGGER_MARKER = Symbol.for('__LOGGER_UTILITY_MARKER__');
+      // The actual LOGGER_MARKER is exported from suppressDebugMessages
+      // and used by the logger utility to bypass suppression
+      const testSymbol = Symbol('__LOGGER_UTILITY_MARKER__');
       
       // Even if a logger message contains suppression patterns, 
       // it should not be suppressed because it has the marker
@@ -139,8 +142,8 @@ describe('suppressDebugMessages', () => {
         expect(msg).toBeTruthy();
       });
       
-      // Use the marker to avoid unused var warning
-      expect(typeof _LOGGER_MARKER).toBe('symbol');
+      // Use the symbol to avoid unused var warning
+      expect(typeof testSymbol).toBe('symbol');
     });
   });
 

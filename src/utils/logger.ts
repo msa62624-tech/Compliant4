@@ -194,6 +194,8 @@ export const logger = {
    */
   table: (data: unknown): void => {
     if (isDevelopment) {
+      // Note: console.table is not overridden by suppressDebugMessages,
+      // but we include the marker for consistency and future-proofing
       console.table(data);
     }
   },

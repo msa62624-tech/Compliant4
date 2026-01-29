@@ -9,7 +9,8 @@
  */
 
 // Unique symbol to mark logger utility calls
-const LOGGER_MARKER = Symbol.for('__LOGGER_UTILITY_MARKER__');
+// Using regular Symbol() to create a truly private marker that can only be accessed through the export
+const LOGGER_MARKER = Symbol('__LOGGER_UTILITY_MARKER__');
 
 // Export marker for use by logger utility
 export { LOGGER_MARKER };
