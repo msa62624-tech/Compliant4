@@ -35,7 +35,7 @@ export default function COIReview() {
   const [isDeficiencyDialogOpen, setIsDeficiencyDialogOpen] = useState(false);
   const [deficiencyText, setDeficiencyText] = useState('');
   const [deficiencySubject, setDeficiencySubject] = useState('');
-  const [deficiencyAttachments, setDeficiencyAttachments] = useState([]);
+  const [deficiencyAttachments, setDeficiencyAttachments] = useState<Array<{ name: string; url: string }>>([]);
   const [uploadingDeficiencyFile, setUploadingDeficiencyFile] = useState(false);
   const [includeEndorsementUpload, setIncludeEndorsementUpload] = useState(false);
   const [requireNewCOI, setRequireNewCOI] = useState(false);
@@ -87,9 +87,9 @@ export default function COIReview() {
     enabled: !!coiId,
   });
 
-  const { data: project, isLoading: projectLoading } = useQuery<Project | null>({
+  const { data: project, isLoading: projectLoading } = useQuery<(Project & { _fallback?: boolean }) | null>({
     queryKey: ['project', coi?.project_id],
-    queryFn: async () => {
+    queryFn: async (): Promise<(Project & { _fallback?: boolean }) | null> => {
       if (!coi?.project_id) {
         logger.warn('No project_id in COI', { context: 'COIReview', coiId: coi?.id });
         return null;
@@ -118,13 +118,13 @@ export default function COIReview() {
             program_name: coi.program_name,
             additional_insureds: coi.additional_insureds,
             _fallback: true
-          };
+          } as Project & { _fallback: boolean };
         }
       } else {
         logger.info('Project found', { context: 'COIReview', projectName: foundProject.project_name });
       }
       
-      return foundProject;
+      return foundProject || null;
     },
     enabled: !!coi?.project_id,
   });
@@ -186,22 +186,22 @@ export default function COIReview() {
       try {
         return await apiClient.entities.InsuranceProgram.read(project.program_id) as InsuranceProgram;
       } catch (err) {
-        logger.error('Failed to load program', { context: 'COIReview', error: err instanceof Error ? err.message : 'Unknown' });
+        logger.error('Failed to load program', { context: 'COIReview', errorMessage: String(err) });
         return null;
       }
     },
     enabled: !!project?.program_id,
   });
 
-  const updateCOIMutation = useMutation({
-    mutationFn: ({ id, data }) => apiClient.entities.GeneratedCOI.update(id, data),
+  const updateCOIMutation = useMutation<void, Error, { id: string; data: Partial<GeneratedCOI> }>({
+    mutationFn: ({ id, data }) => apiClient.entities.GeneratedCOI.update(id, data) as Promise<void>,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coi', coiId] });
       queryClient.invalidateQueries({ queryKey: ['pending-coi-reviews'] });
     },
   });
 
-  const sendMessageMutation = useMutation({
+  const sendMessageMutation = useMutation<void, Error, { to: string; subject: string; body: string; html?: string; includeSampleCOI?: boolean; sampleCOIData?: unknown }>({
     mutationFn: async ({ to, subject, body, html, includeSampleCOI, sampleCOIData }) => {
       await sendEmail({ to, subject, body, html, includeSampleCOI, sampleCOIData });
     },
@@ -260,26 +260,28 @@ export default function COIReview() {
       });
 
     } catch (error) {
-      logger.error('Compliance analysis error', { context: 'COIReview', error: error.message });
-      alert(`Compliance analysis failed: ${error.message}\n\nPlease review manually or try again.`);
+      logger.error('Compliance analysis error', { context: 'COIReview', errorMessage: String(error) });
+      alert(`Compliance analysis failed: ${String(error)}\n\nPlease review manually or try again.`);
     } finally {
       setAnalyzingCompliance(false);
     }
   };
 
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _generateCOIFromSystem = async () => {
     if (!coi) return;
     try {
       await apiClient.integrations.Admin.GenerateCOI({ coi_id: coi.id });
-      queryClient.invalidateQueries(['coi', coi.id]);
+      queryClient.invalidateQueries({ queryKey: ['coi', coi.id] });
       alert('COI generated from system data and set to Pending.');
     } catch (err) {
-      logger.error('Generate COI failed', { context: 'COIReview', error: err.message });
+      logger.error('Generate COI failed', { context: 'COIReview', errorMessage: String(err) });
       alert('Failed to generate COI from system data.');
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _signCOIAsAdmin = async () => {
     if (!coi) return;
     if (!coi.first_coi_url) {
@@ -287,11 +289,11 @@ export default function COIReview() {
       return;
     }
     try {
-      await apiClient.integrations.Admin.SignCOI({ coi_id: coi.id });
-      queryClient.invalidateQueries(['coi', coi.id]);
+      await apiClient.integrations.Admin.SignCOI({ coi_id: coi.id } as never);
+      queryClient.invalidateQueries({ queryKey: ['coi', coi.id] });
       alert('Admin signature applied. Final COI URL updated.');
     } catch (err) {
-      logger.error('Sign COI failed', { context: 'COIReview', error: err.message });
+      logger.error('Sign COI failed', { context: 'COIReview', errorMessage: String(err) });
       alert('Failed to apply admin signature.');
     }
   };
@@ -327,7 +329,7 @@ export default function COIReview() {
           coi_id: coi.id,
           justification: trimmed,
           approved_by: localStorage.getItem('user_email') || 'admin',
-          waived_deficiencies: coi.deficiencies?.map(d => d.id) || []
+          waived_deficiencies: (coi.deficiencies as Array<{ id: string }> | undefined)?.map(d => d.id) || []
         })
       });
 
@@ -337,17 +339,17 @@ export default function COIReview() {
       }
 
       await response.json();
-      queryClient.invalidateQueries(['coi', coi.id]);
+      queryClient.invalidateQueries({ queryKey: ['coi', coi.id] });
       alert('COI approved with deficiency waivers. Stakeholders have been notified.');
       navigate(createPageUrl("AdminDashboard"));
     } catch (err) {
-      logger.error('Approve with waivers failed', { context: 'COIReview', error: err.message });
-      alert(`Failed to approve with waivers: ${err.message}`);
+      logger.error('Approve with waivers failed', { context: 'COIReview', errorMessage: String(err) });
+      alert(`Failed to approve with waivers: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
-  const handleFileUpload = async (file) => {
-    if (!file) return;
+  const handleFileUpload = async (file: File) => {
+    if (!file || !coi) return;
 
     setUploadingFile(true);
     try {
@@ -366,7 +368,7 @@ export default function COIReview() {
           extractedData = extractResult.data || {};
         }
       } catch (extractErr) {
-        logger.warn('Failed to extract COI fields, continuing without extracted data', { context: 'COIReview', error: extractErr.message });
+        logger.warn('Failed to extract COI fields, continuing without extracted data', { context: 'COIReview', error: extractErr instanceof Error ? extractErr.message : String(extractErr) });
       }
 
       await updateCOIMutation.mutateAsync({
@@ -394,42 +396,44 @@ export default function COIReview() {
   };
 
   const handleManualEntry = () => {
+    if (!coi) return;
     // Pre-fill form if data exists
     setManualCOIData({
-      insurance_carrier_gl: coi.insurance_carrier_gl || '',
-      policy_number_gl: coi.policy_number_gl || '',
-      gl_each_occurrence: coi.gl_each_occurrence ? coi.gl_each_occurrence.toString() : '',
-      gl_general_aggregate: coi.gl_general_aggregate ? coi.gl_general_aggregate.toString() : '',
-      gl_products_completed_ops: coi.gl_products_completed_ops ? coi.gl_products_completed_ops.toString() : '',
-      gl_effective_date: coi.gl_effective_date || '',
+      insurance_carrier_gl: String(coi.insurance_carrier_gl || ''),
+      policy_number_gl: String(coi.policy_number_gl || ''),
+      gl_each_occurrence: coi.gl_each_occurrence ? String(coi.gl_each_occurrence) : '',
+      gl_general_aggregate: coi.gl_general_aggregate ? String(coi.gl_general_aggregate) : '',
+      gl_products_completed_ops: coi.gl_products_completed_ops ? String(coi.gl_products_completed_ops) : '',
+      gl_effective_date: String(coi.gl_effective_date || ''),
       gl_expiration_date: coi.gl_expiration_date || '',
-      insurance_carrier_umbrella: coi.insurance_carrier_umbrella || '',
-      policy_number_umbrella: coi.policy_number_umbrella || '',
-      umbrella_each_occurrence: coi.umbrella_each_occurrence ? coi.umbrella_each_occurrence.toString() : '',
-      umbrella_aggregate: coi.umbrella_aggregate ? coi.umbrella_aggregate.toString() : '',
-      umbrella_effective_date: coi.umbrella_effective_date || '',
+      insurance_carrier_umbrella: String(coi.insurance_carrier_umbrella || ''),
+      policy_number_umbrella: String(coi.policy_number_umbrella || ''),
+      umbrella_each_occurrence: coi.umbrella_each_occurrence ? String(coi.umbrella_each_occurrence) : '',
+      umbrella_aggregate: coi.umbrella_aggregate ? String(coi.umbrella_aggregate) : '',
+      umbrella_effective_date: String(coi.umbrella_effective_date || ''),
       umbrella_expiration_date: coi.umbrella_expiration_date || '',
-      insurance_carrier_wc: coi.insurance_carrier_wc || '',
-      policy_number_wc: coi.policy_number_wc || '',
-      wc_each_accident: coi.wc_each_accident ? coi.wc_each_accident.toString() : '',
-      wc_disease_policy_limit: coi.wc_disease_policy_limit ? coi.wc_disease_policy_limit.toString() : '',
-      wc_disease_each_employee: coi.wc_disease_each_employee ? coi.wc_disease_each_employee.toString() : '',
-      wc_effective_date: coi.wc_effective_date || '',
+      insurance_carrier_wc: String(coi.insurance_carrier_wc || ''),
+      policy_number_wc: String(coi.policy_number_wc || ''),
+      wc_each_accident: coi.wc_each_accident ? String(coi.wc_each_accident) : '',
+      wc_disease_policy_limit: coi.wc_disease_policy_limit ? String(coi.wc_disease_policy_limit) : '',
+      wc_disease_each_employee: coi.wc_disease_each_employee ? String(coi.wc_disease_each_employee) : '',
+      wc_effective_date: String(coi.wc_effective_date || ''),
       wc_expiration_date: coi.wc_expiration_date || '',
-      insurance_carrier_auto: coi.insurance_carrier_auto || '',
-      policy_number_auto: coi.policy_number_auto || '',
-      auto_combined_single_limit: coi.auto_combined_single_limit ? coi.auto_combined_single_limit.toString() : '',
-      auto_effective_date: coi.auto_effective_date || '',
+      insurance_carrier_auto: String(coi.insurance_carrier_auto || ''),
+      policy_number_auto: String(coi.policy_number_auto || ''),
+      auto_combined_single_limit: coi.auto_combined_single_limit ? String(coi.auto_combined_single_limit) : '',
+      auto_effective_date: String(coi.auto_effective_date || ''),
       auto_expiration_date: coi.auto_expiration_date || '',
-      broker_name: coi.broker_name || '',
-      broker_company: coi.broker_company || '',
-      broker_email: coi.broker_email || '',
-      broker_phone: coi.broker_phone || '',
+      broker_name: String(coi.broker_name || ''),
+      broker_company: String(coi.broker_company || ''),
+      broker_email: String(coi.broker_email || ''),
+      broker_phone: String(coi.broker_phone || ''),
     });
     setIsManualEntryOpen(true);
   };
 
   const handleSaveManualEntry = async () => {
+    if (!coi) return;
     const updateData = {
       ...manualCOIData,
       gl_each_occurrence: manualCOIData.gl_each_occurrence ? Number(manualCOIData.gl_each_occurrence) : null,
@@ -451,7 +455,7 @@ export default function COIReview() {
 
     await updateCOIMutation.mutateAsync({
       id: coi.id,
-      data: updateData
+      data: updateData as Partial<GeneratedCOI>
     });
 
     setIsManualEntryOpen(false);
@@ -491,24 +495,24 @@ export default function COIReview() {
       '{{DATE}}': today,
     };
 
-    const mergeTemplate = (html) => {
+    const mergeTemplate = (html: string) => {
       let output = html;
       Object.entries(replacements).forEach(([token, value]) => {
         const regex = new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-        output = output.replace(regex, value);
+        output = output.replace(regex, String(value));
       });
       return output;
     };
 
     if (program?.hold_harmless_template_url) {
       try {
-        const response = await fetch(program.hold_harmless_template_url);
+        const response = await fetch(program.hold_harmless_template_url as string);
         const text = await response.text();
         if (text) {
           return mergeTemplate(text);
         }
       } catch (err) {
-        logger.error('Failed to fetch program hold harmless template, falling back to default', { context: 'COIReview', error: err.message });
+        logger.error('Failed to fetch program hold harmless template, falling back to default', { context: 'COIReview', errorMessage: String(err) });
       }
     }
 
@@ -566,15 +570,16 @@ export default function COIReview() {
 </html>`);
   };
 
-  const uploadHoldHarmlessTemplate = async () => {
+  const uploadHoldHarmlessTemplate = async (): Promise<string> => {
     const html = await buildHoldHarmlessHtml();
     const blob = new Blob([html], { type: 'text/html' });
     const file = new File([blob], `hold-harmless-${coi?.id || 'agreement'}.html`, { type: 'text/html' });
-    const uploadResult = await apiClient.integrations.Core.UploadFile({ file });
+    const uploadResult = await apiClient.integrations.Core.UploadFile({ file }) as { file_url?: string; url?: string; downloadUrl?: string; data?: { file_url?: string; url?: string } };
     return uploadResult?.file_url || uploadResult?.url || uploadResult?.downloadUrl || uploadResult?.data?.file_url || uploadResult?.data?.url || '';
   };
 
   const handleApprove = async () => {
+    if (!coi) return;
     // Check if project is loaded
     if (!project) {
       alert('Cannot approve COI: Project information is not available. Please refresh the page and try again.');
@@ -583,13 +588,13 @@ export default function COIReview() {
     }
 
     // Fetch subcontractor to get their email address
-    let subcontractor = null;
+    let subcontractor: ApiTypes.Contractor | null = null;
     try {
       if (coi.subcontractor_id) {
-        subcontractor = await apiClient.entities.Contractor.read(coi.subcontractor_id);
+        subcontractor = await apiClient.entities.Contractor.read(coi.subcontractor_id) as ApiTypes.Contractor;
       }
     } catch (err) {
-      logger.error('Failed to fetch subcontractor', { context: 'COIReview', error: err.message });
+      logger.error('Failed to fetch subcontractor', { context: 'COIReview', errorMessage: String(err) });
     }
 
     // Update confirmation message based on renewal status
@@ -618,10 +623,11 @@ export default function COIReview() {
 
       // Send renewal approval notification (no hold harmless requirement)
       try {
-        const recipientEmail = subcontractor?.email || coi.contact_email || coi.broker_email;
-        await sendMessageMutation.mutateAsync({
-          to: recipientEmail,
-          subject: `COI Renewal Approved - ${project.project_name}`,
+        const recipientEmail = (subcontractor?.email || coi.contact_email || coi.broker_email) as string | undefined;
+        if (recipientEmail) {
+          await sendMessageMutation.mutateAsync({
+            to: recipientEmail,
+            subject: `COI Renewal Approved - ${project.project_name}`,
           body: `Your renewed Certificate of Insurance for ${project.project_name} has been approved.
 
 Project: ${project.project_name}
@@ -633,9 +639,10 @@ This is a renewal - no new Hold Harmless Agreement is required.
 Work may continue without interruption.
 
 Thank you!`
-        });
+          });
+        }
       } catch (err) {
-        logger.error('Failed to notify subcontractor', { context: 'COIReview', error: err.message });
+        logger.error('Failed to notify subcontractor', { context: 'COIReview', errorMessage: String(err) });
       }
 
       alert('COI renewal approved! No hold harmless signature required for renewals.');
@@ -654,7 +661,7 @@ Thank you!`
       try {
         holdHarmlessTemplateUrl = await uploadHoldHarmlessTemplate();
       } catch (templateErr) {
-        logger.error('Failed to generate Hold Harmless template', { context: 'COIReview', error: templateErr.message });
+        logger.error('Failed to generate Hold Harmless template', { context: 'COIReview', errorMessage: String(templateErr) });
       }
     }
 
@@ -674,7 +681,7 @@ Thank you!`
         admin_approved: true,
         review_date: new Date().toISOString(),
         hold_harmless_status: getHoldHarmlessStatus(),
-        hold_harmless_template_url: holdHarmlessTemplateUrl || coi.hold_harmless_template_url || null,
+        hold_harmless_template_url: (holdHarmlessTemplateUrl || coi.hold_harmless_template_url || '') as string,
       }
     });
 
@@ -703,11 +710,12 @@ Thank you!`
 
 Work cannot proceed until the agreement is signed.`;
 
-        const recipientEmail = subcontractor?.email || coi.contact_email || coi.broker_email;
-        await sendMessageMutation.mutateAsync({
-          to: recipientEmail,
-          subject: `COI Approved ${alreadySignedHoldHarmless ? '- Hold Harmless On File' : '- Hold Harmless Required'} - ${project.project_name}`,
-          body: `Good news! Your Certificate of Insurance for ${project.project_name} has been approved.
+        const recipientEmail = (subcontractor?.email || coi.contact_email || coi.broker_email) as string | undefined;
+        if (recipientEmail) {
+          await sendMessageMutation.mutateAsync({
+            to: recipientEmail,
+            subject: `COI Approved ${alreadySignedHoldHarmless ? '- Hold Harmless On File' : '- Hold Harmless Required'} - ${project.project_name}`,
+            body: `Good news! Your Certificate of Insurance for ${project.project_name} has been approved.
 
 ${holdHarmlessInstructions}
 
@@ -716,9 +724,10 @@ Subcontractor: ${coi.subcontractor_name}
 Trade: ${coi.trade_type}
 
 Thank you!`
-        });
+          });
+        }
       } catch (err) {
-        logger.error('Failed to notify subcontractor', { context: 'COIReview', error: err.message });
+        logger.error('Failed to notify subcontractor', { context: 'COIReview', errorMessage: String(err) });
       }
     }
 
@@ -745,7 +754,7 @@ Best regards,
 InsureTrack Team`
         });
       } catch (err) {
-        logger.error('Failed to notify GC', { context: 'COIReview', error: err.message });
+        logger.error('Failed to notify GC', { context: 'COIReview', errorMessage: String(err) });
       }
     }
 
@@ -757,7 +766,7 @@ InsureTrack Team`
         await notifySubCOIApproved(coi, subcontractor, project);
       }
     } catch (err) {
-      logger.error('Failed to send broker approval notification', { context: 'COIReview', error: err.message });
+      logger.error('Failed to send broker approval notification', { context: 'COIReview', errorMessage: String(err) });
     }
 
     alert('COI approved! Hold harmless agreement signature is now required before work can begin.');
@@ -765,12 +774,13 @@ InsureTrack Team`
   };
 
   const handleSendDeficiency = async () => {
+    if (!coi) return;
     if (!deficiencyText.trim()) {
       alert('Please enter deficiency details');
       return;
     }
 
-    const safeProject = project || {};
+    const safeProject = project || {} as Partial<Project>;
     const projectName = safeProject.project_name || coi?.project_name || 'Unassigned Project';
     const projectAddress = safeProject.project_address || safeProject.address || coi?.project_address || 'Project address pending';
     const gcName = safeProject.gc_name || coi?.gc_name || 'General Contractor';
@@ -795,7 +805,7 @@ InsureTrack Team`
     const endorsementUploadLink = includeEndorsementUpload
       ? brokerUploadLink
       : null;
-    const brokerDashboardLink = `${window.location.origin}${createPageUrl('broker-dashboard')}?email=${encodeURIComponent(coi.broker_email)}&coiId=${coi.id}`;
+    const brokerDashboardLink = `${window.location.origin}${createPageUrl('broker-dashboard')}?email=${encodeURIComponent(coi.broker_email || '')}&coiId=${coi.id}`;
     // Helper function to build email sections
     const buildAttachmentsSection = () => {
       if (deficiencyAttachments.length === 0) return '';
@@ -904,7 +914,7 @@ InsureTrack Team`
     }
 
     // Notify GC about deficiency
-    if (gcEmail) {
+    if (gcEmail && typeof gcEmail === 'string') {
       await sendMessageMutation.mutateAsync({
         to: gcEmail,
         subject: `⚠️ Insurance Corrections Requested - ${coi.subcontractor_name} (${projectName})`,
@@ -933,8 +943,8 @@ InsureTrack Team`
     // Notify subcontractor
     const subDashboardLink = `${window.location.origin}${createPageUrl('subcontractor-dashboard')}?id=${coi.subcontractor_id}`;
     // Only email subcontractor contacts; do not fallback to broker/GC to avoid sending them subcontractor portal links
-    const subRecipient = coi.contact_email || coi.subcontractor_email || coi.subcontractor_contact_email;
-    if (subRecipient) {
+    const subRecipient = coi.contact_email || coi.subcontractor_email || (coi as Record<string, unknown>).subcontractor_contact_email;
+    if (subRecipient && typeof subRecipient === 'string') {
       await sendMessageMutation.mutateAsync({
         to: subRecipient,
         subject: `⚠️ Certificate Update Needed - ${projectName}`,
@@ -973,15 +983,16 @@ InsureTrack Team`
     navigate(createPageUrl("AdminDashboard"));
   };
 
-  const handleOverrideDeficiency = async (deficiencyId, deficiency) => {
-    const reason = prompt(`Override reason for: ${deficiency.description}\n\nEnter your reason for overriding this deficiency:`);
+  const handleOverrideDeficiency = async (deficiencyId: string, deficiency: { description?: string }) => {
+    if (!coi) return;
+    const reason = prompt(`Override reason for: ${deficiency.description || 'deficiency'}\n\nEnter your reason for overriding this deficiency:`);
 
     if (!reason || !reason.trim()) {
       return;
     }
 
     try {
-      const currentOverrides = coi.manual_overrides || [];
+      const currentOverrides = ((coi.manual_overrides as Array<{ deficiency_id: string; overridden_by?: string; override_date?: string; override_reason?: string }> | undefined) || []);
       const newOverride = {
         deficiency_id: deficiencyId,
         overridden_by: user?.email || 'admin',
@@ -992,7 +1003,7 @@ InsureTrack Team`
       await updateCOIMutation.mutateAsync({
         id: coi.id,
         data: {
-          manual_overrides: [...currentOverrides, newOverride]
+          manual_overrides: [...currentOverrides, newOverride] as unknown[]
         }
       });
 
@@ -1002,11 +1013,12 @@ InsureTrack Team`
     }
   };
 
-  const handleRemoveOverride = async (deficiencyId) => {
+  const handleRemoveOverride = async (deficiencyId: string) => {
+    if (!coi) return;
     if (!confirm('Remove this override?')) return;
 
     try {
-      const currentOverrides = coi.manual_overrides || [];
+      const currentOverrides = (coi.manual_overrides as Array<{ deficiency_id: string }> | undefined) || [];
       const updatedOverrides = currentOverrides.filter(o => o.deficiency_id !== deficiencyId);
 
       await updateCOIMutation.mutateAsync({
@@ -1022,12 +1034,14 @@ InsureTrack Team`
     }
   };
 
-  const isDeficiencyOverridden = (deficiencyId) => {
-    return (coi.manual_overrides || []).some(o => o.deficiency_id === deficiencyId);
+  const isDeficiencyOverridden = (deficiencyId: string) => {
+    if (!coi) return false;
+    return ((coi.manual_overrides as Array<{ deficiency_id: string }> | undefined) || []).some(o => o.deficiency_id === deficiencyId);
   };
 
-  const getOverrideInfo = (deficiencyId) => {
-    return (coi.manual_overrides || []).find(o => o.deficiency_id === deficiencyId);
+  const getOverrideInfo = (deficiencyId: string) => {
+    if (!coi) return undefined;
+    return ((coi.manual_overrides as Array<{ deficiency_id: string; overridden_by?: string; override_date?: string; override_reason?: string }> | undefined) || []).find(o => o.deficiency_id === deficiencyId);
   };
 
   if (coiLoading) {
@@ -1057,9 +1071,26 @@ InsureTrack Team`
     );
   }
 
-  const analysis = coi.policy_analysis;
+  const analysis = (coi.policy_analysis || {}) as {
+    overall_status?: string;
+    compliance_score?: number;
+    summary?: string;
+    deficiencies?: Array<{
+      deficiency_id?: string;
+      category?: string;
+      insurance_type?: string;
+      severity?: string;
+      description?: string;
+      issue?: string;
+      required_value?: string | number;
+      actual_value?: string | number;
+      remediation?: string;
+      can_be_overridden?: boolean;
+    }>;
+    approval_recommendation?: string;
+  };
 
-  const getSeverityColor = (severity) => {
+  const getSeverityColor = (severity?: string) => {
     switch (severity) {
       case 'critical': return 'red';
       case 'major': return 'orange';
@@ -1068,7 +1099,7 @@ InsureTrack Team`
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status?: string) => {
     switch (status) {
       case 'compliant': return 'emerald';
       case 'minor_issues': return 'blue';
@@ -1147,7 +1178,7 @@ InsureTrack Team`
               <XCircle className="w-4 h-4 mr-2" />
               Request Corrections
             </Button>
-            {coi.deficiencies && coi.deficiencies.length > 0 && (
+            {((coi.deficiencies as unknown[] | undefined)?.length ?? 0) > 0 && (
               <Button
                 onClick={approveWithDeficiencyWaivers}
                 className="bg-amber-600 hover:bg-amber-700"
@@ -1189,13 +1220,13 @@ InsureTrack Team`
                     {coi.insurance_carrier_gl && (
                       <div>
                         <p className="text-xs font-semibold text-slate-500">Carrier</p>
-                        <p className="font-bold text-slate-900">{coi.insurance_carrier_gl}</p>
+                        <p className="font-bold text-slate-900">{`${coi.insurance_carrier_gl}`}</p>
                       </div>
                     )}
                     {coi.policy_number_gl && (
                       <div>
                         <p className="text-xs font-semibold text-slate-500">Policy #</p>
-                        <p className="font-mono text-slate-900">{coi.policy_number_gl}</p>
+                        <p className="font-mono text-slate-900">{`${coi.policy_number_gl}`}</p>
                       </div>
                     )}
                     {coi.gl_each_occurrence && (
@@ -1212,7 +1243,7 @@ InsureTrack Team`
                     )}
                     {coi.gl_effective_date && (
                       <div className="mt-2 pt-2 border-t">
-                        <p className="text-xs text-slate-600">Valid: {format(new Date(coi.gl_effective_date), 'MMM d, yyyy')} - {coi.gl_expiration_date ? format(new Date(coi.gl_expiration_date), 'MMM d, yyyy') : 'N/A'}</p>
+                        <p className="text-xs text-slate-600">Valid: {format(new Date(`${coi.gl_effective_date}`), 'MMM d, yyyy')} - {coi.gl_expiration_date ? format(new Date(`${coi.gl_expiration_date}`), 'MMM d, yyyy') : 'N/A'}</p>
                       </div>
                     )}
                   </div>
@@ -1229,13 +1260,13 @@ InsureTrack Team`
                     {coi.insurance_carrier_umbrella && (
                       <div>
                         <p className="text-xs font-semibold text-slate-500">Carrier</p>
-                        <p className="font-bold text-slate-900">{coi.insurance_carrier_umbrella}</p>
+                        <p className="font-bold text-slate-900">{`${coi.insurance_carrier_umbrella}`}</p>
                       </div>
                     )}
                     {coi.policy_number_umbrella && (
                       <div>
                         <p className="text-xs font-semibold text-slate-500">Policy #</p>
-                        <p className="font-mono text-slate-900">{coi.policy_number_umbrella}</p>
+                        <p className="font-mono text-slate-900">{`${coi.policy_number_umbrella}`}</p>
                       </div>
                     )}
                     {coi.umbrella_each_occurrence && (
@@ -1252,7 +1283,7 @@ InsureTrack Team`
                     )}
                     {coi.umbrella_effective_date && (
                       <div className="mt-2 pt-2 border-t">
-                        <p className="text-xs text-slate-600">Valid: {format(new Date(coi.umbrella_effective_date), 'MMM d, yyyy')} - {coi.umbrella_expiration_date ? format(new Date(coi.umbrella_expiration_date), 'MMM d, yyyy') : 'N/A'}</p>
+                        <p className="text-xs text-slate-600">Valid: {format(new Date(`${coi.umbrella_effective_date}`), 'MMM d, yyyy')} - {coi.umbrella_expiration_date ? format(new Date(`${coi.umbrella_expiration_date}`), 'MMM d, yyyy') : 'N/A'}</p>
                       </div>
                     )}
                   </div>
@@ -1269,13 +1300,13 @@ InsureTrack Team`
                     {coi.insurance_carrier_wc && (
                       <div>
                         <p className="text-xs font-semibold text-slate-500">Carrier</p>
-                        <p className="font-bold text-slate-900">{coi.insurance_carrier_wc}</p>
+                        <p className="font-bold text-slate-900">{`${coi.insurance_carrier_wc}`}</p>
                       </div>
                     )}
                     {coi.policy_number_wc && (
                       <div>
                         <p className="text-xs font-semibold text-slate-500">Policy #</p>
-                        <p className="font-mono text-slate-900">{coi.policy_number_wc}</p>
+                        <p className="font-mono text-slate-900">{`${coi.policy_number_wc}`}</p>
                       </div>
                     )}
                     {coi.wc_each_accident && (
@@ -1292,7 +1323,7 @@ InsureTrack Team`
                     )}
                     {coi.wc_effective_date && (
                       <div className="mt-2 pt-2 border-t">
-                        <p className="text-xs text-slate-600">Valid: {format(new Date(coi.wc_effective_date), 'MMM d, yyyy')} - {coi.wc_expiration_date ? format(new Date(coi.wc_expiration_date), 'MMM d, yyyy') : 'N/A'}</p>
+                        <p className="text-xs text-slate-600">Valid: {format(new Date(`${coi.wc_effective_date}`), 'MMM d, yyyy')} - {coi.wc_expiration_date ? format(new Date(`${coi.wc_expiration_date}`), 'MMM d, yyyy') : 'N/A'}</p>
                       </div>
                     )}
                   </div>
@@ -1309,13 +1340,13 @@ InsureTrack Team`
                     {coi.insurance_carrier_auto && (
                       <div>
                         <p className="text-xs font-semibold text-slate-500">Carrier</p>
-                        <p className="font-bold text-slate-900">{coi.insurance_carrier_auto}</p>
+                        <p className="font-bold text-slate-900">{`${coi.insurance_carrier_auto}`}</p>
                       </div>
                     )}
                     {coi.policy_number_auto && (
                       <div>
                         <p className="text-xs font-semibold text-slate-500">Policy #</p>
-                        <p className="font-mono text-slate-900">{coi.policy_number_auto}</p>
+                        <p className="font-mono text-slate-900">{`${coi.policy_number_auto}`}</p>
                       </div>
                     )}
                     {coi.auto_combined_single_limit && (
@@ -1326,7 +1357,7 @@ InsureTrack Team`
                     )}
                     {coi.auto_effective_date && (
                       <div className="mt-2 pt-2 border-t">
-                        <p className="text-xs text-slate-600">Valid: {format(new Date(coi.auto_effective_date), 'MMM d, yyyy')} - {coi.auto_expiration_date ? format(new Date(coi.auto_expiration_date), 'MMM d, yyyy') : 'N/A'}</p>
+                        <p className="text-xs text-slate-600">Valid: {format(new Date(`${coi.auto_effective_date}`), 'MMM d, yyyy')} - {coi.auto_expiration_date ? format(new Date(`${coi.auto_expiration_date}`), 'MMM d, yyyy') : 'N/A'}</p>
                       </div>
                     )}
                   </div>
@@ -1365,7 +1396,7 @@ InsureTrack Team`
                     Score: {analysis.compliance_score}/100
                   </Badge>
                   <Badge className={`bg-${getStatusColor(analysis.overall_status)}-100 text-${getStatusColor(analysis.overall_status)}-800 border border-${getStatusColor(analysis.overall_status)}-300 text-lg px-4 py-1`}>
-                    {analysis.overall_status.replace(/_/g, ' ').toUpperCase()}
+                    {analysis.overall_status ? analysis.overall_status.replace(/_/g, ' ').toUpperCase() : 'PENDING'}
                   </Badge>
                 </div>
               </div>
@@ -1385,14 +1416,14 @@ InsureTrack Team`
               {/* Critical Flags - Removed as schema no longer includes it */}
 
               {/* Deficiencies */}
-              {coi.policy_analysis?.deficiencies && coi.policy_analysis.deficiencies.length > 0 ? (
+              {((coi.policy_analysis as { deficiencies?: unknown[] } | undefined)?.deficiencies?.length ?? 0) > 0 ? (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-black text-slate-900">
-                      🚨 Issues Found ({activeDeficiencies.length} active, {coi.manual_overrides?.length || 0} overridden)
+                      🚨 Issues Found ({activeDeficiencies.length} active, {((coi.manual_overrides as unknown[] | undefined)?.length ?? 0)} overridden)
                     </h3>
                   </div>
-                  {coi.policy_analysis.deficiencies.map((deficiency, idx) => {
+                  {((coi.policy_analysis as { deficiencies?: Array<{ deficiency_id?: string; category?: string; insurance_type?: string; severity?: string; description?: string; issue?: string }> } | undefined)?.deficiencies || []).map((deficiency, idx) => {
                     const defId = deficiency.deficiency_id || `${deficiency.category}_${deficiency.insurance_type}_${idx}`;
                     const isOverridden = isDeficiencyOverridden(defId);
                     const overrideInfo = getOverrideInfo(defId);
@@ -1575,20 +1606,22 @@ InsureTrack Team`
               </div>
               {project && (
                 <>
-                  <div>
-                    <p className="text-sm text-slate-500">Project Type</p>
-                    <Badge>{project.project_type}</Badge>
-                  </div>
-                  {project.unit_count && (
+                  {(project as Record<string, unknown>).project_type && (
                     <div>
-                      <p className="text-sm text-slate-500">Unit Count</p>
-                      <p className="font-medium text-slate-900">{project.unit_count} units</p>
+                      <p className="text-sm text-slate-500">Project Type</p>
+                      <Badge>{`${(project as Record<string, unknown>).project_type}`}</Badge>
                     </div>
                   )}
-                  {project.height_stories && (
+                  {(project as Record<string, unknown>).unit_count && (
+                    <div>
+                      <p className="text-sm text-slate-500">Unit Count</p>
+                      <p className="font-medium text-slate-900">{`${(project as Record<string, unknown>).unit_count}`} units</p>
+                    </div>
+                  )}
+                  {(project as Record<string, unknown>).height_stories && (
                     <div>
                       <p className="text-sm text-slate-500">Height</p>
-                      <p className="font-medium text-slate-900">{project.height_stories} stories</p>
+                      <p className="font-medium text-slate-900">{`${(project as Record<string, unknown>).height_stories}`} stories</p>
                     </div>
                   )}
                 </>
@@ -1691,7 +1724,7 @@ InsureTrack Team`
               )}
               {coi.professional_liability_policy_url && (
                 <Button variant="outline" className="justify-start" asChild>
-                  <a href={coi.professional_liability_policy_url} target="_blank" rel="noopener noreferrer">
+                  <a href={`${coi.professional_liability_policy_url}`} target="_blank" rel="noopener noreferrer">
                     <FileText className="w-4 h-4 mr-2" />
                     Professional Liability
                     <ExternalLink className="w-3 h-3 ml-auto" />
@@ -1700,7 +1733,7 @@ InsureTrack Team`
               )}
               {coi.pollution_liability_policy_url && (
                 <Button variant="outline" className="justify-start" asChild>
-                  <a href={coi.pollution_liability_policy_url} target="_blank" rel="noopener noreferrer">
+                  <a href={`${coi.pollution_liability_policy_url}`} target="_blank" rel="noopener noreferrer">
                     <FileText className="w-4 h-4 mr-2" />
                     Pollution Liability
                     <ExternalLink className="w-3 h-3 ml-auto" />
@@ -2045,7 +2078,7 @@ InsureTrack Team`
                 type="file"
                 accept=".pdf,.png,.jpg,.jpeg"
                 onChange={(e) => {
-                  const file = e.target.files[0];
+                  const file = e.target.files?.[0];
                   if (file) {
                     handleFileUpload(file);
                   }
@@ -2094,15 +2127,15 @@ InsureTrack Team`
                         key={idx}
                         type="button"
                         onClick={() => {
-                          const defTextToAppend = `${def.insurance_type?.toUpperCase() || ''} - ${def.category.replace(/_/g, ' ')}: ${def.description}${def.remediation ? `\nFix: ${def.remediation}` : ''}`;
+                          const defTextToAppend = `${def.insurance_type?.toUpperCase() || ''} - ${(def.category || '').replace(/_/g, ' ')}: ${def.description || ''}${def.issue ? `\nFix: ${def.issue}` : ''}`;
                           setDeficiencyText(prev => prev ? `${prev}\n\n${defTextToAppend}` : defTextToAppend);
                         }}
                         className="block w-full text-left text-xs p-2 hover:bg-red-100 rounded transition-colors"
                       >
                         <Badge className={`bg-${getSeverityColor(def.severity)}-200 text-${getSeverityColor(def.severity)}-900 mr-2`}>
-                          {def.severity}
+                          {def.severity || 'minor'}
                         </Badge>
-                        {def.description}
+                        {def.description || 'Issue detected'}
                       </button>
                     ))}
                   </div>
@@ -2155,7 +2188,7 @@ InsureTrack Team`
                     
                     setUploadingDeficiencyFile(true);
                     try {
-                      const uploadedFiles = [];
+                      const uploadedFiles: Array<{ name: string; url: string }> = [];
                       for (const file of files) {
                         const result = await apiClient.integrations.Core.UploadFile({ file });
                         uploadedFiles.push({
@@ -2165,7 +2198,7 @@ InsureTrack Team`
                       }
                       setDeficiencyAttachments(prev => [...prev, ...uploadedFiles]);
                     } catch (err) {
-                      logger.error('Failed to upload attachment', { context: 'COIReview', error: err.message });
+                      logger.error('Failed to upload attachment', { context: 'COIReview', errorMessage: String(err) });
                       alert('Failed to upload file. Please try again.');
                     } finally {
                       setUploadingDeficiencyFile(false);
@@ -2210,7 +2243,7 @@ InsureTrack Team`
                 <Checkbox
                   id="include-endorsement"
                   checked={includeEndorsementUpload}
-                  onCheckedChange={(checked) => setIncludeEndorsementUpload(checked)}
+                  onCheckedChange={(checked) => setIncludeEndorsementUpload(checked === true)}
                 />
                 <div className="grid gap-1.5 leading-none">
                   <Label
@@ -2231,7 +2264,7 @@ InsureTrack Team`
                     <Checkbox
                       id="require-new-coi"
                       checked={requireNewCOI}
-                      onCheckedChange={(checked) => setRequireNewCOI(checked)}
+                      onCheckedChange={(checked) => setRequireNewCOI(checked === true)}
                     />
                     <div className="grid gap-1.5 leading-none">
                       <Label
@@ -2251,7 +2284,7 @@ InsureTrack Team`
                       <Checkbox
                         id="apply-to-all"
                         checked={applyToAllProjects}
-                        onCheckedChange={(checked) => setApplyToAllProjects(checked)}
+                        onCheckedChange={(checked) => setApplyToAllProjects(checked === true)}
                       />
                       <div className="grid gap-1.5 leading-none">
                         <Label

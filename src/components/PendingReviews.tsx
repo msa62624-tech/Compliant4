@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import type * as ApiTypes from '@/api-types';
 
 export default function PendingReviews(): JSX.Element {
   const navigate = useNavigate();

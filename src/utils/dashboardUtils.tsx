@@ -326,7 +326,7 @@ export const ReportingUtils = {
   }
 };
 
-export function ErrorAlert({ error, onDismiss }: ErrorAlertProps): JSX.Element {
+export function ErrorAlert({ error, onDismiss }: ErrorAlertProps): JSX.Element | null {
   if (!error) return null;
 
   return (
@@ -363,7 +363,7 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', disabled
   );
 }
 
-export function BulkActionsToolbar({ selectedCount = 0, onSelectAll: _onSelectAll, onClearSelection, actions = [] }: BulkActionsToolbarProps): JSX.Element {
+export function BulkActionsToolbar({ selectedCount = 0, onSelectAll: _onSelectAll, onClearSelection, actions = [] }: BulkActionsToolbarProps): JSX.Element | null {
   if (selectedCount === 0) return null;
 
   return (
