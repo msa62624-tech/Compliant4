@@ -171,7 +171,18 @@ def parse_insurance_program_pdf(text: str) -> Dict[str, Any]:
 def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Analyze COI compliance against program requirements
-    Returns compliance status and issues
+    
+    Performs the following compliance checks:
+    - GL coverage limits match or exceed program requirements
+    - Expiration date is present and certificate is not expired
+    - Required additional insureds are listed on the certificate
+    
+    Args:
+        coi_data: Certificate of Insurance data with coverage limits, dates, and additional insureds
+        program_requirements: List of program requirements to validate against
+        
+    Returns:
+        Dict with compliance status, list of issues found, and summary message
     """
     issues = []
     compliant = True
@@ -198,7 +209,7 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
     if expiration_date:
         try:
             expiry_dt = datetime.fromisoformat(expiration_date.replace("Z", "+00:00"))
-            if expiry_dt <= datetime.now(timezone.utc):
+            if expiry_dt < datetime.now(timezone.utc):
                 compliant = False
                 issues.append({
                     "type": "expired_coverage",
@@ -208,10 +219,11 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
                 })
         except (ValueError, AttributeError) as e:
             logger.warning(f"Invalid expiration date format: {expiration_date}, error: {e}")
+            compliant = False
             issues.append({
                 "type": "invalid_expiration_date",
                 "message": "Unable to parse expiration date",
-                "severity": "medium"
+                "severity": "high"
             })
     else:
         compliant = False
@@ -222,18 +234,19 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
         })
     
     # Check additional insured
-    required_additional_insured = []
+    # Use set to avoid duplicates in required additional insureds
+    required_additional_insureds = set()
     for req in program_requirements:
         if req.get("additional_insured"):
-            required_additional_insured.append(req["additional_insured"])
+            required_additional_insureds.add(req["additional_insured"])
     
-    if required_additional_insured:
+    if required_additional_insureds:
         coi_additional_insured = coi_data.get("additional_insured", [])
         if isinstance(coi_additional_insured, str):
             coi_additional_insured = [coi_additional_insured]
         
-        missing_additional_insured = []
-        for required in required_additional_insured:
+        missing_additional_insureds = []
+        for required in required_additional_insureds:
             # Check if any of the COI's additional insureds match the required one
             found = False
             for coi_ai in coi_additional_insured:
@@ -241,14 +254,14 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
                     found = True
                     break
             if not found:
-                missing_additional_insured.append(required)
+                missing_additional_insureds.append(required)
         
-        if missing_additional_insured:
+        if missing_additional_insureds:
             compliant = False
             issues.append({
                 "type": "missing_additional_insured",
                 "message": "Required additional insured(s) not found in COI",
-                "missing": missing_additional_insured,
+                "missing": missing_additional_insureds,
                 "severity": "high"
             })
     
