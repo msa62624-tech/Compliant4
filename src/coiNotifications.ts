@@ -1,5 +1,14 @@
 import { sendEmail } from "@/emailHelper";
-import { getFrontendBaseUrl } from "@/urlConfig";
+import { 
+  createAdminDashboardLink, 
+  createCOIReviewLink, 
+  createSubcontractorDashboardLink,
+  createSubcontractorDashboardLinkWithParams,
+  createProjectDetailsLink,
+  createBrokerPortalLink,
+  createBrokerUploadLink,
+  createBrokerSignLink
+} from "@/urlConfig";
 import { apiClient } from "@/api/apiClient";
 import { createEmailTemplate } from "@/emailTemplates";
 import { escapeHtml } from "@/utils/htmlEscaping";
@@ -89,9 +98,8 @@ export async function notifyAdminCOIUploaded(
 ): Promise<void> {
   if (!coi || !subcontractor || !project) return;
 
-  const baseUrl = getFrontendBaseUrl();
-  const adminPortalLink = `${baseUrl}/admin-dashboard?section=PendingReviews&coiId=${coi.id}`;
-  const coiReviewLink = `${baseUrl}/COIReview?id=${coi.id}`;
+  const adminPortalLink = createAdminDashboardLink('PendingReviews', coi.id);
+  const coiReviewLink = createCOIReviewLink(coi.id);
 
   try {
     // Fetch admin emails from backend
@@ -172,9 +180,8 @@ export async function notifySubCOIApproved(
 ): Promise<void> {
   if (!coi || !subcontractor || !project) return;
 
-  const baseUrl = getFrontendBaseUrl();
-  const subDashboardLink = `${baseUrl}/subcontractor-dashboard?id=${subcontractor.id}&section=certificates&projectId=${project.id}`;
-  const projectDetailsLink = `${baseUrl}/subcontractor-dashboard?id=${subcontractor.id}&section=projects&projectId=${project.id}`;
+  const subDashboardLink = createSubcontractorDashboardLinkWithParams(subcontractor.id, 'certificates', project.id);
+  const projectDetailsLink = createSubcontractorDashboardLinkWithParams(subcontractor.id, 'projects', project.id);
 
   try {
     // Prepare attachments using shared helper
@@ -276,8 +283,7 @@ export async function notifyGCCOIApprovedReady(
 ): Promise<void> {
   if (!coi || !subcontractor || !project) return;
 
-  const baseUrl = getFrontendBaseUrl();
-  const gcProjectLink = `${baseUrl}/ProjectDetails?id=${project.id}&section=subcontractors`;
+  const gcProjectLink = createProjectDetailsLink(project.id, 'subcontractors');
 
   try {
     // Prepare attachments using shared helper
@@ -329,10 +335,9 @@ export async function notifyCOIDeficiencies(
 ): Promise<void> {
   if (!coi || !subcontractor || !deficiencies || deficiencies.length === 0) return;
 
-  const baseUrl = getFrontendBaseUrl();
-  const brokerPortalLink = `${baseUrl}/broker-dashboard?name=${encodeURIComponent(subcontractor.broker_name)}&coiId=${coi.id}`;
+  const brokerPortalLink = createBrokerPortalLink(subcontractor.broker_name, coi.id);
   // Direct brokers to step 2 (upload endorsement) to fix deficiencies
-  const brokerUploadLink = `${baseUrl}/broker-upload-coi?token=${coi.coi_token}&step=2&action=upload`;
+  const brokerUploadLink = createBrokerUploadLink(coi.coi_token, 2, 'upload');
 
   try {
     const deficienciesList = deficiencies
@@ -434,7 +439,7 @@ export async function notifyCOIDeficiencies(
     });
 
     // Notify subcontractor
-    const subDashboardLink = `${baseUrl}/subcontractor-dashboard?id=${subcontractor.id}`;
+    const subDashboardLink = createSubcontractorDashboardLink(subcontractor.id);
     
     const subEmailContent = `
       <p>Your Certificate of Insurance needs updates before approval for <strong>${safeProjectName}</strong>.</p>
@@ -503,10 +508,9 @@ export async function notifyBrokerCOIReview(
 ): Promise<void> {
   if (!coi || !subcontractor || !project) return;
 
-  const baseUrl = getFrontendBaseUrl();
-  const brokerPortalLink = `${baseUrl}/broker-dashboard?name=${encodeURIComponent(subcontractor.broker_name)}&coiId=${coi.id}`;
+  const brokerPortalLink = createBrokerPortalLink(subcontractor.broker_name, coi.id);
   // Deep-link directly to Signatures step for broker
-  const signLink = `${baseUrl}/broker-upload-coi?token=${coi.coi_token}&action=sign&step=3`;
+  const signLink = createBrokerSignLink(coi.coi_token);
 
   try {
     // Generate sample COI data from actual program requirements
@@ -562,8 +566,7 @@ InsureTrack System`,
  */
 export async function notifySubcontractorCOIApproved(coi: GeneratedCOI, subcontractor: Subcontractor, project: Project) {
   if (!coi || !subcontractor || !project) return;
-  const baseUrl = getFrontendBaseUrl();
-  const subDashboardLink = `${baseUrl}/subcontractor-dashboard?id=${subcontractor.id}&section=active_projects`;
+  const subDashboardLink = createSubcontractorDashboardLinkWithParams(subcontractor.id, 'active_projects');
 
   try {
     // Prepare attachments using shared helper

@@ -1,7 +1,7 @@
 import { generateSecurePassword } from "@/passwordUtils";
 import { getErrorMessage, getErrorStack } from '@/api-types';
 import { sendEmail } from "@/emailHelper";
-import { getFrontendBaseUrl } from "@/urlConfig";
+import { createGCLoginLink, createGCProjectLink } from "@/urlConfig";
 import { sendEmailWithErrorHandling } from "@/utils/notificationUtils";
 import logger from './utils/logger';
 import type { GeneralContractor } from '@/notification-types';
@@ -15,8 +15,7 @@ export async function sendGCWelcomeEmail(gc: GeneralContractor): Promise<boolean
     return false;
   }
 
-  const baseUrl = getFrontendBaseUrl();
-  const gcLoginLink = `${baseUrl}/gc-login`;
+  const gcLoginLink = createGCLoginLink();
   
   // Always generate credentials if not provided
   const username = gc?.gcLogin?.username || gc?.email || gc?.loginUsername || gc.email;
@@ -132,8 +131,7 @@ export async function notifyGCProjectCreated(project) {
     return;
   }
 
-  const baseUrl = getFrontendBaseUrl();
-  const gcProjectLink = `${baseUrl}/gc-project?project=${project.id}&id=${project.gc_id}`;
+  const gcProjectLink = createGCProjectLink(project.id, project.gc_id);
   
   await sendEmailWithErrorHandling({
     to: project.gc_email,
@@ -178,8 +176,7 @@ InsureTrack System`
 export async function notifyGCSubcontractorAdded(project, subcontractor) {
   if (!project.gc_email) return;
 
-  const baseUrl = getFrontendBaseUrl();
-  const gcProjectLink = `${baseUrl}/gc-project?project=${project.id}&id=${project.gc_id}`;
+  const gcProjectLink = createGCProjectLink(project.id, project.gc_id);
   
   await sendEmailWithErrorHandling({
     to: project.gc_email,
@@ -221,8 +218,7 @@ InsureTrack System`
 export async function notifyGCCOIApproved(project, subcontractor, coi) {
   if (!project.gc_email) return;
 
-  const baseUrl = getFrontendBaseUrl();
-  const gcProjectLink = `${baseUrl}/gc-project?project=${project.id}&id=${project.gc_id}`;
+  const gcProjectLink = createGCProjectLink(project.id, project.gc_id);
   
   await sendEmailWithErrorHandling({
     to: project.gc_email,
@@ -260,8 +256,7 @@ InsureTrack System`
 export async function notifyGCComplianceIssue(project, subcontractor, issueType, details) {
   if (!project.gc_email) return;
 
-  const baseUrl = getFrontendBaseUrl();
-  const gcProjectLink = `${baseUrl}/gc-project?project=${project.id}&id=${project.gc_id}`;
+  const gcProjectLink = createGCProjectLink(project.id, project.gc_id);
   const urgency = issueType === 'policy_expired' ? 'URGENT' : 'ATTENTION REQUIRED';
   
   let issueMessage = '';
@@ -323,8 +318,7 @@ export async function notifyGCDocumentReplaced(project, subcontractor, documentI
     return;
   }
 
-  const baseUrl = getFrontendBaseUrl();
-  const gcProjectLink = `${baseUrl}/gc-project?project=${project.id}&id=${project.gc_id}`;
+  const gcProjectLink = createGCProjectLink(project.id, project.gc_id);
   
   await sendEmailWithErrorHandling({
     to: project.gc_email,
