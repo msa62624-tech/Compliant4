@@ -303,11 +303,8 @@ export default function GCProjectView(): JSX.Element {
           portalUrl = origin + '/subcontractor-login';
         }
         
+        // Email was already validated in mutationFn, but use optional chaining for safety
         const contactEmail = form.contact_email?.trim() || '';
-        if (!contactEmail) {
-          logger.warn('Email missing in onSuccess callback', { context: 'GCProjectView' });
-          return; // Skip email sending if email is missing
-        }
         
         // Create formatted HTML email with standardized styling
         const emailHtml = `
