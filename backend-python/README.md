@@ -2,6 +2,14 @@
 
 This is the Python/FastAPI version of the Compliant4 backend, migrated from Node.js/Express.js.
 
+## ⚠️ Security Update (January 29, 2026)
+
+**Critical security vulnerabilities fixed:**
+- ✅ FastAPI updated from 0.109.0 → 0.115.6 (ReDoS fix)
+- ✅ python-multipart updated from 0.0.6 → 0.0.22 (fixes 3 vulnerabilities)
+
+See [SECURITY_FIXES_PYTHON.md](../SECURITY_FIXES_PYTHON.md) for details.
+
 ## Migration Status
 
 ✅ **Core Features Migrated:**
