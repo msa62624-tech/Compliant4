@@ -12,8 +12,6 @@ Full-stack insurance tracking application for General Contractors and their subc
 
 ---
 
-
-
 ## Quick Start
 
 ### 🚨 "Backend is Mocked" Issue?

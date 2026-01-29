@@ -16,7 +16,7 @@ This is configured in `.devcontainer/devcontainer.json`.
 
 This repository uses **Python (FastAPI)** as the backend.
 
-### Option 1: Using Automatic Start Script (Recommended)
+### Automatic Start Script (Recommended)
 
 ```bash
 ./start.sh
@@ -27,7 +27,7 @@ This will:
 - Start the frontend dev server on port 5175
 - Create necessary `.env` files with Codespaces URLs
 
-### Option 2: Manual Start
+### Manual Start
 
 **Terminal 1 - Backend:**
 ```bash
