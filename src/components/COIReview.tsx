@@ -1457,7 +1457,7 @@ InsureTrack Team`
                                       deficiency.severity === 'major' ? 'bg-orange-200 text-orange-900' :
                                       'bg-yellow-200 text-yellow-900'
                                     }`}>
-                                      {deficiency.severity.toUpperCase()} (Original)
+                                      {(deficiency.severity || 'unknown').toUpperCase()} (Original)
                                     </Badge>
                                   </>
                                 ) : (
@@ -1466,7 +1466,7 @@ InsureTrack Team`
                                     deficiency.severity === 'major' ? 'bg-orange-600 text-white' :
                                     'bg-yellow-600 text-white'
                                   }`}>
-                                    {deficiency.severity.toUpperCase()}
+                                    {(deficiency.severity || 'unknown').toUpperCase()}
                                   </Badge>
                                 )}
                                 {deficiency.insurance_type && (
@@ -1475,7 +1475,7 @@ InsureTrack Team`
                                   </Badge>
                                 )}
                                 <Badge variant="outline" className="bg-white text-xs">
-                                  {deficiency.category.replace(/_/g, ' ')}
+                                  {(deficiency.category || 'uncategorized').replace(/_/g, ' ')}
                                 </Badge>
                               </div>
 
