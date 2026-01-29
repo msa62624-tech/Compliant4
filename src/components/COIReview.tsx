@@ -1424,7 +1424,7 @@ InsureTrack Team`
                     </h3>
                   </div>
                   {((coi.policy_analysis as { deficiencies?: Array<{ deficiency_id?: string; category?: string; insurance_type?: string; severity?: string; description?: string; issue?: string }> } | undefined)?.deficiencies || []).map((deficiency, idx) => {
-                    const defId = deficiency.deficiency_id || `${deficiency.category || 'uncategorized'}_${deficiency.insurance_type || 'unknown'}_${idx}`;
+                    const defId = deficiency.deficiency_id || `${deficiency.category ?? 'uncategorized'}_${deficiency.insurance_type ?? 'unknown'}_${idx}`;
                     const isOverridden = isDeficiencyOverridden(defId);
                     const overrideInfo = getOverrideInfo(defId);
 
@@ -1457,7 +1457,7 @@ InsureTrack Team`
                                       deficiency.severity === 'major' ? 'bg-orange-200 text-orange-900' :
                                       'bg-yellow-200 text-yellow-900'
                                     }`}>
-                                      {(deficiency.severity || 'unknown').toUpperCase()} (Original)
+                                      {(deficiency.severity ?? 'unknown').toUpperCase()} (Original)
                                     </Badge>
                                   </>
                                 ) : (
@@ -1466,7 +1466,7 @@ InsureTrack Team`
                                     deficiency.severity === 'major' ? 'bg-orange-600 text-white' :
                                     'bg-yellow-600 text-white'
                                   }`}>
-                                    {(deficiency.severity || 'unknown').toUpperCase()}
+                                    {(deficiency.severity ?? 'unknown').toUpperCase()}
                                   </Badge>
                                 )}
                                 {deficiency.insurance_type && (
@@ -1475,7 +1475,7 @@ InsureTrack Team`
                                   </Badge>
                                 )}
                                 <Badge variant="outline" className="bg-white text-xs">
-                                  {(deficiency.category || 'uncategorized').replace(/_/g, ' ')}
+                                  {(deficiency.category ?? 'uncategorized').replace(/_/g, ' ')}
                                 </Badge>
                               </div>
 
