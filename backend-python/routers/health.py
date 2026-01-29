@@ -6,44 +6,49 @@ from fastapi import APIRouter
 from datetime import datetime, timezone
 import psutil
 import os
+from utils.timestamps import get_timestamp
 
 router = APIRouter()
+
+
+def _create_health_response(status: str) -> dict:
+    """
+    Create a standardized health check response
+    
+    Args:
+        status: Health status string (e.g., 'healthy', 'alive', 'ready')
+    
+    Returns:
+        dict: Health response with status and timestamp
+    """
+    return {
+        "status": status,
+        "timestamp": get_timestamp()
+    }
 
 
 @router.get("/")
 async def health_check():
     """Basic health check"""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    return _create_health_response("healthy")
 
 
 @router.get("/live")
 async def liveness_check():
     """Kubernetes liveness probe"""
-    return {
-        "status": "alive",
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    return _create_health_response("alive")
 
 
 @router.get("/ready")
 async def readiness_check():
     """Kubernetes readiness probe"""
-    return {
-        "status": "ready",
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    return _create_health_response("ready")
 
 
 @router.get("/startup")
 async def startup_check():
     """Kubernetes startup probe"""
-    return {
-        "status": "started",
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    return _create_health_response("started")
 
 
 @router.get("/detailed")
@@ -57,8 +62,8 @@ async def detailed_health_check():
     
     return {
         "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "uptime": datetime.now(timezone.utc).isoformat(),
+        "timestamp": get_timestamp(),
+        "uptime": get_timestamp(),
         "system": {
             "cpu_percent": cpu_percent,
             "memory": {
