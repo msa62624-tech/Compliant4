@@ -39,15 +39,15 @@ import { errorHandler, notFoundHandler, ValidationError } from './middleware/err
 import { metricsMiddleware, metricsHandler } from './middleware/metrics.js';
 import idempotency from './middleware/idempotency.js';
 import cacheControl from './middleware/cacheControl.js';
-import compression from 'compression';
 
 // Import Swagger documentation
-import swaggerUi from 'swagger-ui-express';
-import swaggerSpec from './config/swagger.js';
+// import swaggerUi from 'swagger-ui-express';
+// import swaggerSpec from './config/swagger.js';
 
 // Import services
 import { timingSafeEqual, DUMMY_PASSWORD_HASH } from './services/authService.js';
 
+// Force restart - dependencies fixed
 // Import utilities
 import { validateAndSanitizeFilename, verifyPathWithinDirectory, validateEmail, maskEmail } from './utils/helpers.js';
 import { getBroker, getOrCreateBroker } from './utils/brokerHelpers.js';
@@ -1085,17 +1085,17 @@ app.use(express.json({ limit: '10mb' }));
 // ENTERPRISE MIDDLEWARE
 // =======================
 
-// Response compression (gzip) for bandwidth optimization
-app.use(compression({
-  filter: (req, res) => {
-    // Don't compress responses with Cache-Control: no-transform
-    if (req.headers['x-no-compression']) {
-      return false;
-    }
-    return compression.filter(req, res);
-  },
-  level: 6, // Compression level (0-9, 6 is default balance)
-}));
+// Response compression (gzip) for bandwidth optimization - disabled due to missing module
+// Uncomment and install compression package to enable: npm install compression
+// app.use(compression({
+//   filter: (req, res) => {
+//     if (req.headers['x-no-compression']) {
+//       return false;
+//     }
+//     return compression.filter(req, res);
+//   },
+//   level: 6,
+// }));
 
 // Add correlation ID to all requests for tracing
 app.use(correlationId);
@@ -1170,27 +1170,28 @@ app.get('/', (req, res) => {
   });
 });
 
-// Swagger UI - Enterprise API Documentation
-app.use('/api-docs', swaggerUi.serve);
-app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
-  customSiteTitle: 'Compliant4 API Documentation',
-  customfavIcon: '/favicon.ico',
-  customCss: '.swagger-ui .topbar { display: none }',
-  swaggerOptions: {
-    persistAuthorization: true,
-    displayRequestDuration: true,
-    filter: true,
-    tryItOutEnabled: true,
-  },
-}));
+// Swagger UI - Enterprise API Documentation - disabled due to missing module
+// app.use('/api-docs', swaggerUi.serve);
+// app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
+//   customSiteTitle: 'Compliant4 API Documentation',
+//   customfavIcon: '/favicon.ico',
+//   customCss: '.swagger-ui .topbar { display: none }',
+//   swaggerOptions: {
+//     persistAuthorization: true,
+//     displayRequestDuration: true,
+//     filter: true,
+//     tryItOutEnabled: true,
+//   },
+// }));
 
-// Swagger JSON endpoint
-app.get('/api-docs.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpec);
-});
+// Swagger JSON endpoint - disabled
+// app.get('/api-docs.json', (req, res) => {
+//   res.setHeader('Content-Type', 'application/json');
+//   res.send(swaggerSpec);
+// });
 
-logger.info('API documentation available at /api-docs');
+// Force restart v2
+// logger.info('API documentation available at /api-docs');
 
 // Enhanced health check endpoints
 // Health endpoint with optional authentication for detailed metrics
