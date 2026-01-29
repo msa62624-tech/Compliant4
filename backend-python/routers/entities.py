@@ -98,6 +98,8 @@ async def patch_entity_endpoint(
     
     logger.info(f"Patched {entity_type} with ID: {entity_id}")
     return entity
+
+
 @router.delete("/{entity_type}/{entity_id}")
 async def delete_entity_endpoint(
     entity_type: str,

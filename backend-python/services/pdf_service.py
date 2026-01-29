@@ -119,7 +119,7 @@ def parse_insurance_program_pdf(text: str) -> Dict[str, Any]:
     # Extract additional insurance types if present
     # Workers' Compensation
     wc_matches = re.finditer(
-        r"Workers?\s*['\"]?\s*Comp(?:ensation)?[:\s]+\$([0-9,]+)",
+        r'Workers?\s*[\'\']?\s*Comp(?:ensation)?[:\s]+\$([0-9,]+)',
         text,
         re.IGNORECASE
     )
@@ -171,18 +171,7 @@ def parse_insurance_program_pdf(text: str) -> Dict[str, Any]:
 def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Analyze COI compliance against program requirements
-    
-    Performs the following compliance checks:
-    - GL coverage limits match or exceed program requirements
-    - Expiration date is present and certificate is not expired
-    - Required additional insureds are listed on the certificate
-    
-    Args:
-        coi_data: Certificate of Insurance data with coverage limits, dates, and additional insureds
-        program_requirements: List of program requirements to validate against
-        
-    Returns:
-        Dict with compliance status, list of issues found, and summary message
+    Returns compliance status and issues
     """
     issues = []
     compliant = True
@@ -204,66 +193,85 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
                 "severity": "high"
             })
     
-    # Check expiration
-    expiration_date = coi_data.get("expiration_date") or coi_data.get("gl_expiration_date")
-    if expiration_date:
+    # Check expiration dates
+    current_date = datetime.now(timezone.utc)
+    
+    # Check general liability expiration
+    gl_expiration = coi_data.get("gl_expiration_date")
+    if gl_expiration:
         try:
-            expiry_dt = datetime.fromisoformat(expiration_date.replace("Z", "+00:00"))
-            if expiry_dt < datetime.now(timezone.utc):
+            gl_exp_date = datetime.fromisoformat(gl_expiration.replace("Z", "+00:00"))
+            if gl_exp_date <= current_date:
                 compliant = False
                 issues.append({
-                    "type": "expired_coverage",
-                    "message": "Certificate of Insurance has expired",
-                    "expiration_date": expiration_date,
+                    "type": "coverage_expired",
+                    "coverage_type": "General Liability",
+                    "expiration_date": gl_expiration,
                     "severity": "critical"
                 })
         except (ValueError, AttributeError) as e:
-            logger.warning(f"Invalid expiration date format: {expiration_date}, error: {e}")
-            compliant = False
+            logger.warning(f"Invalid GL expiration date format: {gl_expiration} - {e}")
+            compliant = False  # SECURITY FIX: Invalid dates must fail compliance
             issues.append({
-                "type": "invalid_expiration_date",
-                "message": "Unable to parse expiration date",
-                "severity": "high"
+                "type": "invalid_date_format",
+                "coverage_type": "General Liability",
+                "severity": "medium"
             })
-    else:
-        compliant = False
-        issues.append({
-            "type": "missing_expiration_date",
-            "message": "Expiration date not found in COI",
-            "severity": "high"
-        })
     
-    # Check additional insured
-    # Use set to avoid duplicates in required additional insureds
-    required_additional_insureds = set()
+    # Check workers compensation expiration
+    wc_expiration = coi_data.get("wc_expiration_date")
+    if wc_expiration:
+        try:
+            wc_exp_date = datetime.fromisoformat(wc_expiration.replace("Z", "+00:00"))
+            if wc_exp_date <= current_date:
+                compliant = False
+                issues.append({
+                    "type": "coverage_expired",
+                    "coverage_type": "Workers Compensation",
+                    "expiration_date": wc_expiration,
+                    "severity": "critical"
+                })
+        except (ValueError, AttributeError) as e:
+            logger.warning(f"Invalid WC expiration date format: {wc_expiration} - {e}")
+            compliant = False  # SECURITY FIX: Invalid dates must fail compliance
+            issues.append({
+                "type": "invalid_date_format",
+                "coverage_type": "Workers Compensation",
+                "severity": "medium"
+            })
+    
+    # Check additional insured requirements
+    required_additional_insureds = []
     for req in program_requirements:
-        if req.get("additional_insured"):
-            required_additional_insureds.add(req["additional_insured"])
+        # Only check if explicitly required (default to False to avoid false positives)
+        if req.get("requires_additional_insured", False):
+            party = req.get("additional_insured_party", "Certificate Holder")
+            if party not in required_additional_insureds:
+                required_additional_insureds.append(party)
     
-    if required_additional_insureds:
-        coi_additional_insured = coi_data.get("additional_insured", [])
-        if isinstance(coi_additional_insured, str):
-            coi_additional_insured = [coi_additional_insured]
-        
-        missing_additional_insureds = []
-        for required in required_additional_insureds:
-            # Check if any of the COI's additional insureds match the required one
-            found = False
-            for coi_ai in coi_additional_insured:
-                if required.lower() in str(coi_ai).lower():
-                    found = True
-                    break
+    # Get actual additional insureds from COI
+    actual_additional_insureds = coi_data.get("additional_insureds", [])
+    if isinstance(actual_additional_insureds, str):
+        # Handle case where it might be a comma-separated string, filtering empty strings
+        actual_additional_insureds = [ai.strip() for ai in actual_additional_insureds.split(",") if ai.strip()]
+    
+    # Check if required additional insureds are present (case-insensitive exact match after normalization)
+    for required in required_additional_insureds:
+        if required:
+            required_normalized = required.strip().lower()
+            found = any(
+                ai.strip().lower() == required_normalized 
+                for ai in actual_additional_insureds 
+                if ai
+            )
             if not found:
-                missing_additional_insureds.append(required)
-        
-        if missing_additional_insureds:
-            compliant = False
-            issues.append({
-                "type": "missing_additional_insured",
-                "message": "Required additional insured(s) not found in COI",
-                "missing": missing_additional_insureds,
-                "severity": "high"
-            })
+                compliant = False
+                issues.append({
+                    "type": "missing_additional_insured",
+                    "required_party": required,
+                    "actual_parties": actual_additional_insureds,
+                    "severity": "high"
+                })
     
     return {
         "compliant": compliant,
