@@ -25,7 +25,7 @@ from middleware.health_check import setup_health_checks
 from middleware.metrics import setup_metrics
 
 # Import routers
-from routers import auth, entities, health, metrics as metrics_router
+from routers import auth, entities, health, metrics as metrics_router, integrations, public, admin
 
 # Setup logger
 logger = setup_logger(__name__)
@@ -93,6 +93,9 @@ setup_health_checks(app)
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(entities.router, prefix="/entities", tags=["Entities"])
+app.include_router(integrations.router, prefix="/integrations", tags=["Integrations"])
+app.include_router(public.router, prefix="/public", tags=["Public"])
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 app.include_router(health.router, prefix="/health", tags=["Health"])
 app.include_router(metrics_router.router, prefix="/metrics", tags=["Metrics"])
 

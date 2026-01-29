@@ -174,6 +174,25 @@ export const NCCI_CLASS_CODE_MAPPINGS: Record<number, string[]> = {
 };
 
 /**
+ * Inverse map: trade -> classification codes (pre-computed for O(1) lookup)
+ * This avoids iterating through all NCCI codes for each trade check
+ */
+const TRADE_TO_CLASS_CODE_MAP = (() => {
+  const map = new Map<string, Set<number>>();
+  for (const [code, trades] of Object.entries(NCCI_CLASS_CODE_MAPPINGS)) {
+    const classCode = parseInt(code);
+    for (const trade of trades) {
+      const tradeLower = trade.toLowerCase();
+      if (!map.has(tradeLower)) {
+        map.set(tradeLower, new Set());
+      }
+      map.get(tradeLower)!.add(classCode);
+    }
+  }
+  return map;
+})();
+
+/**
  * Minimum GL limits for high-risk trades (in dollars)
  */
 export const TRADE_MINIMUM_LIMITS: Record<string, { gl_per_occurrence?: number; umbrella_required?: boolean; umbrella_minimum?: number }> = {
@@ -221,8 +240,11 @@ export function validatePolicyTradeCoverage(
     const policyText = `${coi.gl_policy_notes ?? ''} ${coi.gl_exclusions ?? ''}`.toLowerCase();
 
     // Track which trades have already been excluded to avoid redundant checks
-    const excludedTradeSet = new Set();
+    const excludedTradeSet = new Set<string>();
 
+    // Pre-compile regex pattern for all exclusions at once (O(1) compilation vs O(n) checks)
+    const patternCache = new Map<string, RegExp>();
+    
     for (const trade of requiredTrades) {
       // Skip if already excluded
       if (excludedTradeSet.has(trade)) continue;
@@ -230,22 +252,30 @@ export function validatePolicyTradeCoverage(
       const tradeLower = trade.toLowerCase();
       const patterns = TRADE_EXCLUSION_PATTERNS[tradeLower] || [];
 
-      for (const pattern of patterns) {
-        if (policyText.includes(pattern)) {
-          excludedTradeSet.add(trade);
-          excludedTrades.push({
-            trade,
-            exclusion: pattern,
-            source: 'gl_policy',
-          });
-          issues.push({
-            type: 'error',
-            trade,
-            message: `GL policy excludes ${trade} (${pattern})`,
-            severity: 'high',
-          });
-          break; // Stop checking other patterns for this trade
-        }
+      // Use cached regex or create one combining all patterns for this trade
+      let regex = patternCache.get(tradeLower);
+      if (!regex && patterns.length > 0) {
+        // Escape special regex characters and combine patterns with OR
+        const escapedPatterns = patterns.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        regex = new RegExp(escapedPatterns.join('|'), 'i');
+        patternCache.set(tradeLower, regex);
+      }
+
+      if (regex && regex.test(policyText)) {
+        // Find which specific pattern matched
+        const matchedPattern = patterns.find(p => policyText.includes(p)) || patterns[0];
+        excludedTradeSet.add(trade);
+        excludedTrades.push({
+          trade,
+          exclusion: matchedPattern,
+          source: 'gl_policy',
+        });
+        issues.push({
+          type: 'error',
+          trade,
+          message: `GL policy excludes ${trade} (${matchedPattern})`,
+          severity: 'high',
+        });
       }
     }
   }
@@ -499,23 +529,14 @@ function validateClassifications(
   const limitedTrades: LimitedTrade[] = [];
   const issues: ValidationIssue[] = [];
 
-  // Check each required trade
+  // Use the pre-computed inverse map for O(1) lookups instead of O(n) iteration
   for (const trade of requiredTrades) {
-    let tradeCovered = false;
     const tradeLower = trade.toLowerCase();
-
-    // Check if the classification code covers this trade
-    // by iterating through NCCI_CLASS_CODE_MAPPINGS
-    for (const [code, trades] of Object.entries(NCCI_CLASS_CODE_MAPPINGS)) {
-      if (parseInt(code) === classCode) {
-        // Check if any of the mapped trades match the required trade
-        tradeCovered = trades.some(mappedTrade => 
-          tradeLower.includes(mappedTrade.toLowerCase()) ||
-          mappedTrade.toLowerCase().includes(tradeLower)
-        );
-        if (tradeCovered) break;
-      }
-    }
+    
+    // Check if the trade is covered by this classification code
+    // Using Set.has() for O(1) lookup instead of Object.entries() iteration
+    const classCodes = TRADE_TO_CLASS_CODE_MAP.get(tradeLower);
+    const tradeCovered = classCodes && classCodes.has(classCode);
 
     if (!tradeCovered) {
       limitedTrades.push({

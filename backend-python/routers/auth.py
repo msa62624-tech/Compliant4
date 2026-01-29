@@ -154,3 +154,21 @@ async def refresh_token(request: RefreshRequest):
 async def logout():
     """User logout endpoint (client-side token removal)"""
     return {"message": "Logged out successfully"}
+
+
+@router.get("/me")
+async def get_current_user(user: dict = Depends(verify_token)):
+    """Get current user information"""
+    # Find user in database
+    username = user.get("sub")
+    user_data = users_db.get(username)
+    
+    if not user_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Remove password hash from response
+    user_response = {k: v for k, v in user_data.items() if k != "password_hash"}
+    return user_response
