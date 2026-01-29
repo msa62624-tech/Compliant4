@@ -97,7 +97,11 @@ export function createBrokerDashboardLink(brokerName?: string, brokerEmail?: str
  */
 export function createBrokerUploadLink(coiToken: string, step: number = 1, action: string = 'upload'): string {
   const baseUrl = getFrontendBaseUrl();
-  return `${baseUrl}/broker-upload-coi?token=${coiToken}&step=${step}&action=${action}`;
+  const url = new URL(`${baseUrl}/broker-upload-coi`);
+  url.searchParams.set('token', coiToken);
+  url.searchParams.set('step', step.toString());
+  url.searchParams.set('action', action);
+  return url.toString();
 }
 
 /**

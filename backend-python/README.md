@@ -90,16 +90,6 @@ Once running, visit:
 ## Testing
 
 ```bash
-# Run tests
-pytest
-
-# Run with coverage
-pytest --cov=.
-```
-
-## Testing
-
-```bash
 # Run all tests
 pytest
 
@@ -195,7 +185,6 @@ python scripts/migrate_to_postgres.py
 ```
 
 See [POSTGRESQL_MIGRATION.md](POSTGRESQL_MIGRATION.md) for detailed guide.
-
 ## Environment Variables
 
 See `.env.example` for all available configuration options.
@@ -217,6 +206,9 @@ Required for production:
 - **AI Analysis integration (OpenAI)** ✨ NEW
 - **Adobe PDF Services integration** ✨ NEW
 - **PostgreSQL database support (SQLAlchemy)** ✨ NEW
+- **Email service (aiosmtplib)** ✨ NEW
+- **File storage service** ✨ NEW
+- **PDF parsing service** ✨ NEW
 - **Comprehensive test suite** ✨ NEW
 
 ### Optional Features (Configure via environment variables)
@@ -232,7 +224,10 @@ The Python backend now has **feature parity** with the Node.js backend and inclu
 2. ✅ LLM integration for AI-powered compliance analysis
 3. ✅ Adobe PDF Services for text extraction and signing
 4. ✅ PostgreSQL support with migration tools
-5. ✅ Comprehensive test coverage (12 tests passing)
+5. ✅ Email service with templates
+6. ✅ Real file storage (not just in-memory)
+7. ✅ PDF parsing capabilities
+8. ✅ Comprehensive test coverage (12 tests passing)
 
 ## Directory Structure
 
@@ -259,11 +254,17 @@ backend-python/
 │   ├── entities.py         # Entity CRUD
 │   ├── health.py           # Health endpoints
 │   ├── metrics.py          # Metrics endpoint
+│   ├── integrations.py     # Integration endpoints ✨ NEW
+│   ├── public.py           # Public endpoints ✨ NEW
+│   ├── admin.py            # Admin endpoints ✨ NEW
 │   ├── coi.py              # COI PDF generation ✨ NEW
 │   ├── ai.py               # AI analysis ✨ NEW
 │   └── adobe.py            # Adobe PDF services ✨ NEW
 ├── services/               # Business logic services
-│   └── coi_pdf_service.py # COI PDF generation ✨ NEW
+│   ├── coi_pdf_service.py # COI PDF generation ✨ NEW
+│   ├── email_service.py   # Email service ✨ NEW
+│   ├── file_storage.py    # File storage ✨ NEW
+│   └── pdf_service.py     # PDF parsing ✨ NEW
 ├── integrations/           # External service integrations
 │   ├── ai_analysis_service.py  # AI/LLM integration ✨ NEW
 │   └── adobe_pdf_service.py    # Adobe PDF services ✨ NEW

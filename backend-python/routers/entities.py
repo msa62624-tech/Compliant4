@@ -80,6 +80,24 @@ async def update_entity_endpoint(
     return entity
 
 
+@router.patch("/{entity_type}/{entity_id}")
+async def patch_entity_endpoint(
+    entity_type: str,
+    entity_id: str,
+    data: Dict[str, Any],
+    user: dict = Depends(verify_token)
+) -> Dict[str, Any]:
+    """Partially update an existing entity (PATCH)"""
+    entity = update_entity(entity_type, entity_id, data)
+    
+    if not entity:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity not found"
+        )
+    
+    logger.info(f"Patched {entity_type} with ID: {entity_id}")
+    return entity
 @router.delete("/{entity_type}/{entity_id}")
 async def delete_entity_endpoint(
     entity_type: str,
@@ -97,3 +115,33 @@ async def delete_entity_endpoint(
     
     logger.info(f"Deleted {entity_type} with ID: {entity_id}")
     return {"message": "Entity deleted successfully"}
+
+
+@router.post("/{entity_type}/query")
+async def query_entities(
+    entity_type: str,
+    filters: Dict[str, Any],
+    user: dict = Depends(verify_token)
+) -> List[Dict[str, Any]]:
+    """Query entities with filters"""
+    if entity_type not in entities:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity type '{entity_type}' not found"
+        )
+    
+    # Get all entities of this type
+    all_entities = entities[entity_type]
+    
+    # Apply filters
+    filtered = []
+    for entity in all_entities:
+        match = True
+        for key, value in filters.items():
+            if key not in entity or entity[key] != value:
+                match = False
+                break
+        if match:
+            filtered.append(entity)
+    
+    return filtered
