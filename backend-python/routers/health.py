@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from datetime import datetime, timezone
 import psutil
 import os
+import time
 from utils.timestamps import get_timestamp
 
 router = APIRouter()
@@ -61,7 +62,6 @@ async def detailed_health_check():
     disk = psutil.disk_usage('/')
     
     # Calculate uptime in seconds
-    import time
     process = psutil.Process()
     uptime_seconds = time.time() - process.create_time()
     
@@ -85,6 +85,6 @@ async def detailed_health_check():
         },
         "process": {
             "pid": os.getpid(),
-            "memory_mb": psutil.Process().memory_info().rss / 1024 / 1024
+            "memory_mb": process.memory_info().rss / 1024 / 1024
         }
     }
