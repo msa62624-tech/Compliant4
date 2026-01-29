@@ -5,6 +5,7 @@ Handles PDF text extraction and insurance program parsing
 import re
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
+from datetime import datetime, timezone
 from config.logger_config import setup_logger
 
 logger = setup_logger(__name__)
@@ -118,7 +119,7 @@ def parse_insurance_program_pdf(text: str) -> Dict[str, Any]:
     # Extract additional insurance types if present
     # Workers' Compensation
     wc_matches = re.finditer(
-        r'Workers?\s*[\'']?\s*Comp(?:ensation)?[:\s]+\$([0-9,]+)',
+        r'Workers?\s*[\'\']?\s*Comp(?:ensation)?[:\s]+\$([0-9,]+)',
         text,
         re.IGNORECASE
     )
@@ -192,11 +193,75 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
                 "severity": "high"
             })
     
-    # Check expiration
-    # TODO: Add expiration date validation
+    # Check expiration dates
+    current_date = datetime.now(timezone.utc)
     
-    # Check additional insured
-    # TODO: Add additional insured validation
+    # Check general liability expiration
+    gl_expiration = coi_data.get("gl_expiration_date")
+    if gl_expiration:
+        try:
+            gl_exp_date = datetime.fromisoformat(gl_expiration.replace("Z", "+00:00"))
+            if gl_exp_date <= current_date:
+                compliant = False
+                issues.append({
+                    "type": "coverage_expired",
+                    "coverage_type": "General Liability",
+                    "expiration_date": gl_expiration,
+                    "severity": "critical"
+                })
+        except (ValueError, AttributeError) as e:
+            logger.warning(f"Invalid GL expiration date format: {gl_expiration}")
+            issues.append({
+                "type": "invalid_date_format",
+                "coverage_type": "General Liability",
+                "severity": "medium"
+            })
+    
+    # Check workers compensation expiration
+    wc_expiration = coi_data.get("wc_expiration_date")
+    if wc_expiration:
+        try:
+            wc_exp_date = datetime.fromisoformat(wc_expiration.replace("Z", "+00:00"))
+            if wc_exp_date <= current_date:
+                compliant = False
+                issues.append({
+                    "type": "coverage_expired",
+                    "coverage_type": "Workers Compensation",
+                    "expiration_date": wc_expiration,
+                    "severity": "critical"
+                })
+        except (ValueError, AttributeError) as e:
+            logger.warning(f"Invalid WC expiration date format: {wc_expiration}")
+            issues.append({
+                "type": "invalid_date_format",
+                "coverage_type": "Workers Compensation",
+                "severity": "medium"
+            })
+    
+    # Check additional insured requirements
+    required_additional_insureds = []
+    for req in program_requirements:
+        if req.get("requires_additional_insured", True):  # Default to True if not specified
+            party = req.get("additional_insured_party", "Certificate Holder")
+            if party not in required_additional_insureds:
+                required_additional_insureds.append(party)
+    
+    # Get actual additional insureds from COI
+    actual_additional_insureds = coi_data.get("additional_insureds", [])
+    if isinstance(actual_additional_insureds, str):
+        # Handle case where it might be a comma-separated string
+        actual_additional_insureds = [ai.strip() for ai in actual_additional_insureds.split(",")]
+    
+    # Check if required additional insureds are present
+    for required in required_additional_insureds:
+        if required and not any(required.lower() in ai.lower() for ai in actual_additional_insureds if ai):
+            compliant = False
+            issues.append({
+                "type": "missing_additional_insured",
+                "required_party": required,
+                "actual_parties": actual_additional_insureds,
+                "severity": "high"
+            })
     
     return {
         "compliant": compliant,
