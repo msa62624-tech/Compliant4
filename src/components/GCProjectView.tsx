@@ -181,7 +181,7 @@ export default function GCProjectView(): JSX.Element {
         throw new Error("Company, trade, and contact email are required");
       }
       const contactEmail = form.contact_email.trim();
-      if (!contactEmail.includes('@')) {
+      if (!contactEmail || !contactEmail.includes('@')) {
         throw new Error("Enter a valid contact email");
       }
 

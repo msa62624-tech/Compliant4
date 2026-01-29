@@ -161,11 +161,11 @@ export default function ArchivePage() {
     
     const query = searchQuery.toLowerCase();
     return hierarchicalData.filter(gc => 
-      gc.company_name.toLowerCase().includes(query) ||
+      gc.company_name?.toLowerCase()?.includes(query) ||
       gc.projects.some(p => 
-        p.project_name.toLowerCase().includes(query) ||
+        p.project_name?.toLowerCase()?.includes(query) ||
         p.subcontractors.some(s => 
-          s.subDetails?.company_name?.toLowerCase().includes(query)
+          s.subDetails?.company_name?.toLowerCase()?.includes(query)
         )
       )
     );
