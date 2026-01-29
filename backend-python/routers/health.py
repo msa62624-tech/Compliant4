@@ -3,7 +3,7 @@ Health check router
 Equivalent to health check endpoints in Node.js backend
 """
 from fastapi import APIRouter
-from datetime import datetime
+from datetime import datetime, timezone
 import psutil
 import os
 
@@ -15,7 +15,7 @@ async def health_check():
     """Basic health check"""
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -24,7 +24,7 @@ async def liveness_check():
     """Kubernetes liveness probe"""
     return {
         "status": "alive",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -33,7 +33,7 @@ async def readiness_check():
     """Kubernetes readiness probe"""
     return {
         "status": "ready",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -42,7 +42,7 @@ async def startup_check():
     """Kubernetes startup probe"""
     return {
         "status": "started",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -57,8 +57,8 @@ async def detailed_health_check():
     
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "uptime": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "uptime": datetime.now(timezone.utc).isoformat(),
         "system": {
             "cpu_percent": cpu_percent,
             "memory": {

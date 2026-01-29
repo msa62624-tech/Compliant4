@@ -2,7 +2,7 @@
 Sample data for development
 Equivalent to data/sampleData.js in Node.js backend
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import uuid
 
 
@@ -10,7 +10,7 @@ def get_sample_data():
     """Return sample data for all entities"""
     
     # Create timestamp
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     
     return {
         "Contractor": [
