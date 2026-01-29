@@ -3,7 +3,7 @@ fastapi==0.115.6  # Updated from 0.109.0 - fixes ReDoS vulnerability
 uvicorn[standard]==0.27.0
 
 # Authentication & Security
-python-jose[cryptography]==3.3.0  # JWT tokens
+python-jose[cryptography]==3.4.0  # JWT tokens - Updated to fix ECDSA vulnerability
 passlib[bcrypt]==1.7.4  # Password hashing (equivalent to bcryptjs)
 python-multipart==0.0.22  # Updated from 0.0.6 - fixes multiple vulnerabilities (ReDoS, DoS, arbitrary file write)
 
