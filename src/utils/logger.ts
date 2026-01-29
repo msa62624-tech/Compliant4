@@ -12,7 +12,6 @@
 
 // Import marker from suppressDebugMessages to bypass console suppression
 import { LOGGER_MARKER } from '@/suppressDebugMessages';
-
 // Type definitions
 interface ErrorTrackingService {
   captureException: (_error: Error, _options?: { extra?: Record<string, unknown> }) => void;

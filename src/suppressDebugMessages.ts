@@ -3,10 +3,30 @@
  * This intercepts console.log and filters out unwanted debug messages
  * Only runs in development mode to avoid interfering with production monitoring
  * 
+ * Also provides polyfills for browser APIs that may not be available in all
+ * environments (e.g., Codespaces iframes)
+ * 
  * Special handling for logger utility:
  * - Uses a unique symbol to mark calls from the logger utility
  * - Logger utility calls are never suppressed to avoid interfering with application logs
  */
+
+// Polyfill for Notification API if not available
+// This prevents "Can't find variable: Notification" errors in environments
+// where the Notification API is not available (e.g., GitHub Codespaces iframes)
+if (typeof window !== 'undefined' && typeof window.Notification === 'undefined') {
+  // Create a stub Notification class that does nothing
+  // This allows code that checks for Notification to work without errors
+  (window as Window & { Notification?: typeof Notification }).Notification = class NotificationStub {
+    static permission: NotificationPermission = 'denied';
+    static requestPermission(): Promise<NotificationPermission> {
+      return Promise.resolve('denied');
+    }
+    constructor(_title: string, _options?: NotificationOptions) {
+      // Stub constructor - does nothing
+    }
+  } as unknown as typeof Notification;
+}
 
 // Unique symbol to mark logger utility calls
 // Using regular Symbol() to create a truly private marker that can only be accessed through the export
@@ -29,11 +49,13 @@ if (import.meta.env.DEV) {
   // - "DEBUG[vite] connected." - Vite debug output
   // - "DEBUGvscs:web-client:e360:codespaces-component..." - Codespaces web client debug
   // - "tunnelClient verbose 9101: Sending #286..." - Codespaces tunnel client verbose messages
+  // - "ERROR%c  ERR color: #f33 Can't find variable: Notification" - VS Code workbench errors
   const suppressPatterns = [
     /^\[vite\].*DEBUG/,       // Vite debug messages starting with [vite] DEBUG
     /^DEBUG\[vite\]/,         // DEBUG[vite] messages
     /^DEBUGvscs:web-client/,  // Codespaces web client debug
     /^tunnelClient verbose/,  // Codespaces tunnel client verbose messages (anchored to start)
+    /^ERROR%c.*Can't find variable: Notification/,  // VS Code workbench Notification API errors
   ];
 
   // Helper function to check if message should be suppressed
