@@ -1424,7 +1424,7 @@ InsureTrack Team`
                     </h3>
                   </div>
                   {((coi.policy_analysis as { deficiencies?: Array<{ deficiency_id?: string; category?: string; insurance_type?: string; severity?: string; description?: string; issue?: string }> } | undefined)?.deficiencies || []).map((deficiency, idx) => {
-                    const defId = deficiency.deficiency_id || `${deficiency.category}_${deficiency.insurance_type}_${idx}`;
+                    const defId = deficiency.deficiency_id || `${deficiency.category || 'uncategorized'}_${deficiency.insurance_type || 'unknown'}_${idx}`;
                     const isOverridden = isDeficiencyOverridden(defId);
                     const overrideInfo = getOverrideInfo(defId);
 
