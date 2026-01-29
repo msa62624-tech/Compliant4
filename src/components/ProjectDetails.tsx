@@ -484,7 +484,8 @@ export default function ProjectDetails(): JSX.Element {
       // Otherwise, create new subcontractor (existing logic)
       // Check if subcontractor exists in system
       const existingSub = allSubcontractors.find(s =>
-        s.company_name?.toLowerCase() === formData.subcontractor_name?.toLowerCase()
+        s.company_name && formData.subcontractor_name && 
+        s.company_name.toLowerCase() === formData.subcontractor_name.toLowerCase()
       );
 
       let subId = existingSub?.id;
