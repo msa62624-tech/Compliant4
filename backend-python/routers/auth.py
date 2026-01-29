@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from config.env import settings
 from config.logger_config import setup_logger
 from middleware.rate_limiting import auth_rate_limit, limiter
+from middleware.auth import verify_token
 from typing import Optional
 
 logger = setup_logger(__name__)
@@ -69,8 +70,7 @@ def create_refresh_token(data: dict):
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit("5/minute")
-async def login(request: LoginRequest, req: Request):
+async def login(req: Request, request: LoginRequest):
     """User login endpoint"""
     
     # Find user
@@ -154,3 +154,21 @@ async def refresh_token(request: RefreshRequest):
 async def logout():
     """User logout endpoint (client-side token removal)"""
     return {"message": "Logged out successfully"}
+
+
+@router.get("/me")
+async def get_current_user(user: dict = Depends(verify_token)):
+    """Get current user information"""
+    # Find user in database
+    username = user.get("sub")
+    user_data = users_db.get(username)
+    
+    if not user_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Remove password hash from response
+    user_response = {k: v for k, v in user_data.items() if k != "password_hash"}
+    return user_response
