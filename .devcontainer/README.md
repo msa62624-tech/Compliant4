@@ -4,25 +4,30 @@
 
 When you open this repository in GitHub Codespaces, the environment will automatically:
 1. Install Node.js 20
-2. Install frontend dependencies (`npm install`)
-3. Install backend dependencies (`cd backend && npm install`)
-4. Forward ports 5175 (frontend) and 3001 (backend)
+2. Install Python 3.11
+3. Install frontend dependencies (`npm install`)
+4. Install Node.js backend dependencies (`cd backend && npm install`)
+5. Install Python backend dependencies (`cd backend-python && pip install -r requirements.txt`)
+6. Forward ports 5175 (frontend) and 3001 (backend)
+7. Install VS Code extensions for JavaScript/TypeScript and Python development
 
 This is configured in `.devcontainer/devcontainer.json`.
 
 ## Starting the Application
 
-### Option 1: Automatic Start (Recommended)
+This repository includes **two production-ready backends**: Node.js (Express) and Python (FastAPI). Both have full feature parity.
+
+### Option 1: Automatic Start with Node.js Backend (Recommended)
 ```bash
 ./start.sh
 ```
 
 This single command will:
 - Create necessary `.env` files with Codespaces URLs
-- Start the backend server on port 3001
+- Start the Node.js backend server on port 3001
 - Start the frontend dev server on port 5175
 
-### Option 2: Manual Start (Two Terminals)
+### Option 2: Manual Start with Node.js Backend
 
 **Terminal 1 - Backend:**
 ```bash
@@ -34,6 +39,25 @@ npm run dev
 ```bash
 npm run dev
 ```
+
+### Option 3: Using Python Backend
+
+**Terminal 1 - Backend:**
+```bash
+cd backend-python
+# Activate virtual environment (optional but recommended)
+python3 -m venv venv
+source venv/bin/activate
+# Start the server
+uvicorn main:app --reload --host 0.0.0.0 --port 3001
+```
+
+**Terminal 2 - Frontend:**
+```bash
+npm run dev
+```
+
+> **Note**: Python dependencies are automatically installed during Codespace creation, so you can use the Python backend immediately!
 
 ## Accessing the Application
 
@@ -56,7 +80,7 @@ These are set in:
 
 ## Troubleshooting
 
-### Backend Won't Start
+### Node.js Backend Won't Start
 
 If you see `Cannot find package 'express'` or similar errors:
 
@@ -67,6 +91,28 @@ npm run dev
 ```
 
 The dependencies should be installed automatically, but if the `postCreateCommand` failed, run it manually.
+
+### Python Backend Won't Start
+
+If you see Python import errors or missing packages:
+
+```bash
+cd backend-python
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 3001
+```
+
+If you prefer using a virtual environment:
+
+```bash
+cd backend-python
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 3001
+```
 
 ### Port Forwarding Issues
 
@@ -96,9 +142,11 @@ If things are really broken:
 ## VSCode Extensions
 
 The following extensions are automatically installed:
-- ESLint
-- Prettier
-- Tailwind CSS IntelliSense
+- **ESLint** - JavaScript/TypeScript linting
+- **Prettier** - Code formatting
+- **Tailwind CSS IntelliSense** - Tailwind CSS class completions
+- **Python** - Python language support
+- **Pylance** - Fast Python language server
 
 ## Known Limitations
 
