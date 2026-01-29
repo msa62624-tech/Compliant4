@@ -80,7 +80,8 @@ The application automatically detects Codespaces using the `CODESPACE_NAME` envi
 
 These are set in:
 - Frontend: `.env` → `VITE_API_BASE_URL`
-- Backend: `backend/.env` → `FRONTEND_URL`
+- Python Backend: `backend-python/.env` → `FRONTEND_URL`
+- Node.js Backend (Legacy): `backend/.env` → `FRONTEND_URL`
 
 ## Troubleshooting
 

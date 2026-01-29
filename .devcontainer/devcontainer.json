@@ -25,8 +25,7 @@
           "editor.formatOnSave": true
         },
         "python.linting.enabled": true,
-        "python.linting.pylintEnabled": false,
-        "python.formatting.provider": "black"
+        "python.linting.pylintEnabled": false
       }
     }
   },
