@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     
     # Admin configuration
     DEFAULT_ADMIN_EMAILS: str = "admin@compliant.team"
+    ADMIN_PASSWORD_HASH: str = ""
     
     # Insurance configuration
     RENEWAL_LOOKAHEAD_DAYS: int = 60
@@ -85,12 +86,51 @@ def get_jwt_secret() -> str:
     return settings.JWT_SECRET
 
 
+def get_admin_password_hash() -> str:
+    """
+    Get admin password hash from environment with production validation.
+    
+    Returns the admin password hash, requiring it in production but providing
+    a development fallback with warning for local development.
+    
+    Returns:
+        str: The bcrypt password hash
+        
+    Raises:
+        ValueError: If in production and ADMIN_PASSWORD_HASH is not set
+    """
+    if settings.ADMIN_PASSWORD_HASH:
+        return settings.ADMIN_PASSWORD_HASH
+    
+    # Check if we're in production
+    is_production = settings.NODE_ENV.lower() in ["production", "prod", "live"]
+    
+    if is_production:
+        raise ValueError(
+            "ADMIN_PASSWORD_HASH environment variable is required in production"
+        )
+    
+    # Development fallback with warning
+    import warnings
+    warnings.warn(
+        "⚠️ WARNING: Using default admin password hash for development. "
+        "Set ADMIN_PASSWORD_HASH in production!",
+        UserWarning
+    )
+    # Default development password hash for "INsure2026!" - DO NOT use in production
+    return "$2b$12$5EeUXqaODR9fBs5KayB43egoQ6eajmIm3MqZ0UgS/7LTCxvyg/L3m"
+
+
 def validate_production_environment():
     """Validate that production environment has required settings"""
-    if settings.NODE_ENV == "production":
+    # Check if we're in production
+    is_production = settings.NODE_ENV.lower() in ["production", "prod", "live"]
+    
+    if is_production:
         required_settings = [
             ("JWT_SECRET", settings.JWT_SECRET),
             ("FRONTEND_URL", settings.FRONTEND_URL),
+            ("ADMIN_PASSWORD_HASH", settings.ADMIN_PASSWORD_HASH),
         ]
         
         missing = []
