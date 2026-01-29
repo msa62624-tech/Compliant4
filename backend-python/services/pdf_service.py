@@ -201,7 +201,7 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
     if gl_expiration:
         try:
             gl_exp_date = datetime.fromisoformat(gl_expiration.replace("Z", "+00:00"))
-            if gl_exp_date < current_date:
+            if gl_exp_date <= current_date:
                 compliant = False
                 issues.append({
                     "type": "coverage_expired",
@@ -211,6 +211,7 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
                 })
         except (ValueError, AttributeError) as e:
             logger.warning(f"Invalid GL expiration date format: {gl_expiration} - {e}")
+            compliant = False  # SECURITY FIX: Invalid dates must fail compliance
             issues.append({
                 "type": "invalid_date_format",
                 "coverage_type": "General Liability",
@@ -222,7 +223,7 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
     if wc_expiration:
         try:
             wc_exp_date = datetime.fromisoformat(wc_expiration.replace("Z", "+00:00"))
-            if wc_exp_date < current_date:
+            if wc_exp_date <= current_date:
                 compliant = False
                 issues.append({
                     "type": "coverage_expired",
@@ -232,6 +233,7 @@ def analyze_coi_compliance(coi_data: Dict[str, Any], program_requirements: List[
                 })
         except (ValueError, AttributeError) as e:
             logger.warning(f"Invalid WC expiration date format: {wc_expiration} - {e}")
+            compliant = False  # SECURITY FIX: Invalid dates must fail compliance
             issues.append({
                 "type": "invalid_date_format",
                 "coverage_type": "Workers Compensation",
