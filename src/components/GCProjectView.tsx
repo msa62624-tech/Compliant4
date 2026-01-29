@@ -180,7 +180,7 @@ export default function GCProjectView(): JSX.Element {
       if (!form.subcontractor_name || !form.trade || !form.contact_email) {
         throw new Error("Company, trade, and contact email are required");
       }
-      const contactEmail = form.contact_email.trim();
+      const contactEmail = form.contact_email?.trim() ?? '';
       if (!contactEmail.includes('@')) {
         throw new Error("Enter a valid contact email");
       }
@@ -303,7 +303,7 @@ export default function GCProjectView(): JSX.Element {
           portalUrl = origin + '/subcontractor-login';
         }
         
-        const contactEmail = form.contact_email.trim();
+        const contactEmail = form.contact_email?.trim() ?? '';
         
         // Create formatted HTML email with standardized styling
         const emailHtml = `
