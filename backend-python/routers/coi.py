@@ -100,7 +100,7 @@ async def generate_sample_coi(
             "message": "COI PDF generated successfully",
             "filename": filename,
             "url": file_url,
-            "coiId": request.coiId or filename.split('-')[1]
+            "coiId": request.coiId or coi_data.get("coiId", "generated")
         }
         
     except Exception as e:

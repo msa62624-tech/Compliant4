@@ -41,13 +41,13 @@ class COIPDFService:
             str: Filename of the generated PDF
         """
         try:
-            # Generate filename
-            coi_id = coi_data.get('coiId', datetime.now().timestamp())
+            # Generate filename with timestamp
             timestamp = int(datetime.now().timestamp() * 1000)
+            coi_id = coi_data.get('coiId', timestamp)
             filename = f"coi-{coi_id}-{timestamp}.pdf"
             filepath = os.path.join(self.uploads_dir, filename)
             
-            logger.info(f"Generating ACORD 25 COI PDF for {coi_data.get('subcontractorName', 'unknown')}")
+            logger.info(f"Generating ACORD 25 COI PDF for {coi_data.get('subcontractorName', 'unknown')}, COI ID: {coi_id}")
             
             # Create PDF canvas
             c = canvas.Canvas(filepath, pagesize=letter)
@@ -93,7 +93,7 @@ class COIPDFService:
         
         # Form identifier
         c.setFont("Helvetica", 6)
-        c.drawString(30, height - 45, "ACORD 25 (2016/03)")
+        c.drawString(30, height - 45, "ACORD 25 (2016/03) - Certificate of Insurance")
         
         # Draw horizontal line
         c.line(30, height - 55, width - 30, height - 55)
