@@ -49,3 +49,8 @@ psutil==5.9.8  # System and process utilities
 # Optional integrations (Adobe PDF, AI)
 openai==1.10.0  # AI integration
 requests==2.31.0  # HTTP requests for external APIs
+
+# Development & Code Quality (for Codespaces)
+black==24.1.1  # Python code formatter
+isort==5.13.2  # Import sorting
+ruff==0.2.0  # Fast Python linter

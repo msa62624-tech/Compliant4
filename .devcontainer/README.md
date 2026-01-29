@@ -6,9 +6,10 @@ When you open this repository in GitHub Codespaces, the environment will automat
 1. Install Node.js 20 (for frontend)
 2. Install Python 3.11 (for backend)
 3. Install frontend dependencies (`npm install`)
-4. Install Python backend dependencies (`cd backend-python && pip install -r requirements.txt`)
-5. Forward ports 5175 (frontend) and 3001 (backend)
-6. Install VS Code extensions for JavaScript/TypeScript and Python development
+4. Install Python backend dependencies and formatters (`cd backend-python && pip install -r requirements.txt`)
+5. Install Python code quality tools (Black, isort, ruff)
+6. Forward ports 5175 (frontend) and 3001 (backend)
+7. Install VS Code extensions for JavaScript/TypeScript and Python development (including Black formatter)
 
 This is configured in `.devcontainer/devcontainer.json`.
 
@@ -146,10 +147,11 @@ If things are really broken:
 
 The following extensions are automatically installed:
 - **ESLint** - JavaScript/TypeScript linting
-- **Prettier** - Code formatting
+- **Prettier** - Code formatting for JavaScript/TypeScript
 - **Tailwind CSS IntelliSense** - Tailwind CSS class completions
 - **Python** - Python language support
 - **Pylance** - Fast Python language server
+- **Black Formatter** - Python code formatter (auto-formats on save)
 
 ## Known Limitations
 
