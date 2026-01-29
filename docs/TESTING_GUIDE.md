@@ -63,18 +63,18 @@ test('escapes HTML characters', () => {
 });
 ```
 
-## Backend Testing (Jest)
+## Backend Testing (Pytest)
 
 ### Running Backend Tests
 
 ```bash
-cd backend
-npm test
+cd backend-python
+pytest
 ```
 
 ### Test Structure
 
-Backend tests are located in `backend/__tests__/` directory:
+Backend tests are located in `backend-python/tests/` directory:
 
 - **API tests** - Test REST endpoints
 - **Authentication tests** - Test login and token handling
@@ -251,13 +251,13 @@ npm run test:ui
 ### Backend Tests
 
 ```bash
-cd backend
+cd backend-python
 
 # Run specific test file
-npm test -- __tests__/api.test.js
+pytest tests/test_api.py
 
-# Run in watch mode
-npm test -- --watch
+# Run in verbose mode
+pytest -v
 ```
 
 ### E2E Tests

@@ -12,13 +12,22 @@ When you open this repository in GitHub Codespaces, the environment will automat
 
 This is configured in `.devcontainer/devcontainer.json`.
 
-> **Note:** The Node.js backend is no longer the default. Python (FastAPI) is now the primary backend.
-
 ## Starting the Application
 
-This repository uses **Python (FastAPI)** as the primary backend. The Node.js backend is available but no longer the default.
+This repository uses **Python (FastAPI)** as the backend.
 
-### Option 1: Using Python Backend (Recommended)
+### Option 1: Using Automatic Start Script (Recommended)
+
+```bash
+./start.sh
+```
+
+This will:
+- Start the Python backend server on port 3001
+- Start the frontend dev server on port 5175
+- Create necessary `.env` files with Codespaces URLs
+
+### Option 2: Manual Start
 
 **Terminal 1 - Backend:**
 ```bash
@@ -33,35 +42,6 @@ npm run dev
 ```
 
 > **Note**: Python dependencies are automatically installed during Codespace creation!
-
-### Option 2: Automatic Start Script (Uses Node.js Backend)
-
-If you prefer the Node.js backend, you can use the start script:
-
-```bash
-./start.sh
-```
-
-This will:
-- Start the Node.js backend server on port 3001
-- Start the frontend dev server on port 5175
-- Create necessary `.env` files with Codespaces URLs
-
-> **Note**: The start script will install Node.js backend dependencies if needed.
-
-### Option 3: Manual Node.js Backend (Legacy)
-
-**Terminal 1 - Backend:**
-```bash
-cd backend
-npm install  # First time only
-npm run dev
-```
-
-**Terminal 2 - Frontend:**
-```bash
-npm run dev
-```
 
 ## Accessing the Application
 
@@ -81,11 +61,10 @@ The application automatically detects Codespaces using the `CODESPACE_NAME` envi
 These are set in:
 - Frontend: `.env` → `VITE_API_BASE_URL`
 - Python Backend: `backend-python/.env` → `FRONTEND_URL`
-- Node.js Backend (Legacy): `backend/.env` → `FRONTEND_URL`
 
 ## Troubleshooting
 
-### Python Backend Won't Start (Primary Backend)
+### Python Backend Won't Start
 
 If you see Python import errors or missing packages:
 
@@ -105,16 +84,6 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 uvicorn main:app --reload --host 0.0.0.0 --port 3001
-```
-
-### Node.js Backend Won't Start (Legacy)
-
-If you need to use the Node.js backend and see `Cannot find package 'express'` or similar errors:
-
-```bash
-cd backend
-npm install
-npm run dev
 ```
 
 ### Port Forwarding Issues
