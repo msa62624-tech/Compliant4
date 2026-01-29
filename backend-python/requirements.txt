@@ -4,7 +4,8 @@ uvicorn[standard]==0.27.0
 
 # Authentication & Security
 python-jose[cryptography]==3.4.0  # JWT tokens - Updated to fix ECDSA vulnerability
-passlib[bcrypt]==1.7.4  # Password hashing (equivalent to bcryptjs)
+bcrypt>=4.0.0  # Password hashing - used directly for better compatibility
+passlib[bcrypt]==1.7.4  # Password hashing utilities (bcrypt backend)
 python-multipart==0.0.22  # Updated from 0.0.6 - fixes multiple vulnerabilities (ReDoS, DoS, arbitrary file write)
 
 # Database (PostgreSQL support)

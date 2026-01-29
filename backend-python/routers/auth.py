@@ -16,20 +16,48 @@ from typing import Optional
 logger = setup_logger(__name__)
 router = APIRouter()
 
-# Pre-computed password hash for "INsure2026!" to avoid hashing at import time
+# Pre-computed password hash for development/testing default admin user
+# NOTE: For production, use environment variables or a secure secrets management system
+# This hash is for the default password "INsure2026!" - MUST be changed in production
 # Generated with: bcrypt.hashpw(b"INsure2026!", bcrypt.gensalt())
 ADMIN_PASSWORD_HASH = "$2b$12$5EeUXqaODR9fBs5KayB43egoQ6eajmIm3MqZ0UgS/7LTCxvyg/L3m"
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against a bcrypt hash using bcrypt directly"""
+    """
+    Verify a password against a bcrypt hash using bcrypt directly.
+    
+    Uses bcrypt directly instead of passlib to avoid compatibility issues
+    with newer bcrypt versions.
+    
+    Args:
+        plain_password: The plain text password to verify
+        hashed_password: The bcrypt hash to verify against
+        
+    Returns:
+        True if password matches, False otherwise
+    """
     try:
         return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
-    except Exception as e:
-        logger.error(f"Password verification error: {e}")
+    except (ValueError, TypeError) as e:
+        # Catch specific bcrypt-related exceptions
+        logger.error(f"Password verification error (invalid hash format): {e}")
         return False
 
 def hash_password(password: str) -> str:
-    """Hash a password using bcrypt directly"""
+    """
+    Hash a password using bcrypt directly.
+    
+    This function is provided for convenience when generating new password hashes.
+    Example usage in Python REPL:
+        from routers.auth import hash_password
+        print(hash_password("my_secure_password"))
+    
+    Args:
+        password: The plain text password to hash
+        
+    Returns:
+        The bcrypt hash as a string
+    """
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 # Mock users database (equivalent to utils/users.js)
