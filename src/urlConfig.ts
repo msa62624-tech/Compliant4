@@ -114,7 +114,7 @@ export function createSubcontractorDashboardLink(subId: string): string {
  */
 export function createCOIReviewLink(coiId: string): string {
   const baseUrl = getFrontendBaseUrl();
-  return `${baseUrl}/coi-review?id=${coiId}`;
+  return `${baseUrl}/COIReview?id=${coiId}`;
 }
 
 /**
@@ -137,7 +137,10 @@ export function createProjectDetailsLink(projectId: string, section?: string): s
  */
 export function createGCProjectLink(projectId: string, gcId: string): string {
   const baseUrl = getFrontendBaseUrl();
-  return `${baseUrl}/gc-project?project=${projectId}&id=${gcId}`;
+  const url = new URL(`${baseUrl}/gc-project`);
+  url.searchParams.set('project', projectId);
+  url.searchParams.set('id', gcId);
+  return url.toString();
 }
 
 /**
@@ -196,5 +199,9 @@ export function createBrokerPortalLink(brokerName: string, coiId?: string): stri
  */
 export function createBrokerSignLink(coiToken: string, step: number = 3): string {
   const baseUrl = getFrontendBaseUrl();
-  return `${baseUrl}/broker-upload-coi?token=${coiToken}&action=sign&step=${step}`;
+  const url = new URL(`${baseUrl}/broker-upload-coi`);
+  url.searchParams.set('token', coiToken);
+  url.searchParams.set('action', 'sign');
+  url.searchParams.set('step', step.toString());
+  return url.toString();
 }
