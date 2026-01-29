@@ -7,9 +7,11 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import uvicorn
 import logging
+import os
 
 # Import configuration
 from config.env import settings
@@ -25,7 +27,7 @@ from middleware.health_check import setup_health_checks
 from middleware.metrics import setup_metrics
 
 # Import routers
-from routers import auth, entities, health, metrics as metrics_router
+from routers import auth, entities, health, metrics as metrics_router, coi
 
 # Setup logger
 logger = setup_logger(__name__)
@@ -95,6 +97,12 @@ app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(entities.router, prefix="/entities", tags=["Entities"])
 app.include_router(health.router, prefix="/health", tags=["Health"])
 app.include_router(metrics_router.router, prefix="/metrics", tags=["Metrics"])
+app.include_router(coi.router, tags=["COI Generation"])
+
+# Serve static files (uploads)
+uploads_dir = os.environ.get("UPLOADS_DIR", "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 # Error handler
 @app.exception_handler(Exception)
