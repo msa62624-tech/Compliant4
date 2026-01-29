@@ -4,7 +4,7 @@
  * This is the custom REST API client for the Compliant insurance tracking system.
  * 
  * This file implements a custom REST API client that connects to our
- * Express.js backend (backend/server.js). All functionality is self-contained
+ * FastAPI Python backend (backend-python/main.py). All functionality is self-contained
  * within this application.
  * 
  * Features:

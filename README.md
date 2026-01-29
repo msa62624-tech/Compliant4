@@ -2,36 +2,17 @@
 
 **Grade: A+++++ (Exceptional Enterprise-Ready)** 🌟🏆
 
-Full-stack insurance tracking application for General Contractors and their subcontractors. Built with React frontend and **dual backend options**: Express.js (Node.js) **or** FastAPI (Python) - **both production-ready with full feature parity!**
+Full-stack insurance tracking application for General Contractors and their subcontractors. Built with React frontend and **FastAPI (Python) backend** - **production-ready with enterprise features!**
 
 > 🎉 **A+++++ Achievement**: This application features exceptional enterprise-grade capabilities including advanced security, Kubernetes-ready health monitoring, API versioning, distributed tracing, and automated deployment. See [A_PLUS_PLUS_PLUS_PLUS_PLUS_ACHIEVEMENT.md](A_PLUS_PLUS_PLUS_PLUS_PLUS_ACHIEVEMENT.md) for details.
 
-> 🐍 **Python Backend Complete!**: The Python/FastAPI backend is now 100% complete with all features from the Node.js backend, including COI PDF generation, AI analysis, Adobe PDF integration, PostgreSQL support, and comprehensive test coverage (12 tests passing).
+> 🐍 **Python Backend**: The Python/FastAPI backend is 100% complete with COI PDF generation, AI analysis, Adobe PDF integration, PostgreSQL support, and comprehensive test coverage (12 tests passing).
 
 > 📦 **Repository Structure**: This is a multi-package repository (not a traditional monorepo) with separate frontend and backend packages. See [REPOSITORY_STRUCTURE.md](REPOSITORY_STRUCTURE.md) for details.
 
 ---
 
-## ⚠️ SECURITY NOTICE - CRITICAL ACTION REQUIRED
 
-**CRITICAL:** The `backend/.env` file with sensitive credentials (JWT_SECRET, SMTP credentials) was previously committed to the repository.
-
-**Current Status:**
-- ✅ The file is no longer tracked by git (as of this commit)
-- ✅ File removed from tracking in HEAD commit
-- ✅ File properly ignored by .gitignore
-- ❌ Credentials still exposed in git history (requires manual git-filter-repo + force push)
-- ⚠️ Credentials must be rotated after history cleanup
-
-**Required Actions:**
-1. **IMMEDIATELY after merging:** Run `git-filter-repo` to remove the file from all git history
-2. **IMMEDIATELY after merging:** Force push the cleaned history to the remote repository
-3. **After cleanup:** Rotate all exposed credentials immediately
-
-📄 **See [docs/SECURITY_CREDENTIAL_ROTATION.md](docs/SECURITY_CREDENTIAL_ROTATION.md) for complete instructions.**
-📋 **See [docs/POST_MERGE_CHECKLIST.md](docs/POST_MERGE_CHECKLIST.md) for step-by-step cleanup process.**
-
----
 
 ## Quick Start
 
@@ -51,20 +32,7 @@ npm run dev
 
 ### Backend Setup
 
-**Choose Your Backend:**
-
-Both backends are **production-ready** with full feature parity! Choose based on your needs:
-
-**Node.js Backend (Recommended for most use cases):**
-```bash
-cd backend
-npm install
-# .env file already configured with defaults
-npm run dev
-   - Example quick-test: see `scripts/test-requests.sh` to exercise debug, public users, login and protected calls (requires `jq` locally)
-```
-
-**Python Backend (100% Complete - Best for ML/AI integration):**
+**Python Backend:**
 ```bash
 cd backend-python
 ./setup.sh  # Or manually: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
@@ -73,8 +41,6 @@ uvicorn main:app --reload --host 0.0.0.0 --port 3001
 
 Backend runs on `http://localhost:3001`  
 Frontend runs on `http://localhost:5175`
-
-> **Note:** See [BACKEND_COMPARISON.md](BACKEND_COMPARISON.md) for a detailed comparison of Node.js vs Python backends.
 
 For email configuration, see [docs/EMAIL_SETUP.md](docs/EMAIL_SETUP.md).
 
@@ -259,15 +225,13 @@ Expected output: All 19 entities should return HTTP 200 ✅
 ## 🏛️ Architecture
 
 - **Frontend:** React + Vite + Shadcn/ui + Tailwind CSS
-- **Backend Options (choose one):**
-  - **Node.js:** Express.js + JWT auth (in `backend/` - production ready)
-  - **Python:** FastAPI + JWT auth (in `backend-python/` - **100% complete, production ready!**)
+- **Backend:** FastAPI + JWT auth (in `backend-python/` - **production ready!**)
 - **API Client:** Custom REST client (legacy name: "compliant" - purely internal, no external dependency)
 - **State:** React Query (@tanstack/react-query)
 - **Storage:** In-memory with file persistence (migrate to PostgreSQL for production - migration tools included in Python backend)
 - **Auth:** Bearer tokens (1hr expiry) + Refresh tokens (7d expiry)
 
-> **Note:** The repository includes **two complete, production-ready backend implementations**: Node.js (Express.js) and Python (FastAPI). Both have 100% feature parity. Choose Node.js for unified JavaScript stack, or Python for ML/AI integration. See [BACKEND_COMPARISON.md](BACKEND_COMPARISON.md) for comparison and [backend-python/README.md](backend-python/README.md) for Python backend details.
+> **Note:** The backend is implemented in Python using FastAPI. See [backend-python/README.md](backend-python/README.md) for backend details.
 
 ## 🔧 Environment Variables
 
@@ -342,9 +306,9 @@ If you see console warnings about "MOCK MODE" or data not persisting:
 2. **Verify:** Check that `.env` exists in the root directory with `VITE_API_BASE_URL=http://localhost:3001`
 3. **Start backend:**
    ```bash
-   cd backend
-   npm install
-   npm run dev
+   cd backend-python
+   ./setup.sh
+   uvicorn main:app --reload --host 0.0.0.0 --port 3001
    ```
 4. **Start frontend:**
    ```bash
@@ -360,8 +324,8 @@ If data isn't persisting or emails aren't sending:
 
 1. Ensure the backend is running:
    ```bash
-   cd backend
-   npm run dev
+   cd backend-python
+   uvicorn main:app --reload --host 0.0.0.0 --port 3001
    ```
 
 2. Verify browser console shows API calls to `http://localhost:3001` (not mock mode warnings)
@@ -374,7 +338,7 @@ For production deployments, see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 If emails appear to send but don't arrive:
 - Development mode without SMTP configured will log emails instead of sending them
-- To send real emails, configure SMTP in `backend/.env` - see [docs/EMAIL_SETUP.md](docs/EMAIL_SETUP.md) or [docs/COMPLETE_CONFIGURATION_GUIDE.md](docs/COMPLETE_CONFIGURATION_GUIDE.md)
+- To send real emails, configure SMTP in `backend-python/.env` - see [docs/EMAIL_SETUP.md](docs/EMAIL_SETUP.md) or [docs/COMPLETE_CONFIGURATION_GUIDE.md](docs/COMPLETE_CONFIGURATION_GUIDE.md)
 - Check backend console for email delivery status
 
 ## ⚠️ Important Notes
