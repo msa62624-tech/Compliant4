@@ -117,8 +117,8 @@ def create_entity(entity_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
         # Create task in the running loop
         loop.create_task(save_entities())
     except RuntimeError:
-        # No event loop running, save synchronously
-        # This can happen during initialization
+        # No event loop running, skip async save
+        # Data will be saved on next successful operation or shutdown
         pass
     
     return data
@@ -141,7 +141,7 @@ def update_entity(entity_type: str, entity_id: str, data: Dict[str, Any]) -> Dic
                 loop = asyncio.get_running_loop()
                 loop.create_task(save_entities())
             except RuntimeError:
-                # No event loop running
+                # No event loop running, skip async save
                 pass
             
             return entity
@@ -166,7 +166,7 @@ def delete_entity(entity_type: str, entity_id: str) -> bool:
             loop = asyncio.get_running_loop()
             loop.create_task(save_entities())
         except RuntimeError:
-            # No event loop running
+            # No event loop running, skip async save
             pass
         return True
     
