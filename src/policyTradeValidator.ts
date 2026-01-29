@@ -265,7 +265,7 @@ export function validatePolicyTradeCoverage(
 
   // Check for premium basis restrictions
   if (coi.gl_premium_basis && requiredTrades.length > 1) {
-    const premiumBasisText = coi.gl_premium_basis?.toLowerCase() ?? '';
+    const premiumBasisText = coi.gl_premium_basis.toLowerCase();
 
     if (premiumBasisText.includes('single trade') || premiumBasisText.includes('one trade only')) {
       warnings.push({
@@ -279,7 +279,7 @@ export function validatePolicyTradeCoverage(
 
   // Check for warranty/inherent exclusions
   if (coi.gl_inherent_exclusions) {
-    const inheritantText = coi.gl_inherent_exclusions?.toLowerCase() ?? '';
+    const inheritantText = coi.gl_inherent_exclusions.toLowerCase();
 
     for (const trade of requiredTrades) {
       const tradeLower = trade.toLowerCase();
@@ -351,7 +351,7 @@ export function validateTradeRestrictions(
 
     if (
       coi.gl_premium_basis &&
-      coi.gl_premium_basis?.toLowerCase()?.includes('pitched roof')
+      coi.gl_premium_basis.toLowerCase().includes('pitched roof')
     ) {
       restrictions.push({
         type: 'warning',
