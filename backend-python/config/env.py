@@ -123,7 +123,10 @@ def get_admin_password_hash() -> str:
 
 def validate_production_environment():
     """Validate that production environment has required settings"""
-    if settings.NODE_ENV == "production":
+    # Check if we're in production
+    is_production = settings.NODE_ENV.lower() in ["production", "prod", "live"]
+    
+    if is_production:
         required_settings = [
             ("JWT_SECRET", settings.JWT_SECRET),
             ("FRONTEND_URL", settings.FRONTEND_URL),
