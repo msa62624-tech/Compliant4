@@ -8,6 +8,8 @@ Full-stack insurance tracking application for General Contractors and their subc
 
 > 🐍 **Python Backend Complete!**: The Python/FastAPI backend is now 100% complete with all features from the Node.js backend, including COI PDF generation, AI analysis, Adobe PDF integration, PostgreSQL support, and comprehensive test coverage (12 tests passing).
 
+> 📦 **Repository Structure**: This is a multi-package repository (not a traditional monorepo) with separate frontend and backend packages. See [REPOSITORY_STRUCTURE.md](REPOSITORY_STRUCTURE.md) for details.
+
 ---
 
 ## ⚠️ SECURITY NOTICE - CRITICAL ACTION REQUIRED
