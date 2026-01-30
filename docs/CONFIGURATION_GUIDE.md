@@ -6,7 +6,15 @@ This document explains how the INsuretrack system has been configured for backen
 
 The system has been configured with:
 1. **Frontend Backend Connection**: `.env` file with `VITE_API_BASE_URL` set to `http://localhost:3001`
-2. **Backend SMTP Email**: `.env` file with Microsoft 365 SMTP configuration
+2. **Backend SMTP Email**: `.env` file in your chosen backend directory with SMTP configuration
+
+## Backend Options
+
+The application supports two backend implementations:
+- **Python/FastAPI** (Recommended) - Located in `/backend-python/`
+- **Node.js/Express** (Legacy) - Located in `/backend/`
+
+Choose one backend for your deployment.
 
 ## Files Created
 
@@ -17,13 +25,30 @@ The system has been configured with:
 - **Note**: This file is git-ignored and contains environment-specific settings
 
 ### Backend Configuration
-- **File**: `/backend/.env`
-- **Purpose**: Configures the backend server with SMTP email settings
+
+#### Python Backend (Recommended)
+- **File**: `/backend-python/.env`
+- **Purpose**: Configures the Python/FastAPI backend server with SMTP email settings
 - **Key Settings**:
-  - `SMTP_HOST=smtp.office365.com`
+  - `JWT_SECRET=your-secret-key`
+  - `FRONTEND_URL=http://localhost:5175`
+  - `SMTP_HOST=smtp.office365.com` (or your email provider)
   - `SMTP_PORT=587`
-  - `SMTP_USER=miriamsabel@insuretrack.onmicrosoft.com`
-  - `SMTP_FROM=miriamsabel@insuretrack.onmicrosoft.com`
+  - `SMTP_USER=your.email@domain.com`
+  - `SMTP_FROM=your.email@domain.com`
+  - `DATABASE_URL=sqlite:///./compliant.db` (or PostgreSQL URL)
+- **Note**: This file is git-ignored and contains sensitive credentials
+
+#### Node.js Backend (Legacy)
+- **File**: `/backend/.env`
+- **Purpose**: Configures the Node.js/Express backend server with SMTP email settings
+- **Key Settings**:
+  - `JWT_SECRET=your-secret-key`
+  - `FRONTEND_URL=http://localhost:5175`
+  - `SMTP_HOST=smtp.office365.com` (or your email provider)
+  - `SMTP_PORT=587`
+  - `SMTP_USER=your.email@domain.com`
+  - `SMTP_FROM=your.email@domain.com`
 - **Note**: This file is git-ignored and contains sensitive credentials
 
 ## What Changed in the UI
@@ -51,7 +76,28 @@ The warning banner is removed, and the login page shows a clean interface with:
 
 ### Starting the Application
 
-1. **Start the Backend** (in one terminal):
+**Choose your backend:**
+
+#### Option 1: Python Backend (Recommended)
+
+1. **Start the Python Backend** (in one terminal):
+   ```bash
+   cd backend-python
+   ./setup.sh  # First time only
+   uvicorn main:app --reload --host 0.0.0.0 --port 3001
+   ```
+   Backend runs on: `http://localhost:3001`
+
+2. **Start the Frontend** (in another terminal):
+   ```bash
+   npm install
+   npm run dev
+   ```
+   Frontend runs on: `http://localhost:5175` (or next available port such as 5173)
+
+#### Option 2: Node.js Backend (Legacy)
+
+1. **Start the Node.js Backend** (in one terminal):
    ```bash
    cd backend
    npm install
@@ -66,7 +112,8 @@ The warning banner is removed, and the login page shows a clean interface with:
    ```
    Frontend runs on: `http://localhost:5175` (or next available port such as 5173)
 
-3. **Login**:
+#### Login
+   3. **Login**:
    - Username: `admin`
    - Password: `INsure2026!`
 

@@ -4,7 +4,25 @@ INsuretrack uses email to send notifications to contractors, brokers, and system
 
 ## Quick Setup
 
-1. Navigate to the backend directory:
+**Choose the backend you're using:**
+
+### For Python Backend (Recommended)
+
+1. Navigate to the Python backend directory:
+   ```bash
+   cd backend-python
+   ```
+
+2. Copy the example environment file (if you haven't already):
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Edit `backend-python/.env` and configure one of the following options below.
+
+### For Node.js Backend (Legacy)
+
+1. Navigate to the Node.js backend directory:
    ```bash
    cd backend
    ```
@@ -14,7 +32,7 @@ INsuretrack uses email to send notifications to contractors, brokers, and system
    cp .env.example .env
    ```
 
-3. Edit `backend/.env` and configure one of the following options:
+3. Edit `backend/.env` and configure one of the following options below.
 
 ## Option A: Microsoft 365 / Outlook (Recommended)
 
@@ -52,7 +70,7 @@ Gmail is a good option for testing. You'll need to create an "App Password" rath
    - Name it "INsuretrack"
    - Copy the 16-character password (without spaces)
 
-3. **Configure in backend/.env**:
+3. **Configure in your backend `.env` file** (`backend/.env` for Node.js OR `backend-python/.env` for Python):
    ```bash
    SMTP_SERVICE=gmail
    SMTP_USER=your.email@gmail.com
@@ -79,7 +97,15 @@ SMTP_REQUIRE_TLS=true
 
 After configuring SMTP, restart your backend server:
 
+**For Python backend:**
 ```bash
+cd backend-python
+uvicorn main:app --reload --port 3001
+```
+
+**For Node.js backend:**
+```bash
+cd backend
 npm run dev
 ```
 
