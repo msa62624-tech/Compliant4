@@ -1,0 +1,12 @@
+{
+  "remote.extensionKind": {
+    "ms-vscode.remote-server": [
+      "workspace"
+    ]
+  },
+  "remote.autoForwardPorts": true,
+  "remote.autoForwardPortsSource": "hybrid",
+  "remote.forwardOnOpen": true,
+  "dev.tunnels.access.hostNameOverride": "*.app.github.dev",
+  "dev.tunnels.access.preventSleep": true
+}

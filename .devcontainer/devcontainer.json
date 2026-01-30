@@ -26,7 +26,12 @@
           "editor.formatOnSave": true
         },
         "python.linting.enabled": true,
-        "python.linting.pylintEnabled": false
+        "python.linting.pylintEnabled": false,
+        "remote.autoForwardPorts": true,
+        "remote.autoForwardPortsSource": "hybrid",
+        "remote.forwardOnOpen": true,
+        "dev.tunnels.access.hostNameOverride": "*.app.github.dev",
+        "dev.tunnels.access.preventSleep": true
       }
     }
   },
@@ -35,11 +40,15 @@
   "portsAttributes": {
     "5175": {
       "label": "Frontend",
-      "onAutoForward": "notify"
+      "onAutoForward": "notify",
+      "protocol": "https",
+      "visibility": "public"
     },
     "3001": {
       "label": "Backend API",
-      "onAutoForward": "notify"
+      "onAutoForward": "notify",
+      "protocol": "https",
+      "visibility": "public"
     }
   },
 

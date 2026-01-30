@@ -294,6 +294,20 @@ curl -X POST http://localhost:3001/entities/Contractor \
 
 ## 🐛 Troubleshooting
 
+### "Unallowed host" Error in GitHub Codespaces
+
+**⚠️ If you see "Unallowed host" errors in VS Code:**
+
+This error occurs when VS Code's dev-tunnel system doesn't recognize GitHub Codespaces URLs. The repository now includes a fix:
+
+1. **For new Codespaces:** Settings are applied automatically
+2. **For existing Codespaces:** Rebuild the container:
+   - Press `Ctrl/Cmd + Shift + P`
+   - Type "Codespaces: Rebuild Container"
+   - Wait for rebuild to complete
+
+**📖 Complete guide:** [CODESPACES_EXTERNAL_URI_FIX.md](CODESPACES_EXTERNAL_URI_FIX.md)
+
 ### "Backend is Mocked" / "Backend not configured" Error
 
 **⚠️ This is the most common issue!**

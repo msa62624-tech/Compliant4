@@ -16,9 +16,7 @@ When the `VITE_API_BASE_URL` environment variable is not set, the frontend will:
 
 The `.env` file has been created with the proper configuration to connect to the backend at `http://localhost:3001`.
 
-**To start using the backend (choose one option):**
-
-#### Option A: Python Backend (Recommended - FastAPI)
+**To start using the backend:**
 
 1. **Start the Python backend server:**
    ```bash
@@ -31,22 +29,6 @@ The `.env` file has been created with the proper configuration to connect to the
    ```
    ✅ Server running on http://localhost:3001
    ```
-
-#### Option B: Node.js Backend (Legacy - Express.js)
-
-1. **Start the Node.js backend server:**
-   ```bash
-   cd backend
-   npm install
-   npm run dev
-   ```
-   
-   You should see:
-   ```
-   ✅ Server running on http://localhost:3001
-   ```
-
-#### Continue with Frontend
 
 2. **Start the frontend:**
    ```bash
@@ -67,19 +49,15 @@ The `.env` file has been created with the proper configuration to connect to the
 
 ### Environment Files Created
 
-Two or three `.env` files may be needed depending on which backend you use:
+Two `.env` files are needed:
 
 1. **Frontend `.env`** (root directory)
    - Contains: `VITE_API_BASE_URL=http://localhost:3001`
    - Tells the frontend where to find the backend API
 
-2. **Python Backend `.env`** (backend-python directory) - If using Python backend
+2. **Python Backend `.env`** (backend-python directory)
    - Contains: JWT secret, frontend URL, database config, SMTP configuration (commented out)
    - Configures the Python/FastAPI backend server settings
-
-3. **Node.js Backend `.env`** (backend directory) - If using Node.js backend
-   - Contains: JWT secret, frontend URL, SMTP configuration (commented out)
-   - Configures the Node.js/Express backend server settings
 
 ### How to Verify It's Working
 
@@ -98,12 +76,11 @@ Two or three `.env` files may be needed depending on which backend you use:
 
 **Backend not starting?**
 - Check if port 3001 is already in use
-- For Python backend: Verify Python 3.8+ is installed and dependencies are installed
-- For Node.js backend: Verify backend dependencies are installed: `cd backend && npm install`
+- Verify Python 3.8+ is installed and dependencies are installed
 - Check backend logs for errors
 
 **CORS errors?**
-- Verify `FRONTEND_URL` in backend/.env matches your frontend URL
+- Verify `FRONTEND_URL` in backend-python/.env matches your frontend URL
 - Default is `http://localhost:5175` (Vite's default port)
 
 ### Production Deployment
