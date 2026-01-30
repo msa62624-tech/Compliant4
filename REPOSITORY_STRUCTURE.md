@@ -15,20 +15,21 @@ This repository contains **three separate packages** with distinct dependency ma
    - Tech Stack: React + Vite + TypeScript + Tailwind CSS
    - Dependencies: Managed independently in root `package.json`
 
-2. **Backend Package - Node.js** (Backend Directory)
+2. **Backend Package - Node.js** (Backend Directory - Legacy)
    - Location: `/backend/`
    - Package Manager: npm
    - Configuration: `backend/package.json`
-   - Tech Stack: Node.js + Express.js + PostgreSQL
+   - Tech Stack: Node.js + Express.js + In-memory storage
    - Dependencies: Managed independently in `backend/package.json`
+   - Status: Legacy option, maintained for compatibility
 
-3. **Backend Package - Python** (Backend-Python Directory)
+3. **Backend Package - Python** (Backend Directory - Recommended)
    - Location: `/backend-python/`
    - Package Manager: pip
    - Configuration: `backend-python/requirements.txt`
-   - Tech Stack: Python + FastAPI + PostgreSQL
+   - Tech Stack: Python + FastAPI + PostgreSQL/SQLite
    - Dependencies: Managed independently in `requirements.txt`
-   - Note: Full feature parity with Node.js backend
+   - Status: **Production-ready with full feature parity and enterprise features**
 
 ### What Makes It NOT a Traditional Monorepo?
 
@@ -64,15 +65,15 @@ This is a **loosely coupled full-stack project** or **multi-package repository**
 npm install
 npm run dev
 
-# Backend setup - Node.js (separate directory)
+# Backend setup - Python (Recommended)
+cd backend-python
+./setup.sh  # Or: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+uvicorn main:app --reload --port 3001
+
+# OR Backend setup - Node.js (Legacy)
 cd backend
 npm install
 npm run dev
-
-# OR Backend setup - Python (separate directory)
-cd backend-python
-pip install -r requirements.txt
-uvicorn main:app --reload --port 3001
 ```
 
 ### Additional Packages
@@ -141,16 +142,16 @@ npm run setup
 
 ### Running the Application
 ```bash
-# Option 1: Node.js Backend
-# Terminal 1: Node.js Backend
-cd backend && npm run dev
+# Option 1: Python Backend (Recommended)
+# Terminal 1: Python Backend
+cd backend-python && uvicorn main:app --reload --port 3001
 
 # Terminal 2: Frontend
 npm run dev
 
-# Option 2: Python Backend
-# Terminal 1: Python Backend
-cd backend-python && uvicorn main:app --reload --port 3001
+# Option 2: Node.js Backend (Legacy)
+# Terminal 1: Node.js Backend
+cd backend && npm run dev
 
 # Terminal 2: Frontend
 npm run dev
@@ -161,11 +162,11 @@ npm run dev
 # Frontend tests
 npm test
 
-# Node.js backend tests
-cd backend && npm test
-
-# Python backend tests
+# Python backend tests (Recommended)
 cd backend-python && pytest
+
+# Node.js backend tests (Legacy)
+cd backend && npm test
 
 # E2E tests (requires both frontend and backend running)
 npm run test:e2e
@@ -175,7 +176,7 @@ npm run test:e2e
 
 This repository follows a **multi-package structure** that is commonly used for full-stack applications. It is **not a monorepo** in the technical sense because it lacks monorepo management tools and workspace configuration. The current structure includes:
 - One frontend package (React + Vite)
-- Two backend options with full feature parity (Node.js/Express.js and Python/FastAPI)
+- Two backend options (Python/FastAPI recommended for production, Node.js/Express.js legacy)
 - Independent package management for each
 
-The current structure is appropriate for the project's size and complexity, offering flexibility in backend technology choice while maintaining a clean separation of concerns.
+The Python/FastAPI backend is the **recommended and production-ready** option with full enterprise features, while the Node.js/Express.js backend is maintained for backward compatibility. The current structure is appropriate for the project's size and complexity, offering flexibility in backend technology choice while maintaining a clean separation of concerns.

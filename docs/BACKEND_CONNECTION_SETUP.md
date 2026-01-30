@@ -16,9 +16,25 @@ When the `VITE_API_BASE_URL` environment variable is not set, the frontend will:
 
 The `.env` file has been created with the proper configuration to connect to the backend at `http://localhost:3001`.
 
-**To start using the backend:**
+**To start using the backend (choose one option):**
 
-1. **Start the backend server:**
+#### Option A: Python Backend (Recommended - FastAPI)
+
+1. **Start the Python backend server:**
+   ```bash
+   cd backend-python
+   ./setup.sh  # Or: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+   uvicorn main:app --reload --host 0.0.0.0 --port 3001
+   ```
+   
+   You should see:
+   ```
+   ✅ Server running on http://localhost:3001
+   ```
+
+#### Option B: Node.js Backend (Legacy - Express.js)
+
+1. **Start the Node.js backend server:**
    ```bash
    cd backend
    npm install
@@ -29,6 +45,8 @@ The `.env` file has been created with the proper configuration to connect to the
    ```
    ✅ Server running on http://localhost:3001
    ```
+
+#### Continue with Frontend
 
 2. **Start the frontend:**
    ```bash
@@ -49,15 +67,19 @@ The `.env` file has been created with the proper configuration to connect to the
 
 ### Environment Files Created
 
-Two `.env` files have been created for you:
+Two or three `.env` files may be needed depending on which backend you use:
 
 1. **Frontend `.env`** (root directory)
    - Contains: `VITE_API_BASE_URL=http://localhost:3001`
    - Tells the frontend where to find the backend API
 
-2. **Backend `.env`** (backend directory)
+2. **Python Backend `.env`** (backend-python directory) - If using Python backend
+   - Contains: JWT secret, frontend URL, database config, SMTP configuration (commented out)
+   - Configures the Python/FastAPI backend server settings
+
+3. **Node.js Backend `.env`** (backend directory) - If using Node.js backend
    - Contains: JWT secret, frontend URL, SMTP configuration (commented out)
-   - Configures the backend server settings
+   - Configures the Node.js/Express backend server settings
 
 ### How to Verify It's Working
 
@@ -76,7 +98,8 @@ Two `.env` files have been created for you:
 
 **Backend not starting?**
 - Check if port 3001 is already in use
-- Verify backend dependencies are installed: `cd backend && npm install`
+- For Python backend: Verify Python 3.8+ is installed and dependencies are installed
+- For Node.js backend: Verify backend dependencies are installed: `cd backend && npm install`
 - Check backend logs for errors
 
 **CORS errors?**

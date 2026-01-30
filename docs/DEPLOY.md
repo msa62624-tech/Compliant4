@@ -20,16 +20,67 @@ This guide walks you through deploying both the frontend and backend of INsuretr
 ## Architecture
 
 ```
-┌─────────────────┐         ┌──────────────────┐
-│  Vercel         │         │  Render/Vercel   │
-│  (Frontend)     │────────▶│  (Backend API)   │
-│  React + Vite   │  HTTPS  │  Express.js      │
-└─────────────────┘         └──────────────────┘
+┌─────────────────┐         ┌──────────────────────────┐
+│  Vercel/Netlify │         │  Render/Vercel/Railway   │
+│  (Frontend)     │────────▶│  (Backend API)           │
+│  React + Vite   │  HTTPS  │  FastAPI (Python) OR     │
+└─────────────────┘         │  Express.js (Node.js)    │
+                            └──────────────────────────┘
 ```
 
 ## Step 1: Deploy Backend API
 
-### Deploy Backend to Vercel
+**Choose one backend option:**
+
+### Option A: Deploy Python Backend to Render (Recommended)
+
+1. **Create Render Account** (if needed)
+   - Go to https://render.com/
+   - Sign up or log in
+
+2. **Create New Web Service**
+   - Click "New +" → "Web Service"
+   - Connect your GitHub repository
+   - Select the repository: `msa62624-tech/Compliant4`
+   - Configure:
+     - Name: `compliant-backend-python`
+     - Root Directory: `backend-python`
+     - Environment: `Python 3`
+     - Build Command: `pip install -r requirements.txt`
+     - Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+
+3. **Set Environment Variables** in Render Dashboard
+   - In your web service, go to "Environment" tab
+   - Add:
+     - `JWT_SECRET` = (generate a secure random string)
+     - `FRONTEND_URL` = `https://your-frontend.vercel.app`
+     - `ENV` = `production`
+     - `DATABASE_URL` = (optional - Render can provision PostgreSQL)
+   
+   **Email Configuration (Required for notifications):**
+   Choose one option:
+   
+   **Option A: Gmail** (Quick setup, good for testing)
+   - `SMTP_HOST` = `smtp.gmail.com`
+   - `SMTP_PORT` = `587`
+   - `SMTP_USER` = `your.email@gmail.com`
+   - `SMTP_PASS` = `your-16-char-app-password`
+   - `SMTP_FROM` = `your.email@gmail.com`
+   
+   **Option B: SendGrid** (Recommended for production)
+   - `SMTP_HOST` = `smtp.sendgrid.net`
+   - `SMTP_PORT` = `587`
+   - `SMTP_USER` = `apikey`
+   - `SMTP_PASS` = `your-sendgrid-api-key`
+   - `SMTP_FROM` = `verified@yourdomain.com`
+   
+   See [EMAIL_SETUP.md](EMAIL_SETUP.md) for detailed email configuration instructions.
+
+4. **Deploy** - Render will automatically deploy your backend
+
+5. **Copy the backend URL** (e.g., `https://compliant-backend-python.onrender.com`)
+
+### Option B: Deploy Node.js Backend to Vercel (Legacy)
 
 1. **Install Vercel CLI** (if needed)
    ```bash

@@ -40,7 +40,9 @@ The "compliant" object is a **local API client adapter** located at:
 
 The `compliant` object in `src/api/compliantClient.js` is a custom REST API client that:
 
-1. **Connects to the custom Express.js backend** at `backend/server.js`
+1. **Connects to the backend API server**
+   - **Python/FastAPI backend** at `backend-python/main.py` (recommended, production-ready)
+   - **Node.js/Express backend** at `backend/server.js` (legacy option)
 2. **Provides entity CRUD operations** (list, filter, read, update, create, delete)
 3. **Handles authentication** (login, token management, refresh tokens)
 4. **Provides integration methods** (email, file upload, LLM, Adobe Sign)
@@ -57,9 +59,11 @@ src/api/compliantClient.js (custom REST client)
        ↓
 HTTP Requests (fetch)
        ↓
-backend/server.js (custom Express.js API)
+Backend API Server (choose one):
+  • backend-python/main.py (FastAPI/Python - recommended)
+  • backend/server.js (Express.js/Node.js - legacy)
        ↓
-In-memory data store (to be migrated to PostgreSQL/MongoDB)
+Database (PostgreSQL/SQLite) or In-memory data store
 ```
 
 ## Code Usage Patterns
