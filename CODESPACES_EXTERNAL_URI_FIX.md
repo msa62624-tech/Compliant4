@@ -184,7 +184,7 @@ The backend already has CORS configuration that allows GitHub Codespaces origins
 - `.vscode/settings.json` - VS Code workspace settings
 - `.devcontainer/devcontainer.json` - Devcontainer configuration
 - `vite.config.js` - Vite dev server configuration (already has `allowedHosts: true`)
-- `backend/server.js` - Backend CORS configuration (already allows GitHub Codespaces)
+- `backend-python/main.py` - Backend CORS configuration (already allows GitHub Codespaces)
 - `CODESPACES_FIX_SUMMARY.md` - Previous Codespaces fixes
 
 ## Summary
