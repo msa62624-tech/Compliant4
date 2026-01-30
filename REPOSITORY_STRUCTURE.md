@@ -6,7 +6,7 @@
 
 ### Current Structure
 
-This repository contains **three separate packages** with distinct dependency management:
+This repository contains **two separate packages** with distinct dependency management:
 
 1. **Frontend Package** (Root Directory)
    - Location: `/` (repository root)
@@ -15,15 +15,7 @@ This repository contains **three separate packages** with distinct dependency ma
    - Tech Stack: React + Vite + TypeScript + Tailwind CSS
    - Dependencies: Managed independently in root `package.json`
 
-2. **Backend Package - Node.js** (Backend Directory - Legacy)
-   - Location: `/backend/`
-   - Package Manager: npm
-   - Configuration: `backend/package.json`
-   - Tech Stack: Node.js + Express.js + In-memory storage
-   - Dependencies: Managed independently in `backend/package.json`
-   - Status: Legacy option, maintained for compatibility
-
-3. **Backend Package - Python** (Backend-Python Directory - Recommended)
+2. **Backend Package - Python** (Backend-Python Directory)
    - Location: `/backend-python/`
    - Package Manager: pip
    - Configuration: `backend-python/requirements.txt`
@@ -65,15 +57,10 @@ This is a **loosely coupled full-stack project** or **multi-package repository**
 npm install
 npm run dev
 
-# Backend setup - Python (Recommended)
+# Backend setup - Python
 cd backend-python
 ./setup.sh  # Or: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
 uvicorn main:app --reload --port 3001
-
-# OR Backend setup - Node.js (Legacy)
-cd backend
-npm install
-npm run dev
 ```
 
 ### Additional Packages
@@ -122,7 +109,6 @@ Converting to a monorepo would add complexity without significant benefits at th
 | Package | Location | Package.json/Requirements | Purpose |
 |---------|----------|---------------------------|---------|
 | Frontend | `/` | `/package.json` | React application |
-| Backend (Node.js) | `/backend/` | `/backend/package.json` | Express.js API server |
 | Backend (Python) | `/backend-python/` | `/backend-python/requirements.txt` | FastAPI API server |
 
 ### Installation Commands
@@ -130,10 +116,7 @@ Converting to a monorepo would add complexity without significant benefits at th
 # Install frontend dependencies
 npm install
 
-# Install Node.js backend dependencies
-cd backend && npm install
-
-# OR Install Python backend dependencies
+# Install Python backend dependencies
 cd backend-python && pip install -r requirements.txt
 
 # Or use the convenience script (if available)
@@ -142,19 +125,14 @@ npm run setup
 
 ### Running the Application
 ```bash
-# Option 1: Python Backend (Recommended)
 # Terminal 1: Python Backend
 cd backend-python && uvicorn main:app --reload --port 3001
 
 # Terminal 2: Frontend
 npm run dev
 
-# Option 2: Node.js Backend (Legacy)
-# Terminal 1: Node.js Backend
-cd backend && npm run dev
-
-# Terminal 2: Frontend
-npm run dev
+# Or use the convenience script
+./start.sh
 ```
 
 ### Testing
@@ -162,21 +140,21 @@ npm run dev
 # Frontend tests
 npm test
 
-# Python backend tests (Recommended)
+# Python backend tests
 cd backend-python && pytest
-
-# Node.js backend tests (Legacy)
-cd backend && npm test
 
 # E2E tests (requires both frontend and backend running)
 npm run test:e2e
+
+# Run all tests
+./run-tests.sh
 ```
 
 ## Conclusion
 
 This repository follows a **multi-package structure** that is commonly used for full-stack applications. It is **not a monorepo** in the technical sense because it lacks monorepo management tools and workspace configuration. The current structure includes:
 - One frontend package (React + Vite)
-- Two backend options (Python/FastAPI recommended for production, Node.js/Express.js legacy)
+- One backend package (Python/FastAPI - production-ready with enterprise features)
 - Independent package management for each
 
-The Python/FastAPI backend is the **recommended and production-ready** option with full enterprise features, while the Node.js/Express.js backend is maintained for backward compatibility. The current structure is appropriate for the project's size and complexity, offering flexibility in backend technology choice while maintaining a clean separation of concerns.
+The current structure is appropriate for the project's size and complexity, offering a clean separation of concerns between frontend and backend.
