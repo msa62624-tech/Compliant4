@@ -58,8 +58,6 @@ Two `.env` files are needed:
 2. **Python Backend `.env`** (backend-python directory)
    - Contains: JWT secret, frontend URL, database config, SMTP configuration (commented out)
    - Configures the Python/FastAPI backend server settings
-   - Contains: JWT secret, frontend URL, SMTP configuration (commented out)
-   - Configures the Node.js/Express backend server settings
 
 ### How to Verify It's Working
 
