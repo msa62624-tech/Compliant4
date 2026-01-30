@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Stop all node processes
+# Stop all services
 echo "🛑 Stopping all services..."
-pkill -f "node server.js" 2>/dev/null
+pkill -f "uvicorn main:app" 2>/dev/null
 pkill -f "vite" 2>/dev/null
 sleep 2
 

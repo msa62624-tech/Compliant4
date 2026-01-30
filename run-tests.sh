@@ -32,9 +32,9 @@ fi
 echo ""
 
 # Backend Tests
-echo -e "${YELLOW}Running Backend Tests (Jest)...${NC}"
+echo -e "${YELLOW}Running Backend Tests (Pytest)...${NC}"
 echo "================================"
-if (cd backend && npm test); then
+if (cd backend-python && pytest); then
     echo -e "${GREEN}✓ Backend tests passed${NC}"
     BACKEND_PASSED=true
 else
