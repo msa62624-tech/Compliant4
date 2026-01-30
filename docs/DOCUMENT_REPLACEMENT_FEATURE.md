@@ -198,20 +198,20 @@ Created for each GC on the project:
 - Lucide React for icons
 
 ### Backend Dependencies
-- Express.js for API
-- Nodemailer for email sending
+- **Python/FastAPI** (Recommended) or **Node.js/Express** (Legacy) for API
+- Nodemailer (Node.js) or SMTP library (Python) for email sending
 - JWT for authentication
-- Express validator for input validation
+- Input validation (Express validator for Node.js, Pydantic for Python)
 
 ### Configuration
-- SMTP settings required in backend `.env` for email notifications
+- SMTP settings required in backend `.env` (either `backend-python/.env` for Python or `backend/.env` for Node.js) for email notifications
 - If SMTP not configured, system logs mock emails to console
 - Notification entity created automatically if it doesn't exist
 
 ## Troubleshooting
 
 **Issue**: Emails not being sent
-- **Solution**: Check backend `.env` for SMTP configuration
+- **Solution**: Check backend `.env` (either `backend-python/.env` or `backend/.env`) for SMTP configuration
 - In development: Emails are logged to console with mock mode
 
 **Issue**: Notifications not appearing for GC

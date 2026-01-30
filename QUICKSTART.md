@@ -10,6 +10,8 @@
 ## Start Everything (Easy Mode)
 
 ### Option 1: Single Command (Recommended)
+
+**For Python Backend:**
 ```bash
 chmod +x start.sh
 ./start.sh
@@ -19,7 +21,22 @@ This starts both backend and frontend automatically!
 
 ### Option 2: Manual Start (Two Terminals)
 
-**Terminal 1 - Backend:**
+**Option A: Python Backend (Recommended):**
+
+**Terminal 1 - Python Backend:**
+```bash
+cd backend-python
+uvicorn main:app --reload --host 0.0.0.0 --port 3001
+```
+
+**Terminal 2 - Frontend:**
+```bash
+npm run dev
+```
+
+**Option B: Node.js Backend (Legacy):**
+
+**Terminal 1 - Node.js Backend:**
 ```bash
 cd backend
 node server.js
@@ -64,7 +81,8 @@ VITE v5.x.x ready in xxx ms
 ## Configuration Files Created
 
 - `/workspaces/Compliant4/.env` - Frontend config
-- `/workspaces/Compliant4/backend/.env` - Backend config with email
+- `/workspaces/Compliant4/backend-python/.env` - Python backend config (if using Python)
+- `/workspaces/Compliant4/backend/.env` - Node.js backend config (if using Node.js)
 
 ## Common Issues
 
