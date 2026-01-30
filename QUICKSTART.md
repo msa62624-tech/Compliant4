@@ -9,7 +9,8 @@
 
 ## Start Everything (Easy Mode)
 
-### Option 1: Single Command (Recommended)
+### Option 1: Single Command for Python Backend
+**Note:** This convenience script currently only supports the Python backend.
 
 **For Python Backend:**
 ```bash

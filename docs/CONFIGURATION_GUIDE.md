@@ -112,8 +112,9 @@ The warning banner is removed, and the login page shows a clean interface with:
    ```
    Frontend runs on: `http://localhost:5175` (or next available port such as 5173)
 
-#### Login
-   3. **Login**:
+### Login
+
+3. **Login**:
    - Username: `admin`
    - Password: `INsure2026!`
 

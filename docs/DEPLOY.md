@@ -41,7 +41,7 @@ This guide walks you through deploying both the frontend and backend of INsuretr
 2. **Create New Web Service**
    - Click "New +" → "Web Service"
    - Connect your GitHub repository
-   - Select the repository: `msa62624-tech/Compliant4`
+   - Select your repository (e.g., `your-github-username/your-repository`)
    - Configure:
      - Name: `compliant-backend-python`
      - Root Directory: `backend-python`

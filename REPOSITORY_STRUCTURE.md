@@ -23,7 +23,7 @@ This repository contains **three separate packages** with distinct dependency ma
    - Dependencies: Managed independently in `backend/package.json`
    - Status: Legacy option, maintained for compatibility
 
-3. **Backend Package - Python** (Backend Directory - Recommended)
+3. **Backend Package - Python** (Backend-Python Directory - Recommended)
    - Location: `/backend-python/`
    - Package Manager: pip
    - Configuration: `backend-python/requirements.txt`

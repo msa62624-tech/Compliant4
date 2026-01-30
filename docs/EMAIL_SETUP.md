@@ -67,7 +67,7 @@ Gmail is a good option for testing. You'll need to create an "App Password" rath
 2. **Create an App Password**:
    - Visit https://myaccount.google.com/apppasswords
    - Select "Mail" as the app
-   - Name it "INsuretrack"
+   - Name it "InsureTrack"
    - Copy the 16-character password (without spaces)
 
 3. **Configure in your backend `.env` file** (`backend/.env` for Node.js OR `backend-python/.env` for Python):
