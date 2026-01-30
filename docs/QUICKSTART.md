@@ -4,8 +4,13 @@ This guide will help you get the INsuretrack application running locally with fu
 
 ## Prerequisites
 
-- Node.js (v16 or higher)
-- npm (comes with Node.js)
+- **For Node.js Backend:**
+  - Node.js (v16 or higher)
+  - npm (comes with Node.js)
+
+- **For Python Backend (Recommended):**
+  - Python 3.8 or higher
+  - pip (comes with Python)
 
 ## Setup Instructions
 
@@ -18,13 +23,60 @@ cd INsuretrack1234
 
 ### 2. Set Up Backend
 
-#### Install Backend Dependencies
+**Choose one of the following backend options:**
+
+#### Option A: Python Backend (Recommended - FastAPI)
+
+**Install Python Backend Dependencies:**
+```bash
+cd backend-python
+./setup.sh  # Or manually: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+```
+
+**Create Backend Environment File:**
+Create a file named `.env` in the `backend-python` directory with the following content:
+
+```env
+# Backend Environment Configuration
+
+# Server
+PORT=3001
+ENV=development
+
+# JWT - Use a strong secret in production
+JWT_SECRET=insuretrack-dev-secret-change-in-production
+
+# CORS - Set to your frontend URL
+FRONTEND_URL=http://localhost:5175
+
+# Database (Optional - defaults to SQLite for development)
+# DATABASE_URL=postgresql://user:password@localhost:5432/compliant
+
+# SMTP (Email) - Optional for development
+# Leave these commented out to use mock email service
+# SMTP_HOST=smtp.gmail.com
+# SMTP_PORT=587
+# SMTP_USER=your.email@gmail.com
+# SMTP_PASS=your-app-password
+# SMTP_FROM=your.email@gmail.com
+```
+
+**Start Backend Server:**
+```bash
+uvicorn main:app --reload --host 0.0.0.0 --port 3001
+```
+
+The backend should start on http://localhost:3001
+
+#### Option B: Node.js Backend (Legacy - Express.js)
+
+**Install Backend Dependencies:**
 ```bash
 cd backend
 npm install
 ```
 
-#### Create Backend Environment File
+**Create Backend Environment File:**
 Create a file named `.env` in the `backend` directory with the following content:
 
 ```env
@@ -50,7 +102,7 @@ FRONTEND_URL=http://localhost:5175
 # SMTP_FROM=your.email@gmail.com
 ```
 
-#### Start Backend Server
+**Start Backend Server:**
 ```bash
 node server.js
 ```

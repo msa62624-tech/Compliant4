@@ -11,13 +11,28 @@ This guide explains how to configure all services to eliminate mocking from the 
 - **What it does:** Connects frontend to backend server
 
 ### 2. Backend Server
+
+**Choose your backend:**
+
+#### Python Backend (Recommended)
+- **File:** `backend-python/.env`
+- **Variables:**
+  - `PORT=3001`
+  - `JWT_SECRET=compliant-dev-secret-change-in-production`
+  - `FRONTEND_URL=http://localhost:5175`
+  - `ENV=development`
+  - `DATABASE_URL=sqlite:///./compliant.db` (or PostgreSQL)
+- **Status:** ✅ CONFIGURED
+- **What it does:** Basic Python/FastAPI backend server configuration
+
+#### Node.js Backend (Legacy)
 - **File:** `backend/.env`
 - **Variables:**
   - `PORT=3001`
   - `JWT_SECRET=compliant-dev-secret-change-in-production`
   - `FRONTEND_URL=http://localhost:5175`
 - **Status:** ✅ CONFIGURED
-- **What it does:** Basic backend server configuration
+- **What it does:** Basic Node.js/Express backend server configuration
 
 ## ⚠️ Requires Additional Configuration
 
@@ -27,7 +42,7 @@ This guide explains how to configure all services to eliminate mocking from the 
 
 **To Enable Real Emails:**
 
-Edit `backend/.env` and uncomment/configure one of these options:
+Edit your backend `.env` file (`backend-python/.env` for Python OR `backend/.env` for Node.js) and configure one of these options:
 
 #### Option A: Microsoft 365 / Outlook (Recommended)
 ```bash
@@ -68,7 +83,9 @@ SMTP_REQUIRE_TLS=true
 ```
 
 **Verification:**
-- Start backend: `cd backend && npm run dev`
+- Start backend:
+  - Python: `cd backend-python && uvicorn main:app --reload --port 3001`
+  - Node.js: `cd backend && npm run dev`
 - Send a test email through the application
 - Check backend console - should see "✅ Email sent successfully" instead of "MOCK EMAIL"
 
@@ -83,7 +100,7 @@ SMTP_REQUIRE_TLS=true
    - Create a project
    - Get API Key and Client ID
 
-2. **Configure in `backend/.env`:**
+2. **Configure in your backend `.env` file** (`backend-python/.env` for Python OR `backend/.env` for Node.js):
 ```bash
 ADOBE_API_KEY=your-adobe-api-key-here
 ADOBE_CLIENT_ID=your-adobe-client-id-here
@@ -143,6 +160,16 @@ AI_MODEL=claude-3-opus-20240229
 ## 🚀 Quick Start
 
 ### Minimal Setup (No External Services):
+
+**Python Backend (Recommended):**
+```bash
+# Already configured! Just start the servers:
+cd backend-python && uvicorn main:app --reload --port 3001
+# In another terminal:
+npm run dev
+```
+
+**Node.js Backend (Legacy):**
 ```bash
 # Already configured! Just start the servers:
 cd backend && npm run dev
